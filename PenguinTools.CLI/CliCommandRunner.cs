@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization.Metadata;
 using PenguinTools.Application;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.CLI;
 
@@ -25,7 +26,7 @@ internal static class CliCommandRunner
         }
         catch (Exception ex)
         {
-            CliOutput.WriteFailure(operation, Msg.Unhandled(ex.Message), CliExitCodes.Failure);
+            CliOutput.WriteFailure(operation, ResolveFailureMessage(ex), CliExitCodes.Failure);
             return CliExitCodes.Failure;
         }
     }
@@ -52,9 +53,16 @@ internal static class CliCommandRunner
         }
         catch (Exception ex)
         {
-            CliOutput.WriteFailure(operation, Msg.Unhandled(ex.Message), CliExitCodes.Failure);
+            CliOutput.WriteFailure(operation, ResolveFailureMessage(ex), CliExitCodes.Failure);
             return CliExitCodes.Failure;
         }
+    }
+
+    private static MessageDescriptor ResolveFailureMessage(Exception exception)
+    {
+        return exception is DiagnosticException diagnosticException
+            ? diagnosticException.Descriptor
+            : Msg.Unhandled(exception.Message);
     }
 
     private static int WriteResult<T>(

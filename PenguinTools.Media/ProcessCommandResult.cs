@@ -24,8 +24,13 @@ public class ProcessCommandResult
 
     public void ThrowIfFailed()
     {
+        ThrowIfFailed(MsgKeys.Error_Command_failed);
+    }
+
+    public void ThrowIfFailed(string messageKey)
+    {
         if (!IsFailure) return;
 
-        throw new DiagnosticException(MsgKeys.Error_Command_failed, this);
+        throw new DiagnosticException(messageKey, this);
     }
 }

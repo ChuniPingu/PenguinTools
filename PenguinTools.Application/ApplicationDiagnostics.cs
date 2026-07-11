@@ -17,10 +17,7 @@ internal static class ApplicationDiagnostics
     internal static OperationResult<T> FromException<T>(Exception exception)
     {
         var collector = new DiagnosticCollector();
-        collector.Report(new Diagnostic(Severity.Error, Msg.Unhandled(exception.Message))
-        {
-            RelatedException = exception
-        });
+        collector.Report(exception);
         return OperationResult<T>.Failure().WithDiagnostics(collector);
     }
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using PenguinTools.Core;
 using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
@@ -26,7 +27,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
             "-o", Math.Round(offset, 6).ToString(CultureInfo.InvariantCulture)
         ], ct);
 
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
         return ret;
     }
 
@@ -48,7 +49,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
         var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct);
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_jk_image);
     }
 
     public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
@@ -76,7 +77,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         }
 
         var ret = await RunAsync(ImgExecutablePath, args, ct);
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
     }
 
     public async Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
@@ -85,7 +86,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
         var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct);
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
     }
 
     public async Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
@@ -93,7 +94,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
         var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct);
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
         return new DdsDecodeResult(src, dst);
     }
 
@@ -113,7 +114,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
             args.Add(key.ToString(CultureInfo.InvariantCulture));
         }
         var ret = await RunAsync(CriExecutablePath, args, ct);
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
         return JsonSerializer.Deserialize(ret.StandardOutput, InfrastructureJsonContext.Default.CriExtractResult)
                ?? throw new JsonException("mua_cri returned an empty extraction manifest.");
     }
@@ -143,7 +144,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
             "--preview-stop-ms", previewStopMs.ToString(CultureInfo.InvariantCulture),
             "--hca-key", hcaKey.ToString(CultureInfo.InvariantCulture)
         ], ct);
-        ret.ThrowIfFailed();
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
     }
 
     private string ResolveExecutable(string name)
@@ -151,9 +152,6 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         var fileName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
         var path = Path.Combine(MuaDirectory, fileName);
         ResourceStoreHelpers.EnsureExecutableIfNeeded(path, fileName);
-        if (!File.Exists(path))
-            throw new FileNotFoundException($"mua executable '{fileName}' was not found in '{MuaDirectory}'.", path);
-
         return path;
     }
 
@@ -167,19 +165,22 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
     private static async Task<ProcessCommandResult> RunAsync(string executablePath, IEnumerable<string> args,
         CancellationToken ct = default)
     {
-        var psi = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in args) psi.ArgumentList.Add(arg);
+        var argumentList = args as IList<string> ?? [.. args];
+        var startInfo = CreateStartInfo(executablePath, argumentList);
+        if (!File.Exists(executablePath))
+            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, string.Empty);
 
         using var proc = new Process();
-        proc.StartInfo = psi;
-        proc.Start();
+        proc.StartInfo = startInfo;
+
+        try
+        {
+            proc.Start();
+        }
+        catch (Exception)
+        {
+            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, string.Empty);
+        }
 
         var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
         var stderrTask = proc.StandardError.ReadToEndAsync(ct);
@@ -193,7 +194,38 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
             await proc.WaitForExitAsync(CancellationToken.None);
             throw;
         }
+        catch (Exception)
+        {
+            if (!proc.HasExited)
+            {
+                try
+                {
+                    proc.Kill(entireProcessTree: true);
+                    await proc.WaitForExitAsync(CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    // Best effort cleanup after a failed mua invocation.
+                }
+            }
 
-        return new ProcessCommandResult(psi, proc.ExitCode, await stdoutTask, await stderrTask);
+            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, string.Empty);
+        }
+
+        return new ProcessCommandResult(startInfo, proc.ExitCode, await stdoutTask, await stderrTask);
+    }
+
+    private static ProcessStartInfo CreateStartInfo(string executablePath, IList<string> argumentList)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        foreach (var arg in argumentList) psi.ArgumentList.Add(arg);
+        return psi;
     }
 }
