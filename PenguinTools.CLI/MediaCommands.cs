@@ -26,6 +26,27 @@ internal static class MediaCommands
         return root;
     }
 
+    private static Command BuildAudioExtractCommand()
+    {
+        var input = new Argument<string>("input") { Description = "Input ACB or AWB file." };
+        var output = new Argument<string>("output") { Description = "Output directory for decoded WAV files." };
+        var paired = new Option<string?>("--paired-input") { Description = "Explicit paired ACB/AWB path." };
+        var key = new Option<ulong?>("--hca-key") { Description = "HCA decryption key override." };
+        var command = new Command("extract", "Extract every CRI cue to PCM WAV.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        command.Options.Add(paired);
+        command.Options.Add(key);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunWithProgressAsync("audio.extract", (app, progress, ct) => app.ExtractCriAudioAsync(
+                    new CriAudioExtractRequest(parseResult.GetRequiredValue(input),
+                        parseResult.GetRequiredValue(output), parseResult.GetValue(paired), parseResult.GetValue(key)),
+                    progress, ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
+                CliJsonSerializerContext.Default.CriAudioExtractResult, cancellationToken));
+        return command;
+    }
+
     internal static Command BuildAudioCommand()
     {
         var root = new Command("audio", "Audio operations.");
@@ -44,6 +65,7 @@ internal static class MediaCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
                 CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken));
         root.Subcommands.Add(command);
+        root.Subcommands.Add(BuildAudioExtractCommand());
         return root;
     }
 

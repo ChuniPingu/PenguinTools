@@ -30,8 +30,8 @@ internal static class ChartCommands
     private static Command BuildConvertCommand()
     {
         var input = InputArgument();
-        var output = new Argument<string>("output") { Description = "Path to the output .c2s file." };
-        var command = new Command("convert", "Convert an MGXC, UGC, or SUS chart into a C2S chart file.");
+        var output = new Argument<string>("output") { Description = "Path to the output .c2s or .ugc file." };
+        var command = new Command("convert", "Convert MGXC/UGC/SUS to C2S, or C2S to UGC v8.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
         command.SetAction((parseResult, cancellationToken) =>
@@ -45,6 +45,6 @@ internal static class ChartCommands
 
     private static Argument<string> InputArgument()
     {
-        return new Argument<string>("input") { Description = "Path to the source chart (.mgxc, .ugc, or .sus)." };
+        return new Argument<string>("input") { Description = "Path to the source chart (.mgxc, .ugc, .sus, or .c2s)." };
     }
 }

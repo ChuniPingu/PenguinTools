@@ -22,6 +22,7 @@ public sealed class C2SParser
     ];
 
     private readonly List<PendingPair> _pendingPairs = [];
+    private readonly HashSet<c2sModel.Note> _usedPairParents = [];
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
 
@@ -448,8 +449,8 @@ public sealed class C2SParser
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
-        if (TryReadEffect(tokens, 9, lineNumber, out var effect) ||
-            TryReadEffect(tokens, 8, lineNumber, out effect))
+        // Column 8 is the legacy literal slide linkage marker (SLD), not an effect.
+        if (TryReadEffect(tokens, 9, lineNumber, out var effect))
             note.Effect = effect;
 
         C2s.Notes.Add(note);
@@ -578,6 +579,7 @@ public sealed class C2SParser
             if (parent != null)
             {
                 ((c2sModel.IPairable)pending.Note).Parent = parent;
+                _usedPairParents.Add(parent);
                 continue;
             }
 
@@ -590,10 +592,20 @@ public sealed class C2SParser
     private c2sModel.Note? FindPairParent(c2sModel.Note note, string parentId)
     {
         return C2s.Notes
-            .Where(candidate => string.Equals(candidate.Id, parentId, StringComparison.OrdinalIgnoreCase))
+            .Where(candidate => ParentTypeMatches(candidate, parentId))
             .Where(candidate => IsAttachPoint(candidate, note))
-            .OrderBy(candidate => PairDistance(candidate, note))
+            .OrderBy(candidate => _usedPairParents.Contains(candidate))
+            .ThenBy(candidate => PairDistance(candidate, note))
             .FirstOrDefault();
+    }
+
+    private static bool ParentTypeMatches(c2sModel.Note candidate, string parentId)
+    {
+        // C2S writers use SLD as the generic parent marker even when the
+        // attach-point segment itself is a control (SLC/SXC) segment.
+        if (parentId.Equals("SLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Slide)
+            return true;
+        return string.Equals(candidate.Id, parentId, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsAttachPoint(c2sModel.Note candidate, c2sModel.Note note)

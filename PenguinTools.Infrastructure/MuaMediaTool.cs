@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
@@ -87,6 +88,36 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         ret.ThrowIfFailed();
     }
 
+    public async Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(src);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dst);
+        var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct);
+        ret.ThrowIfFailed();
+        return new DdsDecodeResult(src, dst);
+    }
+
+    public async Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var args = new List<string> { "extract", options.SourcePath, options.OutputDirectory };
+        if (!string.IsNullOrWhiteSpace(options.PairedInputPath))
+        {
+            args.Add("--paired-input");
+            args.Add(options.PairedInputPath);
+        }
+        if (options.HcaKey is { } key)
+        {
+            args.Add("--hca-key");
+            args.Add(key.ToString(CultureInfo.InvariantCulture));
+        }
+        var ret = await RunAsync(CriExecutablePath, args, ct);
+        ret.ThrowIfFailed();
+        return JsonSerializer.Deserialize(ret.StandardOutput, InfrastructureJsonContext.Default.CriExtractResult)
+               ?? throw new JsonException("mua_cri returned an empty extraction manifest.");
+    }
+
     public async Task ConvertCriAsync(
         string wav,
         string acb,
@@ -152,7 +183,16 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
 
         var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
         var stderrTask = proc.StandardError.ReadToEndAsync(ct);
-        await Task.WhenAll(proc.WaitForExitAsync(ct), stdoutTask, stderrTask);
+        try
+        {
+            await Task.WhenAll(proc.WaitForExitAsync(ct), stdoutTask, stderrTask);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+            await proc.WaitForExitAsync(CancellationToken.None);
+            throw;
+        }
 
         return new ProcessCommandResult(psi, proc.ExitCode, await stdoutTask, await stderrTask);
     }

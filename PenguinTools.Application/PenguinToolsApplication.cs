@@ -1,10 +1,13 @@
 using System.Text.Json;
 using PenguinTools.Assets;
 using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Converter.ugc;
+using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.sus;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.ugc;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -16,6 +19,7 @@ using PenguinTools.Media;
 using PenguinTools.Workflow;
 using MediaAfbExtractRequest = PenguinTools.Media.AfbExtractRequest;
 using MediaJacketConvertRequest = PenguinTools.Media.JacketConvertRequest;
+using MediaCriExtractOptions = PenguinTools.Media.CriExtractOptions;
 using UmgrChart = PenguinTools.Chart.Models.umgr.Chart;
 
 namespace PenguinTools.Application;
@@ -27,7 +31,7 @@ public sealed record PenguinToolsApplicationDependencies(
     IMediaTool MediaTool,
     IInfrastructureAssetProvider AssetProvider);
 
-public sealed class PenguinToolsApplication : IPenguinToolsApplication
+public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 {
     private readonly PenguinToolsApplicationDependencies _dependencies;
     private readonly IDisposable? _ownedResource;
@@ -72,9 +76,39 @@ public sealed class PenguinToolsApplication : IPenguinToolsApplication
             cancellationToken.ThrowIfCancellationRequested();
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputPath);
+            var sourceFormat = GetChartFormat(input);
+            var targetFormat = GetChartFormat(output);
+            var supported = sourceFormat == ChartFormat.C2s
+                ? targetFormat == ChartFormat.Ugc
+                : sourceFormat is ChartFormat.Mgxc or ChartFormat.Ugc or ChartFormat.Sus &&
+                  targetFormat == ChartFormat.C2s;
+            if (!supported)
+                return ApplicationDiagnostics.Failure<ChartConvertResult>(
+                    Msg.Key(MsgKeys.Error_Chart_format_unsupported), $"{sourceFormat} -> {targetFormat}");
             var inputItem = Path.GetFileName(input);
             progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_reading), ProgressUnits.Step,
                 Item: inputItem, Completed: 0, Total: 3));
+            if (sourceFormat == ChartFormat.C2s)
+            {
+                var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
+                if (!parsedC2s.Succeeded || parsedC2s.Value is not { } c2s)
+                    return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsedC2s.Diagnostics);
+                var convertedUgc = new UgcChartConverter(new UgcConvertRequest(c2s)).Convert();
+                if (!convertedUgc.Succeeded || convertedUgc.Value is null)
+                    return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
+                        parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics));
+                progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
+                    Item: Path.GetFileName(output), Label: c2s.Meta.Title, Completed: 2, Total: 3));
+                var writtenUgc = await new UgcChartWriter(new UgcWriteRequest(output, convertedUgc.Value))
+                    .WriteAsync(cancellationToken);
+                progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
+                    Item: Path.GetFileName(output), Label: c2s.Meta.Title, Completed: 3, Total: 3));
+                var reverseValue = new ChartConvertResult(input, output, sourceFormat, targetFormat,
+                    CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart.ugc", output)]);
+                return ApplicationDiagnostics.Merge(reverseValue,
+                    parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics), writtenUgc);
+            }
+
             var parsed = await ParseChartAsync(input, cancellationToken);
             if (!parsed.Succeeded || parsed.Value is not { } chart)
                 return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
@@ -94,7 +128,7 @@ public sealed class PenguinToolsApplication : IPenguinToolsApplication
                 .WriteAsync(cancellationToken);
             progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
                 Item: Path.GetFileName(output), Label: label, Completed: 3, Total: 3));
-            var value = new ChartConvertResult(input, output, CreateChartSummary(chart.Meta),
+            var value = new ChartConvertResult(input, output, sourceFormat, targetFormat, CreateChartSummary(chart.Meta),
                 [new ApplicationArtifact("chart.c2s", output)]);
             return ApplicationDiagnostics.Merge(value, parsed.Diagnostics.Merge(converted.Diagnostics), written);
         });
@@ -290,6 +324,31 @@ public sealed class PenguinToolsApplication : IPenguinToolsApplication
         });
     }
 
+    public async Task<OperationResult<CriAudioExtractResult>> ExtractCriAudioAsync(
+        CriAudioExtractRequest request,
+        IProgress<ProgressReport>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await GuardAsync(async () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = FullPath(request.SourcePath);
+            var output = FullPath(request.OutputDirectory);
+            var paired = OptionalFullPath(request.PairedPath);
+            if (!File.Exists(source))
+                return ApplicationDiagnostics.Failure<CriAudioExtractResult>(Msg.Key(MsgKeys.Error_File_not_found), source);
+            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_extracting), Item: Path.GetFileName(source)));
+            var extracted = await _dependencies.MediaTool.ExtractCriAudioAsync(
+                new MediaCriExtractOptions(source, output, paired, request.HcaKey), cancellationToken);
+            var cues = extracted.Cues.Select(x => new CriCueSummary(
+                x.CueId, x.Name, x.WavPath, x.Channels, x.SampleRate, x.BitsPerSample, x.SampleFrames,
+                x.PreviewStartMs, x.PreviewStopMs)).ToArray();
+            var artifacts = cues.Select(x => new ApplicationArtifact("audio.wav", x.WavPath)).ToArray();
+            return OperationResult<CriAudioExtractResult>.Success(
+                new CriAudioExtractResult(source, output, cues, artifacts));
+        });
+    }
+
     public async Task<OperationResult<AfbExtractResult>> ExtractAfbAsync(
         AfbExtractRequest request,
         IProgress<ProgressReport>? progress = null,
@@ -422,7 +481,27 @@ public sealed class PenguinToolsApplication : IPenguinToolsApplication
         if (extension.Equals(".sus", StringComparison.OrdinalIgnoreCase))
             return await new SusParser(new SusParseRequest(input, _dependencies.Assets), _dependencies.MediaTool)
                 .ParseAsync(cancellationToken);
+        if (extension.Equals(".c2s", StringComparison.OrdinalIgnoreCase))
+        {
+            var parsed = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
+            if (!parsed.Succeeded || parsed.Value is null)
+                return OperationResult<UmgrChart>.Failure().WithDiagnostics(parsed.Diagnostics);
+            var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
+            return converted.WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));
+        }
         return ApplicationDiagnostics.Failure<UmgrChart>(Msg.Key(MsgKeys.App_Unsupported_chart_extension), input);
+    }
+
+    private static ChartFormat GetChartFormat(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".mgxc" => ChartFormat.Mgxc,
+            ".ugc" => ChartFormat.Ugc,
+            ".sus" => ChartFormat.Sus,
+            ".c2s" => ChartFormat.C2s,
+            _ => throw new DiagnosticException(Msg.Create(MsgKeys.App_Unsupported_chart_extension, path))
+        };
     }
 
     private Task<OperationResult<IReadOnlyList<OptionBookSnapshot>>> ScanSnapshotsAsync(

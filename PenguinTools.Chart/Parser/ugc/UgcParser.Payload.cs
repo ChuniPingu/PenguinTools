@@ -70,6 +70,20 @@ internal static class UgcPayload
         {
             'N' => Color.DEF, // normal
             'I' => Color.PNK, // inverted
+            'Z' => Color.NON,
+            'G' => Color.GRN,
+            'M' => Color.LIM,
+            'R' => Color.RED,
+            'K' => Color.BLK,
+            'V' => Color.VLT,
+            'B' => Color.BLU,
+            'D' => Color.DGR,
+            'A' => Color.AQA,
+            'C' => Color.CYN,
+            'Y' => Color.YEL,
+            'O' => Color.ORN,
+            'H' => Color.GRY,
+            'P' => Color.PPL,
             _ => Color.DEF
         };
     }

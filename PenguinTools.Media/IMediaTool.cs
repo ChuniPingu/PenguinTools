@@ -16,6 +16,12 @@ public interface IMediaTool
 
     Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default);
 
+    Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
+        => throw new NotSupportedException("DDS decoding is not supported by this media tool.");
+
+    Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options, CancellationToken ct = default)
+        => throw new NotSupportedException("CRI extraction is not supported by this media tool.");
+
     Task ConvertCriAsync(
         string wav,
         string acb,

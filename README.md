@@ -9,6 +9,9 @@ An all-in-one toolbox for converting custom assets for **CHUNITHM** (charts, mus
 ```bash
 PenguinTools.CLI chart inspect song.mgxc
 PenguinTools.CLI chart convert song.mgxc song.c2s
+PenguinTools.CLI chart convert song.c2s song.ugc
+PenguinTools.CLI audio extract music.acb ./audio --paired-input music.awb
+PenguinTools.CLI music extract ./music0001/Music.xml ./ugc-music
 PenguinTools.CLI option scan ./charts
 PenguinTools.CLI option build ./charts ./output
 PenguinTools.CLI music build song.mgxc ./output

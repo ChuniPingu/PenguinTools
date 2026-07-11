@@ -138,5 +138,17 @@
       "jacket": "Jacket",
       "stage": "Stage"
     }
+  },
+  "status": {
+    "collecting": "Collecting...",
+    "converting": "Converting...",
+    "done": "Done",
+    "error": "Error",
+    "extracting": "Extracting...",
+    "idle": "Idle",
+    "reading": "Reading...",
+    "searching": "Searching...",
+    "starting": "Starting...",
+    "writing": "Writing..."
   }
 }

@@ -40,6 +40,16 @@ internal sealed class TestMediaTool : IMediaTool
         return Task.CompletedTask;
     }
 
+    public Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
+    {
+        return Task.FromResult(new DdsDecodeResult(src, dst));
+    }
+
+    public Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options, CancellationToken ct = default)
+    {
+        return Task.FromResult(new CriExtractResult(1, options.SourcePath, []));
+    }
+
     public Task ConvertCriAsync(
         string wav,
         string acb,

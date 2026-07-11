@@ -18,7 +18,8 @@ public enum ChartFormat
 {
     Mgxc,
     Ugc,
-    Sus
+    Sus,
+    C2s
 }
 
 public sealed record ApplicationEntry(int Id, string Name, string? Data = null)
@@ -49,6 +50,8 @@ public sealed record ChartConvertRequest(string InputPath, string OutputPath);
 public sealed record ChartConvertResult(
     string InputPath,
     string OutputPath,
+    ChartFormat SourceFormat,
+    ChartFormat TargetFormat,
     ChartSummary Chart,
     IReadOnlyList<ApplicationArtifact> Artifacts);
 
@@ -163,6 +166,57 @@ public sealed record AudioConvertResult(
     string OutputDirectory,
     IReadOnlyList<ApplicationArtifact> Artifacts);
 
+public sealed record CriAudioExtractRequest(
+    string SourcePath,
+    string OutputDirectory,
+    string? PairedPath = null,
+    ulong? HcaKey = null);
+
+public sealed record CriCueSummary(
+    int CueId,
+    string? Name,
+    string WavPath,
+    ushort Channels,
+    uint SampleRate,
+    ushort BitsPerSample,
+    uint SampleFrames,
+    uint? PreviewStartMs = null,
+    uint? PreviewStopMs = null);
+
+public sealed record CriAudioExtractResult(
+    string SourcePath,
+    string OutputDirectory,
+    IReadOnlyList<CriCueSummary> Cues,
+    IReadOnlyList<ApplicationArtifact> Artifacts);
+
+public sealed record MusicExtractRequest(
+    string MusicXmlPath,
+    string OutputDirectory,
+    string? JacketPath = null,
+    string? AcbPath = null,
+    string? AwbPath = null,
+    bool NoAudio = false,
+    bool NoJacket = false,
+    ulong? HcaKey = null);
+
+public sealed record MusicExtractChartSummary(
+    int SongId,
+    int DifficultyId,
+    string Difficulty,
+    decimal Level,
+    string Designer,
+    decimal Bpm,
+    string OutputPath);
+
+public sealed record MusicExtractResult(
+    string MusicXmlPath,
+    string OutputDirectory,
+    int SongId,
+    string Title,
+    string Artist,
+    IReadOnlyList<MusicExtractChartSummary> Charts,
+    IReadOnlyList<ApplicationArtifact> Artifacts);
+
 public sealed record StageBuildRequest(string InputPath, string OutputDirectory, StageOverrides? Overrides = null);
 
 public sealed record StageBuildResult(
@@ -221,6 +275,12 @@ public interface IPenguinToolsApplication : IDisposable
 
     Task<OperationResult<AudioConvertResult>> ConvertAudioAsync(AudioConvertRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<OperationResult<CriAudioExtractResult>> ExtractCriAudioAsync(CriAudioExtractRequest request,
+        IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
+
+    Task<OperationResult<MusicExtractResult>> ExtractMusicAsync(MusicExtractRequest request,
+        IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
 
     Task<OperationResult<StageBuildResult>> BuildStageAsync(StageBuildRequest request,
         CancellationToken cancellationToken = default);
