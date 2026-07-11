@@ -21,14 +21,11 @@ public class CliOutputFormattingTests
     }
 
     [Fact]
-    public void ProgressEvent_UsesProgressTypeAndMessageKeys()
+    public void ProgressEvent_UsesProgressTypeAndItemFields()
     {
         var payload = new CliProgressEvent(
             CliOutput.ProgressType,
             "music.build",
-            Msg.Key(MsgKeys.Progress_Phase_converting),
-            ProgressUnits.Step,
-            Msg.Key(MsgKeys.Progress_Step_jacket),
             "song.mgxc",
             "Ver seX",
             2,
@@ -38,13 +35,13 @@ public class CliOutputFormattingTests
         using var document = JsonDocument.Parse(json);
         Assert.Equal("progress", document.RootElement.GetProperty("type").GetString());
         Assert.Equal("music.build", document.RootElement.GetProperty("operation").GetString());
-        Assert.Equal("step", document.RootElement.GetProperty("unit").GetString());
-        Assert.Equal("progress.phase.converting",
-            document.RootElement.GetProperty("phase").GetProperty("key").GetString());
-        Assert.Equal("progress.step.jacket",
-            document.RootElement.GetProperty("step").GetProperty("key").GetString());
+        Assert.False(document.RootElement.TryGetProperty("phase", out _));
+        Assert.False(document.RootElement.TryGetProperty("step", out _));
+        Assert.False(document.RootElement.TryGetProperty("unit", out _));
         Assert.Equal("song.mgxc", document.RootElement.GetProperty("item").GetString());
         Assert.Equal("Ver seX", document.RootElement.GetProperty("label").GetString());
+        Assert.Equal(2, document.RootElement.GetProperty("completed").GetInt32());
+        Assert.Equal(4, document.RootElement.GetProperty("total").GetInt32());
         Assert.Equal(50, document.RootElement.GetProperty("percent").GetDouble());
         Assert.DoesNotContain(Environment.NewLine, json);
     }

@@ -146,7 +146,7 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task ChartConversion_ReportsProgress()
+    public async Task ChartConversion_DoesNotReportProgress()
     {
         using var application = PenguinToolsApplication.CreateDefault();
         var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
@@ -162,8 +162,7 @@ public sealed class PenguinToolsApplicationTests
                 new InlineProgress(reports.Add), TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded);
             Assert.True(File.Exists(output));
-            Assert.NotEmpty(reports);
-            Assert.All(reports, report => Assert.Equal(ProgressUnits.Step, report.Unit));
+            Assert.Empty(reports);
         }
         finally
         {
@@ -236,12 +235,13 @@ public sealed class PenguinToolsApplicationTests
 
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var output = Path.Combine(root, "chart.c2s");
+        var output = Path.Combine(root, "music");
         try
         {
-            await application.ConvertChartAsync(new ChartConvertRequest(input, output), progress,
+            await application.BuildMusicAsync(new MusicBuildRequest(input, output), progress,
                 TestContext.Current.CancellationToken);
             Assert.NotEmpty(reports);
+            Assert.All(reports, report => Assert.NotNull(report.Item));
         }
         finally
         {

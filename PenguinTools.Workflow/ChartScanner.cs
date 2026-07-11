@@ -66,8 +66,6 @@ public static class ChartScanner
     {
         var chartPaths = Directory.EnumerateFiles(directory, fileGlob, SearchOption.AllDirectories);
         return await OptionExportBatch.BatchAsync(
-            Msg.Key(MsgKeys.Progress_Phase_scanning),
-            ProgressUnits.File,
             chartPaths,
             (filePath, innerDiagnostics) => LoadChartAsync(filePath, assets, mediaTool, booksById, innerDiagnostics,
                 messages, skipIfDifficultyFilled, ct),

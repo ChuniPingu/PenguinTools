@@ -85,9 +85,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (!supported)
                 return ApplicationDiagnostics.Failure<ChartConvertResult>(
                     Msg.Key(MsgKeys.Error_Chart_format_unsupported), $"{sourceFormat} -> {targetFormat}");
-            var inputItem = Path.GetFileName(input);
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_reading), ProgressUnits.Step,
-                Item: inputItem, Completed: 0, Total: 3));
             if (sourceFormat == ChartFormat.C2s)
             {
                 var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
@@ -97,12 +94,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 if (!convertedUgc.Succeeded || convertedUgc.Value is null)
                     return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
                         parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics));
-                progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
-                    Item: Path.GetFileName(output), Label: c2s.Meta.Title, Completed: 2, Total: 3));
                 var writtenUgc = await new UgcChartWriter(new UgcWriteRequest(output, convertedUgc.Value))
                     .WriteAsync(cancellationToken);
-                progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
-                    Item: Path.GetFileName(output), Label: c2s.Meta.Title, Completed: 3, Total: 3));
                 var reverseValue = new ChartConvertResult(input, output, sourceFormat, targetFormat,
                     CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart.ugc", output)]);
                 return ApplicationDiagnostics.Merge(reverseValue,
@@ -113,21 +106,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (!parsed.Succeeded || parsed.Value is not { } chart)
                 return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
 
-            var label = chart.Meta.Title;
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_converting), ProgressUnits.Step,
-                Item: inputItem, Label: label, Completed: 1, Total: 3));
             var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
             if (!converted.Succeeded || converted.Value is null)
                 return OperationResult<ChartConvertResult>.Failure()
                     .WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));
 
             EnsureParentDirectory(output);
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
-                Item: Path.GetFileName(output), Label: label, Completed: 2, Total: 3));
             var written = await new C2SChartWriter(new C2SWriteRequest(output, converted.Value))
                 .WriteAsync(cancellationToken);
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), ProgressUnits.Step,
-                Item: Path.GetFileName(output), Label: label, Completed: 3, Total: 3));
             var value = new ChartConvertResult(input, output, sourceFormat, targetFormat, CreateChartSummary(chart.Meta),
                 [new ApplicationArtifact("chart.c2s", output)]);
             return ApplicationDiagnostics.Merge(value, parsed.Diagnostics.Merge(converted.Diagnostics), written);
@@ -337,7 +323,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var paired = OptionalFullPath(request.PairedPath);
             if (!File.Exists(source))
                 return ApplicationDiagnostics.Failure<CriAudioExtractResult>(Msg.Key(MsgKeys.Error_File_not_found), source);
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_extracting), Item: Path.GetFileName(source)));
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(source)));
             var extracted = await _dependencies.MediaTool.ExtractCriAudioAsync(
                 new MediaCriExtractOptions(source, output, paired, request.HcaKey), cancellationToken);
             var cues = extracted.Cues.Select(x => new CriCueSummary(
@@ -359,8 +345,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             cancellationToken.ThrowIfCancellationRequested();
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputDirectory);
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_extracting),
-                Item: Path.GetFileName(input)));
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(input)));
             var extracted = await new AfbExtractor(new MediaAfbExtractRequest(input, output), _dependencies.MediaTool)
                 .ExtractAsync(cancellationToken);
             var artifacts = Directory.Exists(output)
@@ -387,7 +372,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (!Directory.Exists(gameRoot))
                 return ApplicationDiagnostics.Failure<AssetCollectResult>(
                     Msg.Key(MsgKeys.App_Game_directory_not_found), gameRoot);
-            progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_collecting), Item: gameRoot));
+            progress?.Report(new ProgressReport(Item: gameRoot));
             await _dependencies.Assets.CollectAssetsAsync(gameRoot, cancellationToken);
             var output = _dependencies.Assets.PlusAssetsPath;
             return OperationResult<AssetCollectResult>.Success(new AssetCollectResult(gameRoot, output,

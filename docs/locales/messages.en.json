@@ -122,33 +122,5 @@
       "stage_already_exists": "Stage {0} with ID {1} already exists.",
       "we_chart_must_be_unique_id": "World\u0027s End chart must use unique Song ID; otherwise, other difficulty charts will not display under common song categories."
     }
-  },
-  "progress": {
-    "phase": {
-      "collecting": "Collecting",
-      "converting": "Converting",
-      "extracting": "Extracting",
-      "reading": "Reading",
-      "scanning": "Scanning",
-      "writing": "Writing"
-    },
-    "step": {
-      "audio": "Audio",
-      "chart": "Chart",
-      "jacket": "Jacket",
-      "stage": "Stage"
-    }
-  },
-  "status": {
-    "collecting": "Collecting...",
-    "converting": "Converting...",
-    "done": "Done",
-    "error": "Error",
-    "extracting": "Extracting...",
-    "idle": "Idle",
-    "reading": "Reading...",
-    "searching": "Searching...",
-    "starting": "Starting...",
-    "writing": "Writing..."
   }
 }

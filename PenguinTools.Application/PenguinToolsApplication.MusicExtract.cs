@@ -37,6 +37,7 @@ public sealed partial class PenguinToolsApplication
             Directory.CreateDirectory(stage);
             var artifacts = new List<ApplicationArtifact>();
             var chartSummaries = new List<MusicExtractChartSummary>();
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(xmlPath), Label: title));
             try
             {
                 var fumenRows = root.Element("fumens")?.Elements("MusicFumenData")
@@ -122,8 +123,6 @@ public sealed partial class PenguinToolsApplication
                     };
                     artifacts.Add(new ApplicationArtifact(kind, destination));
                 }
-                progress?.Report(new ProgressReport(Msg.Key(MsgKeys.Progress_Phase_writing), Item: title,
-                    Completed: chartSummaries.Count, Total: chartSummaries.Count));
                 return OperationResult<MusicExtractResult>.Success(new MusicExtractResult(
                     xmlPath, output, songId, title, artist, chartSummaries, artifacts));
             }

@@ -88,16 +88,6 @@ public static class MsgKeys
     public const string MgCrit_SoflanArea_has_no_tail = "diag.mgcrit.soflanarea_has_no_tail";
     public const string MgCrit_Unrecognized_data_type = "diag.mgcrit.unrecognized_data_type";
     public const string MgCrit_Unrecognized_event = "diag.mgcrit.unrecognized_event";
-    public const string Progress_Phase_collecting = "progress.phase.collecting";
-    public const string Progress_Phase_converting = "progress.phase.converting";
-    public const string Progress_Phase_extracting = "progress.phase.extracting";
-    public const string Progress_Phase_reading = "progress.phase.reading";
-    public const string Progress_Phase_scanning = "progress.phase.scanning";
-    public const string Progress_Phase_writing = "progress.phase.writing";
-    public const string Progress_Step_audio = "progress.step.audio";
-    public const string Progress_Step_chart = "progress.step.chart";
-    public const string Progress_Step_jacket = "progress.step.jacket";
-    public const string Progress_Step_stage = "progress.step.stage";
     public const string Sus_Air_hold_ignored = "diag.sus.air_hold_ignored";
     public const string Sus_Air_hold_joint_ignored = "diag.sus.air_hold_joint_ignored";
     public const string Sus_Air_note_ignored = "diag.sus.air_note_ignored";

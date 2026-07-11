@@ -28,8 +28,6 @@ public static class OptionExporter
         var releaseTag = new ReleaseTag(settings.ReleaseTagId, settings.ReleaseTagTitleName);
 
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
-            Msg.Key(MsgKeys.Progress_Phase_converting),
-            ProgressUnits.Book,
             books,
             (book, innerDiagnostics) => ConvertBookAsync(ctx, book, settings, outputPaths, releaseTag,
                 processContext.WorkingDirectory, innerDiagnostics, weEntries, ultEntries, ct),

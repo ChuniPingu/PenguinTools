@@ -14,9 +14,6 @@ internal static class CliExitCodes
 internal sealed record CliProgressEvent(
     string Type,
     string Operation,
-    MessageDescriptor Phase,
-    string? Unit = null,
-    MessageDescriptor? Step = null,
     string? Item = null,
     string? Label = null,
     int? Completed = null,
@@ -51,9 +48,6 @@ internal static class CliOutput
         var payload = new CliProgressEvent(
             ProgressType,
             operation,
-            report.Phase,
-            report.Unit,
-            report.Step,
             report.Item,
             report.Label,
             report.Completed,

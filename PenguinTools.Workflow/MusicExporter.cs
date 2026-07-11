@@ -80,34 +80,19 @@ public static class MusicExporter
         var diagnostics = DiagnosticSnapshot.Empty;
         var meta = chart.Meta;
         var stage = meta.Stage;
-        var steps = BuildExportSteps(meta, stageOverrides);
-        var totalSteps = steps.Count;
-        var completedSteps = 0;
         var item = Path.GetFileName(meta.FilePath);
         var label = meta.Title;
 
-        void ReportStep(string stepKey, int completed)
-        {
-            progress?.Report(new ProgressReport(
-                Msg.Key(MsgKeys.Progress_Phase_converting),
-                ProgressUnits.Step,
-                Msg.Key(stepKey),
-                item,
-                label,
-                completed,
-                totalSteps));
-        }
+        progress?.Report(new ProgressReport(item, label));
 
         if (ShouldBuildStage(meta, stageOverrides))
         {
-            ReportStep(MsgKeys.Progress_Step_stage, completedSteps);
             var builtStage = await BuildStageAsync(ctx, meta, output, stageOverrides, cancellationToken);
             diagnostics = diagnostics.Merge(builtStage.Diagnostics);
             if (!builtStage.Succeeded || builtStage.Value is null)
                 return OperationResult.Failure().WithDiagnostics(diagnostics);
 
             stage = builtStage.Value;
-            completedSteps++;
         }
 
         if (meta is { Difficulty: Difficulty.WorldsEnd or Difficulty.Ultima, UnlockEventId: { } eventId })
@@ -132,7 +117,6 @@ public static class MusicExporter
         var chartPath = Path.Combine(chartBundleFolder, musicXml[meta.Difficulty].File);
         MusicPaths.EnsureParentDirectory(chartPath);
 
-        ReportStep(MsgKeys.Progress_Step_chart, completedSteps);
         var convertedChart = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         diagnostics = diagnostics.Merge(convertedChart.Diagnostics);
         if (!convertedChart.Succeeded || convertedChart.Value is null)
@@ -143,47 +127,22 @@ public static class MusicExporter
                 .WriteAsync(cancellationToken);
         diagnostics = diagnostics.Merge(writtenChart.Diagnostics);
         if (!writtenChart.Succeeded) return OperationResult.Failure().WithDiagnostics(diagnostics);
-        completedSteps++;
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        ReportStep(MsgKeys.Progress_Step_jacket, completedSteps);
         var jacketPath = Path.Combine(chartBundleFolder, musicXml.JaketFile);
         var convertedJacket = await new JacketConverter(
             new JacketConvertRequest(jacketInput ?? meta.FullJacketFilePath, jacketPath),
             ctx.MediaTool).ConvertAsync(cancellationToken);
         diagnostics = diagnostics.Merge(convertedJacket.Diagnostics);
         if (!convertedJacket.Succeeded) return OperationResult.Failure().WithDiagnostics(diagnostics);
-        completedSteps++;
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        ReportStep(MsgKeys.Progress_Step_audio, completedSteps);
         var convertedAudio = await ConvertAudioAsync(ctx, meta, output, audioOverrides, cancellationToken);
         diagnostics = diagnostics.Merge(convertedAudio.Diagnostics);
-        if (convertedAudio.Succeeded)
-        {
-            progress?.Report(new ProgressReport(
-                Msg.Key(MsgKeys.Progress_Phase_converting),
-                ProgressUnits.Step,
-                Msg.Key(MsgKeys.Progress_Step_audio),
-                item,
-                label,
-                totalSteps,
-                totalSteps));
-        }
 
         return (convertedAudio.Succeeded ? OperationResult.Success() : OperationResult.Failure())
             .WithDiagnostics(diagnostics);
-    }
-
-    private static List<string> BuildExportSteps(Meta meta, StageRequestOverrides stageOverrides)
-    {
-        var steps = new List<string>(4);
-        if (ShouldBuildStage(meta, stageOverrides)) steps.Add(MsgKeys.Progress_Step_stage);
-        steps.Add(MsgKeys.Progress_Step_chart);
-        steps.Add(MsgKeys.Progress_Step_jacket);
-        steps.Add(MsgKeys.Progress_Step_audio);
-        return steps;
     }
 }

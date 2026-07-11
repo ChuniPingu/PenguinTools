@@ -21,8 +21,6 @@ public static class OptionExportBatch
     }
 
     public static async Task<DiagnosticSnapshot> ProcessItemsAsync<T>(
-        MessageDescriptor phase,
-        string unit,
         IEnumerable<T> items,
         Func<T, IDiagnosticSink, Task> action,
         Func<T, string> getItemPath,
@@ -35,7 +33,7 @@ public static class OptionExportBatch
         var completed = 0;
         var total = itemList.Count;
         if (total > 0)
-            main.Progress?.Report(new ProgressReport(phase, unit, Completed: 0, Total: total));
+            main.Progress?.Report(new ProgressReport(Completed: 0, Total: total));
 
         if (parallel)
             await Parallel.ForEachAsync(itemList, new ParallelOptions
@@ -66,8 +64,6 @@ public static class OptionExportBatch
                 diagnostics.Add(CreateItemDiagnostics(ld, getItemPath(item), main.WorkingDirectory));
                 var done = Interlocked.Increment(ref completed);
                 main.Progress?.Report(new ProgressReport(
-                    phase,
-                    unit,
                     Item: Path.GetFileName(getItemPath(item)),
                     Label: getLabel?.Invoke(item),
                     Completed: done,
@@ -85,8 +81,6 @@ public static class OptionExportBatch
     }
 
     public static Task<DiagnosticSnapshot> BatchAsync<T>(
-        MessageDescriptor phase,
-        string unit,
         IEnumerable<T> items,
         Func<T, IDiagnosticSink, Task> action,
         Func<T, string> getItemPath,
@@ -94,6 +88,6 @@ public static class OptionExportBatch
         bool parallel = false,
         Func<T, string?>? getLabel = null)
     {
-        return ProcessItemsAsync(phase, unit, items, action, getItemPath, context, parallel, getLabel);
+        return ProcessItemsAsync(items, action, getItemPath, context, parallel, getLabel);
     }
 }
