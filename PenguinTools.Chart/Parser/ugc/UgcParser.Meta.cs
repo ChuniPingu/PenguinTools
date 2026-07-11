@@ -1,7 +1,6 @@
 using System.Globalization;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser.ugc;
 
@@ -80,7 +79,7 @@ public partial class UgcParser
 
             default:
                 ReportAtCurrentLine(Severity.Warning,
-                    string.Format(Strings.Mg_Unrecognized_meta, name, Str(args)));
+                    Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, Str(args)));
                 break;
         }
     }
@@ -93,14 +92,14 @@ public partial class UgcParser
     private void Log(string name, string[] args)
     {
         ReportAtCurrentLine(Severity.Information,
-            string.Format(Strings.Mg_Unrecognized_meta, name, string.Join(' ', args)));
+            Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, string.Join(' ', args)));
     }
 
     private void HandleVer(string[] args)
     {
         if (args.Length < 1) return;
         if (!int.TryParse(args[0], out var v) || v != 8)
-            ThrowAtCurrentLine(string.Format(Strings.Error_Invalid_Header, args[0], "UGC v8"));
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "UGC v8"));
     }
 
     private void HandleExVer(string[] args)
@@ -113,7 +112,7 @@ public partial class UgcParser
     {
         if (args.Length < 1) return;
         if (!int.TryParse(args[0], out var t) || t != 480)
-            ThrowAtCurrentLine(string.Format(Strings.Error_Invalid_Header, args[0], "TICKS=480"));
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "TICKS=480"));
     }
 
     private void HandleGenre(string[] args)
@@ -176,7 +175,7 @@ public partial class UgcParser
             QueueValidation(
                 MediaTool.CheckAudioValidAsync(Ugc.Meta.FullBgmFilePath),
                 Ugc.Meta.FullBgmFilePath,
-                Strings.Error_Invalid_audio,
+                MsgKeys.Error_Invalid_audio,
                 () => Ugc.Meta.BgmFilePath = string.Empty);
     }
 
@@ -196,7 +195,7 @@ public partial class UgcParser
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Ugc.Meta.FullJacketFilePath),
                 Ugc.Meta.FullJacketFilePath,
-                Strings.Error_Invalid_jk_image,
+                MsgKeys.Error_Invalid_jk_image,
                 () => Ugc.Meta.JacketFilePath = string.Empty);
     }
 

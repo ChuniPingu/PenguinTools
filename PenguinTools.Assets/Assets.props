@@ -1,61 +1,28 @@
 <Project>
     <PropertyGroup>
-        <PenguinToolsEmbedInfrastructureAssets Condition="'$(PenguinToolsEmbedInfrastructureAssets)' == ''">true</PenguinToolsEmbedInfrastructureAssets>
-        <PenguinToolsUseWindowsMua Condition="'$(PenguinToolsUseWindowsMua)' == '' and $([System.String]::Copy('$(TargetFramework)').Contains('-windows'))">true</PenguinToolsUseWindowsMua>
-        <PenguinToolsUseWindowsMua Condition="'$(PenguinToolsUseWindowsMua)' == '' and '$(RuntimeIdentifier)' != '' and $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">true</PenguinToolsUseWindowsMua>
-        <PenguinToolsUseWindowsMua Condition="'$(PenguinToolsUseWindowsMua)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">true</PenguinToolsUseWindowsMua>
-        <PenguinToolsUseWindowsMua Condition="'$(PenguinToolsUseWindowsMua)' == ''">false</PenguinToolsUseWindowsMua>
+        <PenguinToolsMuaRoot>$(MSBuildThisFileDirectory)..\External\mua</PenguinToolsMuaRoot>
+        <PenguinToolsMuaPublishDir>$(PenguinToolsMuaRoot)\target\release\mua</PenguinToolsMuaPublishDir>
     </PropertyGroup>
 
     <ItemGroup>
-        <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\External\muautils\cmake-build-vcpkg\Release\mua.exe" Condition="'$(PenguinToolsUseWindowsMua)' == 'true'">
-            <ResourceName>mua.exe</ResourceName>
-            <ManifestKey>MuaExecutableWindows</ManifestKey>
-            <PublishPath>assets\mua.exe</PublishPath>
-        </PenguinToolsInfrastructureAsset>
-        <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\External\muautils\cmake-build-vcpkg\Release\mua" Condition="'$(PenguinToolsUseWindowsMua)' != 'true'">
-            <ResourceName>mua</ResourceName>
-            <ManifestKey>MuaExecutableUnix</ManifestKey>
-            <PublishPath>assets\mua</PublishPath>
-        </PenguinToolsInfrastructureAsset>
-        <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\External\muautils\LICENSE">
-            <ResourceName>mua.LICENSE.txt</ResourceName>
-            <ManifestKey>MuaLicense</ManifestKey>
-            <PublishPath>assets\mua.LICENSE.txt</PublishPath>
-        </PenguinToolsInfrastructureAsset>
+        <_MuaPublishFile Include="$(PenguinToolsMuaPublishDir)\**\*"/>
+        <PenguinToolsMuaContent Include="@(_MuaPublishFile)">
+            <PublishPath>assets\mua\%(RecursiveDir)%(Filename)%(Extension)</PublishPath>
+        </PenguinToolsMuaContent>
         <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\Assets\assets.json">
             <ResourceName>assets.json</ResourceName>
             <ManifestKey>AssetsJson</ManifestKey>
             <PublishPath>assets\assets.json</PublishPath>
         </PenguinToolsInfrastructureAsset>
-        <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\Assets\nf_dummy.afb">
-            <ResourceName>nf_dummy.afb</ResourceName>
-            <ManifestKey>NotesFieldTemplate</ManifestKey>
-            <MapsToInfrastructureAsset>true</MapsToInfrastructureAsset>
-            <PublishPath>assets\nf_dummy.afb</PublishPath>
-        </PenguinToolsInfrastructureAsset>
-        <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\Assets\st_dummy.afb">
-            <ResourceName>st_dummy.afb</ResourceName>
-            <ManifestKey>StageTemplate</ManifestKey>
-            <MapsToInfrastructureAsset>true</MapsToInfrastructureAsset>
-            <PublishPath>assets\st_dummy.afb</PublishPath>
-        </PenguinToolsInfrastructureAsset>
-        <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\Assets\dummy.acb">
-            <ResourceName>dummy.acb</ResourceName>
-            <ManifestKey>DummyAcb</ManifestKey>
-            <MapsToInfrastructureAsset>true</MapsToInfrastructureAsset>
-            <PublishPath>assets\dummy.acb</PublishPath>
-        </PenguinToolsInfrastructureAsset>
     </ItemGroup>
 
-    <ItemGroup Condition="'$(PenguinToolsEmbedInfrastructureAssets)' == 'true'">
-        <EmbeddedResource Include="@(PenguinToolsInfrastructureAsset)">
-            <LogicalName>%(ResourceName)</LogicalName>
+    <ItemGroup>
+        <Content Include="@(PenguinToolsMuaContent)">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <TargetPath>%(PublishPath)</TargetPath>
             <Link>%(PublishPath)</Link>
-        </EmbeddedResource>
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(PenguinToolsEmbedInfrastructureAssets)' != 'true'">
+        </Content>
         <Content Include="@(PenguinToolsInfrastructureAsset)">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

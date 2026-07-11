@@ -1,4 +1,3 @@
-using System.Reflection;
 using PenguinTools.Core;
 
 namespace PenguinTools.Infrastructure;
@@ -15,26 +14,22 @@ public sealed class ApplicationPaths : IApplicationPaths
     private const string DefaultTempSubfolder = "PenguinTools.Temp";
     private const string AppFolderName = "PenguinTools";
 
-    private ApplicationPaths(string tempWorkPath, string userDataPath, string sharedAssetCachePath)
+    private ApplicationPaths(string tempWorkPath, string userDataPath)
     {
         TempWorkPath = tempWorkPath;
         UserDataPath = userDataPath;
-        SharedAssetCachePath = sharedAssetCachePath;
     }
 
     public string TempWorkPath { get; }
     public string UserDataPath { get; }
-    public string SharedAssetCachePath { get; }
 
     public static ApplicationPaths Create()
     {
         var tempWorkPath = ResolveTempWorkPath();
         var userDataPath = ResolveUserDataPath();
-        var sharedAssetCachePath = ResolveSharedAssetCachePath();
         Directory.CreateDirectory(tempWorkPath);
         Directory.CreateDirectory(userDataPath);
-        Directory.CreateDirectory(sharedAssetCachePath);
-        return new ApplicationPaths(tempWorkPath, userDataPath, sharedAssetCachePath);
+        return new ApplicationPaths(tempWorkPath, userDataPath);
     }
 
     private static string ResolveTempWorkPath()
@@ -52,12 +47,5 @@ public sealed class ApplicationPaths : IApplicationPaths
 
         var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return Path.Combine(baseDir, AppFolderName);
-    }
-
-    private static string ResolveSharedAssetCachePath()
-    {
-        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
-        var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(baseDir, AppFolderName, "assets", version);
     }
 }

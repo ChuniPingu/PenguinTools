@@ -1,185 +1,97 @@
 using System.CommandLine;
-using PenguinTools.i18n;
-using PenguinTools.Media;
+using PenguinTools.Application;
 
 namespace PenguinTools.CLI;
 
 internal static class MediaCommands
 {
-    internal static Command BuildMediaCommand()
+    internal static Command BuildJacketCommand()
     {
-        var command = new Command("media", Strings.Cli_Cmd_media);
-        command.Subcommands.Add(BuildJacketCommand());
-        command.Subcommands.Add(BuildAudioCommand());
-        command.Subcommands.Add(BuildStageCommand());
-        command.Subcommands.Add(BuildExtractAfbCommand());
-        return command;
+        var root = new Command("jacket", "Jacket operations.");
+        var input = InputChart();
+        var output = Output();
+        var source = new Option<string?>("--jacket-input") { Description = "Override jacket source." };
+        var command = new Command("convert", "Convert a jacket to DDS.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        command.Options.Add(source);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunAsync("jacket.convert", (app, ct) => app.ConvertJacketAsync(
+                    new JacketConvertRequest(
+                        parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
+                        parseResult.GetValue(source)), ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_jacket_written, value.OutputPath),
+                CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken));
+        root.Subcommands.Add(command);
+        return root;
     }
 
-    private static Command BuildJacketCommand()
+    internal static Command BuildAudioCommand()
     {
-        var inputArgument = new Argument<string>("input")
-        {
-            Description = Strings.Cli_Arg_chart_input
-        };
-        var outputArgument = new Argument<string>("output")
-        {
-            Description = Strings.Cli_Arg_jacket_output
-        };
-        var jacketInputOption = new Option<string?>("--jacket-input")
-        {
-            Description = Strings.Cli_Arg_jacket_override_chart
-        };
-
-        var command = new Command("jacket", Strings.Cli_Cmd_media_jacket);
-        command.Arguments.Add(inputArgument);
-        command.Arguments.Add(outputArgument);
-        command.Options.Add(jacketInputOption);
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
-            var input = CliPaths.ResolvePath(parseResult.GetRequiredValue(inputArgument));
-            var output = CliPaths.ResolvePath(parseResult.GetRequiredValue(outputArgument));
-            var jacketInput = CliPaths.ResolveOptionalPath(parseResult.GetValue(jacketInputOption));
-            var outputOptions = RootCommands.GetOutputOptions(parseResult);
-
-            return await CliOperations.ExecuteAsync("media jacket", outputOptions, async (runtime, ct) =>
-            {
-                var parsed = await CliOperations.ParseChartAsync(runtime, input, ct);
-                if (!parsed.Succeeded || parsed.Value is null)
-                    return new CliCommandOutcome(parsed.ToResult(), Data: new CliCommandData(input, output));
-
-                var sourcePath = jacketInput ?? parsed.Value.Meta.FullJacketFilePath;
-                CliPaths.EnsureParentDirectory(output);
-                var converted = await new JacketConverter(
-                    new JacketConvertRequest(sourcePath, output),
-                    runtime.MediaTool).ConvertAsync(ct);
-                var result = CliPaths.Merge(parsed.Diagnostics, converted);
-                var data = CliOperations.CreateJacketData(input, output, sourcePath, parsed.Value.Meta);
-                var message = result.Succeeded ? string.Format(Strings.Cli_Msg_jacket_written, output) : null;
-                return new CliCommandOutcome(result, message, data);
-            }, cancellationToken);
-        });
-
-        return command;
+        var root = new Command("audio", "Audio operations.");
+        var input = InputChart();
+        var output = Output();
+        var options = CommandLineOptions.CreateAudioCommandOptions();
+        var command = new Command("convert", "Convert chart audio.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        CommandLineOptions.AddAudioCommandOptions(command, options);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunAsync("audio.convert", (app, ct) => app.ConvertAudioAsync(
+                    new AudioConvertRequest(
+                        parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
+                        CommandLineOptions.GetAudioOverrides(parseResult, options)), ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
+                CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken));
+        root.Subcommands.Add(command);
+        return root;
     }
 
-    private static Command BuildAudioCommand()
+    internal static Command BuildStageCommand()
     {
-        var inputArgument = new Argument<string>("input")
-        {
-            Description = Strings.Cli_Arg_chart_input
-        };
-        var outputArgument = new Argument<string>("output")
-        {
-            Description = Strings.Cli_Arg_stage_audio_output
-        };
-        var audioOptions = CommandLineOptions.CreateAudioCommandOptions();
-
-        var command = new Command("audio", Strings.Cli_Cmd_media_audio);
-        command.Arguments.Add(inputArgument);
-        command.Arguments.Add(outputArgument);
-        CommandLineOptions.AddAudioCommandOptions(command, audioOptions);
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
-            var input = CliPaths.ResolvePath(parseResult.GetRequiredValue(inputArgument));
-            var output = CliPaths.ResolvePath(parseResult.GetRequiredValue(outputArgument));
-            var audioOverrides = CommandLineOptions.GetAudioRequestOverrides(parseResult, audioOptions);
-            var outputOptions = RootCommands.GetOutputOptions(parseResult);
-
-            return await CliOperations.ExecuteAsync("media audio", outputOptions, async (runtime, ct) =>
-            {
-                var parsed = await CliOperations.ParseChartAsync(runtime, input, ct);
-                if (!parsed.Succeeded || parsed.Value is null)
-                    return new CliCommandOutcome(parsed.ToResult(),
-                        Data: new CliCommandData(input, OutputDirectory: output));
-
-                var converted =
-                    await CliOperations.ConvertAudioAsync(runtime, parsed.Value.Meta, output, audioOverrides, ct);
-                var result = CliPaths.Merge(parsed.Diagnostics, converted);
-                var data = CliOperations.CreateAudioData(input, output, parsed.Value.Meta);
-                var message = result.Succeeded ? string.Format(Strings.Cli_Msg_audio_exported, output) : null;
-                return new CliCommandOutcome(result, message, data);
-            }, cancellationToken);
-        });
-
-        return command;
+        var root = new Command("stage", "Stage operations.");
+        var input = InputChart();
+        var output = Output();
+        var options = CommandLineOptions.CreateStageCommandOptions();
+        var command = new Command("build", "Build stage assets.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        CommandLineOptions.AddStageCommandOptions(command, options);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunAsync("stage.build", (app, ct) => app.BuildStageAsync(new StageBuildRequest(
+                    parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
+                    CommandLineOptions.GetStageOverrides(parseResult, options)), ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_built_stage, value.OutputDirectory),
+                CliJsonSerializerContext.Default.StageBuildResult, cancellationToken));
+        root.Subcommands.Add(command);
+        return root;
     }
 
-    private static Command BuildStageCommand()
+    internal static Command BuildAfbCommand()
     {
-        var inputArgument = new Argument<string>("input")
-        {
-            Description = Strings.Cli_Arg_chart_input
-        };
-        var outputArgument = new Argument<string>("output")
-        {
-            Description = Strings.Cli_Arg_stage_output
-        };
-        var stageOptions = CommandLineOptions.CreateStageCommandOptions();
-
-        var command = new Command("stage", Strings.Cli_Cmd_media_stage);
-        command.Arguments.Add(inputArgument);
-        command.Arguments.Add(outputArgument);
-        CommandLineOptions.AddStageCommandOptions(command, stageOptions);
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
-            var input = CliPaths.ResolvePath(parseResult.GetRequiredValue(inputArgument));
-            var output = CliPaths.ResolvePath(parseResult.GetRequiredValue(outputArgument));
-            var stageOverrides = CommandLineOptions.GetStageRequestOverrides(parseResult, stageOptions);
-            var outputOptions = RootCommands.GetOutputOptions(parseResult);
-
-            return await CliOperations.ExecuteAsync("media stage", outputOptions, async (runtime, ct) =>
-            {
-                var parsed = await CliOperations.ParseChartAsync(runtime, input, ct);
-                if (!parsed.Succeeded || parsed.Value is null)
-                    return new CliCommandOutcome(parsed.ToResult(),
-                        Data: new CliCommandData(input, OutputDirectory: output));
-
-                var built = await CliOperations.BuildStageAsync(runtime, parsed.Value.Meta, output, stageOverrides, ct);
-                var result = CliPaths.Merge(parsed.Diagnostics, built.ToResult());
-                var data = CliOperations.CreateStageData(input, output, parsed.Value.Meta, stageOverrides);
-                var message = result.Succeeded && built.Value is not null
-                    ? string.Format(Strings.Cli_Msg_built_stage, built.Value)
-                    : null;
-                return new CliCommandOutcome(result, message, data);
-            }, cancellationToken);
-        });
-
-        return command;
+        var root = new Command("afb", "AFB operations.");
+        var input = new Argument<string>("input") { Description = "Input AFB file." };
+        var output = Output();
+        var command = new Command("extract", "Extract DDS textures from an AFB file.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunWithProgressAsync("afb.extract", (app, progress, ct) => app.ExtractAfbAsync(
+                    new AfbExtractRequest(
+                        parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output)), progress, ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_extracted_dds, value.OutputDirectory),
+                CliJsonSerializerContext.Default.AfbExtractResult, cancellationToken));
+        root.Subcommands.Add(command);
+        return root;
     }
 
-    private static Command BuildExtractAfbCommand()
+    private static Argument<string> InputChart()
     {
-        var inputArgument = new Argument<string>("input")
-        {
-            Description = Strings.Cli_Arg_source_afb
-        };
-        var outputArgument = new Argument<string>("output")
-        {
-            Description = Strings.Cli_Arg_texture_output
-        };
+        return new Argument<string>("input") { Description = "Input chart file." };
+    }
 
-        var command = new Command("extract-afb", Strings.Cli_Cmd_media_extract_afb);
-        command.Arguments.Add(inputArgument);
-        command.Arguments.Add(outputArgument);
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
-            var input = CliPaths.ResolvePath(parseResult.GetRequiredValue(inputArgument));
-            var output = CliPaths.ResolvePath(parseResult.GetRequiredValue(outputArgument));
-            var outputOptions = RootCommands.GetOutputOptions(parseResult);
-
-            return await CliOperations.ExecuteAsync("media extract-afb", outputOptions, async (runtime, ct) =>
-            {
-                var extracted = await new AfbExtractor(new AfbExtractRequest(input, output), runtime.MediaTool)
-                    .ExtractAsync(ct);
-                var data = extracted.Succeeded
-                    ? CliOperations.CreateExtractAfbData(input, output)
-                    : new CliCommandData(input, OutputDirectory: output, SourcePath: input);
-                var message = extracted.Succeeded ? string.Format(Strings.Cli_Msg_extracted_dds, output) : null;
-                return new CliCommandOutcome(extracted, message, data);
-            }, cancellationToken);
-        });
-
-        return command;
+    private static Argument<string> Output()
+    {
+        return new Argument<string>("output") { Description = "Output file or directory." };
     }
 }

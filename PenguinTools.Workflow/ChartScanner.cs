@@ -1,12 +1,10 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.sus;
 using PenguinTools.Chart.Parser.ugc;
-using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
-using PenguinTools.i18n;
 using PenguinTools.Media;
 
 namespace PenguinTools.Workflow;
@@ -50,7 +48,6 @@ public static class ChartScanner
                     ct));
         }
 
-        progress?.Report(new ProgressReport(Strings.Status_Finalizing, Strings.Status_Checked));
         var snapshots = FinalizeAndBuildSnapshots(booksById, diagnostics, messages, ct);
         return OperationResult<IReadOnlyList<OptionBookSnapshot>>.Success(snapshots)
             .WithDiagnostics(batch.Merge(DiagnosticSnapshot.Create(diagnostics)));
@@ -69,7 +66,8 @@ public static class ChartScanner
     {
         var chartPaths = Directory.EnumerateFiles(directory, fileGlob, SearchOption.AllDirectories);
         return await OptionExportBatch.BatchAsync(
-            messages.ScanBatchName,
+            Msg.Key(MsgKeys.Progress_Phase_scanning),
+            ProgressUnits.File,
             chartPaths,
             (filePath, innerDiagnostics) => LoadChartAsync(filePath, assets, mediaTool, booksById, innerDiagnostics,
                 messages, skipIfDifficultyFilled, ct),
@@ -130,7 +128,8 @@ public static class ChartScanner
             if (skipIfDifficultyFilled && book.Items.ContainsKey(meta.Difficulty)) return;
 
             if (book.Items.ContainsKey(meta.Difficulty))
-                diagnostics.Report(new PathDiagnostic(Severity.Warning, messages.DuplicateSongIdAndDifficulty,
+                diagnostics.Report(new PathDiagnostic(Severity.Warning,
+                    Msg.Key(MsgKeys.Warn_Duplicate_id_and_difficulty),
                     filePath));
 
             book.Items[meta.Difficulty] = item;
@@ -163,20 +162,22 @@ public static class ChartScanner
             lock (book.Gate)
             {
                 if (book.Items.ContainsKey(Difficulty.WorldsEnd) && book.Items.Count != 1)
-                    diagnostics.Report(new Diagnostic(Severity.Warning, messages.WorldsEndMustBeUnique)
-                    {
-                        Target = CreateDiagnosticTargets(items)
-                    });
+                    diagnostics.Report(
+                        new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_We_chart_must_be_unique_id))
+                        {
+                            Target = CreateDiagnosticTargets(items)
+                        });
             }
 
             var mainItems = items.Where(i => i.Meta.IsMain).ToArray();
             if (mainItems.Length > 1)
-                diagnostics.Report(new Diagnostic(Severity.Warning, messages.MoreThanOneMainChart)
-                {
-                    Target = CreateDiagnosticTargets(mainItems)
-                });
+                diagnostics.Report(
+                    new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_More_than_one_chart_marked_main))
+                    {
+                        Target = CreateDiagnosticTargets(mainItems)
+                    });
             else if (mainItems.Length == 0 && items.Length > 1)
-                diagnostics.Report(new Diagnostic(Severity.Warning, messages.NoMainChart)
+                diagnostics.Report(new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_No_chart_marked_main))
                 {
                     Target = CreateDiagnosticTargets(items)
                 });
@@ -207,20 +208,19 @@ public static class ChartScanner
         return list;
     }
 
+    private static ChartDiagnosticTarget[] CreateDiagnosticTargets(IEnumerable<OptionDifficultySnapshot> items)
+    {
+        return items.Select(item => ChartDiagnosticTarget.FromMeta(item.Meta)).ToArray();
+    }
+
     private sealed class BookAccumulator
     {
         public readonly object Gate = new();
         public readonly Dictionary<Difficulty, OptionDifficultySnapshot> Items = new();
     }
-
-    private static ChartDiagnosticTarget[] CreateDiagnosticTargets(IEnumerable<OptionDifficultySnapshot> items)
-    {
-        return items.Select(item => ChartDiagnosticTarget.FromMeta(item.Meta)).ToArray();
-    }
 }
 
 public sealed record ChartScannerMessages(
-    string ScanBatchName,
     string MissingSongId,
     string DuplicateSongIdAndDifficulty,
     string WorldsEndMustBeUnique,
@@ -228,10 +228,9 @@ public sealed record ChartScannerMessages(
     string NoMainChart)
 {
     public static ChartScannerMessages Default { get; } = new(
-        Strings.Status_Scan,
-        Strings.Error_File_ignored_due_to_id_missing,
-        Strings.Warn_Duplicate_id_and_difficulty,
-        Strings.Warn_We_chart_must_be_unique_id,
-        Strings.Warn_More_than_one_chart_marked_main,
-        Strings.Warn_No_chart_marked_main);
+        MsgKeys.Error_File_ignored_due_to_id_missing,
+        MsgKeys.Warn_Duplicate_id_and_difficulty,
+        MsgKeys.Warn_We_chart_must_be_unique_id,
+        MsgKeys.Warn_More_than_one_chart_marked_main,
+        MsgKeys.Warn_No_chart_marked_main);
 }

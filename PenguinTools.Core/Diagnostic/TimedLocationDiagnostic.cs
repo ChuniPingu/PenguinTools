@@ -2,7 +2,7 @@ namespace PenguinTools.Core.Diagnostic;
 
 public sealed record TimedLocationDiagnostic(
     Severity Severity,
-    string Message,
+    MessageDescriptor Message,
     int LineValue,
     int Tick,
     string? PathValue = null) : Diagnostic(Severity, Message)

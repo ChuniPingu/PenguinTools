@@ -2,7 +2,6 @@ using System.Xml.Serialization;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Core.Xml;
 
@@ -25,8 +24,8 @@ public class MusicXml : XmlElement<MusicXml>
 
     public MusicXml(Dictionary<Difficulty, Meta> metaMap, Difficulty mainDiff)
     {
-        var main = metaMap[mainDiff] ?? throw new DiagnosticException(Strings.Error_Main_meta_is_null);
-        var songId = main.Id ?? throw new DiagnosticException(Strings.Error_Song_id_is_not_set);
+        var main = metaMap[mainDiff] ?? throw new DiagnosticException(MsgKeys.Error_Main_meta_is_null);
+        var songId = main.Id ?? throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
 
         DataName = $"music{songId:0000}";
         ExType = main.Difficulty == Difficulty.WorldsEnd ? 2 : 0;

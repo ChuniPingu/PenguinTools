@@ -74,13 +74,26 @@ public class MgxcRegressionTests
             return Task.CompletedTask;
         }
 
-        public Task ConvertStageAsync(string bg, string stSrc, string stDst, string?[]? fxPaths,
+        public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
             CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }
 
         public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ConvertCriAsync(
+            string wav,
+            string acb,
+            string awb,
+            string name,
+            long previewStartMs,
+            long previewStopMs,
+            ulong hcaKey,
+            CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }

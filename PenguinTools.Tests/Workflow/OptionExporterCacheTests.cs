@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using PenguinTools.Assets;
-using PenguinTools.CLI;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Infrastructure;
@@ -29,11 +28,11 @@ public sealed class OptionExporterCacheTests
         var cache = new OptionConversionCache();
         var settings = CreateSettings(true, false, cache);
         var mediaTool = new CountingMediaTool();
-        using var resourceStore = new DummyResourceStore(workPath);
+        using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
             mediaTool,
-            resourceStore,
+            assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
         {
@@ -69,11 +68,11 @@ public sealed class OptionExporterCacheTests
         var cache = new OptionConversionCache();
         var settings = CreateSettings(true, false, cache);
         var mediaTool = new CountingMediaTool();
-        using var resourceStore = new DummyResourceStore(workPath);
+        using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
             mediaTool,
-            resourceStore,
+            assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
         {
@@ -111,11 +110,11 @@ public sealed class OptionExporterCacheTests
         var cache = new OptionConversionCache();
         var settings = CreateSettings(false, true, cache);
         var mediaTool = new CountingMediaTool();
-        using var resourceStore = new DummyResourceStore(workPath);
+        using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
             mediaTool,
-            resourceStore,
+            assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
         {
@@ -142,13 +141,11 @@ public sealed class OptionExporterCacheTests
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         var chartPath = Path.Combine(workPath, "chart.ugc");
         var audioPath = Path.Combine(workPath, "audio.wav");
-        var dummyAcbPath = Path.Combine(workPath, "dummy.acb");
         var cueFileFolder = Path.Combine(workPath, "cueFile");
         var ct = TestContext.Current.CancellationToken;
         Directory.CreateDirectory(workPath);
         await File.WriteAllTextAsync(chartPath, "chart", ct);
         await File.WriteAllTextAsync(audioPath, "audio", ct);
-        await File.WriteAllTextAsync(dummyAcbPath, "dummy", ct);
 
         var meta = CreateMeta(workPath, chartPath) with
         {
@@ -161,7 +158,6 @@ public sealed class OptionExporterCacheTests
             var cachedConversion = await OptionConversionCacheArtifacts.CreateAudioAsync(
                 meta,
                 cueFileFolder,
-                dummyAcbPath,
                 ct);
             await WriteOutputsAsync(cachedConversion.Outputs, "output", ct);
 
@@ -183,7 +179,6 @@ public sealed class OptionExporterCacheTests
             var changedInput = await OptionConversionCacheArtifacts.CreateAudioAsync(
                 meta,
                 cueFileFolder,
-                dummyAcbPath,
                 ct);
 
             Assert.False(await OptionConversionCacheValidator.IsHitAsync(
@@ -205,13 +200,11 @@ public sealed class OptionExporterCacheTests
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         var chartPath = Path.Combine(workPath, "chart.ugc");
         var audioPath = Path.Combine(workPath, "audio.wav");
-        var dummyAcbPath = Path.Combine(workPath, "dummy.acb");
         var cueFileFolder = Path.Combine(workPath, "cueFile");
         var ct = TestContext.Current.CancellationToken;
         Directory.CreateDirectory(workPath);
         await File.WriteAllTextAsync(chartPath, "chart", ct);
         await File.WriteAllTextAsync(audioPath, "audio", ct);
-        await File.WriteAllTextAsync(dummyAcbPath, "dummy", ct);
 
         var meta = CreateMeta(workPath, chartPath) with
         {
@@ -224,7 +217,6 @@ public sealed class OptionExporterCacheTests
             var cachedConversion = await OptionConversionCacheArtifacts.CreateAudioAsync(
                 meta,
                 cueFileFolder,
-                dummyAcbPath,
                 ct);
             await WriteOutputsAsync(cachedConversion.Outputs, "output", ct);
             await OptionConversionCacheValidator.StoreAsync(
@@ -255,13 +247,11 @@ public sealed class OptionExporterCacheTests
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         var chartPath = Path.Combine(workPath, "chart.ugc");
         var audioPath = Path.Combine(workPath, "audio.wav");
-        var dummyAcbPath = Path.Combine(workPath, "dummy.acb");
         var cueFileFolder = Path.Combine(workPath, "cueFile");
         var ct = TestContext.Current.CancellationToken;
         Directory.CreateDirectory(workPath);
         await File.WriteAllTextAsync(chartPath, "chart", ct);
         await File.WriteAllTextAsync(audioPath, "audio", ct);
-        await File.WriteAllTextAsync(dummyAcbPath, "dummy", ct);
 
         var meta = CreateMeta(workPath, chartPath) with
         {
@@ -274,7 +264,6 @@ public sealed class OptionExporterCacheTests
             var cachedConversion = await OptionConversionCacheArtifacts.CreateAudioAsync(
                 meta,
                 cueFileFolder,
-                dummyAcbPath,
                 1,
                 ct);
             await WriteOutputsAsync(cachedConversion.Outputs, "output", ct);
@@ -288,7 +277,6 @@ public sealed class OptionExporterCacheTests
             var changedRecipe = await OptionConversionCacheArtifacts.CreateAudioAsync(
                 meta,
                 cueFileFolder,
-                dummyAcbPath,
                 2,
                 ct);
 
@@ -359,8 +347,8 @@ public sealed class OptionExporterCacheTests
             }
         });
 
-        var json = JsonSerializer.Serialize(document, CliJsonSerializerContext.Default.OptionDocument);
-        var roundTripped = JsonSerializer.Deserialize(json, CliJsonSerializerContext.Default.OptionDocument);
+        var json = JsonSerializer.Serialize(document, OptionDocumentJson.Default);
+        var roundTripped = JsonSerializer.Deserialize<OptionDocument>(json, OptionDocumentJson.Default);
 
         Assert.NotNull(roundTripped);
         Assert.Equal(987654321UL, roundTripped.HcaEncryptionKey);
@@ -460,15 +448,30 @@ public sealed class OptionExporterCacheTests
             await File.WriteAllTextAsync(dst, await File.ReadAllTextAsync(src, ct), ct);
         }
 
-        public async Task ConvertStageAsync(string bg, string stSrc, string stDst, string?[]? fxPaths,
+        public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
             CancellationToken ct = default)
         {
             StageConversions++;
             Directory.CreateDirectory(Path.GetDirectoryName(stDst)!);
-            await File.WriteAllTextAsync(stDst, $"{await File.ReadAllTextAsync(bg, ct)}:{stSrc}", ct);
+            Directory.CreateDirectory(Path.GetDirectoryName(nfDst)!);
+            await File.WriteAllTextAsync(stDst, await File.ReadAllTextAsync(bg, ct), ct);
+            await File.WriteAllTextAsync(nfDst, "notes-field", ct);
         }
 
         public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ConvertCriAsync(
+            string wav,
+            string acb,
+            string awb,
+            string name,
+            long previewStartMs,
+            long previewStopMs,
+            ulong hcaKey,
+            CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }
@@ -483,42 +486,31 @@ public sealed class OptionExporterCacheTests
         }
     }
 
-    private sealed class DummyInfrastructureAssetProvider : IInfrastructureAssetProvider
+    private sealed class DummyInfrastructureAssetProvider(string workPath) : IInfrastructureAssetProvider
     {
-        private readonly string _dummyAcbPath;
-        private readonly string _notesFieldTemplatePath;
-        private readonly string _stageTemplatePath;
-
-        public DummyInfrastructureAssetProvider(string workPath)
-        {
-            _dummyAcbPath = Path.Combine(workPath, "dummy.acb");
-            _stageTemplatePath = Path.Combine(workPath, "stage-template.afb");
-            _notesFieldTemplatePath = Path.Combine(workPath, "notes-field-template.afb");
-
-            File.WriteAllText(_dummyAcbPath, "dummy");
-            File.WriteAllText(_stageTemplatePath, "stage-template");
-            File.WriteAllText(_notesFieldTemplatePath, "notes-field-template");
-        }
-
         public string GetPath(InfrastructureAsset asset)
         {
             return asset switch
             {
-                InfrastructureAsset.DummyAcb => _dummyAcbPath,
-                InfrastructureAsset.StageTemplate => _stageTemplatePath,
-                InfrastructureAsset.NotesFieldTemplate => _notesFieldTemplatePath,
+                InfrastructureAsset.Mua => Path.Combine(workPath, "mua"),
                 _ => throw new ArgumentOutOfRangeException(nameof(asset), asset, null)
             };
         }
     }
 
-    private sealed class DummyResourceStore(string tempWorkPath) : IResourceStore
+    private sealed class DummyAssetStore(string tempWorkPath) : IAssetStore
     {
+        public string AssetDirectory { get; } = tempWorkPath;
         public string TempWorkPath { get; } = tempWorkPath;
 
-        public bool HasResource(string resourceName)
+        public bool HasAsset(string assetName)
         {
             return false;
+        }
+
+        public string GetAssetPath(string assetName)
+        {
+            return GetTempPath(assetName);
         }
 
         public string GetTempPath(string fileName)
@@ -527,19 +519,9 @@ public sealed class OptionExporterCacheTests
             return Path.Combine(TempWorkPath, fileName);
         }
 
-        public string ExtractToTemp(string resourceName)
+        public Stream OpenRead(string assetName)
         {
-            return GetTempPath(resourceName);
-        }
-
-        public Task CopyToAsync(string resourceName, string destinationPath, CancellationToken ct = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Stream OpenRead(string resourceName)
-        {
-            throw new FileNotFoundException(resourceName);
+            throw new FileNotFoundException(assetName);
         }
 
         public void Dispose()

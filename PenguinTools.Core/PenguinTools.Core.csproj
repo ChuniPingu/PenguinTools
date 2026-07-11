@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <Import Project="..\Common.props"/>
 
     <PropertyGroup>
@@ -7,7 +7,4 @@
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\PenguinTools.i18n\PenguinTools.i18n.csproj"/>
-    </ItemGroup>
 </Project>

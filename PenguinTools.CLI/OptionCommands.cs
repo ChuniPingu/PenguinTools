@@ -1,243 +1,113 @@
 using System.CommandLine;
-using System.Text.Json;
-using PenguinTools.Core;
-using PenguinTools.Core.IO;
-using PenguinTools.i18n;
-using PenguinTools.Workflow;
+using PenguinTools.Application;
 
 namespace PenguinTools.CLI;
 
 internal static class OptionCommands
 {
-    private const string OptionsFileName = "options.json";
-
     internal static Command BuildOptionCommand()
     {
-        var command = new Command("option", Strings.Cli_Cmd_option);
-        command.Subcommands.Add(BuildOptionConvertCommand());
+        var command = new Command("option", "Scan charts and build option bundles.");
+        command.Subcommands.Add(BuildScanCommand());
+        command.Subcommands.Add(BuildBuildCommand());
         return command;
     }
 
-    private static Command BuildOptionConvertCommand()
+    private static Command BuildScanCommand()
     {
-        var inputArgument = new Argument<string>("input")
-        {
-            Description = Strings.Cli_Arg_input_directory
-        };
-        var outputArgument = new Argument<string>("output")
-        {
-            Description = Strings.Cli_Arg_output_directory
-        };
-
-        var command = new Command("convert", Strings.Cli_Cmd_option_convert);
-        command.Arguments.Add(inputArgument);
-        command.Arguments.Add(outputArgument);
-        var cliOptions = new OptionConvertCliOptions();
-        cliOptions.AddTo(command);
-        command.SetAction(async (parseResult, cancellationToken) =>
-        {
-            var input = CliPaths.ResolvePath(parseResult.GetRequiredValue(inputArgument));
-            var output = CliPaths.ResolvePath(parseResult.GetRequiredValue(outputArgument));
-            var outputOptions = RootCommands.GetOutputOptions(parseResult);
-
-            return await CliOperations.ExecuteAsync("option convert", outputOptions, async (runtime, ct) =>
-            {
-                var loadJson = parseResult.GetValue(cliOptions.LoadJson);
-                OptionDocument json;
-                string? optionsPath = null;
-
-                if (loadJson)
-                {
-                    optionsPath = Path.Combine(input, OptionsFileName);
-                    if (!File.Exists(optionsPath))
-                        return new CliCommandOutcome(
-                            OperationResult.Failure()
-                                .WithDiagnostics(
-                                    CliDiagnostics.SnapshotFromMessage(
-                                        string.Format(Strings.Cli_Msg_missing_options_json, OptionsFileName, input))),
-                            string.Format(Strings.Cli_Msg_expected_options_json, OptionsFileName));
-
-                    await using var optionsStream = File.OpenRead(optionsPath);
-                    var fromFile = await JsonSerializer.DeserializeAsync<OptionDocument>(optionsStream,
-                        CliJsonSerializerContext.Default.OptionDocument, ct);
-                    if (fromFile is null)
-                        return new CliCommandOutcome(
-                            OperationResult.Failure()
-                                .WithDiagnostics(
-                                    CliDiagnostics.SnapshotFromMessage(Strings.Cli_Msg_failed_read_options_json)),
-                            Strings.Cli_Msg_failed_read_options_json);
-
-                    json = fromFile;
-                }
-                else
-                {
-                    var cliOptionName = parseResult.GetValue(cliOptions.OptionName);
-                    if (string.IsNullOrWhiteSpace(cliOptionName) || cliOptionName.Length != 4)
-                        return new CliCommandOutcome(
-                            OperationResult.Failure().WithDiagnostics(CliDiagnostics.SnapshotFromMessage(
-                                Strings.Cli_Msg_option_name_required_flag)),
-                            Strings.Cli_Msg_option_name_required);
-
-                    json = new OptionDocument();
-                }
-
-                if (cliOptions.TryApply(parseResult, json) is { } overrideError)
-                    return new CliCommandOutcome(
-                        OperationResult.Failure().WithDiagnostics(CliDiagnostics.SnapshotFromMessage(overrideError)),
-                        overrideError);
-
-                if (!json.HasExportableWork())
-                    return new CliCommandOutcome(
-                        OperationResult.Failure().WithDiagnostics(CliDiagnostics.SnapshotFromMessage(
-                            Strings.Cli_Msg_no_export_actions_enabled)),
-                        Strings.Cli_Msg_enable_export_action);
-
-                var scanned = await CliOperations.ScanOptionChartsAsync(
-                    runtime,
-                    input,
-                    json.ChartFileDiscovery,
-                    json.BatchSize,
-                    output,
-                    ct);
-
-                if (!scanned.Succeeded || scanned.Value is null)
-                    return new CliCommandOutcome(
-                        scanned.ToResult(),
-                        Data: new CliCommandData(input, OutputDirectory: output));
-
-                if (scanned.Value.Count == 0)
-                    return new CliCommandOutcome(
-                        OperationResult.Failure().WithDiagnostics(scanned.Diagnostics),
-                        Strings.Cli_Msg_no_charts_to_export,
-                        new CliCommandData(input, OutputDirectory: output));
-
-                var exportSettings = json.ToExportSettings();
-                var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, json.OptionName);
-                var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
-
-                var exported = await CliOperations.ExportOptionAsync(
-                    runtime,
-                    exportSettings,
-                    outputPaths,
-                    scanned.Value,
-                    output,
-                    ct);
-
-                var result = CliPaths.Merge(scanned.Diagnostics, exported);
-                if (result.Succeeded && optionsPath is not null) await SaveOptionsJsonAsync(optionsPath, json, ct);
-
-                var message = result.Succeeded
-                    ? string.Format(Strings.Cli_Msg_exported_option_bundle, bundleRoot)
-                    : null;
-                return new CliCommandOutcome(
-                    result,
-                    message,
-                    new CliCommandData(input, OutputDirectory: bundleRoot));
-            }, cancellationToken);
-        });
-
+        var input = new Argument<string>("input") { Description = "Input chart directory." };
+        var discovery = CommandLineOptions.CreateChartFileDiscoveryOption("Ordered chart formats to discover.");
+        var batchSize = new Option<int>("--batch-size") { DefaultValueFactory = _ => 8 };
+        var command = new Command("scan", "Scan a directory and report chart metadata and diagnostics.");
+        command.Arguments.Add(input);
+        command.Options.Add(discovery);
+        command.Options.Add(batchSize);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunWithProgressAsync("option.scan", (app, progress, ct) => app.ScanOptionAsync(
+                    new OptionScanRequest(
+                        parseResult.GetRequiredValue(input), ParseDiscovery(parseResult, discovery),
+                        parseResult.GetValue(batchSize)), progress, ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_option_scan_complete, value.Books.Count,
+                    value.Books.Sum(x => x.Charts.Count)),
+                CliJsonSerializerContext.Default.OptionScanResult, cancellationToken));
         return command;
     }
 
-    private static async Task SaveOptionsJsonAsync(string path, OptionDocument document, CancellationToken ct)
+    private static Command BuildBuildCommand()
     {
-        await AtomicFile.WriteAsync(
-            path,
-            (stream, cancellationToken) => JsonSerializer.SerializeAsync(
-                stream,
-                document,
-                CliJsonSerializerContext.Default.OptionDocument,
-                cancellationToken),
-            ct);
+        var input = new Argument<string>("input") { Description = "Input chart directory." };
+        var output = new Argument<string>("output") { Description = "Output directory." };
+        var options = new BuildOptions();
+        var command = new Command("build", "Build an option bundle.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        options.AddTo(command);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunWithProgressAsync("option.build", (app, progress, ct) => app.BuildOptionAsync(
+                    new OptionBuildRequest(
+                        parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
+                        parseResult.GetValue(options.Config), parseResult.GetValue(options.NoConfig),
+                        options.CreateOverrides(parseResult)), progress, ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_option_build_complete, value.OptionName, value.OutputDirectory),
+                CliJsonSerializerContext.Default.OptionBuildResult, cancellationToken));
+        return command;
     }
 
-    private sealed class OptionConvertCliOptions
+    private static IReadOnlyList<ChartFormat>? ParseDiscovery(ParseResult result, Option<string?> option)
     {
-        internal Option<bool> LoadJson { get; } = new("--load-json")
+        if (result.GetValue(option) is not { Length: > 0 } text) return null;
+        var trimmed = text.Trim().TrimStart('[').TrimEnd(']');
+        var tokens = trimmed.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 0) throw new ArgumentException("At least one chart format is required.");
+        List<ChartFormat> formats = [];
+        foreach (var token in tokens)
         {
-            Description = Strings.Cli_Opt_load_json,
-            DefaultValueFactory = _ => true
-        };
+            var normalized = token.TrimStart('.');
+            if (!Enum.TryParse<ChartFormat>(normalized, true, out var format))
+                throw new ArgumentException($"Unsupported chart format: {token}");
+            if (!formats.Contains(format)) formats.Add(format);
+        }
 
-        internal Option<string?> OptionName { get; } = new("--option-name")
-        {
-            Description = Strings.Cli_Opt_option_name
-        };
+        return formats;
+    }
 
-        internal Option<string?> ChartFileDiscovery { get; } =
-            CommandLineOptions.CreateChartFileDiscoveryOption(Strings.Cli_Opt_chart_file_discovery);
+    private sealed class BuildOptions
+    {
+        internal Option<string?> Config { get; } = new("--config") { Description = "Explicit options JSON path." };
 
-        internal Option<int?> BatchSize { get; } = new("--batch-size")
-        {
-            Description = Strings.Cli_Opt_json_batch_size
-        };
+        internal Option<bool> NoConfig { get; } = new("--no-config")
+            { Description = "Ignore auto-discovered options.json." };
 
-        internal Option<bool?> ConvertChart { get; } = new("--convert-chart")
-        {
-            Description = Strings.Cli_Opt_convert_chart
-        };
+        private Option<string?> OptionName { get; } = new("--option-name");
 
-        internal Option<bool?> ConvertAudio { get; } = new("--convert-audio")
-        {
-            Description = Strings.Cli_Opt_convert_audio
-        };
+        private Option<string?> Discovery { get; } =
+            CommandLineOptions.CreateChartFileDiscoveryOption("Ordered chart formats.");
 
-        internal Option<bool?> ConvertJacket { get; } = new("--convert-jacket")
-        {
-            Description = Strings.Cli_Opt_convert_jacket
-        };
-
-        internal Option<bool?> ConvertBackground { get; } = new("--convert-background")
-        {
-            Description = Strings.Cli_Opt_convert_background
-        };
-
-        internal Option<ulong?> HcaEncryptionKey { get; } = new("--hca-key")
-        {
-            Description = Strings.Cli_Opt_hca_key
-        };
-
-        internal Option<bool?> GenerateEventXml { get; } = new("--generate-event-xml")
-        {
-            Description = Strings.Cli_Opt_generate_event_xml
-        };
-
-        internal Option<bool?> GenerateReleaseTagXml { get; } = new("--generate-release-tag-xml")
-        {
-            Description = Strings.Cli_Opt_generate_release_tag_xml
-        };
-
-        internal Option<int?> ReleaseTagId { get; } = new("--release-tag-id")
-        {
-            Description = Strings.Cli_Opt_release_tag_id
-        };
-
-        internal Option<string?> ReleaseTagTitleName { get; } = new("--release-tag-title-name")
-        {
-            Description = Strings.Cli_Opt_release_tag_title_name
-        };
-
-        internal Option<int?> UltimaEventId { get; } = new("--ultima-event-id")
-        {
-            Description = Strings.Cli_Opt_ultima_event_id
-        };
-
-        internal Option<int?> WeEventId { get; } = new("--we-event-id")
-        {
-            Description = Strings.Cli_Opt_we_event_id
-        };
+        private Option<int?> BatchSize { get; } = new("--batch-size");
+        private Option<bool?> ConvertChart { get; } = new("--convert-chart");
+        private Option<bool?> ConvertAudio { get; } = new("--convert-audio");
+        private Option<bool?> ConvertJacket { get; } = new("--convert-jacket");
+        private Option<bool?> ConvertBackground { get; } = new("--convert-background");
+        private Option<ulong?> HcaKey { get; } = new("--hca-key");
+        private Option<bool?> GenerateEventXml { get; } = new("--generate-event-xml");
+        private Option<bool?> GenerateReleaseTagXml { get; } = new("--generate-release-tag-xml");
+        private Option<int?> ReleaseTagId { get; } = new("--release-tag-id");
+        private Option<string?> ReleaseTagTitleName { get; } = new("--release-tag-title-name");
+        private Option<int?> UltimaEventId { get; } = new("--ultima-event-id");
+        private Option<int?> WeEventId { get; } = new("--we-event-id");
 
         internal void AddTo(Command command)
         {
-            command.Options.Add(LoadJson);
+            command.Options.Add(Config);
+            command.Options.Add(NoConfig);
             command.Options.Add(OptionName);
-            command.Options.Add(ChartFileDiscovery);
+            command.Options.Add(Discovery);
             command.Options.Add(BatchSize);
             command.Options.Add(ConvertChart);
             command.Options.Add(ConvertAudio);
             command.Options.Add(ConvertJacket);
             command.Options.Add(ConvertBackground);
-            command.Options.Add(HcaEncryptionKey);
+            command.Options.Add(HcaKey);
             command.Options.Add(GenerateEventXml);
             command.Options.Add(GenerateReleaseTagXml);
             command.Options.Add(ReleaseTagId);
@@ -246,52 +116,14 @@ internal static class OptionCommands
             command.Options.Add(WeEventId);
         }
 
-        internal string? TryApply(ParseResult parseResult, OptionDocument document)
+        internal OptionBuildOverrides CreateOverrides(ParseResult result)
         {
-            if (parseResult.GetValue(OptionName) is { Length: > 0 } optionName)
-            {
-                if (optionName.Length != 4) return Strings.Error_Option_name_four_characters;
-
-                document.OptionName = optionName;
-            }
-
-            if (!CommandLineOptions.TryGetChartFileDiscovery(parseResult, ChartFileDiscovery, out var discovery,
-                    out var error))
-                return error;
-
-            if (discovery is not null)
-                document.ChartFileDiscovery = [.. discovery];
-
-            if (parseResult.GetValue(BatchSize) is { } batchSize) document.BatchSize = batchSize;
-
-            if (parseResult.GetValue(ConvertChart) is { } convertChart) document.ConvertChart = convertChart;
-
-            if (parseResult.GetValue(ConvertAudio) is { } convertAudio) document.ConvertAudio = convertAudio;
-
-            if (parseResult.GetValue(ConvertJacket) is { } convertJacket) document.ConvertJacket = convertJacket;
-
-            if (parseResult.GetValue(ConvertBackground) is { } convertBackground)
-                document.ConvertBackground = convertBackground;
-
-            if (parseResult.GetValue(HcaEncryptionKey) is { } hcaEncryptionKey)
-                document.HcaEncryptionKey = hcaEncryptionKey;
-
-            if (parseResult.GetValue(GenerateEventXml) is { } generateEventXml)
-                document.GenerateEventXml = generateEventXml;
-
-            if (parseResult.GetValue(GenerateReleaseTagXml) is { } generateReleaseTagXml)
-                document.GenerateReleaseTagXml = generateReleaseTagXml;
-
-            if (parseResult.GetValue(ReleaseTagId) is { } releaseTagId) document.ReleaseTagId = releaseTagId;
-
-            if (parseResult.GetValue(ReleaseTagTitleName) is { Length: > 0 } releaseTagTitleName)
-                document.ReleaseTagTitleName = releaseTagTitleName;
-
-            if (parseResult.GetValue(UltimaEventId) is { } ultimaEventId) document.UltimaEventId = ultimaEventId;
-
-            if (parseResult.GetValue(WeEventId) is { } weEventId) document.WeEventId = weEventId;
-
-            return null;
+            return new OptionBuildOverrides(
+                result.GetValue(OptionName), ParseDiscovery(result, Discovery), result.GetValue(BatchSize),
+                result.GetValue(ConvertChart), result.GetValue(ConvertAudio), result.GetValue(ConvertJacket),
+                result.GetValue(ConvertBackground), result.GetValue(HcaKey), result.GetValue(GenerateEventXml),
+                result.GetValue(GenerateReleaseTagXml), result.GetValue(ReleaseTagId),
+                result.GetValue(ReleaseTagTitleName), result.GetValue(UltimaEventId), result.GetValue(WeEventId));
         }
     }
 }

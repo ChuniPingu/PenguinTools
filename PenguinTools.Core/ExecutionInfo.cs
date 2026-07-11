@@ -7,7 +7,5 @@ public sealed record ExecutionInfo(
     string BaseDirectory,
     string TempWorkPath,
     string UserDataPath,
-    string SharedAssetCachePath,
     string InfrastructureAssetsPath,
-    string AssetsMode,
     string PlusAssetsPath);

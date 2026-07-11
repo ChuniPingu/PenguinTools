@@ -11,7 +11,18 @@ public interface IMediaTool
 
     Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default);
 
-    Task ConvertStageAsync(string bg, string stSrc, string stDst, string?[]? fxPaths, CancellationToken ct = default);
+    Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+        CancellationToken ct = default);
 
     Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default);
+
+    Task ConvertCriAsync(
+        string wav,
+        string acb,
+        string awb,
+        string name,
+        long previewStartMs,
+        long previewStopMs,
+        ulong hcaKey,
+        CancellationToken ct = default);
 }

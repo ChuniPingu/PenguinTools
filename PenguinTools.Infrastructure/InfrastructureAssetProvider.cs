@@ -9,11 +9,11 @@ public interface IInfrastructureAssetProvider
     string GetPath(InfrastructureAsset asset);
 }
 
-public sealed class InfrastructureAssetProvider(IResourceStore resources) : IInfrastructureAssetProvider
+public sealed class InfrastructureAssetProvider(IAssetStore assets) : IInfrastructureAssetProvider
 {
     private readonly ConcurrentDictionary<InfrastructureAsset, string> _paths = new();
 
-    private IResourceStore Resources { get; } = resources ?? throw new ArgumentNullException(nameof(resources));
+    private IAssetStore Assets { get; } = assets ?? throw new ArgumentNullException(nameof(assets));
 
     public string GetPath(InfrastructureAsset asset)
     {
@@ -22,28 +22,20 @@ public sealed class InfrastructureAssetProvider(IResourceStore resources) : IInf
 
     private string ResolvePath(InfrastructureAsset asset)
     {
-        if (asset == InfrastructureAsset.MuaExecutable) return ResolveMuaExecutablePath();
-
-        var resourceName = InfrastructureResourceNames.GetResourceName(asset);
-        return Resources.ExtractToTemp(resourceName);
+        return asset switch
+        {
+            InfrastructureAsset.Mua => ResolveMuaDirectory(),
+            _ => throw new ArgumentOutOfRangeException(nameof(asset), asset, null)
+        };
     }
 
-    private string ResolveMuaExecutablePath()
+    private string ResolveMuaDirectory()
     {
-        if (OperatingSystem.IsWindows() && Resources.HasResource(InfrastructureResourceNames.MuaExecutableWindows))
-            return Resources.ExtractToTemp(InfrastructureResourceNames.MuaExecutableWindows);
+        var path = Path.Combine(Assets.AssetDirectory, "mua");
+        if (!Directory.Exists(path))
+            throw new DirectoryNotFoundException(
+                $"mua publish directory was not found in asset directory '{Assets.AssetDirectory}'.");
 
-        if (OperatingSystem.IsLinux() && Resources.HasResource(InfrastructureResourceNames.MuaExecutableUnix))
-            return Resources.ExtractToTemp(InfrastructureResourceNames.MuaExecutableUnix);
-
-        if (Resources.HasResource(InfrastructureResourceNames.MuaExecutableWindows))
-            return Resources.ExtractToTemp(InfrastructureResourceNames.MuaExecutableWindows);
-
-        if (Resources.HasResource(InfrastructureResourceNames.MuaExecutableUnix))
-            return Resources.ExtractToTemp(InfrastructureResourceNames.MuaExecutableUnix);
-
-        return OperatingSystem.IsWindows()
-            ? InfrastructureResourceNames.MuaExecutableWindows
-            : InfrastructureResourceNames.MuaExecutableUnix;
+        return path;
     }
 }

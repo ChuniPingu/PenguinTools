@@ -1,13 +1,10 @@
-using System.Collections.Concurrent;
-using PenguinTools.Assets;
+﻿using System.Collections.Concurrent;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core.Xml;
-using PenguinTools.i18n;
 using PenguinTools.Media;
 
 namespace PenguinTools.Workflow;
@@ -31,15 +28,16 @@ public static class OptionExporter
         var releaseTag = new ReleaseTag(settings.ReleaseTagId, settings.ReleaseTagTitleName);
 
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
-            Strings.Status_Converting,
+            Msg.Key(MsgKeys.Progress_Phase_converting),
+            ProgressUnits.Book,
             books,
             (book, innerDiagnostics) => ConvertBookAsync(ctx, book, settings, outputPaths, releaseTag,
                 processContext.WorkingDirectory, innerDiagnostics, weEntries, ultEntries, ct),
             book => book.BookMeta.FilePath,
             processContext,
-            true);
+            true,
+            book => book.Title);
 
-        progress?.Report(new ProgressReport(Strings.Status_Writing, "XML"));
         await GenerateAuxiliaryFilesAsync(settings, outputPaths, weEntries, ultEntries, releaseTag, ct);
 
         return OperationResult.Success()
@@ -85,17 +83,13 @@ public static class OptionExporter
     {
         if (!book.IsCustomStage || !settings.ConvertBackground) return null;
         if (string.IsNullOrWhiteSpace(book.BookMeta.FullBgiFilePath))
-            throw new DiagnosticException(Strings.Error_Background_file_is_not_set);
-        if (book.StageId is null) throw new DiagnosticException(Strings.Error_Stage_id_is_not_set);
+            throw new DiagnosticException(MsgKeys.Error_Background_file_is_not_set);
+        if (book.StageId is null) throw new DiagnosticException(MsgKeys.Error_Stage_id_is_not_set);
 
-        var stageTemplatePath = ctx.AssetProvider.GetPath(InfrastructureAsset.StageTemplate);
-        var notesFieldTemplatePath = ctx.AssetProvider.GetPath(InfrastructureAsset.NotesFieldTemplate);
         var stageXml = new StageXml(book.StageId.Value, book.NotesFieldLine);
         var cachedConversion = await OptionConversionCacheArtifacts.CreateStageAsync(
             book,
             outputPaths.StageFolder,
-            stageTemplatePath,
-            notesFieldTemplatePath,
             ct);
         if (await OptionConversionCacheValidator.IsHitAsync(
                 settings.ConversionCache,
@@ -112,9 +106,7 @@ public static class OptionExporter
                 [],
                 book.StageId,
                 outputPaths.StageFolder,
-                book.NotesFieldLine,
-                stageTemplatePath,
-                notesFieldTemplatePath),
+                book.NotesFieldLine),
             ctx.MediaTool);
         var builtStage = await stageConverter.BuildAsync(ct);
         diagnostics.Report(builtStage.Diagnostics);
@@ -168,7 +160,7 @@ public static class OptionExporter
     {
         foreach (var (difficulty, item) in book.Difficulties)
         {
-            if (item.SongId is not { } songId) throw new DiagnosticException(Strings.Error_Song_id_is_not_set);
+            if (item.SongId is not { } songId) throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
 
             TrackEventEntry(book, difficulty, songId, weEntries, ultEntries);
 
@@ -211,7 +203,8 @@ public static class OptionExporter
         var jacketPath = book.BookMeta.FullJacketFilePath;
         if (!File.Exists(jacketPath))
         {
-            diagnostics.Report(new PathDiagnostic(Severity.Warning, Strings.Error_Jacket_file_not_found, jacketPath));
+            diagnostics.Report(new PathDiagnostic(Severity.Warning, Msg.Key(MsgKeys.Error_Jacket_file_not_found),
+                jacketPath));
             return;
         }
 
@@ -255,13 +248,11 @@ public static class OptionExporter
         CancellationToken ct)
     {
         var songId = book.BookMeta.Id;
-        var dummyAcbPath = ctx.AssetProvider.GetPath(InfrastructureAsset.DummyAcb);
         var cachedConversion = songId is null
             ? null
             : await OptionConversionCacheArtifacts.CreateAudioAsync(
                 book.BookMeta,
                 cueFileFolder,
-                dummyAcbPath,
                 settings.HcaEncryptionKey,
                 ct);
         if (songId is not null &&
@@ -278,8 +269,7 @@ public static class OptionExporter
             new AudioConvertRequest(
                 book.BookMeta,
                 cueFileFolder,
-                dummyAcbPath,
-                ctx.ResourceStore.GetTempPath(
+                ctx.AssetStore.GetTempPath(
                     $"c_{Path.GetFileNameWithoutExtension(book.BookMeta.FullBgmFilePath)}.wav"),
                 settings.HcaEncryptionKey),
             ctx.MediaTool);

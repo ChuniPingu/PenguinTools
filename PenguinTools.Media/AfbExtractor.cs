@@ -1,6 +1,4 @@
-using PenguinTools.Core;
-using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
+﻿using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Media;
 
@@ -36,7 +34,7 @@ public class AfbExtractor
     {
         if (File.Exists(InPath)) return true;
 
-        Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_File_not_found, InPath));
+        Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_File_not_found), InPath));
         return false;
     }
 }

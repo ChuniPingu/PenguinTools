@@ -28,7 +28,7 @@ public class DiagnosticCollector : IDiagnosticSink
             return;
         }
 
-        Report(new Diagnostic(Severity.Error, ex.Message)
+        Report(new Diagnostic(Severity.Error, Msg.Unhandled(ex.Message))
         {
             RelatedException = ex
         });

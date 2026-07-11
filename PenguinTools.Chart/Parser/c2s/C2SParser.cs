@@ -1,9 +1,7 @@
 using System.Globalization;
 using System.Text;
 using PenguinTools.Chart.Models;
-using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser.c2s;
 
@@ -56,7 +54,7 @@ public sealed class C2SParser
         }
 
         if (string.IsNullOrWhiteSpace(_version))
-            Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.C2s_Version_line_not_found, Path));
+            Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.C2s_Version_line_not_found), Path));
 
         ResolvePairings();
 
@@ -144,7 +142,7 @@ public sealed class C2SParser
             case "AHX":
             case "ASX":
                 ReportAtLine(Severity.Information,
-                    string.Format(Strings.C2s_Note_type_not_represented, tokens[0]), line.Number);
+                    Msg.Create(MsgKeys.C2s_Note_type_not_represented, tokens[0]), line.Number);
                 break;
             case "SEQUENCEID":
             case "CLK_DEF":
@@ -155,11 +153,11 @@ public sealed class C2SParser
                 break;
             default:
                 if (tokens[0].Length == 3)
-                    ReportAtLine(Severity.Information, string.Format(Strings.Mg_Unrecognized_note, tokens[0]),
+                    ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
                         line.Number);
                 else
                     ReportAtLine(Severity.Information,
-                        string.Format(Strings.Mg_Unrecognized_meta, tokens[0], string.Join('\t', tokens.Skip(1))),
+                        Msg.Create(MsgKeys.Mg_Unrecognized_meta, tokens[0], string.Join('\t', tokens.Skip(1))),
                         line.Number);
                 break;
         }
@@ -171,7 +169,7 @@ public sealed class C2SParser
 
         _version = version;
         if (!SupportedVersions.Contains(version))
-            ReportAtLine(Severity.Error, string.Format(Strings.C2s_Unsupported_version, version), lineNumber);
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Unsupported_version, version), lineNumber);
     }
 
     private void ParseMusic(string[] tokens)
@@ -225,7 +223,7 @@ public sealed class C2SParser
         if (!TryGetInt(tokens, 1, lineNumber, "resolution", out var resolution)) return;
         if (resolution <= 0)
         {
-            ReportAtLine(Severity.Error, Strings.C2s_Resolution_must_be_positive, lineNumber);
+            ReportAtLine(Severity.Error, Msg.Key(MsgKeys.C2s_Resolution_must_be_positive), lineNumber);
             return;
         }
 
@@ -584,7 +582,7 @@ public sealed class C2SParser
             }
 
             ReportAtLine(Severity.Warning,
-                string.Format(Strings.C2s_Parent_not_resolved, pending.ParentId, pending.Note.Id), pending.LineNumber,
+                Msg.Create(MsgKeys.C2s_Parent_not_resolved, pending.ParentId, pending.Note.Id), pending.LineNumber,
                 pending.Note);
         }
     }
@@ -633,7 +631,7 @@ public sealed class C2SParser
         if (index >= tokens.Length || string.IsNullOrWhiteSpace(tokens[index])) return false;
         if (Enum.TryParse(tokens[index], true, out effect) && Enum.IsDefined(effect)) return true;
 
-        ReportAtLine(Severity.Warning, string.Format(Strings.C2s_Unknown_ex_effect, tokens[index]), lineNumber);
+        ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Unknown_ex_effect, tokens[index]), lineNumber);
         return false;
     }
 
@@ -643,7 +641,7 @@ public sealed class C2SParser
         if (index >= tokens.Length || string.IsNullOrWhiteSpace(tokens[index])) return false;
         if (Enum.TryParse(tokens[index], true, out color) && Enum.IsDefined(color)) return true;
 
-        ReportAtLine(Severity.Warning, string.Format(Strings.C2s_Unknown_air_color, tokens[index]), lineNumber);
+        ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Unknown_air_color, tokens[index]), lineNumber);
         return false;
     }
 
@@ -696,7 +694,7 @@ public sealed class C2SParser
             return true;
         }
 
-        ReportAtLine(Severity.Error, string.Format(Strings.C2s_Missing_field, field), lineNumber);
+        ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Missing_field, field), lineNumber);
         return false;
     }
 
@@ -707,7 +705,7 @@ public sealed class C2SParser
             int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
             return true;
 
-        ReportAtLine(Severity.Error, string.Format(Strings.C2s_Invalid_field, field), lineNumber,
+        ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
             index < tokens.Length ? tokens[index] : null);
         return false;
     }
@@ -719,12 +717,12 @@ public sealed class C2SParser
             decimal.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out value))
             return true;
 
-        ReportAtLine(Severity.Error, string.Format(Strings.C2s_Invalid_field, field), lineNumber,
+        ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
             index < tokens.Length ? tokens[index] : null);
         return false;
     }
 
-    private void ReportAtLine(Severity severity, string message, int lineNumber, object? target = null)
+    private void ReportAtLine(Severity severity, MessageDescriptor message, int lineNumber, object? target = null)
     {
         Diagnostic.Report(new LocationDiagnostic(severity, message, lineNumber, Path)
         {

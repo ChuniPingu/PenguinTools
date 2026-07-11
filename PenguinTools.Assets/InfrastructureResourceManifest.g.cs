@@ -2,27 +2,9 @@
 namespace PenguinTools.Assets;
 public static partial class InfrastructureResourceNames
 {
-public const string MuaExecutableWindows = "mua.exe";
-public const string MuaExecutableUnix = "mua";
-public const string MuaLicense = "mua.LICENSE.txt";
 public const string AssetsJson = "assets.json";
-public const string NotesFieldTemplate = "nf_dummy.afb";
-public const string StageTemplate = "st_dummy.afb";
-public const string DummyAcb = "dummy.acb";
-public static string GetResourceName(InfrastructureAsset asset) => asset switch
-{
-InfrastructureAsset.NotesFieldTemplate => "nf_dummy.afb",
-InfrastructureAsset.StageTemplate => "st_dummy.afb",
-InfrastructureAsset.DummyAcb => "dummy.acb",
-_ => throw new ArgumentOutOfRangeException(nameof(asset), asset, null)
-};
 public static readonly string[] All =
 [
-"mua.exe",
-"mua.LICENSE.txt",
 "assets.json",
-"nf_dummy.afb",
-"st_dummy.afb",
-"dummy.acb",
 ];
 }

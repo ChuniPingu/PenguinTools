@@ -4,11 +4,13 @@ using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
 
-public sealed class MuaMediaTool(string executablePath) : IMediaTool
+public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
 {
-    private string ExecutablePath { get; } = string.IsNullOrWhiteSpace(executablePath)
-        ? throw new ArgumentNullException(nameof(executablePath))
-        : executablePath;
+    private string MuaDirectory { get; } = RequireDirectory(muaDirectory, nameof(muaDirectory));
+
+    private string WavExecutablePath => ResolveExecutable("mua_wav");
+    private string ImgExecutablePath => ResolveExecutable("mua_img");
+    private string CriExecutablePath => ResolveExecutable("mua_cri");
 
     public async Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
         CancellationToken ct = default)
@@ -16,8 +18,8 @@ public sealed class MuaMediaTool(string executablePath) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync([
-            "audio_normalize",
+        var ret = await RunAsync(WavExecutablePath, [
+            "normalize",
             "-s", src,
             "-d", dst,
             "-o", Math.Round(offset, 6).ToString(CultureInfo.InvariantCulture)
@@ -30,13 +32,13 @@ public sealed class MuaMediaTool(string executablePath) : IMediaTool
     public async Task<ProcessCommandResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        return await RunAsync(["audio_check", "-s", src], ct);
+        return await RunAsync(WavExecutablePath, ["check", "-s", src], ct);
     }
 
     public async Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        return await RunAsync(["image_check", "-s", src], ct);
+        return await RunAsync(ImgExecutablePath, ["check", "-s", src], ct);
     }
 
     public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
@@ -44,23 +46,23 @@ public sealed class MuaMediaTool(string executablePath) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync(["convert_jacket", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct);
         ret.ThrowIfFailed();
     }
 
-    public async Task ConvertStageAsync(string bg, string stSrc, string stDst, string?[]? fxPaths,
+    public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bg);
-        ArgumentException.ThrowIfNullOrWhiteSpace(stSrc);
         ArgumentException.ThrowIfNullOrWhiteSpace(stDst);
+        ArgumentException.ThrowIfNullOrWhiteSpace(nfDst);
 
         var args = new List<string>
         {
-            "convert_stage",
+            "stage",
             "-b", bg,
-            "-s", stSrc,
-            "-d", stDst
+            "-d", stDst,
+            "-n", nfDst
         };
 
         for (var i = 0; fxPaths is not null && i < fxPaths.Length && i < 4; i++)
@@ -68,11 +70,11 @@ public sealed class MuaMediaTool(string executablePath) : IMediaTool
             var fxPath = fxPaths[i];
             if (string.IsNullOrWhiteSpace(fxPath)) continue;
 
-            args.Add($"-f{i + 1}");
+            args.Add($"--fx{i + 1}");
             args.Add(fxPath);
         }
 
-        var ret = await RunAsync(args, ct);
+        var ret = await RunAsync(ImgExecutablePath, args, ct);
         ret.ThrowIfFailed();
     }
 
@@ -81,15 +83,62 @@ public sealed class MuaMediaTool(string executablePath) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync(["extract_dds", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct);
         ret.ThrowIfFailed();
     }
 
-    private async Task<ProcessCommandResult> RunAsync(IEnumerable<string> args, CancellationToken ct = default)
+    public async Task ConvertCriAsync(
+        string wav,
+        string acb,
+        string awb,
+        string name,
+        long previewStartMs,
+        long previewStopMs,
+        ulong hcaKey,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(wav);
+        ArgumentException.ThrowIfNullOrWhiteSpace(acb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(awb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var ret = await RunAsync(CriExecutablePath, [
+            "convert",
+            "--wav", wav,
+            "--acb", acb,
+            "--awb", awb,
+            "--name", name,
+            "--preview-start-ms", previewStartMs.ToString(CultureInfo.InvariantCulture),
+            "--preview-stop-ms", previewStopMs.ToString(CultureInfo.InvariantCulture),
+            "--hca-key", hcaKey.ToString(CultureInfo.InvariantCulture)
+        ], ct);
+        ret.ThrowIfFailed();
+    }
+
+    private string ResolveExecutable(string name)
+    {
+        var fileName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
+        var path = Path.Combine(MuaDirectory, fileName);
+        ResourceStoreHelpers.EnsureExecutableIfNeeded(path, fileName);
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"mua executable '{fileName}' was not found in '{MuaDirectory}'.", path);
+
+        return path;
+    }
+
+    private static string RequireDirectory(string directoryPath, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+            throw new ArgumentNullException(paramName);
+        return directoryPath;
+    }
+
+    private static async Task<ProcessCommandResult> RunAsync(string executablePath, IEnumerable<string> args,
+        CancellationToken ct = default)
     {
         var psi = new ProcessStartInfo
         {
-            FileName = ExecutablePath,
+            FileName = executablePath,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true

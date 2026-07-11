@@ -1,6 +1,7 @@
 namespace PenguinTools.Core.Diagnostic;
 
-public sealed record TimedDiagnostic(Severity Severity, string Message, int Tick) : Diagnostic(Severity, Message)
+public sealed record TimedDiagnostic(Severity Severity, MessageDescriptor Message, int Tick)
+    : Diagnostic(Severity, Message)
 {
     public override int? Time => Tick;
 

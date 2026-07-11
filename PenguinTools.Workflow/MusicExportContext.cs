@@ -1,4 +1,3 @@
-using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Infrastructure;
 using PenguinTools.Media;
@@ -8,5 +7,5 @@ namespace PenguinTools.Workflow;
 public sealed record MusicExportContext(
     AssetManager Assets,
     IMediaTool MediaTool,
-    IResourceStore ResourceStore,
+    IAssetStore AssetStore,
     IInfrastructureAssetProvider AssetProvider);

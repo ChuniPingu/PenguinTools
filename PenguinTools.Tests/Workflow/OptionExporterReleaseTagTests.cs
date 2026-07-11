@@ -48,11 +48,11 @@ public sealed class OptionExporterReleaseTagTests
             {
                 [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
             });
-        using var resourceStore = new DummyResourceStore(workPath);
+        using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
             TestMediaTool.Instance,
-            resourceStore,
+            assetStore,
             DummyInfrastructureAssetProvider.Instance);
 
         try
@@ -75,13 +75,19 @@ public sealed class OptionExporterReleaseTagTests
         }
     }
 
-    private sealed class DummyResourceStore(string tempWorkPath) : IResourceStore
+    private sealed class DummyAssetStore(string tempWorkPath) : IAssetStore
     {
+        public string AssetDirectory { get; } = tempWorkPath;
         public string TempWorkPath { get; } = tempWorkPath;
 
-        public bool HasResource(string resourceName)
+        public bool HasAsset(string assetName)
         {
             return false;
+        }
+
+        public string GetAssetPath(string assetName)
+        {
+            return GetTempPath(assetName);
         }
 
         public string GetTempPath(string fileName)
@@ -90,19 +96,9 @@ public sealed class OptionExporterReleaseTagTests
             return Path.Combine(TempWorkPath, fileName);
         }
 
-        public string ExtractToTemp(string resourceName)
+        public Stream OpenRead(string assetName)
         {
-            return GetTempPath(resourceName);
-        }
-
-        public Task CopyToAsync(string resourceName, string destinationPath, CancellationToken ct = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Stream OpenRead(string resourceName)
-        {
-            throw new FileNotFoundException(resourceName);
+            throw new FileNotFoundException(assetName);
         }
 
         public void Dispose()

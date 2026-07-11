@@ -1,6 +1,5 @@
 using System.CommandLine;
-using PenguinTools.i18n;
-using PenguinTools.Workflow;
+using PenguinTools.Application;
 
 namespace PenguinTools.CLI;
 
@@ -14,56 +13,29 @@ internal static class CommandLineOptions
         };
     }
 
-    internal static bool TryGetChartFileDiscovery(ParseResult parseResult, Option<string?> option,
-        out IReadOnlyList<ChartFileFormat>? discovery, out string? error)
-    {
-        if (parseResult.GetValue(option) is { Length: > 0 } discoveryText)
-        {
-            if (!ChartFileDiscoveryFormats.TryParse(discoveryText, out var parsed, out error))
-            {
-                discovery = null;
-                return false;
-            }
-
-            discovery = parsed;
-            error = null;
-            return true;
-        }
-
-        discovery = null;
-        error = null;
-        return true;
-    }
-
     internal static AudioCommandOptions CreateAudioCommandOptions()
     {
         return new AudioCommandOptions(
-            new Option<string?>("--dummy-acb")
-            {
-                Description = Strings.Cli_Opt_dummy_acb
-            },
             new Option<string?>("--working-audio")
             {
-                Description = Strings.Cli_Opt_working_audio
+                Description = "Override the intermediate WAV path used during audio conversion."
             },
             new Option<ulong?>("--hca-key")
             {
-                Description = Strings.Cli_Opt_hca_key
+                Description = "Override the HCA encryption key."
             });
     }
 
     internal static void AddAudioCommandOptions(Command command, AudioCommandOptions options)
     {
-        command.Options.Add(options.DummyAcbPath);
         command.Options.Add(options.WorkingAudioPath);
         command.Options.Add(options.HcaEncryptionKey);
     }
 
-    internal static AudioRequestOverrides GetAudioRequestOverrides(ParseResult parseResult, AudioCommandOptions options)
+    internal static AudioOverrides GetAudioOverrides(ParseResult parseResult, AudioCommandOptions options)
     {
-        return new AudioRequestOverrides(
-            CliPaths.ResolveOptionalPath(parseResult.GetValue(options.DummyAcbPath)),
-            CliPaths.ResolveOptionalPath(parseResult.GetValue(options.WorkingAudioPath)),
+        return new AudioOverrides(
+            parseResult.GetValue(options.WorkingAudioPath),
             parseResult.GetValue(options.HcaEncryptionKey));
     }
 
@@ -72,47 +44,39 @@ internal static class CommandLineOptions
         return new StageCommandOptions(
             new Option<string?>("--background")
             {
-                Description = Strings.Cli_Opt_stage_background
+                Description = "Override the stage background image path."
             },
             new Option<string?>("--effect-1")
             {
-                Description = Strings.Cli_Opt_effect_1
+                Description = "Optional first stage effect image path."
             },
             new Option<string?>("--effect-2")
             {
-                Description = Strings.Cli_Opt_effect_2
+                Description = "Optional second stage effect image path."
             },
             new Option<string?>("--effect-3")
             {
-                Description = Strings.Cli_Opt_effect_3
+                Description = "Optional third stage effect image path."
             },
             new Option<string?>("--effect-4")
             {
-                Description = Strings.Cli_Opt_effect_4
+                Description = "Optional fourth stage effect image path."
             },
             new Option<int?>("--stage-id")
             {
-                Description = Strings.Cli_Opt_stage_id
+                Description = "Override the custom stage ID."
             },
             new Option<int?>("--notes-field-line-id")
             {
-                Description = Strings.Cli_Opt_notes_field_line_id
+                Description = "Override the notes field line entry ID."
             },
             new Option<string?>("--notes-field-line-name")
             {
-                Description = Strings.Cli_Opt_notes_field_line_name
+                Description = "Override the notes field line entry name."
             },
             new Option<string?>("--notes-field-line-data")
             {
-                Description = Strings.Cli_Opt_notes_field_line_data
-            },
-            new Option<string?>("--stage-template")
-            {
-                Description = Strings.Cli_Opt_stage_template
-            },
-            new Option<string?>("--notes-field-template")
-            {
-                Description = Strings.Cli_Opt_notes_field_template
+                Description = "Override the notes field line entry data value."
             });
     }
 
@@ -127,25 +91,36 @@ internal static class CommandLineOptions
         command.Options.Add(options.NoteFieldLaneId);
         command.Options.Add(options.NoteFieldLaneName);
         command.Options.Add(options.NoteFieldLaneData);
-        command.Options.Add(options.StageTemplatePath);
-        command.Options.Add(options.NotesFieldTemplatePath);
     }
 
-    internal static StageRequestOverrides GetStageRequestOverrides(ParseResult parseResult, StageCommandOptions options)
+    internal static StageOverrides GetStageOverrides(ParseResult parseResult, StageCommandOptions options)
     {
-        return new StageRequestOverrides(
-            CliPaths.ResolveOptionalPath(parseResult.GetValue(options.BackgroundPath)),
+        return new StageOverrides(
+            parseResult.GetValue(options.BackgroundPath),
             [
-                CliPaths.ResolveOptionalPath(parseResult.GetValue(options.Effect1Path)),
-                CliPaths.ResolveOptionalPath(parseResult.GetValue(options.Effect2Path)),
-                CliPaths.ResolveOptionalPath(parseResult.GetValue(options.Effect3Path)),
-                CliPaths.ResolveOptionalPath(parseResult.GetValue(options.Effect4Path))
+                parseResult.GetValue(options.Effect1Path),
+                parseResult.GetValue(options.Effect2Path),
+                parseResult.GetValue(options.Effect3Path),
+                parseResult.GetValue(options.Effect4Path)
             ],
             parseResult.GetValue(options.StageId),
             parseResult.GetValue(options.NoteFieldLaneId),
             parseResult.GetValue(options.NoteFieldLaneName),
-            parseResult.GetValue(options.NoteFieldLaneData),
-            CliPaths.ResolveOptionalPath(parseResult.GetValue(options.StageTemplatePath)),
-            CliPaths.ResolveOptionalPath(parseResult.GetValue(options.NotesFieldTemplatePath)));
+            parseResult.GetValue(options.NoteFieldLaneData));
     }
+
+    internal sealed record AudioCommandOptions(
+        Option<string?> WorkingAudioPath,
+        Option<ulong?> HcaEncryptionKey);
+
+    internal sealed record StageCommandOptions(
+        Option<string?> BackgroundPath,
+        Option<string?> Effect1Path,
+        Option<string?> Effect2Path,
+        Option<string?> Effect3Path,
+        Option<string?> Effect4Path,
+        Option<int?> StageId,
+        Option<int?> NoteFieldLaneId,
+        Option<string?> NoteFieldLaneName,
+        Option<string?> NoteFieldLaneData);
 }

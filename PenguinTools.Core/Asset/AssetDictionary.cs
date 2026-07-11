@@ -22,7 +22,7 @@ public enum AssetType
     WeTagNames
 }
 
-public class AssetDictionary
+public class AssetDictionary()
 {
     private static readonly AssetJsonSerializerContext JsonContext = new(new JsonSerializerOptions
     {
@@ -31,12 +31,7 @@ public class AssetDictionary
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     });
 
-    private readonly Dictionary<AssetType, SortedSet<Entry>> _database;
-
-    public AssetDictionary()
-    {
-        _database = CreateDatabase();
-    }
+    private readonly Dictionary<AssetType, SortedSet<Entry>> _database = CreateDatabase();
 
     public AssetDictionary(string path) : this()
     {

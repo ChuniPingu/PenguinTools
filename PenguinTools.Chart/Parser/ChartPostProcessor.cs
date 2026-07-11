@@ -4,27 +4,15 @@ using System.Text.RegularExpressions;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser;
 
 using umgr = Models.umgr;
 
-internal sealed partial class ChartPostProcessor
+internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSink diag, AssetManager assets)
 {
-    private readonly AssetManager _assets;
-    private readonly umgr.Chart _chart;
-    private readonly IDiagnosticSink _diag;
-
     private readonly Dictionary<int, List<umgr.Note>> _noteGroups = [];
     private readonly Dictionary<int, List<umgr.ScrollSpeedEvent>> _tilGroups = [];
-
-    public ChartPostProcessor(umgr.Chart chart, IDiagnosticSink diag, AssetManager assets)
-    {
-        _chart = chart;
-        _diag = diag;
-        _assets = assets;
-    }
 
     public void Run()
     {
@@ -45,35 +33,35 @@ internal sealed partial class ChartPostProcessor
 
     private void ProcessEvent()
     {
-        var bpmEvents = _chart.Events.Children.OfType<umgr.BpmEvent>().OrderBy(e => e.Tick).ToArray();
+        var bpmEvents = chart.Events.Children.OfType<umgr.BpmEvent>().OrderBy(e => e.Tick).ToArray();
         if (bpmEvents.Length <= 0 || bpmEvents[0].Tick.Original != 0)
-            throw new DiagnosticException(Strings.Mg_Head_BPM_not_found);
+            throw new DiagnosticException(MsgKeys.Mg_Head_BPM_not_found);
 
-        var beatEvents = _chart.Events.Children.OfType<umgr.BeatEvent>().OrderBy(e => e.Bar).ToList();
+        var beatEvents = chart.Events.Children.OfType<umgr.BeatEvent>().OrderBy(e => e.Bar).ToList();
         var firstBeatEvent = beatEvents.FirstOrDefault();
         if (firstBeatEvent is not { Bar: 0 })
         {
             var newEvent = new umgr.BeatEvent { Bar = 0, Numerator = 4, Denominator = 4 };
-            _chart.Events.InsertBefore(newEvent, firstBeatEvent);
+            chart.Events.InsertBefore(newEvent, firstBeatEvent);
             beatEvents.Insert(0, newEvent);
-            _diag.Report(new Diagnostic(Severity.Information, Strings.Mg_Head_Time_Signature_event_not_found));
+            diag.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_Head_Time_Signature_event_not_found)));
         }
 
         var initBeat = beatEvents[0];
-        _chart.Meta.BgmInitialBpm = bpmEvents[0].Bpm;
-        _chart.Meta.BgmInitialNumerator = initBeat.Numerator;
-        _chart.Meta.BgmInitialDenominator = initBeat.Denominator;
+        chart.Meta.BgmInitialBpm = bpmEvents[0].Bpm;
+        chart.Meta.BgmInitialNumerator = initBeat.Numerator;
+        chart.Meta.BgmInitialDenominator = initBeat.Denominator;
 
         umgr.Chart.CalculateBeatEventTicks(beatEvents);
 
-        _chart.Events.Sort();
+        chart.Events.Sort();
     }
 
     private void ProcessNote()
     {
-        if (_chart.Notes.Children.Count <= 0) return;
+        if (chart.Notes.Children.Count <= 0) return;
 
-        var noteGroup = _chart.Notes.Children
+        var noteGroup = chart.Notes.Children
             .OfType<umgr.ExTapableNote>()
             .GroupBy(note => note.Tick)
             .ToDictionary(g => g.Key, g => g.ToArray());
@@ -81,7 +69,7 @@ internal sealed partial class ChartPostProcessor
         var exEffects = new Dictionary<Time, HashSet<ExEffect>>();
         var tbRemoved = new HashSet<umgr.ExTap>();
 
-        foreach (var exTap in _chart.Notes.Children.OfType<umgr.ExTap>())
+        foreach (var exTap in chart.Notes.Children.OfType<umgr.ExTap>())
         {
             if (!exEffects.TryGetValue(exTap.Tick, out var effectSet))
             {
@@ -105,25 +93,25 @@ internal sealed partial class ChartPostProcessor
             }
         }
 
-        foreach (var exTap in tbRemoved) _chart.Notes.RemoveChild(exTap);
+        foreach (var exTap in tbRemoved) chart.Notes.RemoveChild(exTap);
 
-        _chart.Notes.Sort();
+        chart.Notes.Sort();
 
         foreach (var (tick, effects) in exEffects)
         {
             if (effects.Count <= 1) continue;
             var str = string.Join(", ", effects.Select(e => e.ToString()));
-            var msg = string.Format(Strings.Mg_Concurrent_ex_effects, str);
-            _diag.Report(new TimedDiagnostic(Severity.Information, msg, tick.Original));
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Concurrent_ex_effects, str);
+            diag.Report(new TimedDiagnostic(Severity.Information, msg, tick.Original));
         }
     }
 
-    // thanks to @tångent 90°
+    // thanks to @tangent 90
     private void ProcessTil()
     {
-        GroupEventByTimeline(_chart.Events);
-        GroupNoteByTimeline(_chart.Notes);
-        MoveMainTimeline(_chart.Meta.MainTil);
+        GroupEventByTimeline(chart.Events);
+        GroupNoteByTimeline(chart.Notes);
+        MoveMainTimeline(chart.Meta.MainTil);
         ClearEmptyGroups();
         // TODO: Find conflicting note, compare priority and put them in separate group (SLA with larger TIL => larger priority when applying on note)
         PlaceSoflanArea();
@@ -136,8 +124,8 @@ internal sealed partial class ChartPostProcessor
 
     private void FinalizeEvent()
     {
-        var noteSpeedMods = _chart.Events.Children.OfType<umgr.NoteSpeedEvent>().ToArray();
-        foreach (var e in _chart.Events.Children.OfType<umgr.SpeedEventBase>().ToArray()) _chart.Events.RemoveChild(e);
+        var noteSpeedMods = chart.Events.Children.OfType<umgr.NoteSpeedEvent>().ToArray();
+        foreach (var e in chart.Events.Children.OfType<umgr.SpeedEventBase>().ToArray()) chart.Events.RemoveChild(e);
         foreach (var (tilId, events) in _tilGroups)
         foreach (var e in events)
         {
@@ -147,11 +135,11 @@ internal sealed partial class ChartPostProcessor
                 Timeline = tilId,
                 Speed = e.Speed
             };
-            _chart.Events.AppendChild(newEvent);
+            chart.Events.AppendChild(newEvent);
         }
 
         foreach (var e in noteSpeedMods)
-            _chart.Events.AppendChild(e);
+            chart.Events.AppendChild(e);
     }
 
     private void PlaceSoflanArea()
@@ -192,7 +180,7 @@ internal sealed partial class ChartPostProcessor
 
                 slaSet.Add((note.Tick.Original, id, note.Lane, note.Width));
                 head.AppendChild(tail);
-                _chart.Notes.AppendChild(head);
+                chart.Notes.AppendChild(head);
             }
         }
     }
@@ -223,8 +211,8 @@ internal sealed partial class ChartPostProcessor
     {
         if (!_tilGroups.ContainsKey(mainTil))
         {
-            var msg = string.Format(Strings.Mg_Main_timeline_not_found, _chart.Meta.MainTil);
-            _diag.Report(new Diagnostic(Severity.Information, msg));
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Main_timeline_not_found, chart.Meta.MainTil);
+            diag.Report(new Diagnostic(Severity.Information, msg));
             return;
         }
 
@@ -237,7 +225,7 @@ internal sealed partial class ChartPostProcessor
         {
             var mappedNotes = _noteGroups[id];
             var maxTick = mappedNotes.Select(p => p.Tick).Append(0).Max();
-            if (mappedNotes.Count == 0 && _chart.Notes.Children.Count > 0) _tilGroups.Remove(id);
+            if (mappedNotes.Count == 0 && chart.Notes.Children.Count > 0) _tilGroups.Remove(id);
             else if (events.Count > 0 && maxTick.Original > 0)
                 events.RemoveAll(p => p.Tick.Original > maxTick.Original + ChartResolution.SingleTick);
         }
@@ -282,7 +270,7 @@ internal sealed partial class ChartPostProcessor
     private void FindNoteViolations()
     {
         var violations = new HashSet<umgr.Note>();
-        var noteGroup = _chart.Notes.Children.GroupBy(n => (n.Tick, n.Lane)).Where(g => g.Count() > 1);
+        var noteGroup = chart.Notes.Children.GroupBy(n => (n.Tick, n.Lane)).Where(g => g.Count() > 1);
 
         foreach (var group in noteGroup)
         {
@@ -297,7 +285,7 @@ internal sealed partial class ChartPostProcessor
         }
 
         foreach (var note in violations)
-            _diag.Report(new TimedDiagnostic(Severity.Warning, Strings.Mg_Note_overlapped_in_different_TIL,
+            diag.Report(new TimedDiagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL),
                 note.Tick.Original)
             {
                 Target = note
@@ -308,8 +296,8 @@ internal sealed partial class ChartPostProcessor
     {
         if (args.Length is < 1 or > 2)
         {
-            var msg = string.Format(Strings.Mg_Meta_Argument_count_min_one, name);
-            _diag.Report(new Diagnostic(Severity.Warning, msg)
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Meta_Argument_count_min_one, name);
+            diag.Report(new Diagnostic(Severity.Warning, msg)
             {
                 Target = args
             });
@@ -320,22 +308,22 @@ internal sealed partial class ChartPostProcessor
         {
             var newId = int.TryParse(args[0], out var parsedId)
                 ? parsedId
-                : throw new DiagnosticException(Strings.Mg_Meta_First_argument_must_int);
+                : throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
             var data = args.Length >= 3 ? args[2] : null;
             var newEntry = new Entry(newId, args[1], data ?? string.Empty);
             setter(newEntry);
-            _assets.DefineEntry(type, newEntry);
+            assets.DefineEntry(type, newEntry);
             return;
         }
 
         var value = args[0];
-        var entry = int.TryParse(value, out var id) ? _assets[type].FirstOrDefault(e => e.Id == id) : null;
-        entry ??= _assets[type].FirstOrDefault(e => e.Str.Equals(value, StringComparison.Ordinal));
+        var entry = int.TryParse(value, out var id) ? assets[type].FirstOrDefault(e => e.Id == id) : null;
+        entry ??= assets[type].FirstOrDefault(e => e.Str.Equals(value, StringComparison.Ordinal));
 
         if (entry == null)
         {
-            var msg = string.Format(Strings.Mg_String_id_not_found, value, type.ToString());
-            _diag.Report(new Diagnostic(Severity.Information, msg)
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_String_id_not_found, value, type.ToString());
+            diag.Report(new Diagnostic(Severity.Information, msg)
             {
                 Target = args
             });
@@ -348,7 +336,7 @@ internal sealed partial class ChartPostProcessor
 
     private void MetaGenreHandler(string[] args)
     {
-        MetaEntryHandler("genre", args, entry => _chart.Meta.Genre = entry, AssetType.GenreNames);
+        MetaEntryHandler("genre", args, entry => chart.Meta.Genre = entry, AssetType.GenreNames);
     }
 
     private void MetaStageHandler(string[] args)
@@ -357,32 +345,32 @@ internal sealed partial class ChartPostProcessor
 
         void Setter(Entry entry)
         {
-            _chart.Meta.Stage = entry;
-            _chart.Meta.IsCustomStage = false;
+            chart.Meta.Stage = entry;
+            chart.Meta.IsCustomStage = false;
         }
     }
 
     private void MetaFieldLineHandler(string[] args)
     {
-        MetaEntryHandler("fline", args, entry => _chart.Meta.NotesFieldLine = entry, AssetType.FieldLines);
+        MetaEntryHandler("fline", args, entry => chart.Meta.NotesFieldLine = entry, AssetType.FieldLines);
     }
 
     private void MetaWeTagHandler(string[] args)
     {
-        MetaEntryHandler("wetag", args, entry => _chart.Meta.WeTag = entry, AssetType.WeTagNames);
+        MetaEntryHandler("wetag", args, entry => chart.Meta.WeTag = entry, AssetType.WeTagNames);
     }
 
     private void MainHandler(string[] args)
     {
-        _chart.Meta.IsMain = args.Length < 1 || ParseBool(args[0]);
+        chart.Meta.IsMain = args.Length < 1 || ParseBool(args[0]);
     }
 
     private void MetaDateHandler(string[] args)
     {
         if (args.Length < 1)
         {
-            var msg = string.Format(Strings.Mg_Meta_Argument_count_min_one, "date");
-            _diag.Report(new Diagnostic(Severity.Warning, msg)
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Meta_Argument_count_min_one, "date");
+            diag.Report(new Diagnostic(Severity.Warning, msg)
             {
                 Target = args
             });
@@ -391,14 +379,14 @@ internal sealed partial class ChartPostProcessor
 
         if (!DateTime.TryParseExact(args[0], "yyyyMMdd", null, DateTimeStyles.None, out var date))
         {
-            _diag.Report(new Diagnostic(Severity.Warning, Strings.Mg_Meta_Invalid_date)
+            diag.Report(new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Meta_Invalid_date))
             {
                 Target = args
             });
             return;
         }
 
-        _chart.Meta.ReleaseDate = date;
+        chart.Meta.ReleaseDate = date;
     }
 
     private void MetaHandler(string[] args)
@@ -426,7 +414,7 @@ internal sealed partial class ChartPostProcessor
                 MetaDateHandler(value);
                 break;
             default:
-                _diag.Report(new Diagnostic(Severity.Warning, string.Format(Strings.Mg_Meta_Unknown_tag, name))
+                diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Unknown_tag, name))
                 {
                     Target = args
                 });
@@ -443,7 +431,7 @@ internal sealed partial class ChartPostProcessor
             }
         };
 
-        var lines = _chart.Meta.Comment.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        var lines = chart.Meta.Comment.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var line in lines)
         {
@@ -463,10 +451,10 @@ internal sealed partial class ChartPostProcessor
                 }
                 catch (Exception ex)
                 {
-                    _diag.Report(ex);
+                    diag.Report(ex);
                 }
             else
-                _diag.Report(new Diagnostic(Severity.Warning, string.Format(Strings.Mg_Meta_Unknown_tag, tagName))
+                diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Unknown_tag, tagName))
                 {
                     Target = parts
                 });

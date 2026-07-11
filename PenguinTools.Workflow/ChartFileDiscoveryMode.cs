@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Workflow;
 
@@ -69,13 +68,13 @@ public static class ChartFileDiscoveryFormats
         return TryParse(text, out var formats, out _) ? formats : [.. Default];
     }
 
-    public static bool TryParse(string? text, out IReadOnlyList<ChartFileFormat> formats, out string? error)
+    public static bool TryParse(string? text, out IReadOnlyList<ChartFileFormat> formats, out MessageDescriptor? error)
     {
         formats = [];
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            error = Strings.Error_Chart_format_specify_at_least_one;
+            error = Msg.Key(MsgKeys.Error_Chart_format_specify_at_least_one);
             return false;
         }
 
@@ -85,7 +84,7 @@ public static class ChartFileDiscoveryFormats
         {
             if (!trimmed.EndsWith(']'))
             {
-                error = Strings.Error_Chart_format_brackets_mismatch;
+                error = Msg.Key(MsgKeys.Error_Chart_format_brackets_mismatch);
                 return false;
             }
 
@@ -95,7 +94,7 @@ public static class ChartFileDiscoveryFormats
         var tokens = trimmed.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length == 0)
         {
-            error = Strings.Error_Chart_format_specify_at_least_one;
+            error = Msg.Key(MsgKeys.Error_Chart_format_specify_at_least_one);
             return false;
         }
 
@@ -104,7 +103,7 @@ public static class ChartFileDiscoveryFormats
         {
             if (!TryParseToken(token, out var format))
             {
-                error = string.Format(Strings.Error_Chart_format_unsupported, token);
+                error = Msg.Create(MsgKeys.Error_Chart_format_unsupported, token);
                 return false;
             }
 
@@ -166,16 +165,19 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
                 {
                     var token = reader.GetString();
                     if (!ChartFileDiscoveryFormats.TryParseToken(token, out var format))
-                        throw new JsonException(string.Format(Strings.Error_Chart_format_unsupported, token));
+                    {
+                        throw new JsonException(
+                            Msg.Create(MsgKeys.Error_Chart_format_unsupported, token).Key);
+                    }
 
                     formats.Add(format);
                     continue;
                 }
 
-                throw new JsonException(Strings.Error_Chart_discovery_must_be_array);
+                throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_must_be_array).Key);
             }
 
-            throw new JsonException(Strings.Error_Chart_discovery_array_incomplete);
+            throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_array_incomplete).Key);
         }
 
         if (reader.TokenType == JsonTokenType.String)
@@ -184,10 +186,10 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
             if (ChartFileDiscoveryFormats.TryParse(text, out var formats, out var error))
                 return [.. formats];
 
-            throw new JsonException(error);
+            throw new JsonException(error?.Key);
         }
 
-        throw new JsonException(Strings.Error_Chart_discovery_must_be_string_or_array);
+        throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_must_be_string_or_array).Key);
     }
 
     public override void Write(Utf8JsonWriter writer, List<ChartFileFormat> value, JsonSerializerOptions options)

@@ -3,7 +3,6 @@ using PenguinTools.Chart.Parser.sus;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
-using PenguinTools.i18n;
 using Xunit;
 
 namespace PenguinTools.Tests.Parser;
@@ -159,7 +158,7 @@ public class SusParserTests
         Assert.Contains(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Severity == Severity.Warning &&
-                          diagnostic.Message == Strings.Sus_Air_note_ignored);
+                          diagnostic.Message.Key == MsgKeys.Sus_Air_note_ignored);
     }
 
     [Fact]

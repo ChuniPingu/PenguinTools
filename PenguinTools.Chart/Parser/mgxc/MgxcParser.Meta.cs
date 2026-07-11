@@ -1,6 +1,5 @@
-﻿using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser.mgxc;
 
@@ -76,7 +75,7 @@ public partial class MgxcParser
                 QueueValidation(
                     MediaTool.CheckAudioValidAsync(Mgxc.Meta.FullBgmFilePath),
                     Mgxc.Meta.FullBgmFilePath,
-                    Strings.Error_Invalid_audio,
+                    MsgKeys.Error_Invalid_audio,
                     () => Mgxc.Meta.BgmFilePath = string.Empty);
         }
         else if (name == "wvof")
@@ -98,7 +97,7 @@ public partial class MgxcParser
                 QueueValidation(
                     MediaTool.CheckImageValidAsync(Mgxc.Meta.FullJacketFilePath),
                     Mgxc.Meta.FullJacketFilePath,
-                    Strings.Error_Invalid_jk_image,
+                    MsgKeys.Error_Invalid_jk_image,
                     () => Mgxc.Meta.JacketFilePath = string.Empty);
         }
         else if (name == "bgfn")
@@ -212,7 +211,7 @@ public partial class MgxcParser
         }
         else
         {
-            var msg = string.Format(Strings.Mg_Unrecognized_meta, name, data);
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, data);
             ReportAtPosition(Severity.Information, msg, br.BaseStream.Position);
         }
     }

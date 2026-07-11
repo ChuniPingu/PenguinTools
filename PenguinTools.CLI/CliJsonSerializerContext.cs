@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
-using PenguinTools.Core;
-using PenguinTools.Workflow;
+using PenguinTools.Application;
 
 namespace PenguinTools.CLI;
 
@@ -8,24 +7,19 @@ namespace PenguinTools.CLI;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CliResponse))]
-[JsonSerializable(typeof(CliCommandData))]
-[JsonSerializable(typeof(CliEntrySummary))]
-[JsonSerializable(typeof(CliChartSummary))]
-[JsonSerializable(typeof(CliScanDifficultySummary))]
-[JsonSerializable(typeof(CliScanDifficultySummary[]))]
-[JsonSerializable(typeof(CliScanBookSummary))]
-[JsonSerializable(typeof(CliScanBookSummary[]))]
-[JsonSerializable(typeof(CliScanSummary))]
-[JsonSerializable(typeof(CliArtifact))]
-[JsonSerializable(typeof(CliArtifact[]))]
-[JsonSerializable(typeof(CliDiagnosticPayload))]
+[JsonSerializable(typeof(CliProgressEvent))]
+[JsonSerializable(typeof(MessageDescriptor))]
+[JsonSerializable(typeof(Dictionary<string, object?>))]
 [JsonSerializable(typeof(CliDiagnosticPayload[]))]
-[JsonSerializable(typeof(CliProcessPayload))]
-[JsonSerializable(typeof(OptionDocument))]
-[JsonSerializable(typeof(OptionConversionCache))]
-[JsonSerializable(typeof(OptionConversionCachePartition))]
-[JsonSerializable(typeof(OptionConversionCacheEntry))]
-[JsonSerializable(typeof(ChartFileFormat))]
-[JsonSerializable(typeof(List<ChartFileFormat>))]
-[JsonSerializable(typeof(ExecutionInfo), TypeInfoPropertyName = "RuntimeExecutionInfo")]
+[JsonSerializable(typeof(ChartInspectResult))]
+[JsonSerializable(typeof(ChartConvertResult))]
+[JsonSerializable(typeof(OptionScanResult))]
+[JsonSerializable(typeof(OptionBuildResult))]
+[JsonSerializable(typeof(MusicBuildResult))]
+[JsonSerializable(typeof(JacketConvertResult))]
+[JsonSerializable(typeof(AudioConvertResult))]
+[JsonSerializable(typeof(StageBuildResult))]
+[JsonSerializable(typeof(AfbExtractResult))]
+[JsonSerializable(typeof(AssetCollectResult))]
+[JsonSerializable(typeof(ApplicationInfo))]
 internal sealed partial class CliJsonSerializerContext : JsonSerializerContext;

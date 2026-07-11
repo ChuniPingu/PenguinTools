@@ -1,0 +1,142 @@
+{
+  "app": {
+    "batch_size_invalid": "Batch size must be -1 or greater than zero.",
+    "chart_file_not_found": "Chart file was not found.",
+    "config_path_conflict": "ConfigPath and SkipConfig cannot be used together.",
+    "game_directory_not_found": "Game directory was not found.",
+    "input_directory_not_found": "Input directory was not found.",
+    "no_charts_to_export": "No charts were found to export.",
+    "no_export_actions_enabled": "No export actions are enabled.",
+    "option_name_required": "An option name containing exactly four characters is required.",
+    "output_directory_not_found": "Output directory was not found.",
+    "unsupported_chart_extension": "Unsupported chart file extension."
+  },
+  "cli": {
+    "msg": {
+      "assets_collected": "Collected assets and wrote {0}.",
+      "audio_exported": "Exported audio assets: {0}",
+      "built_stage": "Built stage: {0}",
+      "chart_inspect_complete": "{0} [{1} {2}]",
+      "chart_written": "Wrote chart: {0}",
+      "command_line_parsing_failed": "Command-line parsing failed.",
+      "exported_music": "Exported music: {0}",
+      "extracted_dds": "Extracted DDS files: {0}",
+      "info_complete": "Runtime information retrieved.",
+      "jacket_written": "Wrote jacket: {0}",
+      "operation_cancelled": "Operation cancelled.",
+      "option_build_complete": "Option {0} written to {1}",
+      "option_scan_complete": "Found {0} books and {1} charts."
+    }
+  },
+  "diag": {
+    "c2s": {
+      "invalid_field": "Invalid C2S {0}.",
+      "missing_field": "Missing C2S {0}.",
+      "note_type_not_represented": "C2S note type \u0027{0}\u0027 is not represented by the current c2s model.",
+      "parent_not_resolved": "Could not resolve C2S parent \u0027{0}\u0027 for note \u0027{1}\u0027.",
+      "resolution_must_be_positive": "C2S resolution must be greater than zero.",
+      "unknown_air_color": "Unknown C2S AIR color \u0027{0}\u0027.",
+      "unknown_ex_effect": "Unknown C2S EX effect \u0027{0}\u0027.",
+      "unsupported_version": "Unsupported C2S version \u0027{0}\u0027.",
+      "version_line_not_found": "C2S VERSION line was not found."
+    },
+    "error": {
+      "audio_file_not_found": "The specified audio file was not found.",
+      "audio_format_not_supported": "Unsupported audio format. Only wav (pcm_s16le at 48,000 Hz) is supported.",
+      "background_file_is_not_set": "Background File is not set.",
+      "background_file_not_found": "The specified background image file was not found.",
+      "chart_discovery_array_incomplete": "Array is incomplete.",
+      "chart_discovery_must_be_array": "Must be an array of chart formats.",
+      "chart_discovery_must_be_string_or_array": "chartFileDiscovery must be a chart format list string or array.",
+      "chart_format_brackets_mismatch": "Chart format lists must use matching [ and ] brackets.",
+      "chart_format_specify_at_least_one": "Specify at least one chart format, for example [mgxc, ugc, sus] or [ugc, sus].",
+      "chart_format_unsupported": "Unsupported chart format \u0027{0}\u0027. Supported values are mgxc, ugc, and sus.",
+      "command_failed": "Command execution failed.",
+      "effect_file_not_found": "The specified background effect file was not found.",
+      "file_ignored_due_to_id_missing": "This file is ignored since Song ID is missing. Set a number for Song Id in Margrete.",
+      "file_not_found": "The specified file was not found.",
+      "invalid_audio": "Invalid audio format.",
+      "invalid_bg_fx_image": "Invalid effect image format.",
+      "invalid_bg_image": "Invalid background image format.",
+      "invalid_header": "The header {0} in the chart file does not match {1}.",
+      "invalid_jk_image": "Invalid jacket image format.",
+      "jacket_file_not_found": "The specified jacket file was not found.",
+      "main_meta_is_null": "Main meta is null.",
+      "preview_stop_greater_than_start": "The preview stop time must be greater than the start time.",
+      "size_incompatible": "Expected to read {0} bytes for {1} but only got {2}.",
+      "song_id_is_not_set": "Song ID is not set.",
+      "stage_background_required": "A background path is required to build a stage.",
+      "stage_id_is_not_set": "Stage ID is not set.",
+      "unhandled": "An unexpected error occurred."
+    },
+    "hint": {
+      "preview_value_clamped": "Preview {0} time ({1:F3} s) exceeds the maximum value ({2:F3} s) and has been clamped to prevent overflow."
+    },
+    "mg": {
+      "concurrent_ex_effects": "Different EX effects coexist at the same tick: {0}. The game will only display one of these.",
+      "head_bpm_not_found": "No BPM change event was found at tick 0.",
+      "head_time_signature_event_not_found": "No Time Signature event was found at bar 0. Defaulting to a 4/4 time signature.",
+      "invalid_joint_type_note": "Invalid joint type for {0}.",
+      "length_smaller_than_unit": "Nodes in the original lengthy note having spacing less than 1/{1}.",
+      "main_timeline_not_found": "There was no events found on main TIL {0}.",
+      "meta_argument_count_min_one": "Command \u0027{0}\u0027 requires at least one argument.",
+      "meta_first_argument_must_int": "First argument must be a valid integer.",
+      "meta_invalid_date": "Invalid date format. Expected \u0027YYYYMMDD\u0027.",
+      "meta_unknown_tag": "Unknown tag \u0027{0}\u0027.",
+      "no_sortname_provided": "No SortName was provided. A new SortName has been generated from the Title.",
+      "note_overlapped_in_different_til": "This note overlaps with note in other TILs. This may cause problems in the scroll speed of this note.",
+      "overlapping_air_parent_slide": "Due to multiple overlapping Slide nodes existing simultaneously on this Air\u0027s position, it is unknown to determine from which Slide node the Air should start. Please try to space them apart in single ticks.",
+      "string_id_not_found": "The specified StringID (id or str) {0} could not be found in \u0027{1}\u0027. Please check your input or run \"Recollect Game Assets\" to refresh the database. If you want to use your custom StringID, please provide both (i.e. \"#meta ... [ID] [String]\").",
+      "unrecognized_meta": "Unknown property mark {0}, data: {1}.",
+      "unrecognized_note": "Unknown note type {0}."
+    },
+    "mgcrit": {
+      "air_parent_null": "Parent of Air cannot be null.",
+      "air_slide_parent_null": "Parent of AirSlide cannot be null.",
+      "hold_has_no_tail": "The Hold is missing a tail.",
+      "invalid_air_parent": "The specified Air parent is invalid.",
+      "invalid_airslide_parent": "The specified AirSlide parent is invalid.",
+      "pairing_notes_incompatible": "Note are incompatible for pairing.",
+      "soflanarea_has_no_tail": "The SoflanArea is missing a tail.",
+      "unrecognized_data_type": "Unknown type {0}.",
+      "unrecognized_event": "Unknown event mark {0}."
+    },
+    "sus": {
+      "air_hold_ignored": "SUS AIR-HOLD was ignored because no compatible parent note exists.",
+      "air_hold_joint_ignored": "SUS AIR-HOLD joint was ignored because no AIR-HOLD start was active.",
+      "air_note_ignored": "SUS AIR note was ignored because no compatible parent note exists.",
+      "bpm_definition_not_found": "SUS BPM definition \u0027{0}\u0027 was not found.",
+      "hold_joint_ignored": "SUS HOLD joint was ignored because no HOLD start was active.",
+      "malformed_line": "Malformed SUS line or payload: {0}",
+      "slide_joint_ignored": "SUS SLIDE joint was ignored because no SLIDE start was active.",
+      "unsupported_air_hold_point_type": "Unsupported SUS AIR-HOLD point type \u0027{0}\u0027.",
+      "unsupported_hold_point_type": "Unsupported SUS HOLD point type \u0027{0}\u0027.",
+      "unsupported_slide_point_type": "Unsupported SUS SLIDE point type \u0027{0}\u0027.",
+      "unsupported_tap_point_type": "Unsupported SUS TAP point type \u0027{0}\u0027."
+    },
+    "warn": {
+      "duplicate_id_and_difficulty": "Multiple charts with the same song ID and difficulty exist, the last scanned file will be used.",
+      "more_than_one_chart_marked_main": "Multiple charts for this Song ID have been tagged with `#meta main` in their comments. The first chart found with this tag will be set as the baseline difficulty.",
+      "no_chart_marked_main": "No baseline difficulty for this Song ID. Selecting the highest-difficulty chart by default. To choose a baseline difficulty explicitly, add `#meta main` to the comment of the chart.",
+      "preview_later_than_120": "The preview start time is set later than 120 seconds. This may cause the game to freeze when selecting the song.",
+      "stage_already_exists": "Stage {0} with ID {1} already exists.",
+      "we_chart_must_be_unique_id": "World\u0027s End chart must use unique Song ID; otherwise, other difficulty charts will not display under common song categories."
+    }
+  },
+  "progress": {
+    "phase": {
+      "collecting": "Collecting",
+      "converting": "Converting",
+      "extracting": "Extracting",
+      "reading": "Reading",
+      "scanning": "Scanning",
+      "writing": "Writing"
+    },
+    "step": {
+      "audio": "Audio",
+      "chart": "Chart",
+      "jacket": "Jacket",
+      "stage": "Stage"
+    }
+  }
+}

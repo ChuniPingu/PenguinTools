@@ -1,7 +1,5 @@
 using System.Diagnostics;
-using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Media;
 
@@ -28,6 +26,6 @@ public class ProcessCommandResult
     {
         if (!IsFailure) return;
 
-        throw new DiagnosticException(Strings.Error_Command_failed, this);
+        throw new DiagnosticException(MsgKeys.Error_Command_failed, this);
     }
 }

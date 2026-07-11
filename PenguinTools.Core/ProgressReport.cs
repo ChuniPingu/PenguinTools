@@ -1,8 +1,11 @@
 namespace PenguinTools.Core;
 
 public sealed record ProgressReport(
-    string Status,
-    string? Detail = null,
+    MessageDescriptor Phase,
+    string? Unit = null,
+    MessageDescriptor? Step = null,
+    string? Item = null,
+    string? Label = null,
     int? Completed = null,
     int? Total = null)
 {

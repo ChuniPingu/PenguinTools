@@ -1,6 +1,5 @@
-﻿using PenguinTools.Chart.Models;
+using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser.mgxc;
 
@@ -129,7 +128,7 @@ public partial class MgxcParser
             }
             else
             {
-                var msg = string.Format(Strings.Mg_Invalid_joint_type_note, typeof(umgr.HoldJoint));
+                MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.HoldJoint));
                 Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                 {
                     Target = longAttr
@@ -155,7 +154,7 @@ public partial class MgxcParser
                 }
                 else
                 {
-                    var msg = string.Format(Strings.Mg_Invalid_joint_type_note, typeof(umgr.SlideJoint));
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.SlideJoint));
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr
@@ -213,7 +212,7 @@ public partial class MgxcParser
                 }
                 else
                 {
-                    var msg = string.Format(Strings.Mg_Invalid_joint_type_note, typeof(umgr.AirSlideJoint));
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.AirSlideJoint));
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr
@@ -264,7 +263,7 @@ public partial class MgxcParser
                 var exNote = new umgr.AirCrashJoint();
                 if (longAttr is LongAttr.Step)
                 {
-                    var msg = string.Format(Strings.Mg_Invalid_joint_type_note, typeof(umgr.AirCrashJoint));
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.AirCrashJoint));
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr
@@ -287,7 +286,7 @@ public partial class MgxcParser
 
         if (note == null)
         {
-            var msg = string.Format(Strings.Mg_Unrecognized_note, (int)type);
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Unrecognized_note, (int)type);
             ReportAtPosition(Severity.Warning, msg, tick, br.BaseStream.Position, type);
             return;
         }
@@ -310,7 +309,7 @@ public partial class MgxcParser
                     lastN.MakePair(newP);
                     break;
                 default:
-                    throw new TimedDiagnosticException(Strings.MgCrit_Pairing_notes_incompatible, note.Tick.Original,
+                    throw new TimedDiagnosticException(MsgKeys.MgCrit_Pairing_notes_incompatible, note.Tick.Original,
                         new[]
                         {
                             note,

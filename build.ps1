@@ -1,19 +1,15 @@
 $ErrorActionPreference = 'Stop'
 
 $publishTargets = @(
-    # Desktop
-    @{ Project  = 'PenguinTools/PenguinTools.csproj';
-        Profile = 'WinX64-FrameworkDependent-SingleFile-EmbeddedAssets' 
+    @{
+        Project   = 'PenguinTools.CLI/PenguinTools.CLI.csproj'
+        Profile   = 'WinX64-NativeAOT'
     },
-
-    # CLI
-    @{ Project  = 'PenguinTools.CLI/PenguinTools.CLI.csproj';
-        Profile = 'WinX64-SelfContained-SingleFile-EmbeddedAssets' 
-    },
-    @{ Project    = 'PenguinTools.CLI/PenguinTools.CLI.csproj'
-        Profile   = 'WinX64-SelfContained-SingleFile-ExternalAssets';
-        ZipSource = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-SelfContained-SingleFile-ExternalAssets';
-        ZipDest   = 'PenguinTools.CLI/bin/Release/net10.0/publish/PenguinTools.CLI-win-x64.zip' 
+    @{
+        Project   = 'PenguinTools.CLI/PenguinTools.CLI.csproj'
+        Profile   = 'WinX64-SelfContained-SingleFile'
+        ZipSource = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-SelfContained-SingleFile'
+        ZipDest   = 'PenguinTools.CLI/bin/Release/net10.0/publish/PenguinTools.CLI-win-x64.zip'
     }
 )
 

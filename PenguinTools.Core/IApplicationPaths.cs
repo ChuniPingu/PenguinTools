@@ -5,12 +5,9 @@ namespace PenguinTools.Core;
 /// </summary>
 public interface IApplicationPaths
 {
-    /// <summary>Directory for extracted tools and short-lived working files.</summary>
+    /// <summary>Directory for short-lived working files.</summary>
     string TempWorkPath { get; }
 
     /// <summary>Directory for per-user durable files (e.g. collected asset JSON).</summary>
     string UserDataPath { get; }
-
-    /// <summary>Versioned shared asset cache directory, safe to reuse across concurrent processes.</summary>
-    string SharedAssetCachePath { get; }
 }

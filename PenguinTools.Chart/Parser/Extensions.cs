@@ -1,6 +1,5 @@
 using System.Text;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser;
 
@@ -25,7 +24,7 @@ internal static class Extensions
             var actual = br.ReadUtf8String(4);
             if (actual != expected)
             {
-                var msg = string.Format(Strings.Error_Invalid_Header, actual, expected);
+                MessageDescriptor msg = Msg.Create(MsgKeys.Error_Invalid_Header, actual, expected);
                 throw new DiagnosticException(msg);
             }
 
@@ -33,7 +32,7 @@ internal static class Extensions
             var bytes = br.ReadBytes(size);
             if (bytes.Length < size)
             {
-                var msg = string.Format(Strings.Error_Size_Incompatible, size, expected, bytes.Length);
+                MessageDescriptor msg = Msg.Create(MsgKeys.Error_Size_Incompatible, size, expected, bytes.Length);
                 throw new DiagnosticException(msg);
             }
 
@@ -48,7 +47,7 @@ internal static class Extensions
             Span<byte> buffer = stackalloc byte[length];
             var read = br.Read(buffer);
             if (read == length) return Encoding.UTF8.GetString(buffer);
-            var msg = string.Format(Strings.Error_Size_Incompatible, length, "UTF8", read);
+            MessageDescriptor msg = Msg.Create(MsgKeys.Error_Size_Incompatible, length, "UTF8", read);
             throw new DiagnosticException(msg);
         }
 
@@ -64,7 +63,7 @@ internal static class Extensions
                 2 => br.ReadInt32(),
                 1 or 0 => (int)attr,
                 _ => throw new LocationDiagnosticException(
-                    string.Format(Strings.MgCrit_Unrecognized_data_type, type),
+                    Msg.Create(MsgKeys.MgCrit_Unrecognized_data_type, type),
                     checked((int)br.BaseStream.Position))
             };
         }
@@ -74,7 +73,7 @@ internal static class Extensions
             var type = br.ReadInt32();
             var attr = br.ReadInt32();
             if (type == 4) return br.ReadUtf8String(attr);
-            var msg = string.Format(Strings.MgCrit_Unrecognized_data_type, type);
+            MessageDescriptor msg = Msg.Create(MsgKeys.MgCrit_Unrecognized_data_type, type);
             throw new LocationDiagnosticException(msg, checked((int)br.BaseStream.Position));
         }
     }

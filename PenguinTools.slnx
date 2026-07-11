@@ -13,16 +13,13 @@
     <File Path="README.md" />
     <File Path="THIRD-PARTY-NOTICES.md" />
   </Folder>
-  <Project Path="External/SonicAudioTools/Source/SonicAudioLib/SonicAudioLib.csproj" />
-  <Project Path="External/vgaudio/src/VGAudio/VGAudio.csproj" />
     <Project Path="PenguinTools.Assets/PenguinTools.Assets.csproj"/>
+    <Project Path="PenguinTools.Application/PenguinTools.Application.csproj"/>
   <Project Path="PenguinTools.Core/PenguinTools.Core.csproj" />
-    <Project Path="PenguinTools.i18n/PenguinTools.i18n.csproj"/>
   <Project Path="PenguinTools.CLI/PenguinTools.CLI.csproj" />
   <Project Path="PenguinTools.Chart/PenguinTools.Chart.csproj" />
   <Project Path="PenguinTools.Media/PenguinTools.Media.csproj" />
   <Project Path="PenguinTools.Infrastructure/PenguinTools.Infrastructure.csproj" />
     <Project Path="PenguinTools.Tests/PenguinTools.Tests.csproj"/>
   <Project Path="PenguinTools.Workflow/PenguinTools.Workflow.csproj" />
-  <Project Path="PenguinTools/PenguinTools.csproj" />
 </Solution>

@@ -8,11 +8,11 @@ public static class ExecutionInfoProvider
 {
     public static ExecutionInfo Create(
         IApplicationPaths paths,
-        ResourceStoreOptions storeOptions,
+        string assetsDirectory,
         AssetManager? assets = null)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        ArgumentNullException.ThrowIfNull(storeOptions);
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetsDirectory);
 
         var entryAssembly = Assembly.GetEntryAssembly();
         var applicationName = entryAssembly?.GetName().Name ?? "PenguinTools";
@@ -25,9 +25,7 @@ public static class ExecutionInfoProvider
             AppContext.BaseDirectory,
             paths.TempWorkPath,
             paths.UserDataPath,
-            paths.SharedAssetCachePath,
-            ResourceStoreFactory.ResolveInfrastructureAssetsPath(storeOptions, paths),
-            storeOptions.Mode.ToString(),
+            assetsDirectory,
             assets?.PlusAssetsPath ?? Path.Combine(paths.UserDataPath, AssetManager.PlusAssetsFileName));
     }
 }

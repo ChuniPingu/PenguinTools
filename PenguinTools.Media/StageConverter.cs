@@ -1,8 +1,4 @@
-using PenguinTools.Core;
-using PenguinTools.Core.Asset;
-using PenguinTools.Core.Diagnostic;
-using PenguinTools.Core.Xml;
-using PenguinTools.i18n;
+﻿using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Media;
 
@@ -15,8 +11,6 @@ public class StageConverter
         ArgumentNullException.ThrowIfNull(request.Assets);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.BackgroundPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutFolder);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.StageTemplatePath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.NotesFieldTemplatePath);
 
         MediaTool = mediaTool;
         Assets = request.Assets;
@@ -25,8 +19,6 @@ public class StageConverter
         StageId = request.StageId;
         OutFolder = request.OutFolder;
         NoteFieldLane = request.NoteFieldLane;
-        StageTemplatePath = request.StageTemplatePath;
-        NotesFieldTemplatePath = request.NotesFieldTemplatePath;
     }
 
     private IMediaTool MediaTool { get; }
@@ -37,8 +29,6 @@ public class StageConverter
     private int? StageId { get; }
     private string OutFolder { get; }
     private Entry NoteFieldLane { get; }
-    private string StageTemplatePath { get; }
-    private string NotesFieldTemplatePath { get; }
 
     public async Task<OperationResult<Entry>> BuildAsync(CancellationToken ct = default)
     {
@@ -52,8 +42,7 @@ public class StageConverter
 
         var nfPath = Path.Combine(outputDir, xml.NotesFieldFile);
         var stPath = Path.Combine(outputDir, xml.BaseFile);
-        await MediaTool.ConvertStageAsync(BackgroundPath, StageTemplatePath, stPath, EffectPaths, ct);
-        File.Copy(NotesFieldTemplatePath, nfPath, true);
+        await MediaTool.ConvertStageAsync(BackgroundPath, stPath, nfPath, EffectPaths, ct);
 
         return OperationResult<Entry>.Success(xml.Name).WithDiagnostics(Diagnostic);
     }
@@ -64,29 +53,17 @@ public class StageConverter
         var duplicates = Assets.StageNames.Where(p => p.Id == StageId);
         foreach (var d in duplicates)
             Diagnostic.Report(new Diagnostic(Severity.Warning,
-                string.Format(Strings.Warn_Stage_already_exists, d, StageId)));
+                Msg.Create(MsgKeys.Warn_Stage_already_exists, d, StageId)));
 
         if (StageId is null)
         {
-            Diagnostic.Report(new Diagnostic(Severity.Error, string.Format(Strings.Error_Stage_id_is_not_set)));
-            hasError = true;
-        }
-
-        if (!File.Exists(StageTemplatePath))
-        {
-            Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_File_not_found, StageTemplatePath));
-            hasError = true;
-        }
-
-        if (!File.Exists(NotesFieldTemplatePath))
-        {
-            Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_File_not_found, NotesFieldTemplatePath));
+            Diagnostic.Report(new Diagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Stage_id_is_not_set)));
             hasError = true;
         }
 
         if (!File.Exists(BackgroundPath))
         {
-            Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_Background_file_not_found,
+            Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Background_file_not_found),
                 BackgroundPath));
             hasError = true;
         }
@@ -95,10 +72,11 @@ public class StageConverter
             var ret = await MediaTool.CheckImageValidAsync(BackgroundPath, ct);
             if (ret.IsFailure)
             {
-                Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_Invalid_bg_image, BackgroundPath)
-                {
-                    Target = ret
-                });
+                Diagnostic.Report(
+                    new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Invalid_bg_image), BackgroundPath)
+                    {
+                        Target = ret
+                    });
                 hasError = true;
             }
         }
@@ -110,7 +88,8 @@ public class StageConverter
 
                 if (!File.Exists(p))
                 {
-                    Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_Effect_file_not_found, p));
+                    Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Effect_file_not_found),
+                        p));
                     hasError = true;
                     continue;
                 }
@@ -118,7 +97,7 @@ public class StageConverter
                 var ret = await MediaTool.CheckImageValidAsync(p, ct);
                 if (ret.IsFailure)
                 {
-                    Diagnostic.Report(new PathDiagnostic(Severity.Error, Strings.Error_Invalid_bg_fx_image, p)
+                    Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Invalid_bg_fx_image), p)
                     {
                         Target = ret
                     });

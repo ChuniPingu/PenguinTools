@@ -1,5 +1,4 @@
-using PenguinTools.Chart.Models;
-using PenguinTools.i18n;
+﻿using PenguinTools.Chart.Models;
 
 namespace PenguinTools.Chart.Writer.c2s;
 
@@ -22,60 +21,60 @@ public partial class C2SChartWriter
     }
 #pragma warning restore CS0612
 
-    private static bool TryFormat(c2s.Note note, out string line, out string error)
+    private static bool TryFormat(c2s.Note note, out string line, out MessageDescriptor? error)
     {
         switch (note)
         {
             case c2s.Tap tap:
                 line = FormatNote(tap);
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.Damage damage:
                 line = FormatNote(damage);
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.Flick flick:
                 line = FormatNote(flick);
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.ExTap exTap:
                 line = $"{FormatNote(exTap)}{FormatEffect(exTap.Effect)}";
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.Hold hold:
                 line = $"{FormatNote(hold)}\t{hold.Length.Scaled}{FormatEffect(hold.Effect)}";
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.Sla sla:
                 line = $"{FormatNote(sla)}\t{sla.Length.Scaled}\t{sla.Timeline}";
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.Slide slide:
                 line =
                     $"{FormatNote(slide)}\t{slide.Length.Scaled}\t{slide.EndLane}\t{slide.EndWidth}\tSLD{FormatEffect(slide.Effect)}";
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.Air { Parent: null }:
                 line = string.Empty;
-                error = Strings.MgCrit_Air_parent_null;
+                error = Msg.Key(MsgKeys.MgCrit_Air_parent_null);
                 return false;
             case c2s.Air { Parent: { } parent } air:
                 line = $"{FormatNote(air)}\t{parent.Id}\t{air.Color}";
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.AirSlide { Parent: null }:
                 line = string.Empty;
-                error = Strings.MgCrit_Air_slide_parent_null;
+                error = Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null);
                 return false;
             case c2s.AirSlide { Parent: { } parent } airSlide:
                 line =
                     $"{FormatNote(airSlide)}\t{parent.Id}\t{airSlide.Height.Result:F1}\t{airSlide.Length.Scaled}\t{airSlide.EndLane}\t{airSlide.EndWidth}\t{airSlide.EndHeight.Result:F1}\t{airSlide.Color}";
-                error = string.Empty;
+                error = null;
                 return true;
             case c2s.AirCrash airCrash:
                 line =
                     $"{FormatNote(airCrash)}\t{airCrash.Density.Scaled}\t{airCrash.Height.Result:F1}\t{airCrash.Length.Scaled}\t{airCrash.EndLane}\t{airCrash.EndWidth}\t{airCrash.EndHeight.Result:F1}\t{airCrash.Color}";
-                error = string.Empty;
+                error = null;
                 return true;
             default:
                 throw new InvalidOperationException($"Unsupported c2s note type '{note.GetType().FullName}'.");

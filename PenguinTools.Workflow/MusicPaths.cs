@@ -1,4 +1,3 @@
-using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 
@@ -6,7 +5,7 @@ namespace PenguinTools.Workflow;
 
 internal static class MusicPaths
 {
-    internal static OperationResult<T> CreateFailureResultOf<T>(string message, string? path = null)
+    internal static OperationResult<T> CreateFailureResultOf<T>(MessageDescriptor message, string? path = null)
     {
         var sink = new DiagnosticCollector();
         sink.Report(string.IsNullOrWhiteSpace(path)

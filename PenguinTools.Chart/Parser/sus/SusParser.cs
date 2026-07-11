@@ -1,10 +1,8 @@
 using System.Globalization;
 using PenguinTools.Chart.Models;
-using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
-using PenguinTools.i18n;
 using PenguinTools.Media;
 
 namespace PenguinTools.Chart.Parser.sus;
@@ -14,20 +12,21 @@ using umgr = Models.umgr;
 public sealed class SusParser
 {
     private const int DefaultTicksPerBeat = 480;
+
     private const decimal UmgrTicksPerBeat =
         ChartResolution.UmiguriTick / (decimal)UmiguriParserCommon.DefaultBeatDenominator;
 
     private static readonly int[] RoundedAirWidths = [1, 2, 3, 4, 6, 8, 16];
+    private readonly Dictionary<int, List<RawNotePoint>> _airHoldPoints = [];
 
     private readonly Dictionary<string, decimal> _bpmDefinitions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<int, List<TilDefinitionPoint>> _tilDefinitions = [];
-    private readonly Dictionary<int, decimal> _measureLengthDefinitions = [];
-    private readonly List<RawTokenPoint> _pendingBpmChanges = [];
-    private readonly List<RawNotePoint> _tapPoints = [];
     private readonly List<RawNotePoint> _directionalPoints = [];
     private readonly Dictionary<(int Channel, int Lane), List<RawNotePoint>> _holdPoints = [];
+    private readonly Dictionary<int, decimal> _measureLengthDefinitions = [];
+    private readonly List<RawTokenPoint> _pendingBpmChanges = [];
     private readonly Dictionary<int, List<RawNotePoint>> _slidePoints = [];
-    private readonly Dictionary<int, List<RawNotePoint>> _airHoldPoints = [];
+    private readonly List<RawNotePoint> _tapPoints = [];
+    private readonly Dictionary<int, List<TilDefinitionPoint>> _tilDefinitions = [];
 
     private int _currentHispeedId;
     private int _measureBase;
@@ -182,7 +181,7 @@ public sealed class SusParser
                     QueueValidation(
                         MediaTool.CheckAudioValidAsync(Sus.Meta.FullBgmFilePath),
                         Sus.Meta.FullBgmFilePath,
-                        Strings.Error_Invalid_audio,
+                        MsgKeys.Error_Invalid_audio,
                         () => Sus.Meta.BgmFilePath = string.Empty);
                 break;
             case "WAVEOFFSET":
@@ -195,7 +194,7 @@ public sealed class SusParser
                     QueueValidation(
                         MediaTool.CheckImageValidAsync(Sus.Meta.FullJacketFilePath),
                         Sus.Meta.FullJacketFilePath,
-                        Strings.Error_Invalid_jk_image,
+                        MsgKeys.Error_Invalid_jk_image,
                         () => Sus.Meta.JacketFilePath = string.Empty);
                 break;
             case "BACKGROUND":
@@ -251,8 +250,8 @@ public sealed class SusParser
                 "MASTER" => Difficulty.Master,
                 "ULTIMA" => Difficulty.Ultima,
                 _ when normalized.StartsWith("WORLD", StringComparison.Ordinal)
-                    || normalized.StartsWith("WE", StringComparison.Ordinal)
-                    || normalized.Contains(':') => Difficulty.WorldsEnd,
+                       || normalized.StartsWith("WE", StringComparison.Ordinal)
+                       || normalized.Contains(':') => Difficulty.WorldsEnd,
                 _ => Sus.Meta.Difficulty
             };
         }
@@ -364,7 +363,8 @@ public sealed class SusParser
             var tokens = EnumerateTokens(data).ToArray();
             for (var i = 0; i < tokens.Length; i++)
                 if (!string.Equals(tokens[i], "00", StringComparison.OrdinalIgnoreCase))
-                    _pendingBpmChanges.Add(new RawTokenPoint(effectiveMeasure, i, tokens.Length, tokens[i], lineNumber));
+                    _pendingBpmChanges.Add(new RawTokenPoint(effectiveMeasure, i, tokens.Length, tokens[i],
+                        lineNumber));
 
             return;
         }
@@ -464,10 +464,13 @@ public sealed class SusParser
         maxMeasure = Math.Max(maxMeasure, _pendingBpmChanges.Select(p => p.Measure).DefaultIfEmpty(0).Max());
         maxMeasure = Math.Max(maxMeasure, _tapPoints.Select(p => p.Measure).DefaultIfEmpty(0).Max());
         maxMeasure = Math.Max(maxMeasure, _directionalPoints.Select(p => p.Measure).DefaultIfEmpty(0).Max());
-        maxMeasure = Math.Max(maxMeasure, _holdPoints.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
-        maxMeasure = Math.Max(maxMeasure, _slidePoints.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
+        maxMeasure = Math.Max(maxMeasure,
+            _holdPoints.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
+        maxMeasure = Math.Max(maxMeasure,
+            _slidePoints.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
         maxMeasure =
-            Math.Max(maxMeasure, _airHoldPoints.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
+            Math.Max(maxMeasure,
+                _airHoldPoints.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
         maxMeasure = Math.Max(maxMeasure,
             _tilDefinitions.Values.SelectMany(p => p).Select(p => p.Measure).DefaultIfEmpty(0).Max());
 
@@ -517,7 +520,7 @@ public sealed class SusParser
         {
             if (!_bpmDefinitions.TryGetValue(change.Token, out var bpm))
             {
-                ReportAtLine(Severity.Warning, string.Format(Strings.Sus_Bpm_definition_not_found, change.Token),
+                ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.Sus_Bpm_definition_not_found, change.Token),
                     change.Line);
                 continue;
             }
@@ -557,7 +560,7 @@ public sealed class SusParser
 
             if (note == null)
             {
-                ReportAtLine(Severity.Information, string.Format(Strings.Sus_Unsupported_tap_point_type, point.Kind),
+                ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Sus_Unsupported_tap_point_type, point.Kind),
                     point.Line,
                     timing.ToTick(point.Measure, point.Index, point.Count));
                 continue;
@@ -594,7 +597,7 @@ public sealed class SusParser
                     case 3:
                         if (active == null)
                         {
-                            ReportAtLine(Severity.Warning, Strings.Sus_Hold_joint_ignored,
+                            ReportAtLine(Severity.Warning, Msg.Key(MsgKeys.Sus_Hold_joint_ignored),
                                 point.Line, point.Tick);
                             break;
                         }
@@ -609,7 +612,7 @@ public sealed class SusParser
                         break;
                     default:
                         ReportAtLine(Severity.Information,
-                            string.Format(Strings.Sus_Unsupported_hold_point_type, point.Kind), point.Line,
+                            Msg.Create(MsgKeys.Sus_Unsupported_hold_point_type, point.Kind), point.Line,
                             point.Tick);
                         break;
                 }
@@ -643,7 +646,7 @@ public sealed class SusParser
                         if (active == null)
                         {
                             ReportAtLine(Severity.Warning,
-                                Strings.Sus_Slide_joint_ignored, point.Line,
+                                Msg.Key(MsgKeys.Sus_Slide_joint_ignored), point.Line,
                                 point.Tick);
                             break;
                         }
@@ -661,7 +664,7 @@ public sealed class SusParser
                         break;
                     default:
                         ReportAtLine(Severity.Information,
-                            string.Format(Strings.Sus_Unsupported_slide_point_type, point.Kind),
+                            Msg.Create(MsgKeys.Sus_Unsupported_slide_point_type, point.Kind),
                             point.Line, point.Tick);
                         break;
                 }
@@ -678,7 +681,7 @@ public sealed class SusParser
             var pairPositive = FindPairPositive(tick, point.Lane, point.Width);
             if (pairPositive == null)
             {
-                ReportAtLine(Severity.Warning, Strings.Sus_Air_note_ignored,
+                ReportAtLine(Severity.Warning, Msg.Key(MsgKeys.Sus_Air_note_ignored),
                     point.Line, tick);
                 continue;
             }
@@ -721,14 +724,15 @@ public sealed class SusParser
                         if (pairPositive == null)
                         {
                             ReportAtLine(Severity.Warning,
-                                Strings.Sus_Air_hold_ignored, point.Line,
+                                Msg.Key(MsgKeys.Sus_Air_hold_ignored), point.Line,
                                 point.Tick);
                             active = null;
                             break;
                         }
 
                         var attachedAir = Sus.Notes.Children.OfType<umgr.Air>()
-                            .LastOrDefault(air => air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
+                            .LastOrDefault(air =>
+                                air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
                         if (attachedAir != null) Sus.Notes.RemoveChild(attachedAir);
 
                         active = new umgr.AirSlide
@@ -749,7 +753,7 @@ public sealed class SusParser
                         if (active == null)
                         {
                             ReportAtLine(Severity.Warning,
-                                Strings.Sus_Air_hold_joint_ignored, point.Line,
+                                Msg.Key(MsgKeys.Sus_Air_hold_joint_ignored), point.Line,
                                 point.Tick);
                             break;
                         }
@@ -768,7 +772,7 @@ public sealed class SusParser
                         break;
                     default:
                         ReportAtLine(Severity.Information,
-                            string.Format(Strings.Sus_Unsupported_air_hold_point_type, point.Kind),
+                            Msg.Create(MsgKeys.Sus_Unsupported_air_hold_point_type, point.Kind),
                             point.Line, point.Tick);
                         break;
                 }
@@ -832,14 +836,14 @@ public sealed class SusParser
         if (string.IsNullOrWhiteSpace(Sus.Meta.SortName))
         {
             Sus.Meta.SortName = ChartPostProcessor.GetSortName(Sus.Meta.Title);
-            Diagnostic.Report(new Diagnostic(Severity.Information, Strings.Mg_No_sortname_provided));
+            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_No_sortname_provided)));
         }
 
         if (Sus.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Sus.Meta.FullBgiFilePath))
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Sus.Meta.FullBgiFilePath),
                 Sus.Meta.FullBgiFilePath,
-                Strings.Error_Invalid_bg_image,
+                MsgKeys.Error_Invalid_bg_image,
                 () =>
                 {
                     Sus.Meta.IsCustomStage = false;
@@ -847,13 +851,13 @@ public sealed class SusParser
                 });
     }
 
-    private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string message,
+    private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,
         Action onFailure)
     {
-        Tasks.Add(HandleValidationAsync(validationTask, path, message, onFailure));
+        Tasks.Add(HandleValidationAsync(validationTask, path, messageKey, onFailure));
     }
 
-    private async Task HandleValidationAsync(Task<ProcessCommandResult> validationTask, string path, string message,
+    private async Task HandleValidationAsync(Task<ProcessCommandResult> validationTask, string path, string messageKey,
         Action onFailure)
     {
         try
@@ -862,7 +866,7 @@ public sealed class SusParser
             if (result.IsSuccess) return;
 
             onFailure();
-            Diagnostic.Report(new PathDiagnostic(Severity.Warning, message, path)
+            Diagnostic.Report(new PathDiagnostic(Severity.Warning, Msg.Key(messageKey), path)
             {
                 Target = result
             });
@@ -870,7 +874,7 @@ public sealed class SusParser
         catch (Exception ex)
         {
             onFailure();
-            Diagnostic.Report(new PathDiagnostic(Severity.Warning, message, path)
+            Diagnostic.Report(new PathDiagnostic(Severity.Warning, Msg.Key(messageKey), path)
             {
                 Target = ex
             });
@@ -879,15 +883,15 @@ public sealed class SusParser
 
     private void ReportIgnoredMeta(int lineNumber, string name, string value)
     {
-        ReportAtLine(Severity.Information, string.Format(Strings.Mg_Unrecognized_meta, name, value), lineNumber);
+        ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, value), lineNumber);
     }
 
     private void WarnMalformedLine(int lineNumber, string value)
     {
-        ReportAtLine(Severity.Warning, string.Format(Strings.Sus_Malformed_line, value), lineNumber);
+        ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.Sus_Malformed_line, value), lineNumber);
     }
 
-    private void ReportAtLine(Severity severity, string message, int lineNumber, object? target = null)
+    private void ReportAtLine(Severity severity, MessageDescriptor message, int lineNumber, object? target = null)
     {
         Diagnostic.Report(new LocationDiagnostic(severity, message, lineNumber, Path)
         {
@@ -895,7 +899,8 @@ public sealed class SusParser
         });
     }
 
-    private void ReportAtLine(Severity severity, string message, int lineNumber, int tick, object? target = null)
+    private void ReportAtLine(Severity severity, MessageDescriptor message, int lineNumber, int tick,
+        object? target = null)
     {
         Diagnostic.Report(new TimedLocationDiagnostic(severity, message, lineNumber, tick, Path)
         {
@@ -1019,7 +1024,7 @@ public sealed class SusParser
     private static bool TryParseWorldsEndStars(string value, out StarDifficulty difficulty)
     {
         difficulty = StarDifficulty.Na;
-        var starCount = value.Count(ch => ch is '☆' or '*');
+        var starCount = value.Count(ch => ch is '*' or '☆');
         difficulty = starCount switch
         {
             1 => StarDifficulty.S1,

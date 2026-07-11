@@ -1,5 +1,4 @@
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Converter.c2s;
 
@@ -119,7 +118,7 @@ public partial class C2SChartConverter
     private void ProcessAirSlide(umgr.AirSlide airSlide)
     {
         if (airSlide.PairNote?.PairNote != airSlide)
-            throw new TimedDiagnosticException(Strings.MgCrit_Invalid_AirSlide_parent, airSlide.Tick.Original,
+            throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airSlide.Tick.Original,
                 airSlide);
 
         var joints = airSlide.Children.OfType<umgr.AirSlideJoint>().Prepend(airSlide.AsChild()).ToArray();
@@ -151,7 +150,7 @@ public partial class C2SChartConverter
     private void ProcessAir(umgr.Air airNote)
     {
         if (airNote.PairNote?.PairNote != airNote)
-            throw new TimedDiagnosticException(Strings.MgCrit_Invalid_Air_parent, airNote.Tick.Original, airNote);
+            throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_Air_parent, airNote.Tick.Original, airNote);
 
         var note = CreateNote<umgr.Air, c2s.Air>(airNote, x =>
         {
@@ -185,7 +184,7 @@ public partial class C2SChartConverter
     private void ProcessSoflanArea(umgr.SoflanArea sla)
     {
         if (sla.LastChild is not umgr.SoflanAreaJoint tail)
-            throw new TimedDiagnosticException(Strings.MgCrit_SoflanArea_has_no_tail, sla.Tick.Original, sla);
+            throw new TimedDiagnosticException(MsgKeys.MgCrit_SoflanArea_has_no_tail, sla.Tick.Original, sla);
 
         CreateNote<umgr.SoflanArea, c2s.Sla>(sla, x => { x.Length = tail.Tick.Round - sla.Tick.Round; });
     }
@@ -193,7 +192,7 @@ public partial class C2SChartConverter
     private void ProcessHold(umgr.Hold hold)
     {
         if (hold.LastChild is not umgr.HoldJoint tail)
-            throw new TimedDiagnosticException(Strings.MgCrit_Hold_has_no_tail, hold.Tick.Original, hold);
+            throw new TimedDiagnosticException(MsgKeys.MgCrit_Hold_has_no_tail, hold.Tick.Original, hold);
 
         var note = CreateNote<umgr.Hold, c2s.Hold>(hold, x =>
         {

@@ -1,5 +1,6 @@
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Chart.Parser.ugc;
+using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using Xunit;
 
@@ -93,7 +94,8 @@ public class UgcTilTests
                 await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(r.Succeeded);
             var errors = r.Diagnostics.Diagnostics.Where(d => d.Severity >= Severity.Warning).ToList();
-            Assert.DoesNotContain(errors, d => d.Message.Contains("MAINTIL"));
+            Assert.DoesNotContain(errors, d =>
+                d.Message.Key == MsgKeys.Mg_Main_timeline_not_found);
         }
         finally
         {

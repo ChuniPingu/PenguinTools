@@ -8,11 +8,10 @@ namespace PenguinTools.Tests.Infrastructure;
 public class ExecutionInfoProviderTests
 {
     [Fact]
-    public void Create_UsesExternalAssetsDirectory_WhenModeIsExternal()
+    public void Create_UsesExternalAssetsDirectory_WhenOverrideProvided()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var userData = Path.Combine(tempRoot, "userdata");
-        var sharedCache = Path.Combine(tempRoot, "cache");
         var externalAssets = Path.Combine(tempRoot, "assets");
         Directory.CreateDirectory(externalAssets);
 
@@ -20,14 +19,10 @@ public class ExecutionInfoProviderTests
         {
             var paths = new TestApplicationPaths(
                 Path.Combine(tempRoot, "temp"),
-                userData,
-                sharedCache);
-            var options = ResourceStoreOptions.External(externalAssets);
-
-            var info = ExecutionInfoProvider.Create(paths, options);
+                userData);
+            var info = ExecutionInfoProvider.Create(paths, externalAssets);
 
             Assert.Equal(externalAssets, info.InfrastructureAssetsPath);
-            Assert.Equal("External", info.AssetsMode);
             Assert.Equal(Path.Combine(userData, AssetManager.PlusAssetsFileName), info.PlusAssetsPath);
         }
         finally
@@ -37,24 +32,21 @@ public class ExecutionInfoProviderTests
     }
 
     [Fact]
-    public void Create_UsesSharedCache_WhenModeIsEmbedded()
+    public void Create_UsesDefaultAssetsDirectory_WhenPathIsNotSpecified()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var userData = Path.Combine(tempRoot, "userdata");
-        var sharedCache = Path.Combine(tempRoot, "cache");
 
         try
         {
             var paths = new TestApplicationPaths(
                 Path.Combine(tempRoot, "temp"),
-                userData,
-                sharedCache);
-            var options = ResourceStoreOptions.Embedded();
+                userData);
+            var info = ExecutionInfoProvider.Create(paths, AssetPaths.Resolve());
 
-            var info = ExecutionInfoProvider.Create(paths, options);
-
-            Assert.Equal(sharedCache, info.InfrastructureAssetsPath);
-            Assert.Equal("Embedded", info.AssetsMode);
+            Assert.Equal(
+                Path.Combine(AppContext.BaseDirectory, AssetPaths.DefaultSubdirectory),
+                info.InfrastructureAssetsPath);
         }
         finally
         {
@@ -62,11 +54,9 @@ public class ExecutionInfoProviderTests
         }
     }
 
-    private sealed class TestApplicationPaths(string tempWorkPath, string userDataPath, string sharedAssetCachePath)
-        : IApplicationPaths
+    private sealed class TestApplicationPaths(string tempWorkPath, string userDataPath) : IApplicationPaths
     {
         public string TempWorkPath { get; } = tempWorkPath;
         public string UserDataPath { get; } = userDataPath;
-        public string SharedAssetCachePath { get; } = sharedAssetCachePath;
     }
 }

@@ -1,5 +1,3 @@
-using PenguinTools.Core.Asset;
-
 namespace PenguinTools.Media;
 
 public sealed record StageBuildRequest(
@@ -8,6 +6,4 @@ public sealed record StageBuildRequest(
     string?[]? EffectPaths,
     int? StageId,
     string OutFolder,
-    Entry NoteFieldLane,
-    string StageTemplatePath,
-    string NotesFieldTemplatePath);
+    Entry NoteFieldLane);

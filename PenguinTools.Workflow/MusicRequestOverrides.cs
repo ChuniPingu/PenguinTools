@@ -1,11 +1,10 @@
 namespace PenguinTools.Workflow;
 
 public sealed record AudioRequestOverrides(
-    string? DummyAcbPath,
     string? WorkingAudioPath,
     ulong? HcaEncryptionKey)
 {
-    public static AudioRequestOverrides Default { get; } = new(null, null, null);
+    public static AudioRequestOverrides Default { get; } = new(null, null);
 }
 
 public sealed record StageRequestOverrides(
@@ -14,15 +13,11 @@ public sealed record StageRequestOverrides(
     int? StageId,
     int? NoteFieldLaneId,
     string? NoteFieldLaneName,
-    string? NoteFieldLaneData,
-    string? StageTemplatePath,
-    string? NotesFieldTemplatePath)
+    string? NoteFieldLaneData)
 {
     public static StageRequestOverrides None { get; } = new(
         null,
         [],
-        null,
-        null,
         null,
         null,
         null,

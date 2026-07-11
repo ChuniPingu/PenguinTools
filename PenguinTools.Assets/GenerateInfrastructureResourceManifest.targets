@@ -4,14 +4,9 @@
             Inputs="@(PenguinToolsInfrastructureAsset);$(MSBuildThisFileDirectory)GenerateInfrastructureResourceManifest.targets"
             Outputs="$(GeneratedInfrastructureResourceManifest)">
         <ItemGroup>
-            <_GenConstLine Include="@(PenguinToolsInfrastructureAsset)"
-                           Condition="'%(ManifestKey)' != 'MuaExecutableWindows' and '%(ManifestKey)' != 'MuaExecutableUnix'">
+            <_GenConstLine Include="@(PenguinToolsInfrastructureAsset)">
                 <Text>public const string %(ManifestKey) = "%(ResourceName)";</Text>
             </_GenConstLine>
-            <_GenSwitchLine Include="@(PenguinToolsInfrastructureAsset)"
-                            Condition="'%(PenguinToolsInfrastructureAsset.MapsToInfrastructureAsset)' == 'true'">
-                <Text>InfrastructureAsset.%(ManifestKey) =&gt; "%(ResourceName)",</Text>
-            </_GenSwitchLine>
             <_GenAllNameLine Include="@(PenguinToolsInfrastructureAsset)">
                 <Text>"%(ResourceName)",</Text>
             </_GenAllNameLine>
@@ -30,26 +25,7 @@
             <_GenOutLine Include="Header4">
                 <Text>{</Text>
             </_GenOutLine>
-            <_GenOutLine Include="MuaWin">
-                <Text>public const string MuaExecutableWindows = "mua.exe";</Text>
-            </_GenOutLine>
-            <_GenOutLine Include="MuaUnix">
-                <Text>public const string MuaExecutableUnix = "mua";</Text>
-            </_GenOutLine>
             <_GenOutLine Include="@(_GenConstLine)"/>
-            <_GenOutLine Include="Switch1">
-                <Text>public static string GetResourceName(InfrastructureAsset asset) =&gt; asset switch</Text>
-            </_GenOutLine>
-            <_GenOutLine Include="Switch2">
-                <Text>{</Text>
-            </_GenOutLine>
-            <_GenOutLine Include="@(_GenSwitchLine)"/>
-            <_GenOutLine Include="Switch3">
-                <Text>_ =&gt; throw new ArgumentOutOfRangeException(nameof(asset), asset, null)</Text>
-            </_GenOutLine>
-            <_GenOutLine Include="Switch4">
-                <Text>};</Text>
-            </_GenOutLine>
             <_GenOutLine Include="All1">
                 <Text>public static readonly string[] All =</Text>
             </_GenOutLine>

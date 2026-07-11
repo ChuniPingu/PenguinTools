@@ -1,9 +1,3 @@
-[submodule "External/SonicAudioTools"]
-	path = External/SonicAudioTools
-	url = https://github.com/Foahh/SonicAudioTools.git
-[submodule "External/muautils"]
-	path = External/muautils
-	url = https://github.com/Foahh/muautils
-[submodule "External/vgaudio"]
-	path = External/vgaudio
-	url = https://github.com/Foahh/vgaudio
+[submodule "External/mua"]
+	path = External/mua
+	url = https://github.com/ChuniPingu/mua.git

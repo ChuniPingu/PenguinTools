@@ -1,5 +1,4 @@
 using System.Text;
-using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Chart.Writer.c2s;
@@ -60,13 +59,13 @@ public partial class C2SChartWriter
         var hasError = false;
         foreach (var n in Chart.Notes)
         {
-            if (TryFormat(n, out var line, out var error))
+            if (TryFormat(n, out var line, out var error) && error is null)
             {
                 sb.AppendLine(line);
                 continue;
             }
 
-            Diagnostic.Report(new TimedDiagnostic(Severity.Error, error, n.Tick.Original)
+            Diagnostic.Report(new TimedDiagnostic(Severity.Error, error!, n.Tick.Original)
             {
                 Target = n
             });

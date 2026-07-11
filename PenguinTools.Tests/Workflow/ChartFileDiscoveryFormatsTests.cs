@@ -12,7 +12,7 @@ public class ChartFileDiscoveryFormatsTests
     {
         var ok = ChartFileDiscoveryFormats.TryParse("[ugc, sus, mgxc]", out var formats, out var error);
 
-        Assert.True(ok, error);
+        Assert.True(ok, error?.Key);
         Assert.Equal([ChartFileFormat.Ugc, ChartFileFormat.Sus, ChartFileFormat.Mgxc], formats);
     }
 
@@ -21,7 +21,7 @@ public class ChartFileDiscoveryFormatsTests
     {
         var ok = ChartFileDiscoveryFormats.TryParse("ugc, sus, ugc, mgxc, sus", out var formats, out var error);
 
-        Assert.True(ok, error);
+        Assert.True(ok, error?.Key);
         Assert.Equal([ChartFileFormat.Ugc, ChartFileFormat.Sus, ChartFileFormat.Mgxc], formats);
     }
 
@@ -83,7 +83,8 @@ public class ChartFileDiscoveryFormatsTests
                             }
                             """;
 
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<OptionDocument>(json, OptionDocumentJson.Default));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<OptionDocument>(json, OptionDocumentJson.Default));
     }
 
     [Fact]
@@ -96,7 +97,8 @@ public class ChartFileDiscoveryFormatsTests
                             }
                             """;
 
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<OptionDocument>(json, OptionDocumentJson.Default));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<OptionDocument>(json, OptionDocumentJson.Default));
     }
 
     [Fact]

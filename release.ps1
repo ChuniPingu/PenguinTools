@@ -167,15 +167,11 @@ try {
 
     $assetDefinitions = @(
         @{
-            SourceFile = 'PenguinTools/bin/Release/net10.0-windows/publish/WinX64-FrameworkDependent-SingleFile-EmbeddedAssets/PenguinTools.exe'
-            AssetName  = "PenguinTools.$Tag.exe"
-        },
-        @{
-            SourceFile = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-SelfContained-SingleFile-EmbeddedAssets/PenguinTools.CLI.exe'
+            SourceFile = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-NativeAOT/PenguinTools.CLI.exe'
             AssetName  = "PenguinTools.CLI.$Tag.exe"
         },
         @{
-            Source = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-SelfContained-SingleFile-ExternalAssets'
+            Source = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-SelfContained-SingleFile'
             AssetName = "PenguinTools.CLI.$Tag.external-assets.zip"
         }
     )

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Workflow;
@@ -22,17 +21,21 @@ public static class OptionExportBatch
     }
 
     public static async Task<DiagnosticSnapshot> ProcessItemsAsync<T>(
-        string prefix,
+        MessageDescriptor phase,
+        string unit,
         IEnumerable<T> items,
         Func<T, IDiagnosticSink, Task> action,
-        Func<T, string> getPath,
+        Func<T, string> getItemPath,
         OptionExportProcessContext main,
-        bool parallel = false)
+        bool parallel = false,
+        Func<T, string?>? getLabel = null)
     {
         var itemList = items as IList<T> ?? [.. items];
         var diagnostics = new ConcurrentBag<DiagnosticSnapshot>();
         var completed = 0;
-        main.Progress?.Report(new ProgressReport(prefix, Completed: 0, Total: itemList.Count));
+        var total = itemList.Count;
+        if (total > 0)
+            main.Progress?.Report(new ProgressReport(phase, unit, Completed: 0, Total: total));
 
         if (parallel)
             await Parallel.ForEachAsync(itemList, new ParallelOptions
@@ -60,10 +63,15 @@ public static class OptionExportBatch
             }
             finally
             {
-                diagnostics.Add(CreateItemDiagnostics(ld, getPath(item), main.WorkingDirectory));
+                diagnostics.Add(CreateItemDiagnostics(ld, getItemPath(item), main.WorkingDirectory));
                 var done = Interlocked.Increment(ref completed);
-                main.Progress?.Report(new ProgressReport(prefix, Path.GetFileName(getPath(item)), done,
-                    itemList.Count));
+                main.Progress?.Report(new ProgressReport(
+                    phase,
+                    unit,
+                    Item: Path.GetFileName(getItemPath(item)),
+                    Label: getLabel?.Invoke(item),
+                    Completed: done,
+                    Total: total));
             }
         }
     }
@@ -77,13 +85,15 @@ public static class OptionExportBatch
     }
 
     public static Task<DiagnosticSnapshot> BatchAsync<T>(
-        string prefix,
+        MessageDescriptor phase,
+        string unit,
         IEnumerable<T> items,
         Func<T, IDiagnosticSink, Task> action,
-        Func<T, string> getPath,
+        Func<T, string> getItemPath,
         OptionExportProcessContext context,
-        bool parallel = false)
+        bool parallel = false,
+        Func<T, string?>? getLabel = null)
     {
-        return ProcessItemsAsync(prefix, items, action, getPath, context, parallel);
+        return ProcessItemsAsync(phase, unit, items, action, getItemPath, context, parallel, getLabel);
     }
 }

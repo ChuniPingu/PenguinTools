@@ -1,6 +1,5 @@
 ﻿using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Parser.ugc;
 
@@ -107,7 +106,7 @@ public partial class UgcParser
             if (pairPositive != null)
                 pairPositive.MakePair(air);
             else
-                ReportAtCurrentLine(Severity.Warning, Strings.MgCrit_Pairing_notes_incompatible, absTick);
+                ReportAtCurrentLine(Severity.Warning, Msg.Key(MsgKeys.MgCrit_Pairing_notes_incompatible));
 
             _lastNote = air;
             return;
@@ -372,11 +371,11 @@ public partial class UgcParser
 
     private void WarnMalformed(string what)
     {
-        ReportAtCurrentLine(Severity.Warning, string.Format(Strings.Mg_Unrecognized_note, what));
+        ReportAtCurrentLine(Severity.Warning, Msg.Create(MsgKeys.Mg_Unrecognized_note, what));
     }
 
     private void WarnUnknownType(char c)
     {
-        ReportAtCurrentLine(Severity.Warning, string.Format(Strings.Mg_Unrecognized_note, c.ToString()));
+        ReportAtCurrentLine(Severity.Warning, Msg.Create(MsgKeys.Mg_Unrecognized_note, c.ToString()));
     }
 }

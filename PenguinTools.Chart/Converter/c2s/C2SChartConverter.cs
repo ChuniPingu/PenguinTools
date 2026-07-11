@@ -1,7 +1,5 @@
-using PenguinTools.Chart.Models;
-using PenguinTools.Core;
+﻿using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 
 namespace PenguinTools.Chart.Converter.c2s;
 
@@ -55,7 +53,7 @@ public partial class C2SChartConverter
         {
             var slidesCount = slidesLookup.GetValueOrDefault(pos, 0);
             if (airsCount >= slidesCount) continue;
-            Diagnostic.Report(new TimedDiagnostic(Severity.Warning, Strings.Mg_Overlapping_air_parent_slide,
+            Diagnostic.Report(new TimedDiagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Overlapping_air_parent_slide),
                 pos.Tick.Original));
         }
     }
@@ -68,7 +66,7 @@ public partial class C2SChartConverter
             if (length >= ChartResolution.SingleTick) continue;
 
             var tick = longNote.Tick.Original;
-            var msg = string.Format(Strings.Mg_Length_smaller_than_unit, length,
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Length_smaller_than_unit, length,
                 ChartResolution.UmiguriTick / ChartResolution.SingleTick);
             Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
             {
@@ -96,16 +94,17 @@ public partial class C2SChartConverter
         var hasError = false;
         foreach (var air in Notes.OfType<c2s.Air>().Where(a => a.Parent is null))
         {
-            Diagnostic.Report(new TimedDiagnostic(Severity.Error, Strings.MgCrit_Air_parent_null, air.Tick.Original)
-            {
-                Target = air
-            });
+            Diagnostic.Report(
+                new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_parent_null), air.Tick.Original)
+                {
+                    Target = air
+                });
             hasError = true;
         }
 
         foreach (var airSlide in Notes.OfType<c2s.AirSlide>().Where(a => a.Parent is null))
         {
-            Diagnostic.Report(new TimedDiagnostic(Severity.Error, Strings.MgCrit_Air_slide_parent_null,
+            Diagnostic.Report(new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null),
                 airSlide.Tick.Original)
             {
                 Target = airSlide

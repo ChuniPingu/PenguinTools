@@ -1,7 +1,10 @@
 namespace PenguinTools.Core.Diagnostic;
 
-public sealed record LocationDiagnostic(Severity Severity, string Message, int LineValue, string? PathValue = null)
-    : Diagnostic(Severity, Message)
+public sealed record LocationDiagnostic(
+    Severity Severity,
+    MessageDescriptor Message,
+    int LineValue,
+    string? PathValue = null) : Diagnostic(Severity, Message)
 {
     public override string? Path => PathValue;
     public override int? Line => LineValue;

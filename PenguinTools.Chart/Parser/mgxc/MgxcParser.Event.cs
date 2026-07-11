@@ -1,5 +1,3 @@
-using PenguinTools.i18n;
-
 namespace PenguinTools.Chart.Parser.mgxc;
 
 using umgr = Models.umgr;
@@ -74,7 +72,7 @@ public partial class MgxcParser
         if (e == null)
         {
             // avoid misalignment
-            var msg = string.Format(Strings.MgCrit_Unrecognized_event, name);
+            MessageDescriptor msg = Msg.Create(MsgKeys.MgCrit_Unrecognized_event, name);
             ThrowAtPosition(msg, br.BaseStream.Position, Mgxc);
         }
 

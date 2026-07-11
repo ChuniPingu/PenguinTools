@@ -1,9 +1,7 @@
 ﻿using System.Text;
 using PenguinTools.Chart.Models;
-using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.i18n;
 using PenguinTools.Media;
 
 namespace PenguinTools.Chart.Parser.ugc;
@@ -120,7 +118,7 @@ public partial class UgcParser
         _currentLineNumber = null;
     }
 
-    private void ReportAtCurrentLine(Severity severity, string message, object? target = null)
+    private void ReportAtCurrentLine(Severity severity, MessageDescriptor message, object? target = null)
     {
         if (_currentLineNumber is not { } line)
         {
@@ -137,7 +135,7 @@ public partial class UgcParser
         });
     }
 
-    private void ReportAtCurrentLine(Severity severity, string message, int tick, object? target = null)
+    private void ReportAtCurrentLine(Severity severity, MessageDescriptor message, int tick, object? target = null)
     {
         if (_currentLineNumber is not { } line)
         {
@@ -154,7 +152,7 @@ public partial class UgcParser
         });
     }
 
-    private void ThrowAtCurrentLine(string message, object? target = null, int? tick = null)
+    private void ThrowAtCurrentLine(MessageDescriptor message, object? target = null, int? tick = null)
     {
         if (_currentLineNumber is not { } line)
         {
@@ -211,14 +209,14 @@ public partial class UgcParser
         if (string.IsNullOrWhiteSpace(Ugc.Meta.SortName))
         {
             Ugc.Meta.SortName = ChartPostProcessor.GetSortName(Ugc.Meta.Title);
-            Diagnostic.Report(new Diagnostic(Severity.Information, Strings.Mg_No_sortname_provided));
+            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_No_sortname_provided)));
         }
 
         if (Ugc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Ugc.Meta.FullBgiFilePath))
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Ugc.Meta.FullBgiFilePath),
                 Ugc.Meta.FullBgiFilePath,
-                Strings.Error_Invalid_bg_image,
+                MsgKeys.Error_Invalid_bg_image,
                 () =>
                 {
                     Ugc.Meta.IsCustomStage = false;
@@ -226,13 +224,13 @@ public partial class UgcParser
                 });
     }
 
-    private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string message,
+    private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,
         Action onFailure)
     {
-        Tasks.Add(HandleValidationAsync(validationTask, path, message, onFailure));
+        Tasks.Add(HandleValidationAsync(validationTask, path, messageKey, onFailure));
     }
 
-    private async Task HandleValidationAsync(Task<ProcessCommandResult> validationTask, string path, string message,
+    private async Task HandleValidationAsync(Task<ProcessCommandResult> validationTask, string path, string messageKey,
         Action onFailure)
     {
         try
@@ -241,7 +239,7 @@ public partial class UgcParser
             if (result.IsSuccess) return;
 
             onFailure();
-            Diagnostic.Report(new PathDiagnostic(Severity.Warning, message, path)
+            Diagnostic.Report(new PathDiagnostic(Severity.Warning, Msg.Key(messageKey), path)
             {
                 Target = result
             });
@@ -249,7 +247,7 @@ public partial class UgcParser
         catch (Exception ex)
         {
             onFailure();
-            Diagnostic.Report(new PathDiagnostic(Severity.Warning, message, path)
+            Diagnostic.Report(new PathDiagnostic(Severity.Warning, Msg.Key(messageKey), path)
             {
                 Target = ex
             });
