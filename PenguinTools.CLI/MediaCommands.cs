@@ -37,13 +37,15 @@ internal static class MediaCommands
         command.Arguments.Add(output);
         command.Options.Add(paired);
         command.Options.Add(key);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("audio.extract", (app, progress, ct) => app.ExtractCriAudioAsync(
                     new CriAudioExtractRequest(parseResult.GetRequiredValue(input),
                         parseResult.GetRequiredValue(output), parseResult.GetValue(paired), parseResult.GetValue(key)),
                     progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
-                CliJsonSerializerContext.Default.CriAudioExtractResult, cancellationToken));
+                CliJsonSerializerContext.Default.CriAudioExtractResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         return command;
     }
 
@@ -97,12 +99,14 @@ internal static class MediaCommands
         var command = new Command("extract", "Extract DDS textures from an AFB file.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("afb.extract", (app, progress, ct) => app.ExtractAfbAsync(
                     new AfbExtractRequest(
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_extracted_dds, value.OutputDirectory),
-                CliJsonSerializerContext.Default.AfbExtractResult, cancellationToken));
+                CliJsonSerializerContext.Default.AfbExtractResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         root.Subcommands.Add(command);
         return root;
     }

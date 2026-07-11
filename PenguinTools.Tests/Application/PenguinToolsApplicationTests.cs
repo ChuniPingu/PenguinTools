@@ -49,6 +49,43 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
+    public async Task OptionScan_IncludesAutoDiscoveredConfig()
+    {
+        using var application = PenguinToolsApplication.CreateDefault();
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var configPath = Path.Combine(directory, "options.json");
+        var document = new OptionDocument
+        {
+            OptionName = "TEST",
+            ConvertChart = false,
+            ConvertAudio = false,
+            ConvertJacket = true,
+            ConvertBackground = false
+        };
+        await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(document, OptionDocumentJson.Default),
+            TestContext.Current.CancellationToken);
+        try
+        {
+            var result = await application.ScanOptionAsync(new OptionScanRequest(directory),
+                cancellationToken: TestContext.Current.CancellationToken);
+            Assert.True(result.Succeeded);
+            Assert.NotNull(result.Value);
+            Assert.Equal(configPath, result.Value!.ConfigPath);
+            Assert.NotNull(result.Value.Config);
+            Assert.Equal("TEST", result.Value.Config!.OptionName);
+            Assert.False(result.Value.Config.ConvertChart);
+            Assert.False(result.Value.Config.ConvertAudio);
+            Assert.True(result.Value.Config.ConvertJacket);
+            Assert.False(result.Value.Config.ConvertBackground);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task OptionBuild_RejectsConflictingConfigSettings()
     {
         using var application = PenguinToolsApplication.CreateDefault();

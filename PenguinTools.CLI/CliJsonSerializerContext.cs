@@ -13,6 +13,7 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(CliDiagnosticPayload[]))]
 [JsonSerializable(typeof(ChartInspectResult))]
 [JsonSerializable(typeof(ChartConvertResult))]
+[JsonSerializable(typeof(OptionScanConfig))]
 [JsonSerializable(typeof(OptionScanResult))]
 [JsonSerializable(typeof(OptionBuildResult))]
 [JsonSerializable(typeof(MusicBuildResult))]

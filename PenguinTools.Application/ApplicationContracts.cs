@@ -84,12 +84,31 @@ public sealed record OptionScanBook(
     ApplicationEntry Stage,
     IReadOnlyList<OptionScanDifficulty> Charts);
 
+public sealed record OptionScanConfig(
+    string OptionName,
+    string OptionId,
+    bool ConvertChart,
+    IReadOnlyList<ChartFormat> ChartFileDiscovery,
+    bool ConvertAudio,
+    bool ConvertJacket,
+    bool ConvertBackground,
+    ulong HcaEncryptionKey,
+    bool GenerateEventXml,
+    bool GenerateReleaseTagXml,
+    int ReleaseTagId,
+    string ReleaseTagTitleName,
+    int UltimaEventId,
+    int WeEventId,
+    int BatchSize);
+
 public sealed record OptionScanResult(
     string InputDirectory,
     IReadOnlyList<ChartFormat> ChartFileDiscovery,
     int BatchSize,
     IReadOnlyList<OptionScanBook> Books,
-    IReadOnlyList<ApplicationDiagnostic> UnmatchedDiagnostics);
+    IReadOnlyList<ApplicationDiagnostic> UnmatchedDiagnostics,
+    string? ConfigPath = null,
+    OptionScanConfig? Config = null);
 
 public sealed record OptionBuildOverrides(
     string? OptionName = null,

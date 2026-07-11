@@ -144,12 +144,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (scanned.Value is null)
                 return OperationResult<OptionScanResult>.Failure().WithDiagnostics(scanned.Diagnostics);
 
+            var (configPath, config, configDiagnostics) =
+                await LoadScanConfigAsync(input, cancellationToken);
             var value = CreateScanResult(input, applicationDiscovery, request.BatchSize, scanned.Value,
-                scanned.Diagnostics);
+                scanned.Diagnostics, configPath, config);
             return (scanned.Succeeded
                     ? OperationResult<OptionScanResult>.Success(value)
                     : OperationResult<OptionScanResult>.Failure())
-                .WithDiagnostics(DiagnosticSnapshot.Empty);
+                .WithDiagnostics(configDiagnostics);
         });
     }
 
@@ -498,12 +500,54 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             batchSize, workingDirectory, diagnostics, cancellationToken, progress: progress);
     }
 
+    private static async Task<(string? ConfigPath, OptionScanConfig? Config, DiagnosticSnapshot Diagnostics)>
+        LoadScanConfigAsync(string input, CancellationToken cancellationToken)
+    {
+        var candidate = Path.Combine(input, "options.json");
+        if (!File.Exists(candidate)) return (null, null, DiagnosticSnapshot.Empty);
+
+        try
+        {
+            var document = await LoadOptionDocumentAsync(candidate, cancellationToken);
+            return (candidate, CreateScanConfig(document), DiagnosticSnapshot.Empty);
+        }
+        catch (Exception ex)
+        {
+            var collector = new DiagnosticCollector();
+            collector.Report(new PathDiagnostic(Severity.Warning,
+                Msg.Create(MsgKeys.Warn_Config_invalid, ex.Message), candidate));
+            return (candidate, null, DiagnosticSnapshot.Create(collector));
+        }
+    }
+
+    private static OptionScanConfig CreateScanConfig(OptionDocument document)
+    {
+        return new OptionScanConfig(
+            document.OptionName,
+            document.OptionId,
+            document.ConvertChart,
+            document.ChartFileDiscovery.Select(ToApplication).ToArray(),
+            document.ConvertAudio,
+            document.ConvertJacket,
+            document.ConvertBackground,
+            document.HcaEncryptionKey,
+            document.GenerateEventXml,
+            document.GenerateReleaseTagXml,
+            document.ReleaseTagId,
+            document.ReleaseTagTitleName,
+            document.UltimaEventId,
+            document.WeEventId,
+            document.BatchSize);
+    }
+
     private static OptionScanResult CreateScanResult(
         string input,
         IReadOnlyList<ChartFormat> discovery,
         int batchSize,
         IReadOnlyList<OptionBookSnapshot> snapshots,
-        DiagnosticSnapshot diagnostics)
+        DiagnosticSnapshot diagnostics,
+        string? configPath = null,
+        OptionScanConfig? config = null)
     {
         var remaining = diagnostics.Diagnostics.Select((value, index) => (value, index)).ToList();
         var books = snapshots.OrderBy(x => x.BookMeta.Id).ThenBy(x => x.Title, StringComparer.Ordinal).Select(book =>
@@ -523,7 +567,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 book.StageId, ApplicationEntry.From(book.NotesFieldLine), ApplicationEntry.From(book.Stage), charts);
         }).ToArray();
         return new OptionScanResult(input, discovery, batchSize, books,
-            remaining.Select(x => ToApplicationDiagnostic(x.value)).ToArray());
+            remaining.Select(x => ToApplicationDiagnostic(x.value)).ToArray(), configPath, config);
     }
 
     private static ApplicationDiagnostic ToApplicationDiagnostic(Diagnostic value)
@@ -616,6 +660,17 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             ChartFormat.Mgxc => ChartFileFormat.Mgxc,
             ChartFormat.Ugc => ChartFileFormat.Ugc,
             ChartFormat.Sus => ChartFileFormat.Sus,
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+        };
+    }
+
+    private static ChartFormat ToApplication(ChartFileFormat value)
+    {
+        return value switch
+        {
+            ChartFileFormat.Mgxc => ChartFormat.Mgxc,
+            ChartFileFormat.Ugc => ChartFormat.Ugc,
+            ChartFileFormat.Sus => ChartFormat.Sus,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
         };
     }

@@ -28,6 +28,7 @@ internal static class MusicCommands
         command.Options.Add(jacket);
         CommandLineOptions.AddAudioCommandOptions(command, audio);
         CommandLineOptions.AddStageCommandOptions(command, stage);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("music.build", (app, progress, ct) => app.BuildMusicAsync(
                     new MusicBuildRequest(
@@ -35,7 +36,8 @@ internal static class MusicCommands
                         parseResult.GetValue(jacket), CommandLineOptions.GetAudioOverrides(parseResult, audio),
                         CommandLineOptions.GetStageOverrides(parseResult, stage)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_exported_music, value.OutputDirectory),
-                CliJsonSerializerContext.Default.MusicBuildResult, cancellationToken));
+                CliJsonSerializerContext.Default.MusicBuildResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         return command;
     }
 
@@ -58,6 +60,7 @@ internal static class MusicCommands
         command.Options.Add(key);
         command.Options.Add(noAudio);
         command.Options.Add(noJacket);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("music.extract", (app, progress, ct) => app.ExtractMusicAsync(
                     new MusicExtractRequest(parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
@@ -65,7 +68,8 @@ internal static class MusicCommands
                         parseResult.GetValue(noAudio), parseResult.GetValue(noJacket), parseResult.GetValue(key)),
                     progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_exported_music, value.OutputDirectory),
-                CliJsonSerializerContext.Default.MusicExtractResult, cancellationToken));
+                CliJsonSerializerContext.Default.MusicExtractResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         return command;
     }
 }

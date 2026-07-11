@@ -46,12 +46,38 @@ public class CliOutputFormattingTests
         Assert.DoesNotContain(Environment.NewLine, json);
     }
 
+    [Fact]
+    public void ParseFailure_IncludesCommandLineErrors()
+    {
+        var message = Msg.Create(MsgKeys.Cli_Msg_command_line_parsing_failed,
+            "Unrecognized command or argument '--no-progress'.");
+        var json = CliOutput.Serialize(new CliResponse(
+            CliOutput.ResultType,
+            3,
+            "parse",
+            false,
+            CliExitCodes.SyntaxError,
+            message,
+            null,
+            CliDiagnostics.ToPayload(CliDiagnostics.SnapshotFromMessage(message))));
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(
+            "Unrecognized command or argument '--no-progress'.",
+            document.RootElement.GetProperty("message").GetProperty("args").GetProperty("arg0").GetString());
+    }
+
     [Theory]
     [InlineData("chart inspect file.mgxc")]
     [InlineData("chart convert input.mgxc output.c2s")]
+    [InlineData("chart convert input.mgxc output.c2s --no-progress")]
+    [InlineData("option scan input --no-progress")]
     [InlineData("option scan input")]
-    [InlineData("option build input output")]
-    [InlineData("music build input.mgxc output")]
+    [InlineData("option build input output --no-progress")]
+    [InlineData("music build input.mgxc output --no-progress")]
+    [InlineData("music extract input output --no-progress")]
+    [InlineData("audio extract input.acb output --no-progress")]
+    [InlineData("afb extract input.afb output --no-progress")]
+    [InlineData("assets collect game --no-progress")]
     [InlineData("jacket convert input.mgxc output.dds")]
     [InlineData("audio convert input.mgxc output")]
     [InlineData("stage build input.mgxc output")]

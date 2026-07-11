@@ -18,7 +18,7 @@
       "built_stage": "Built stage: {0}",
       "chart_inspect_complete": "{0} [{1} {2}]",
       "chart_written": "Wrote chart: {0}",
-      "command_line_parsing_failed": "Command-line parsing failed.",
+      "command_line_parsing_failed": "Command-line parsing failed: {0}.",
       "exported_music": "Exported music: {0}",
       "extracted_dds": "Extracted DDS files: {0}",
       "info_complete": "Runtime information retrieved.",
@@ -115,6 +115,7 @@
       "unsupported_tap_point_type": "Unsupported SUS TAP point type \u0027{0}\u0027."
     },
     "warn": {
+      "config_invalid": "Failed to read options.json: {0}.",
       "duplicate_id_and_difficulty": "Multiple charts with the same song ID and difficulty exist, the last scanned file will be used.",
       "more_than_one_chart_marked_main": "Multiple charts for this Song ID have been tagged with `#meta main` in their comments. The first chart found with this tag will be set as the baseline difficulty.",
       "no_chart_marked_main": "No baseline difficulty for this Song ID. Selecting the highest-difficulty chart by default. To choose a baseline difficulty explicitly, add `#meta main` to the comment of the chart.",

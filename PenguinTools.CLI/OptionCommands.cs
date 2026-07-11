@@ -22,6 +22,7 @@ internal static class OptionCommands
         command.Arguments.Add(input);
         command.Options.Add(discovery);
         command.Options.Add(batchSize);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("option.scan", (app, progress, ct) => app.ScanOptionAsync(
                     new OptionScanRequest(
@@ -29,7 +30,8 @@ internal static class OptionCommands
                         parseResult.GetValue(batchSize)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_option_scan_complete, value.Books.Count,
                     value.Books.Sum(x => x.Charts.Count)),
-                CliJsonSerializerContext.Default.OptionScanResult, cancellationToken));
+                CliJsonSerializerContext.Default.OptionScanResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         return command;
     }
 
@@ -42,6 +44,7 @@ internal static class OptionCommands
         command.Arguments.Add(input);
         command.Arguments.Add(output);
         options.AddTo(command);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("option.build", (app, progress, ct) => app.BuildOptionAsync(
                     new OptionBuildRequest(
@@ -49,7 +52,8 @@ internal static class OptionCommands
                         parseResult.GetValue(options.Config), parseResult.GetValue(options.NoConfig),
                         options.CreateOverrides(parseResult)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_option_build_complete, value.OptionName, value.OutputDirectory),
-                CliJsonSerializerContext.Default.OptionBuildResult, cancellationToken));
+                CliJsonSerializerContext.Default.OptionBuildResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         return command;
     }
 

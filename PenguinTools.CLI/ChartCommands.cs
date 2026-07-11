@@ -34,12 +34,14 @@ internal static class ChartCommands
         var command = new Command("convert", "Convert MGXC/UGC/SUS to C2S, or C2S to UGC v8.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
+        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("chart.convert", (app, progress, ct) => app.ConvertChartAsync(
                     new ChartConvertRequest(
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_written, value.OutputPath),
-                CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken));
+                CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken,
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         return command;
     }
 

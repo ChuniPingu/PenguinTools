@@ -99,6 +99,7 @@ public static class MsgKeys
     public const string Sus_Unsupported_hold_point_type = "diag.sus.unsupported_hold_point_type";
     public const string Sus_Unsupported_slide_point_type = "diag.sus.unsupported_slide_point_type";
     public const string Sus_Unsupported_tap_point_type = "diag.sus.unsupported_tap_point_type";
+    public const string Warn_Config_invalid = "diag.warn.config_invalid";
     public const string Warn_Duplicate_id_and_difficulty = "diag.warn.duplicate_id_and_difficulty";
     public const string Warn_More_than_one_chart_marked_main = "diag.warn.more_than_one_chart_marked_main";
     public const string Warn_No_chart_marked_main = "diag.warn.no_chart_marked_main";

@@ -32,15 +32,16 @@ internal static class CliCommandRunner
 
     internal static async Task<int> RunWithProgressAsync<T>(
         string operation,
-        Func<IPenguinToolsApplication, IProgress<ProgressReport>, CancellationToken, Task<OperationResult<T>>> action,
+        Func<IPenguinToolsApplication, IProgress<ProgressReport>?, CancellationToken, Task<OperationResult<T>>> action,
         Func<T, MessageDescriptor> successMessage,
         JsonTypeInfo<T> typeInfo,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool suppressProgress = false)
     {
         try
         {
             using var application = PenguinToolsApplication.CreateDefault(CreateApplicationOptions());
-            var progress = new CliProgressReporter(operation);
+            IProgress<ProgressReport>? progress = suppressProgress ? null : new CliProgressReporter(operation);
             var result = await action(application, progress, cancellationToken);
             return WriteResult(operation, result, successMessage, typeInfo);
         }
