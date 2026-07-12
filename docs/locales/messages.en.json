@@ -21,7 +21,6 @@
       "command_line_parsing_failed": "Command-line parsing failed: {0}.",
       "exported_music": "Exported music: {0}",
       "extracted_dds": "Extracted DDS files: {0}",
-      "info_complete": "Runtime information retrieved.",
       "jacket_written": "Wrote jacket: {0}",
       "operation_cancelled": "Operation cancelled.",
       "option_build_complete": "Option {0} written to {1}",

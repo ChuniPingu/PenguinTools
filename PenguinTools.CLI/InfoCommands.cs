@@ -11,7 +11,7 @@ internal static class InfoCommands
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunAsync("info",
                 (app, ct) => app.GetInfoAsync(new ApplicationInfoRequest(), ct),
-                _ => Msg.Key(MsgKeys.Cli_Msg_info_complete),
+                _ => null,
                 CliJsonSerializerContext.Default.ApplicationInfo, cancellationToken, parseResult));
         return command;
     }

@@ -28,7 +28,6 @@ public static class MsgKeys
     public const string Cli_Msg_command_line_parsing_failed = "cli.msg.command_line_parsing_failed";
     public const string Cli_Msg_exported_music = "cli.msg.exported_music";
     public const string Cli_Msg_extracted_dds = "cli.msg.extracted_dds";
-    public const string Cli_Msg_info_complete = "cli.msg.info_complete";
     public const string Cli_Msg_jacket_written = "cli.msg.jacket_written";
     public const string Cli_Msg_operation_cancelled = "cli.msg.operation_cancelled";
     public const string Cli_Msg_option_build_complete = "cli.msg.option_build_complete";
