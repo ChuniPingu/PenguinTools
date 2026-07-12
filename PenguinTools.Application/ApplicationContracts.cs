@@ -41,11 +41,47 @@ public sealed record ChartSummary(
     decimal MainBpm,
     string FilePath);
 
+public sealed record ChartConversionMetadata(
+    int DifficultyId,
+    string Difficulty,
+    string BgmFilePath,
+    string FullBgmFilePath,
+    decimal BgmPreviewStart,
+    decimal BgmPreviewStop,
+    decimal BgmManualOffset,
+    bool BgmEnableBarOffset,
+    decimal BgmInitialBpm,
+    int BgmInitialNumerator,
+    int BgmInitialDenominator,
+    decimal BgmBarOffset,
+    decimal BgmRealOffset,
+    string JacketFilePath,
+    string FullJacketFilePath,
+    bool IsCustomStage,
+    int? StageId,
+    string BgiFilePath,
+    string FullBgiFilePath,
+    ApplicationEntry NotesFieldLine,
+    ApplicationEntry Stage);
+
 public sealed record ChartInspectRequest(string InputPath);
 
-public sealed record ChartInspectResult(string InputPath, ChartSummary Chart);
+public sealed record ChartInspectResult(
+    string InputPath,
+    ChartSummary Chart,
+    ChartConversionMetadata Metadata);
 
-public sealed record ChartConvertRequest(string InputPath, string OutputPath);
+public sealed record ChartConvertOverrides(
+    int? SongId = null,
+    string? Designer = null,
+    int? DifficultyId = null,
+    decimal? MainBpm = null,
+    bool? InsertBlankMeasure = null);
+
+public sealed record ChartConvertRequest(
+    string InputPath,
+    string OutputPath,
+    ChartConvertOverrides? Overrides = null);
 
 public sealed record ChartConvertResult(
     string InputPath,
@@ -171,6 +207,8 @@ public sealed record MusicBuildResult(
 
 public sealed record JacketConvertRequest(string InputPath, string OutputPath, string? JacketInputPath = null);
 
+public sealed record JacketFileConvertRequest(string InputPath, string OutputPath);
+
 public sealed record JacketConvertResult(
     string InputPath,
     string SourcePath,
@@ -178,6 +216,22 @@ public sealed record JacketConvertResult(
     IReadOnlyList<ApplicationArtifact> Artifacts);
 
 public sealed record AudioConvertRequest(string InputPath, string OutputDirectory, AudioOverrides? Overrides = null);
+
+public sealed record AudioFileSettings(
+    int SongId,
+    decimal PreviewStart,
+    decimal PreviewStop,
+    decimal ManualOffset,
+    bool InsertBlankMeasure,
+    decimal InitialBpm,
+    int InitialNumerator,
+    int InitialDenominator,
+    ulong? HcaEncryptionKey = null);
+
+public sealed record AudioFileConvertRequest(
+    string InputPath,
+    string OutputDirectory,
+    AudioFileSettings Settings);
 
 public sealed record AudioConvertResult(
     string InputPath,
@@ -238,6 +292,11 @@ public sealed record MusicExtractResult(
 
 public sealed record StageBuildRequest(string InputPath, string OutputDirectory, StageOverrides? Overrides = null);
 
+public sealed record StageFilesBuildRequest(
+    string BackgroundPath,
+    string OutputDirectory,
+    StageOverrides Overrides);
+
 public sealed record StageBuildResult(
     string InputPath,
     string? SourcePath,
@@ -259,6 +318,10 @@ public sealed record AssetCollectResult(
     string GameRoot,
     string OutputPath,
     IReadOnlyList<ApplicationArtifact> Artifacts);
+
+public sealed record AssetCatalogResult(
+    IReadOnlyList<ApplicationEntry> FieldLines,
+    IReadOnlyList<ApplicationEntry> StageNames);
 
 public sealed record ApplicationInfoRequest;
 
@@ -292,7 +355,13 @@ public interface IPenguinToolsApplication : IDisposable
     Task<OperationResult<JacketConvertResult>> ConvertJacketAsync(JacketConvertRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<OperationResult<JacketConvertResult>> ConvertJacketFileAsync(JacketFileConvertRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<OperationResult<AudioConvertResult>> ConvertAudioAsync(AudioConvertRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OperationResult<AudioConvertResult>> ConvertAudioFileAsync(AudioFileConvertRequest request,
         CancellationToken cancellationToken = default);
 
     Task<OperationResult<CriAudioExtractResult>> ExtractCriAudioAsync(CriAudioExtractRequest request,
@@ -304,11 +373,17 @@ public interface IPenguinToolsApplication : IDisposable
     Task<OperationResult<StageBuildResult>> BuildStageAsync(StageBuildRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<OperationResult<StageBuildResult>> BuildStageFilesAsync(StageFilesBuildRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<OperationResult<AfbExtractResult>> ExtractAfbAsync(AfbExtractRequest request,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
 
     Task<OperationResult<AssetCollectResult>> CollectAssetsAsync(AssetCollectRequest request,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
+
+    Task<OperationResult<AssetCatalogResult>> GetAssetCatalogAsync(
+        CancellationToken cancellationToken = default);
 
     Task<OperationResult<ApplicationInfo>> GetInfoAsync(ApplicationInfoRequest request,
         CancellationToken cancellationToken = default);

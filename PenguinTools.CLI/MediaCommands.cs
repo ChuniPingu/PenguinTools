@@ -23,6 +23,18 @@ internal static class MediaCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_jacket_written, value.OutputPath),
                 CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken));
         root.Subcommands.Add(command);
+        var fileInput = new Argument<string>("input") { Description = "Input image file." };
+        var fileOutput = new Argument<string>("output") { Description = "Output DDS file." };
+        var convertFile = new Command("convert-file", "Convert an image directly to a jacket DDS.");
+        convertFile.Arguments.Add(fileInput);
+        convertFile.Arguments.Add(fileOutput);
+        convertFile.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunAsync("jacket.convert-file", (app, ct) => app.ConvertJacketFileAsync(
+                    new JacketFileConvertRequest(parseResult.GetRequiredValue(fileInput),
+                        parseResult.GetRequiredValue(fileOutput)), ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_jacket_written, value.OutputPath),
+                CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken));
+        root.Subcommands.Add(convertFile);
         return root;
     }
 
@@ -67,8 +79,60 @@ internal static class MediaCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
                 CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken));
         root.Subcommands.Add(command);
+        root.Subcommands.Add(BuildAudioConvertFileCommand());
         root.Subcommands.Add(BuildAudioExtractCommand());
         return root;
+    }
+
+    private static Command BuildAudioConvertFileCommand()
+    {
+        var input = new Argument<string>("input") { Description = "Input WAV, OGG, or MP3 file." };
+        var output = Output();
+        var songId = new Option<int>("--song-id") { Description = "Song ID." };
+        var previewStart = new Option<decimal>("--preview-start") { Description = "Preview start in seconds." };
+        var previewStop = new Option<decimal>("--preview-stop") { Description = "Preview stop in seconds." };
+        var manualOffset = new Option<decimal>("--manual-offset") { Description = "Manual audio offset in seconds." };
+        var insertBlank = new Option<bool>("--insert-blank-measure")
+        {
+            Description = "Insert one blank measure before the song."
+        };
+        var initialBpm = new Option<decimal>("--initial-bpm")
+        {
+            Description = "Initial BPM.", DefaultValueFactory = _ => 120m
+        };
+        var numerator = new Option<int>("--initial-numerator")
+        {
+            Description = "Initial time-signature numerator.", DefaultValueFactory = _ => 4
+        };
+        var denominator = new Option<int>("--initial-denominator")
+        {
+            Description = "Initial time-signature denominator.", DefaultValueFactory = _ => 4
+        };
+        var key = new Option<ulong?>("--hca-key") { Description = "HCA encryption key." };
+        var command = new Command("convert-file", "Convert an audio file using explicit song metadata.");
+        command.Arguments.Add(input);
+        command.Arguments.Add(output);
+        command.Options.Add(songId);
+        command.Options.Add(previewStart);
+        command.Options.Add(previewStop);
+        command.Options.Add(manualOffset);
+        command.Options.Add(insertBlank);
+        command.Options.Add(initialBpm);
+        command.Options.Add(numerator);
+        command.Options.Add(denominator);
+        command.Options.Add(key);
+        command.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunAsync("audio.convert-file", (app, ct) => app.ConvertAudioFileAsync(
+                    new AudioFileConvertRequest(parseResult.GetRequiredValue(input),
+                        parseResult.GetRequiredValue(output), new AudioFileSettings(
+                            parseResult.GetValue(songId), parseResult.GetValue(previewStart),
+                            parseResult.GetValue(previewStop), parseResult.GetValue(manualOffset),
+                            parseResult.GetValue(insertBlank), parseResult.GetValue(initialBpm),
+                            parseResult.GetValue(numerator), parseResult.GetValue(denominator),
+                            parseResult.GetValue(key))), ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
+                CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken));
+        return command;
     }
 
     internal static Command BuildStageCommand()
@@ -88,6 +152,21 @@ internal static class MediaCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_built_stage, value.OutputDirectory),
                 CliJsonSerializerContext.Default.StageBuildResult, cancellationToken));
         root.Subcommands.Add(command);
+        var background = new Argument<string>("background") { Description = "Input stage background image." };
+        var filesOutput = Output();
+        var fileOptions = CommandLineOptions.CreateStageCommandOptions();
+        var buildFiles = new Command("build-files", "Build a stage directly from image files and explicit metadata.");
+        buildFiles.Arguments.Add(background);
+        buildFiles.Arguments.Add(filesOutput);
+        CommandLineOptions.AddStageCommandOptions(buildFiles, fileOptions, includeBackground: false);
+        buildFiles.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunAsync("stage.build-files", (app, ct) => app.BuildStageFilesAsync(
+                    new StageFilesBuildRequest(parseResult.GetRequiredValue(background),
+                        parseResult.GetRequiredValue(filesOutput),
+                        CommandLineOptions.GetStageFileOverrides(parseResult, fileOptions)), ct),
+                value => Msg.Create(MsgKeys.Cli_Msg_built_stage, value.OutputDirectory),
+                CliJsonSerializerContext.Default.StageBuildResult, cancellationToken));
+        root.Subcommands.Add(buildFiles);
         return root;
     }
 

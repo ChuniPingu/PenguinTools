@@ -9,7 +9,7 @@ internal static class CliCommandRunner
     internal static async Task<int> RunAsync<T>(
         string operation,
         Func<IPenguinToolsApplication, CancellationToken, Task<OperationResult<T>>> action,
-        Func<T, MessageDescriptor> successMessage,
+        Func<T, MessageDescriptor?> successMessage,
         JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
@@ -34,7 +34,7 @@ internal static class CliCommandRunner
     internal static async Task<int> RunWithProgressAsync<T>(
         string operation,
         Func<IPenguinToolsApplication, IProgress<ProgressReport>?, CancellationToken, Task<OperationResult<T>>> action,
-        Func<T, MessageDescriptor> successMessage,
+        Func<T, MessageDescriptor?> successMessage,
         JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken,
         bool suppressProgress = false)
@@ -68,7 +68,7 @@ internal static class CliCommandRunner
     private static int WriteResult<T>(
         string operation,
         OperationResult<T> result,
-        Func<T, MessageDescriptor> successMessage,
+        Func<T, MessageDescriptor?> successMessage,
         JsonTypeInfo<T> typeInfo)
     {
         var exitCode = result.Succeeded ? CliExitCodes.Success : CliExitCodes.Failure;

@@ -80,9 +80,10 @@ internal static class CommandLineOptions
             });
     }
 
-    internal static void AddStageCommandOptions(Command command, StageCommandOptions options)
+    internal static void AddStageCommandOptions(Command command, StageCommandOptions options,
+        bool includeBackground = true)
     {
-        command.Options.Add(options.BackgroundPath);
+        if (includeBackground) command.Options.Add(options.BackgroundPath);
         command.Options.Add(options.Effect1Path);
         command.Options.Add(options.Effect2Path);
         command.Options.Add(options.Effect3Path);
@@ -95,8 +96,19 @@ internal static class CommandLineOptions
 
     internal static StageOverrides GetStageOverrides(ParseResult parseResult, StageCommandOptions options)
     {
+        return GetStageOverrides(parseResult, options, true);
+    }
+
+    internal static StageOverrides GetStageFileOverrides(ParseResult parseResult, StageCommandOptions options)
+    {
+        return GetStageOverrides(parseResult, options, false);
+    }
+
+    private static StageOverrides GetStageOverrides(ParseResult parseResult, StageCommandOptions options,
+        bool includeBackground)
+    {
         return new StageOverrides(
-            parseResult.GetValue(options.BackgroundPath),
+            includeBackground ? parseResult.GetValue(options.BackgroundPath) : null,
             [
                 parseResult.GetValue(options.Effect1Path),
                 parseResult.GetValue(options.Effect2Path),

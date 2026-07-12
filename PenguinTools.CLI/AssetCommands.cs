@@ -19,6 +19,11 @@ internal static class AssetCommands
                 CliJsonSerializerContext.Default.AssetCollectResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
         root.Subcommands.Add(command);
+        var list = new Command("list", "List known stage and notes-field assets.");
+        list.SetAction((_, cancellationToken) =>
+            CliCommandRunner.RunAsync("assets.list", (app, ct) => app.GetAssetCatalogAsync(ct),
+                _ => null, CliJsonSerializerContext.Default.AssetCatalogResult, cancellationToken));
+        root.Subcommands.Add(list);
         return root;
     }
 }
