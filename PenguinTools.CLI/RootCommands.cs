@@ -7,6 +7,7 @@ internal static class RootCommands
     internal static RootCommand BuildRootCommand()
     {
         var rootCommand = new RootCommand("Command-line tools for chart conversion and asset export.");
+        GlobalCliOptions.AddRootOptions(rootCommand);
         rootCommand.Subcommands.Add(ChartCommands.BuildChartCommand());
         rootCommand.Subcommands.Add(MusicCommands.BuildMusicCommand());
         rootCommand.Subcommands.Add(OptionCommands.BuildOptionCommand());

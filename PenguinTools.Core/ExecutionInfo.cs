@@ -6,6 +6,4 @@ public sealed record ExecutionInfo(
     DateTime? BuildDateUtc,
     string BaseDirectory,
     string TempWorkPath,
-    string UserDataPath,
-    string InfrastructureAssetsPath,
-    string PlusAssetsPath);
+    string InfrastructureAssetsPath);

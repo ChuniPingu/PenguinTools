@@ -23,7 +23,7 @@ internal static class ChartCommands
                     new ChartInspectRequest(parseResult.GetRequiredValue(input)), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_inspect_complete, value.Chart.Title,
                     value.Chart.Difficulty, value.Chart.Level),
-                CliJsonSerializerContext.Default.ChartInspectResult, cancellationToken));
+                CliJsonSerializerContext.Default.ChartInspectResult, cancellationToken, parseResult));
         return command;
     }
 
@@ -65,7 +65,7 @@ internal static class ChartCommands
                                 : parseResult.GetValue(insertBlank))), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_written, value.OutputPath),
                 CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
 

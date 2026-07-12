@@ -3,7 +3,9 @@ using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Application;
 
-public sealed record PenguinToolsApplicationOptions(string? ExternalAssetsDirectory = null);
+public sealed record PenguinToolsApplicationOptions(
+    string? ExternalAssetsDirectory = null,
+    string? UserAssetsPath = null);
 
 public sealed record ApplicationArtifact(string Kind, string Path);
 
@@ -62,7 +64,9 @@ public sealed record ChartConversionMetadata(
     string BgiFilePath,
     string FullBgiFilePath,
     ApplicationEntry NotesFieldLine,
-    ApplicationEntry Stage);
+    ApplicationEntry Stage,
+    ApplicationEntry Genre,
+    ApplicationEntry WeTag);
 
 public sealed record ChartInspectRequest(string InputPath);
 
@@ -312,16 +316,12 @@ public sealed record AfbExtractResult(
     string OutputDirectory,
     IReadOnlyList<ApplicationArtifact> Artifacts);
 
-public sealed record AssetCollectRequest(string GameRoot);
+public sealed record AssetCollectRequest(string GameRoot, string OutputPath);
 
 public sealed record AssetCollectResult(
     string GameRoot,
     string OutputPath,
     IReadOnlyList<ApplicationArtifact> Artifacts);
-
-public sealed record AssetCatalogResult(
-    IReadOnlyList<ApplicationEntry> FieldLines,
-    IReadOnlyList<ApplicationEntry> StageNames);
 
 public sealed record ApplicationInfoRequest;
 
@@ -331,9 +331,7 @@ public sealed record ApplicationInfo(
     DateTime? BuildDateUtc,
     string BaseDirectory,
     string TempWorkPath,
-    string UserDataPath,
-    string InfrastructureAssetsPath,
-    string PlusAssetsPath);
+    string InfrastructureAssetsPath);
 
 public interface IPenguinToolsApplication : IDisposable
 {
@@ -381,9 +379,6 @@ public interface IPenguinToolsApplication : IDisposable
 
     Task<OperationResult<AssetCollectResult>> CollectAssetsAsync(AssetCollectRequest request,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
-
-    Task<OperationResult<AssetCatalogResult>> GetAssetCatalogAsync(
-        CancellationToken cancellationToken = default);
 
     Task<OperationResult<ApplicationInfo>> GetInfoAsync(ApplicationInfoRequest request,
         CancellationToken cancellationToken = default);

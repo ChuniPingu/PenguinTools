@@ -12,7 +12,7 @@ internal static class InfoCommands
             CliCommandRunner.RunAsync("info",
                 (app, ct) => app.GetInfoAsync(new ApplicationInfoRequest(), ct),
                 _ => Msg.Key(MsgKeys.Cli_Msg_info_complete),
-                CliJsonSerializerContext.Default.ApplicationInfo, cancellationToken));
+                CliJsonSerializerContext.Default.ApplicationInfo, cancellationToken, parseResult));
         return command;
     }
 }

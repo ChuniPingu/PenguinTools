@@ -31,7 +31,7 @@ internal static class OptionCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_option_scan_complete, value.Books.Count,
                     value.Books.Sum(x => x.Charts.Count)),
                 CliJsonSerializerContext.Default.OptionScanResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
 
@@ -53,7 +53,7 @@ internal static class OptionCommands
                         options.CreateOverrides(parseResult)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_option_build_complete, value.OptionName, value.OutputDirectory),
                 CliJsonSerializerContext.Default.OptionBuildResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
 

@@ -21,7 +21,7 @@ internal static class MediaCommands
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                         parseResult.GetValue(source)), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_jacket_written, value.OutputPath),
-                CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken));
+                CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken, parseResult));
         root.Subcommands.Add(command);
         var fileInput = new Argument<string>("input") { Description = "Input image file." };
         var fileOutput = new Argument<string>("output") { Description = "Output DDS file." };
@@ -33,7 +33,7 @@ internal static class MediaCommands
                     new JacketFileConvertRequest(parseResult.GetRequiredValue(fileInput),
                         parseResult.GetRequiredValue(fileOutput)), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_jacket_written, value.OutputPath),
-                CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken));
+                CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken, parseResult));
         root.Subcommands.Add(convertFile);
         return root;
     }
@@ -57,7 +57,7 @@ internal static class MediaCommands
                     progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
                 CliJsonSerializerContext.Default.CriAudioExtractResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
 
@@ -77,7 +77,7 @@ internal static class MediaCommands
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                         CommandLineOptions.GetAudioOverrides(parseResult, options)), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
-                CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken));
+                CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken, parseResult));
         root.Subcommands.Add(command);
         root.Subcommands.Add(BuildAudioConvertFileCommand());
         root.Subcommands.Add(BuildAudioExtractCommand());
@@ -131,7 +131,7 @@ internal static class MediaCommands
                             parseResult.GetValue(numerator), parseResult.GetValue(denominator),
                             parseResult.GetValue(key))), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_audio_exported, value.OutputDirectory),
-                CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken));
+                CliJsonSerializerContext.Default.AudioConvertResult, cancellationToken, parseResult));
         return command;
     }
 
@@ -150,7 +150,7 @@ internal static class MediaCommands
                     parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                     CommandLineOptions.GetStageOverrides(parseResult, options)), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_built_stage, value.OutputDirectory),
-                CliJsonSerializerContext.Default.StageBuildResult, cancellationToken));
+                CliJsonSerializerContext.Default.StageBuildResult, cancellationToken, parseResult));
         root.Subcommands.Add(command);
         var background = new Argument<string>("background") { Description = "Input stage background image." };
         var filesOutput = Output();
@@ -165,7 +165,7 @@ internal static class MediaCommands
                         parseResult.GetRequiredValue(filesOutput),
                         CommandLineOptions.GetStageFileOverrides(parseResult, fileOptions)), ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_built_stage, value.OutputDirectory),
-                CliJsonSerializerContext.Default.StageBuildResult, cancellationToken));
+                CliJsonSerializerContext.Default.StageBuildResult, cancellationToken, parseResult));
         root.Subcommands.Add(buildFiles);
         return root;
     }
@@ -185,7 +185,7 @@ internal static class MediaCommands
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_extracted_dds, value.OutputDirectory),
                 CliJsonSerializerContext.Default.AfbExtractResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         root.Subcommands.Add(command);
         return root;
     }

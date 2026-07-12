@@ -456,32 +456,12 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (!Directory.Exists(gameRoot))
                 return ApplicationDiagnostics.Failure<AssetCollectResult>(
                     Msg.Key(MsgKeys.App_Game_directory_not_found), gameRoot);
+            var output = FullPath(request.OutputPath);
             progress?.Report(new ProgressReport(Item: gameRoot));
-            await _dependencies.Assets.CollectAssetsAsync(gameRoot, cancellationToken);
-            var output = _dependencies.Assets.PlusAssetsPath;
+            using var assetsStream = _dependencies.AssetStore.OpenRead(InfrastructureResourceNames.AssetsJson);
+            await AssetManager.CollectToFileAsync(gameRoot, assetsStream, output, cancellationToken);
             return OperationResult<AssetCollectResult>.Success(new AssetCollectResult(gameRoot, output,
                 [new ApplicationArtifact("assets.json", output)]));
-        });
-    }
-
-    public Task<OperationResult<AssetCatalogResult>> GetAssetCatalogAsync(
-        CancellationToken cancellationToken = default)
-    {
-        return GuardAsync(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var fields = _dependencies.Assets.FieldLines
-                .OrderBy(x => x.Id)
-                .ThenBy(x => x.Str, StringComparer.Ordinal)
-                .Select(ApplicationEntry.From)
-                .ToArray();
-            var stages = _dependencies.Assets.StageNames
-                .OrderBy(x => x.Id)
-                .ThenBy(x => x.Str, StringComparer.Ordinal)
-                .Select(ApplicationEntry.From)
-                .ToArray();
-            return Task.FromResult(OperationResult<AssetCatalogResult>.Success(
-                new AssetCatalogResult(fields, stages)));
         });
     }
 
@@ -493,11 +473,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var info = ExecutionInfoProvider.Create(_dependencies.Paths, _dependencies.AssetStore.AssetDirectory,
-                _dependencies.Assets);
+            var info = ExecutionInfoProvider.Create(_dependencies.Paths, _dependencies.AssetStore.AssetDirectory);
             return Task.FromResult(OperationResult<ApplicationInfo>.Success(new ApplicationInfo(
                 info.ApplicationName, info.Version, info.BuildDateUtc, info.BaseDirectory, info.TempWorkPath,
-                info.UserDataPath, info.InfrastructureAssetsPath, info.PlusAssetsPath)));
+                info.InfrastructureAssetsPath)));
         }
         catch (OperationCanceledException)
         {
@@ -527,7 +506,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             assetStore = new AssetStore(assetsDirectory, paths.TempWorkPath);
             var assetProvider = new InfrastructureAssetProvider(assetStore);
             using var assetsStream = assetStore.OpenRead(InfrastructureResourceNames.AssetsJson);
-            var assets = new AssetManager(assetsStream, paths.UserDataPath);
+            var userAssetsPath = string.IsNullOrWhiteSpace(options.UserAssetsPath)
+                ? null
+                : Path.GetFullPath(options.UserAssetsPath.Trim());
+            var assets = new AssetManager(assetsStream, userAssetsPath);
             var mediaTool = new MuaMediaTool(assetProvider.GetPath(InfrastructureAsset.Mua));
             var dependencies = new PenguinToolsApplicationDependencies(
                 paths, assetStore, assets, mediaTool, assetProvider);
@@ -779,7 +761,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             meta.BgiFilePath,
             meta.FullBgiFilePath,
             ApplicationEntry.From(meta.NotesFieldLine),
-            ApplicationEntry.From(meta.Stage));
+            ApplicationEntry.From(meta.Stage),
+            ApplicationEntry.From(meta.Genre),
+            ApplicationEntry.From(meta.WeTag));
     }
 
     private static void ApplyChartOverrides(Meta meta, ChartConvertOverrides? overrides)

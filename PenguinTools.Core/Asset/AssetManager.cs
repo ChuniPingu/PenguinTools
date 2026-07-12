@@ -5,31 +5,24 @@ namespace PenguinTools.Core.Asset;
 
 public class AssetManager : INotifyPropertyChanged
 {
+    /// <summary>Conventional filename for collected (plus-tier) asset JSON written by the host.</summary>
     public const string PlusAssetsFileName = "assets.user.json";
 
-    public AssetManager(Stream hardAssets, string userDataDirectory)
+    public AssetManager(Stream hardAssets, string? userAssetsPath = null)
     {
         ArgumentNullException.ThrowIfNull(hardAssets);
-        ArgumentException.ThrowIfNullOrWhiteSpace(userDataDirectory);
-
-        Directory.CreateDirectory(userDataDirectory);
-        PlusAssetsPath = Path.Combine(userDataDirectory, PlusAssetsFileName);
 
         MergeAssets = new AssetDictionary();
         HardAssets = new AssetDictionary(hardAssets);
-        var plusOk = AssetDictionary.TryLoadPlusAssetsFromFile(PlusAssetsPath, out var plus);
-        PlusAssets = plus;
-        ShouldPromptForOptionalAssetsImport = !plusOk;
+        if (!string.IsNullOrWhiteSpace(userAssetsPath) &&
+            AssetDictionary.TryLoadPlusAssetsFromFile(userAssetsPath, out var plus))
+            PlusAssets = plus;
+        else
+            PlusAssets = new AssetDictionary();
         UserAssets = new AssetDictionary();
         Merge();
         NotifyAssetChanged();
     }
-
-    /// <summary>True when <see cref="PlusAssetsFileName" /> was missing or not valid JSON at startup.</summary>
-    public bool ShouldPromptForOptionalAssetsImport { get; }
-
-    /// <summary>Absolute path to the merged plus-tier asset JSON on disk.</summary>
-    public string PlusAssetsPath { get; }
 
     // Asset Dictionary that merges all assets from various sources below
     public AssetDictionary MergeAssets { get; }
@@ -37,7 +30,7 @@ public class AssetManager : INotifyPropertyChanged
     // Assets embedded in the assembly, used for default values and initial setup.
     private AssetDictionary HardAssets { get; }
 
-    // Assets loaded from the result of AssetDictionary.CollectAsync.
+    // Assets loaded from an explicit --user-assets path (optional).
     private AssetDictionary PlusAssets { get; }
 
     // Assets from the user-defined.
@@ -49,17 +42,29 @@ public class AssetManager : INotifyPropertyChanged
     public IReadOnlySet<Entry> StageNames => MergeAssets.StageNames;
     public IReadOnlySet<Entry> WeTagNames => MergeAssets.WeTagNames;
 
-    public async Task CollectAssetsAsync(string workDir, CancellationToken ct = default)
+    /// <summary>
+    ///     Scans a game install, subtracts entries already present in <paramref name="hardAssets" />,
+    ///     and writes the delta JSON to <paramref name="outputPath" />. Does not mutate this manager.
+    /// </summary>
+    public static async Task CollectToFileAsync(
+        string gameRoot,
+        Stream hardAssets,
+        string outputPath,
+        CancellationToken ct = default)
     {
-        if (!Directory.Exists(workDir)) return;
+        ArgumentException.ThrowIfNullOrWhiteSpace(gameRoot);
+        ArgumentNullException.ThrowIfNull(hardAssets);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        if (!Directory.Exists(gameRoot)) return;
 
-        PlusAssets.MergeWith(await AssetDictionary.CollectAsync(workDir, ct));
-        PlusAssets.SubtractWith(HardAssets);
+        var collected = new AssetDictionary();
+        collected.MergeWith(await AssetDictionary.CollectAsync(gameRoot, ct));
+        collected.SubtractWith(new AssetDictionary(hardAssets));
 
-        await PlusAssets.SaveAsync(PlusAssetsPath, ct);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
+        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
 
-        Merge();
-        NotifyAssetChanged();
+        await collected.SaveAsync(outputPath, ct);
     }
 
     private void Merge()

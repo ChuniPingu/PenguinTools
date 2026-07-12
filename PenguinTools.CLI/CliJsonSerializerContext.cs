@@ -24,6 +24,5 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(StageBuildResult))]
 [JsonSerializable(typeof(AfbExtractResult))]
 [JsonSerializable(typeof(AssetCollectResult))]
-[JsonSerializable(typeof(AssetCatalogResult))]
 [JsonSerializable(typeof(ApplicationInfo))]
 internal sealed partial class CliJsonSerializerContext : JsonSerializerContext;

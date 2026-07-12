@@ -1,3 +1,4 @@
+using System.CommandLine;
 using System.Text.Json.Serialization.Metadata;
 using PenguinTools.Application;
 using PenguinTools.Core.Diagnostic;
@@ -11,11 +12,13 @@ internal static class CliCommandRunner
         Func<IPenguinToolsApplication, CancellationToken, Task<OperationResult<T>>> action,
         Func<T, MessageDescriptor?> successMessage,
         JsonTypeInfo<T> typeInfo,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ParseResult? parseResult = null)
     {
         try
         {
-            using var application = PenguinToolsApplication.CreateDefault(CreateApplicationOptions());
+            using var application = PenguinToolsApplication.CreateDefault(
+                GlobalCliOptions.CreateApplicationOptions(parseResult ?? EmptyParseResult()));
             var result = await action(application, cancellationToken);
             return WriteResult(operation, result, successMessage, typeInfo);
         }
@@ -37,11 +40,13 @@ internal static class CliCommandRunner
         Func<T, MessageDescriptor?> successMessage,
         JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken,
-        bool suppressProgress = false)
+        bool suppressProgress = false,
+        ParseResult? parseResult = null)
     {
         try
         {
-            using var application = PenguinToolsApplication.CreateDefault(CreateApplicationOptions());
+            using var application = PenguinToolsApplication.CreateDefault(
+                GlobalCliOptions.CreateApplicationOptions(parseResult ?? EmptyParseResult()));
             IProgress<ProgressReport>? progress = suppressProgress ? null : new CliProgressReporter(operation);
             var result = await action(application, progress, cancellationToken);
             return WriteResult(operation, result, successMessage, typeInfo);
@@ -56,6 +61,11 @@ internal static class CliCommandRunner
             CliOutput.WriteFailure(operation, ResolveFailureMessage(ex), CliExitCodes.Failure);
             return CliExitCodes.Failure;
         }
+    }
+
+    private static ParseResult EmptyParseResult()
+    {
+        return RootCommands.BuildRootCommand().Parse([]);
     }
 
     private static MessageDescriptor ResolveFailureMessage(Exception exception)
@@ -75,10 +85,5 @@ internal static class CliCommandRunner
         var message = result.Value is { } value && result.Succeeded ? successMessage(value) : null;
         CliOutput.Write(operation, result, message, typeInfo, exitCode);
         return exitCode;
-    }
-
-    private static PenguinToolsApplicationOptions CreateApplicationOptions()
-    {
-        return new PenguinToolsApplicationOptions();
     }
 }

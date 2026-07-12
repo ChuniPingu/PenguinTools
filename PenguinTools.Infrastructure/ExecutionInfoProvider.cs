@@ -1,15 +1,11 @@
 using System.Reflection;
 using PenguinTools.Core;
-using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Infrastructure;
 
 public static class ExecutionInfoProvider
 {
-    public static ExecutionInfo Create(
-        IApplicationPaths paths,
-        string assetsDirectory,
-        AssetManager? assets = null)
+    public static ExecutionInfo Create(IApplicationPaths paths, string assetsDirectory)
     {
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentException.ThrowIfNullOrWhiteSpace(assetsDirectory);
@@ -24,8 +20,6 @@ public static class ExecutionInfoProvider
             BuildDateAttribute.GetAssemblyBuildDate(entryAssembly),
             AppContext.BaseDirectory,
             paths.TempWorkPath,
-            paths.UserDataPath,
-            assetsDirectory,
-            assets?.PlusAssetsPath ?? Path.Combine(paths.UserDataPath, AssetManager.PlusAssetsFileName));
+            assetsDirectory);
     }
 }

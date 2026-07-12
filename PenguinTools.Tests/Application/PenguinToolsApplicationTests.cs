@@ -18,7 +18,8 @@ public sealed class PenguinToolsApplicationTests
             cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded);
         Assert.NotNull(result.Value);
-        Assert.NotEmpty(result.Value.UserDataPath);
+        Assert.NotEmpty(result.Value.TempWorkPath);
+        Assert.NotEmpty(result.Value.InfrastructureAssetsPath);
     }
 
     [Fact]
@@ -178,7 +179,7 @@ public sealed class PenguinToolsApplicationTests
             cancellationToken: ct)).Succeeded);
         Assert.False((await application.BuildStageAsync(new StageBuildRequest(missing, output),
             cancellationToken: ct)).Succeeded);
-        Assert.False((await application.CollectAssetsAsync(new AssetCollectRequest(output),
+        Assert.False((await application.CollectAssetsAsync(new AssetCollectRequest(output, output),
             cancellationToken: ct)).Succeeded);
     }
 
@@ -345,7 +346,7 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task DirectAudio_RejectsInvalidTiming_AndAssetCatalogIsTyped()
+    public async Task DirectAudio_RejectsInvalidTiming()
     {
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -360,11 +361,6 @@ public sealed class PenguinToolsApplicationTests
                 TestContext.Current.CancellationToken);
             Assert.False(invalid.Succeeded);
             Assert.True(invalid.Diagnostics.HasError);
-
-            var catalog = await application.GetAssetCatalogAsync(TestContext.Current.CancellationToken);
-            Assert.True(catalog.Succeeded);
-            Assert.NotNull(catalog.Value!.FieldLines);
-            Assert.NotEmpty(catalog.Value.StageNames);
         }
         finally
         {
@@ -431,7 +427,6 @@ public sealed class PenguinToolsApplicationTests
     private sealed record TestPaths(string Root) : IApplicationPaths
     {
         public string TempWorkPath => Root;
-        public string UserDataPath => Root;
     }
 
     private sealed record TestAssetProvider(string Root) : IInfrastructureAssetProvider

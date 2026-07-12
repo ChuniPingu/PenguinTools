@@ -37,7 +37,7 @@ internal static class MusicCommands
                         CommandLineOptions.GetStageOverrides(parseResult, stage)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_exported_music, value.OutputDirectory),
                 CliJsonSerializerContext.Default.MusicBuildResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
 
@@ -69,7 +69,7 @@ internal static class MusicCommands
                     progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_exported_music, value.OutputDirectory),
                 CliJsonSerializerContext.Default.MusicExtractResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress)));
+                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
 }
