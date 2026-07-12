@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using PenguinTools.Application;
+using PenguinTools.Core.Asset;
 
 namespace PenguinTools.CLI;
 
@@ -24,5 +25,7 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(StageBuildResult))]
 [JsonSerializable(typeof(AfbExtractResult))]
 [JsonSerializable(typeof(AssetCollectResult))]
+[JsonSerializable(typeof(ApplicationEntry))]
+[JsonSerializable(typeof(Entry))]
 [JsonSerializable(typeof(ApplicationInfo))]
 internal sealed partial class CliJsonSerializerContext : JsonSerializerContext;

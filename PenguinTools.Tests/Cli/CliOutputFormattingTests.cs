@@ -2,6 +2,7 @@ using System.Text.Json;
 using PenguinTools.Application;
 using PenguinTools.CLI;
 using PenguinTools.Core;
+using PenguinTools.Core.Asset;
 using Xunit;
 
 namespace PenguinTools.Tests.Cli;
@@ -77,12 +78,12 @@ public class CliOutputFormattingTests
     [InlineData("music extract input output --no-progress")]
     [InlineData("audio extract input.acb output --no-progress")]
     [InlineData("afb extract input.afb output --no-progress")]
-    [InlineData("assets collect game --no-progress")]
+    [InlineData("assets collect game --output assets.user.json --no-progress")]
     [InlineData("jacket convert input.mgxc output.dds")]
     [InlineData("audio convert input.mgxc output")]
     [InlineData("stage build input.mgxc output")]
     [InlineData("afb extract input.afb output")]
-    [InlineData("assets collect game")]
+    [InlineData("assets collect game --output assets.user.json")]
     [InlineData("info")]
     public void CommandTree_Parses(string commandLine)
     {
@@ -101,6 +102,45 @@ public class CliOutputFormattingTests
     {
         var result = RootCommands.BuildRootCommand().Parse(commandLine);
         Assert.NotEmpty(result.Errors);
+    }
+
+    [Fact]
+    public void ChartInspectResult_SerializesMetadataEntries()
+    {
+        var metadata = new ChartConversionMetadata(
+            3, "Master", "", "", 0, 0, 0, false, 120, 4, 4, 2, 0, "", "",
+            false, 1001000, "", "",
+            new ApplicationEntry(0, "Orange", "オレンジ"),
+            new ApplicationEntry(8, "stage"),
+            new ApplicationEntry(1000, "genre"),
+            new ApplicationEntry(-1, "Invalid"));
+        var result = new ChartInspectResult(
+            "input.ugc",
+            new ChartSummary("1000", 1000, "Test", "", "Original", "Master", 0, 120, "input.ugc"),
+            metadata);
+        var element = JsonSerializer.SerializeToElement(result, CliJsonSerializerContext.Default.ChartInspectResult);
+        Assert.Equal("Orange", element.GetProperty("metadata").GetProperty("notesFieldLine").GetProperty("name")
+            .GetString());
+    }
+
+    [Fact]
+    public void CliResponse_SerializesDiagnosticsWithEntryInMessageArgs()
+    {
+        var message = Msg.Create(MsgKeys.Error_Unhandled, ("detail", new Entry(1, "genre", "data")));
+        var json = CliOutput.Serialize(new CliResponse(
+            CliOutput.ResultType,
+            3,
+            "test",
+            false,
+            CliExitCodes.Failure,
+            CliDiagnostics.SanitizeMessage(message),
+            null,
+            CliDiagnostics.ToPayload(CliDiagnostics.SnapshotFromMessage(message))));
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal("diag.error.unhandled", document.RootElement.GetProperty("message").GetProperty("key")
+            .GetString());
+        Assert.Equal("1 genre data",
+            document.RootElement.GetProperty("message").GetProperty("args").GetProperty("detail").GetString());
     }
 
     [Fact]

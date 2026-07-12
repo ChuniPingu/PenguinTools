@@ -62,14 +62,16 @@ internal static class CliOutput
         JsonElement? element = result.Value is null
             ? null
             : JsonSerializer.SerializeToElement(result.Value, typeInfo);
-        WriteJson(new CliResponse(ResultType, SchemaVersion, operation, result.Succeeded, exitCode, message, element,
+        WriteJson(new CliResponse(ResultType, SchemaVersion, operation, result.Succeeded, exitCode,
+            message is null ? null : CliDiagnostics.SanitizeMessage(message), element,
             CliDiagnostics.ToPayload(result.Diagnostics)));
     }
 
     internal static void WriteFailure(string operation, MessageDescriptor message, int exitCode)
     {
         var diagnostics = CliDiagnostics.SnapshotFromMessage(message);
-        WriteJson(new CliResponse(ResultType, SchemaVersion, operation, false, exitCode, message, null,
+        WriteJson(new CliResponse(ResultType, SchemaVersion, operation, false, exitCode,
+            CliDiagnostics.SanitizeMessage(message), null,
             CliDiagnostics.ToPayload(diagnostics)));
     }
 
