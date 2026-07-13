@@ -139,6 +139,18 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (request.BatchSize == 0 || request.BatchSize < -1)
                 return ApplicationDiagnostics.Failure<OptionScanResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
 
+            if (request.SaveConfig)
+            {
+                var savePath = Path.Combine(input, "options.json");
+                var document = File.Exists(savePath)
+                    ? await LoadOptionDocumentAsync(savePath, cancellationToken)
+                    : new OptionDocument();
+                if (request.ChartFileDiscovery is not null)
+                    document.ChartFileDiscovery = [.. request.ChartFileDiscovery.Select(ToWorkflow)];
+                document.BatchSize = request.BatchSize;
+                await SaveOptionDocumentAsync(savePath, document, cancellationToken);
+            }
+
             var applicationDiscovery = request.ChartFileDiscovery ??
                                        [ChartFormat.Mgxc, ChartFormat.Ugc, ChartFormat.Sus];
             var discovery = applicationDiscovery.Select(ToWorkflow).ToArray();
@@ -620,7 +632,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             document.OptionName,
             document.OptionId,
             document.ConvertChart,
-            document.ChartFileDiscovery.Select(ToApplication).ToArray(),
+            document.ChartFileDiscovery.Select(ToChartFormatName).ToArray(),
             document.ConvertAudio,
             document.ConvertJacket,
             document.ConvertBackground,
@@ -676,7 +688,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 mainMeta.BgmEnableBarOffset, mainMeta.BgmInitialBpm, mainMeta.BgmInitialNumerator,
                 mainMeta.BgmInitialDenominator, charts);
         }).ToArray();
-        return new OptionScanResult(input, discovery, batchSize, books,
+        return new OptionScanResult(input, discovery.Select(ToChartFormatName).ToArray(), batchSize, books,
             remaining.Select(x => ToApplicationDiagnostic(x.value)).ToArray(), configPath, config);
     }
 
@@ -946,13 +958,25 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         };
     }
 
-    private static ChartFormat ToApplication(ChartFileFormat value)
+    private static string ToChartFormatName(ChartFileFormat value)
     {
         return value switch
         {
-            ChartFileFormat.Mgxc => ChartFormat.Mgxc,
-            ChartFileFormat.Ugc => ChartFormat.Ugc,
-            ChartFileFormat.Sus => ChartFormat.Sus,
+            ChartFileFormat.Mgxc => "mgxc",
+            ChartFileFormat.Ugc => "ugc",
+            ChartFileFormat.Sus => "sus",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+        };
+    }
+
+    private static string ToChartFormatName(ChartFormat value)
+    {
+        return value switch
+        {
+            ChartFormat.Mgxc => "mgxc",
+            ChartFormat.Ugc => "ugc",
+            ChartFormat.Sus => "sus",
+            ChartFormat.C2s => "c2s",
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
         };
     }

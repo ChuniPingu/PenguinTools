@@ -105,7 +105,8 @@ public sealed record OptionScanRequest(
     string InputDirectory,
     IReadOnlyList<ChartFormat>? ChartFileDiscovery = null,
     int BatchSize = 8,
-    string? WorkingDirectory = null);
+    string? WorkingDirectory = null,
+    bool SaveConfig = false);
 
 public sealed record OptionScanDifficulty(
     string Difficulty,
@@ -178,7 +179,7 @@ public sealed record OptionScanConfig(
     string OptionName,
     string OptionId,
     bool ConvertChart,
-    IReadOnlyList<ChartFormat> ChartFileDiscovery,
+    IReadOnlyList<string> ChartFileDiscovery,
     bool ConvertAudio,
     bool ConvertJacket,
     bool ConvertBackground,
@@ -193,7 +194,7 @@ public sealed record OptionScanConfig(
 
 public sealed record OptionScanResult(
     string InputDirectory,
-    IReadOnlyList<ChartFormat> ChartFileDiscovery,
+    IReadOnlyList<string> ChartFileDiscovery,
     int BatchSize,
     IReadOnlyList<OptionScanBook> Books,
     IReadOnlyList<ApplicationDiagnostic> UnmatchedDiagnostics,

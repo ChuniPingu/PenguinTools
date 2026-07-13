@@ -18,16 +18,19 @@ internal static class OptionCommands
         var input = new Argument<string>("input") { Description = "Input chart directory." };
         var discovery = CommandLineOptions.CreateChartFileDiscoveryOption("Ordered chart formats to discover.");
         var batchSize = new Option<int>("--batch-size") { DefaultValueFactory = _ => 8 };
+        var saveConfig = new Option<bool>("--save-config")
+            { Description = "Save the scan settings to options.json before scanning." };
         var command = new Command("scan", "Scan a directory and report chart metadata and diagnostics.");
         command.Arguments.Add(input);
         command.Options.Add(discovery);
         command.Options.Add(batchSize);
+        command.Options.Add(saveConfig);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("option.scan", (app, progress, ct) => app.ScanOptionAsync(
                     new OptionScanRequest(
                         parseResult.GetRequiredValue(input), ParseDiscovery(parseResult, discovery),
-                        parseResult.GetValue(batchSize)), progress, ct),
+                        parseResult.GetValue(batchSize), SaveConfig: parseResult.GetValue(saveConfig)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_option_scan_complete, value.Books.Count,
                     value.Books.Sum(x => x.Charts.Count)),
                 CliJsonSerializerContext.Default.OptionScanResult, cancellationToken,

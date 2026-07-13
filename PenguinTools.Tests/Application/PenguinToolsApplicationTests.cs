@@ -59,6 +59,7 @@ public sealed class PenguinToolsApplicationTests
         var document = new OptionDocument
         {
             OptionName = "TEST",
+            ChartFileDiscovery = [ChartFileFormat.Ugc, ChartFileFormat.Sus],
             ConvertChart = false,
             ConvertAudio = false,
             ConvertJacket = true,
@@ -75,10 +76,43 @@ public sealed class PenguinToolsApplicationTests
             Assert.Equal(configPath, result.Value!.ConfigPath);
             Assert.NotNull(result.Value.Config);
             Assert.Equal("TEST", result.Value.Config!.OptionName);
+            Assert.Equal(["ugc", "sus"], result.Value.Config.ChartFileDiscovery);
+            Assert.Equal(["mgxc", "ugc", "sus"], result.Value.ChartFileDiscovery);
             Assert.False(result.Value.Config.ConvertChart);
             Assert.False(result.Value.Config.ConvertAudio);
             Assert.True(result.Value.Config.ConvertJacket);
             Assert.False(result.Value.Config.ConvertBackground);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task OptionScan_SaveConfig_PersistsDiscoveryOrderBeforeScanning()
+    {
+        using var application = PenguinToolsApplication.CreateDefault();
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var configPath = Path.Combine(directory, "options.json");
+        var document = new OptionDocument { OptionName = "TEST", ConvertAudio = false };
+        await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(document, OptionDocumentJson.Default),
+            TestContext.Current.CancellationToken);
+        try
+        {
+            var result = await application.ScanOptionAsync(new OptionScanRequest(
+                    directory, [ChartFormat.Ugc, ChartFormat.Mgxc], 4, SaveConfig: true),
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.True(result.Succeeded);
+            var saved = JsonSerializer.Deserialize<OptionDocument>(
+                await File.ReadAllTextAsync(configPath, TestContext.Current.CancellationToken),
+                OptionDocumentJson.Default);
+            Assert.NotNull(saved);
+            Assert.Equal([ChartFileFormat.Ugc, ChartFileFormat.Mgxc], saved.ChartFileDiscovery);
+            Assert.Equal(4, saved.BatchSize);
+            Assert.False(saved.ConvertAudio);
         }
         finally
         {
