@@ -66,7 +66,13 @@ public sealed record ChartConversionMetadata(
     ApplicationEntry NotesFieldLine,
     ApplicationEntry Stage,
     ApplicationEntry Genre,
-    ApplicationEntry WeTag);
+    ApplicationEntry WeTag,
+    int WeDifficultyId,
+    string WeDifficulty,
+    string SortName,
+    int? UnlockEventId,
+    string ReleaseDate,
+    int MainTil);
 
 public sealed record ChartInspectRequest(string InputPath);
 
@@ -109,8 +115,32 @@ public sealed record OptionScanDifficulty(
     string Artist,
     string Designer,
     decimal Level,
+    decimal MainBpm,
+    int MainTil,
     bool IsMain,
     string FilePath,
+    ApplicationEntry WeTag,
+    int WeDifficultyId,
+    string WeDifficulty,
+    string SortName,
+    ApplicationEntry Genre,
+    int? UnlockEventId,
+    string ReleaseDate,
+    string JacketFilePath,
+    string BgmFilePath,
+    decimal BgmPreviewStart,
+    decimal BgmPreviewStop,
+    decimal BgmManualOffset,
+    decimal BgmRealOffset,
+    bool BgmEnableBarOffset,
+    decimal BgmInitialBpm,
+    int BgmInitialNumerator,
+    int BgmInitialDenominator,
+    bool IsCustomStage,
+    int? StageId,
+    string BgiFilePath,
+    ApplicationEntry NotesFieldLine,
+    ApplicationEntry Stage,
     IReadOnlyList<ApplicationDiagnostic> Diagnostics);
 
 public sealed record OptionScanBook(
@@ -118,11 +148,31 @@ public sealed record OptionScanBook(
     string Title,
     string Artist,
     string? MainDifficulty,
+    string SortName,
+    ApplicationEntry Genre,
+    int? UnlockEventId,
+    string ReleaseDate,
     bool IsCustomStage,
     int? StageId,
+    string BgiFilePath,
     ApplicationEntry NotesFieldLine,
     ApplicationEntry Stage,
+    ApplicationEntry WeTag,
+    int WeDifficultyId,
+    string WeDifficulty,
+    string JacketFilePath,
+    string BgmFilePath,
+    decimal BgmPreviewStart,
+    decimal BgmPreviewStop,
+    decimal BgmManualOffset,
+    decimal BgmRealOffset,
+    bool BgmEnableBarOffset,
+    decimal BgmInitialBpm,
+    int BgmInitialNumerator,
+    int BgmInitialDenominator,
     IReadOnlyList<OptionScanDifficulty> Charts);
+
+public sealed record OptionMainDifficultyOverride(int SongId, string MainDifficulty);
 
 public sealed record OptionScanConfig(
     string OptionName,
@@ -164,13 +214,15 @@ public sealed record OptionBuildOverrides(
     int? ReleaseTagId = null,
     string? ReleaseTagTitleName = null,
     int? UltimaEventId = null,
-    int? WeEventId = null);
+    int? WeEventId = null,
+    IReadOnlyList<OptionMainDifficultyOverride>? MainDifficulties = null);
 
 public sealed record OptionBuildRequest(
     string InputDirectory,
     string OutputDirectory,
     string? ConfigPath = null,
     bool SkipConfig = false,
+    bool SaveConfig = false,
     OptionBuildOverrides? Overrides = null);
 
 public sealed record OptionBuildResult(
@@ -194,12 +246,45 @@ public sealed record StageOverrides(
     string? NoteFieldLaneName = null,
     string? NoteFieldLaneData = null);
 
+public sealed record MusicBuildOverrides(
+    int? SongId = null,
+    string? Title = null,
+    string? Artist = null,
+    string? Designer = null,
+    int? DifficultyId = null,
+    decimal? Level = null,
+    decimal? MainBpm = null,
+    bool? InsertBlankMeasure = null,
+    int? GenreId = null,
+    string? GenreName = null,
+    int? WeTagId = null,
+    string? WeTagName = null,
+    int? WeDifficultyId = null,
+    bool? IsCustomStage = null,
+    int? StageId = null,
+    int? NotesFieldLineId = null,
+    string? NotesFieldLineName = null,
+    string? NotesFieldLineData = null,
+    int? StageEntryId = null,
+    string? StageEntryName = null,
+    decimal? BgmPreviewStart = null,
+    decimal? BgmPreviewStop = null,
+    decimal? BgmManualOffset = null,
+    decimal? BgmInitialBpm = null,
+    int? BgmInitialNumerator = null,
+    int? BgmInitialDenominator = null,
+    string? SortName = null,
+    int? UnlockEventId = null,
+    string? ReleaseDate = null,
+    int? MainTil = null);
+
 public sealed record MusicBuildRequest(
     string InputPath,
     string OutputDirectory,
     string? JacketInputPath = null,
     AudioOverrides? Audio = null,
-    StageOverrides? Stage = null);
+    StageOverrides? Stage = null,
+    MusicBuildOverrides? Overrides = null);
 
 public sealed record MusicBuildResult(
     string InputPath,

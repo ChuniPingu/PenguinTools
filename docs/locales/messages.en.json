@@ -16,7 +16,6 @@
       "assets_collected": "Collected assets and wrote {0}.",
       "audio_exported": "Exported audio assets: {0}",
       "built_stage": "Built stage: {0}",
-      "chart_inspect_complete": "{0} [{1} {2}]",
       "chart_written": "Wrote chart: {0}",
       "command_line_parsing_failed": "Command-line parsing failed: {0}.",
       "exported_music": "Exported music: {0}",

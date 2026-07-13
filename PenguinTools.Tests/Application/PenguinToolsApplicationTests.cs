@@ -134,6 +134,31 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
+    public async Task OptionBuild_DoesNotPersistOnFailure_EvenWithSaveConfig()
+    {
+        using var application = PenguinToolsApplication.CreateDefault();
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var configPath = Path.Combine(directory, "options.json");
+        var document = new OptionDocument { OptionName = "TEST", BatchSize = 8 };
+        await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(document, OptionDocumentJson.Default),
+            TestContext.Current.CancellationToken);
+        var original = await File.ReadAllTextAsync(configPath, TestContext.Current.CancellationToken);
+        try
+        {
+            var result = await application.BuildOptionAsync(new OptionBuildRequest(directory, directory,
+                    SaveConfig: true, Overrides: new OptionBuildOverrides(BatchSize: 0)),
+                cancellationToken: TestContext.Current.CancellationToken);
+            Assert.False(result.Succeeded);
+            Assert.Equal(original, await File.ReadAllTextAsync(configPath, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task OptionBuild_WithoutConfig_RequiresOptionName()
     {
         using var application = PenguinToolsApplication.CreateDefault();

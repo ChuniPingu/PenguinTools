@@ -199,22 +199,29 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 return ApplicationDiagnostics.Failure<OptionBuildResult>(
                     Msg.Key(MsgKeys.App_No_charts_to_export));
 
+            var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
             var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
             var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
             var exported = await OptionExporter.ExportAsync(
-                CreateExportContext(), document.ToExportSettings(), outputPaths, scanned.Value, output,
+                CreateExportContext(), document.ToExportSettings(), outputPaths, snapshots, output,
                 cancellationToken, progress);
             var diagnostics = scanned.Diagnostics.Merge(exported.Diagnostics);
             if (!exported.Succeeded)
                 return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(diagnostics);
 
-            if (loadedConfig) await SaveOptionDocumentAsync(configPath!, document, cancellationToken);
+            string? savedConfigPath = null;
+            if (request.SaveConfig)
+            {
+                savedConfigPath = ResolveSaveConfigPath(request, input, configPath);
+                await SaveOptionDocumentAsync(savedConfigPath, document, cancellationToken);
+            }
+
             var artifacts = Directory.Exists(bundleRoot)
                 ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
                     .OrderBy(x => x, StringComparer.Ordinal)
                     .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
                 : [];
-            var value = new OptionBuildResult(input, bundleRoot, configPath, document.OptionName,
+            var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
                 scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts);
             return OperationResult<OptionBuildResult>.Success(value).WithDiagnostics(diagnostics);
         });
@@ -236,6 +243,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var parsed = await ParseChartAsync(input, cancellationToken);
             if (!parsed.Succeeded || parsed.Value is not { } chart)
                 return OperationResult<MusicBuildResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+
+            ApplyMusicBuildOverrides(chart.Meta, request.Overrides);
 
             var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, jacket, audio, stage,
                 cancellationToken, progress);
@@ -641,15 +650,31 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             {
                 var matches = remaining.Where(x => PathsEqual(input, item.Meta.FilePath, x.value.Path)).ToArray();
                 foreach (var match in matches) remaining.Remove(match);
-                return new OptionScanDifficulty(item.Difficulty.ToString(), item.Meta.MgxcId, item.Meta.Id,
-                    item.Meta.Title, item.Meta.Artist, item.Meta.Designer, item.Meta.Level, item.Meta.IsMain,
-                    item.Meta.FilePath, matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray());
+                var meta = item.Meta;
+                return new OptionScanDifficulty(item.Difficulty.ToString(), meta.MgxcId, meta.Id,
+                    meta.Title, meta.Artist, meta.Designer, meta.Level, meta.MainBpm, meta.MainTil, meta.IsMain,
+                    meta.FilePath, ApplicationEntry.From(meta.WeTag), (int)meta.WeDifficulty,
+                    GetStarDifficultyLabel(meta.WeDifficulty), meta.SortName, ApplicationEntry.From(meta.Genre),
+                    meta.UnlockEventId, meta.ReleaseDate.ToString("yyyy-MM-dd"), meta.JacketFilePath, meta.BgmFilePath,
+                    meta.BgmPreviewStart, meta.BgmPreviewStop, meta.BgmManualOffset, meta.BgmRealOffset,
+                    meta.BgmEnableBarOffset, meta.BgmInitialBpm, meta.BgmInitialNumerator, meta.BgmInitialDenominator,
+                    meta.IsCustomStage, meta.StageId, meta.BgiFilePath, ApplicationEntry.From(meta.NotesFieldLine),
+                    ApplicationEntry.From(meta.Stage),
+                    matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray());
             }).ToArray();
             var main = book.Difficulties.Values.FirstOrDefault(x => x.Meta.IsMain)?.Difficulty.ToString() ??
                        book.Difficulties.Values.OrderByDescending(x => x.Difficulty).FirstOrDefault()?.Difficulty
                            .ToString();
-            return new OptionScanBook(book.BookMeta.Id, book.Title, book.BookMeta.Artist, main, book.IsCustomStage,
-                book.StageId, ApplicationEntry.From(book.NotesFieldLine), ApplicationEntry.From(book.Stage), charts);
+            var mainMeta = book.BookMeta;
+            return new OptionScanBook(mainMeta.Id, book.Title, mainMeta.Artist, main, mainMeta.SortName,
+                ApplicationEntry.From(mainMeta.Genre), mainMeta.UnlockEventId,
+                mainMeta.ReleaseDate.ToString("yyyy-MM-dd"), book.IsCustomStage, book.StageId, mainMeta.BgiFilePath,
+                ApplicationEntry.From(book.NotesFieldLine), ApplicationEntry.From(book.Stage),
+                ApplicationEntry.From(mainMeta.WeTag), (int)mainMeta.WeDifficulty,
+                GetStarDifficultyLabel(mainMeta.WeDifficulty), mainMeta.JacketFilePath, mainMeta.BgmFilePath,
+                mainMeta.BgmPreviewStart, mainMeta.BgmPreviewStop, mainMeta.BgmManualOffset, mainMeta.BgmRealOffset,
+                mainMeta.BgmEnableBarOffset, mainMeta.BgmInitialBpm, mainMeta.BgmInitialNumerator,
+                mainMeta.BgmInitialDenominator, charts);
         }).ToArray();
         return new OptionScanResult(input, discovery, batchSize, books,
             remaining.Select(x => ToApplicationDiagnostic(x.value)).ToArray(), configPath, config);
@@ -686,6 +711,13 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (!string.IsNullOrWhiteSpace(request.ConfigPath)) return FullPath(request.ConfigPath);
         var candidate = Path.Combine(input, "options.json");
         return File.Exists(candidate) ? candidate : null;
+    }
+
+    private static string ResolveSaveConfigPath(OptionBuildRequest request, string input, string? loadedConfigPath)
+    {
+        if (!string.IsNullOrWhiteSpace(request.ConfigPath)) return FullPath(request.ConfigPath);
+        if (loadedConfigPath is not null) return loadedConfigPath;
+        return Path.Combine(input, "options.json");
     }
 
     private static async Task<OptionDocument> LoadOptionDocumentAsync(string path, CancellationToken cancellationToken)
@@ -763,13 +795,92 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             ApplicationEntry.From(meta.NotesFieldLine),
             ApplicationEntry.From(meta.Stage),
             ApplicationEntry.From(meta.Genre),
-            ApplicationEntry.From(meta.WeTag));
+            ApplicationEntry.From(meta.WeTag),
+            (int)meta.WeDifficulty,
+            GetStarDifficultyLabel(meta.WeDifficulty),
+            meta.SortName,
+            meta.UnlockEventId,
+            meta.ReleaseDate.ToString("yyyy-MM-dd"),
+            meta.MainTil);
+    }
+
+    private static IReadOnlyList<OptionBookSnapshot> ApplyMainDifficultyOverrides(
+        IReadOnlyList<OptionBookSnapshot> snapshots,
+        IReadOnlyList<OptionMainDifficultyOverride>? overrides)
+    {
+        if (overrides is null or { Count: 0 }) return snapshots;
+
+        var lookup = overrides
+            .GroupBy(x => x.SongId)
+            .ToDictionary(group => group.Key, group => group.Last().MainDifficulty);
+
+        return snapshots.Select(book => ApplyMainDifficultyOverride(book, lookup)).ToArray();
+    }
+
+    private static OptionBookSnapshot ApplyMainDifficultyOverride(
+        OptionBookSnapshot book,
+        IReadOnlyDictionary<int, string> overrides)
+    {
+        if (book.BookMeta.Id is not { } songId || !overrides.TryGetValue(songId, out var requested)) return book;
+        if (!TryParseDifficultyName(requested, out var targetDifficulty)) return book;
+
+        foreach (var item in book.Difficulties.Values)
+            item.Meta.IsMain = item.Difficulty == targetDifficulty;
+
+        if (!book.Difficulties.TryGetValue(targetDifficulty, out var mainItem))
+            mainItem = book.Difficulties.Values.OrderByDescending(x => x.Difficulty).First();
+
+        return new OptionBookSnapshot(
+            mainItem.Meta,
+            mainItem.Meta.IsCustomStage,
+            mainItem.Meta.StageId,
+            mainItem.Meta.NotesFieldLine,
+            mainItem.Meta.Stage,
+            mainItem.Meta.Title,
+            book.Difficulties);
+    }
+
+    private static bool TryParseDifficultyName(string value, out Difficulty difficulty)
+    {
+        var normalized = value.Trim();
+        if (string.Equals(normalized, "World's End", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalized, "Worlds End", StringComparison.OrdinalIgnoreCase))
+            normalized = nameof(Difficulty.WorldsEnd);
+
+        return Enum.TryParse(normalized, true, out difficulty);
+    }
+
+    private static string GetStarDifficultyLabel(StarDifficulty value)
+    {
+        return value switch
+        {
+            StarDifficulty.S1 => "⭐",
+            StarDifficulty.S2 => "⭐⭐",
+            StarDifficulty.S3 => "⭐⭐⭐",
+            StarDifficulty.S4 => "⭐⭐⭐⭐",
+            StarDifficulty.S5 => "⭐⭐⭐⭐⭐",
+            _ => "N/A"
+        };
     }
 
     private static void ApplyChartOverrides(Meta meta, ChartConvertOverrides? overrides)
     {
+        ApplyMusicBuildOverrides(meta, overrides is null
+            ? null
+            : new MusicBuildOverrides(
+                overrides.SongId,
+                Designer: overrides.Designer,
+                DifficultyId: overrides.DifficultyId,
+                MainBpm: overrides.MainBpm,
+                InsertBlankMeasure: overrides.InsertBlankMeasure));
+    }
+
+    private static void ApplyMusicBuildOverrides(Meta meta, MusicBuildOverrides? overrides)
+    {
         if (overrides is null) return;
         if (overrides.SongId is { } songId) meta.Id = songId;
+        if (overrides.Title is not null) meta.Title = overrides.Title;
+        if (overrides.Artist is not null) meta.Artist = overrides.Artist;
         if (overrides.Designer is not null) meta.Designer = overrides.Designer;
         if (overrides.DifficultyId is { } difficultyId)
         {
@@ -777,9 +888,39 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 throw new ArgumentOutOfRangeException(nameof(overrides), difficultyId, "Unknown difficulty ID.");
             meta.Difficulty = (Difficulty)difficultyId;
         }
+        if (overrides.Level is { } level) meta.Level = level;
         if (overrides.MainBpm is { } mainBpm) meta.MainBpm = mainBpm;
         if (overrides.InsertBlankMeasure is { } insertBlankMeasure)
             meta.BgmEnableBarOffset = insertBlankMeasure;
+        if (overrides.GenreId is not null || overrides.GenreName is not null)
+            meta.Genre = new Entry(overrides.GenreId ?? meta.Genre.Id, overrides.GenreName ?? meta.Genre.Str);
+        if (overrides.WeTagId is not null || overrides.WeTagName is not null)
+            meta.WeTag = new Entry(overrides.WeTagId ?? meta.WeTag.Id, overrides.WeTagName ?? meta.WeTag.Str);
+        if (overrides.WeDifficultyId is { } weDifficultyId &&
+            Enum.IsDefined(typeof(StarDifficulty), weDifficultyId))
+            meta.WeDifficulty = (StarDifficulty)weDifficultyId;
+        if (overrides.IsCustomStage is { } isCustomStage) meta.IsCustomStage = isCustomStage;
+        if (overrides.StageId is { } stageId) meta.StageId = stageId;
+        if (overrides.NotesFieldLineId is not null || overrides.NotesFieldLineName is not null ||
+            overrides.NotesFieldLineData is not null)
+            meta.NotesFieldLine = new Entry(
+                overrides.NotesFieldLineId ?? meta.NotesFieldLine.Id,
+                overrides.NotesFieldLineName ?? meta.NotesFieldLine.Str,
+                overrides.NotesFieldLineData ?? meta.NotesFieldLine.Data);
+        if (overrides.StageEntryId is not null || overrides.StageEntryName is not null)
+            meta.Stage = new Entry(overrides.StageEntryId ?? meta.Stage.Id, overrides.StageEntryName ?? meta.Stage.Str);
+        if (overrides.BgmPreviewStart is { } previewStart) meta.BgmPreviewStart = previewStart;
+        if (overrides.BgmPreviewStop is { } previewStop) meta.BgmPreviewStop = previewStop;
+        if (overrides.BgmManualOffset is { } manualOffset) meta.BgmManualOffset = manualOffset;
+        if (overrides.BgmInitialBpm is { } initialBpm) meta.BgmInitialBpm = initialBpm;
+        if (overrides.BgmInitialNumerator is { } numerator) meta.BgmInitialNumerator = numerator;
+        if (overrides.BgmInitialDenominator is { } denominator) meta.BgmInitialDenominator = denominator;
+        if (overrides.SortName is not null) meta.SortName = overrides.SortName;
+        if (overrides.UnlockEventId is { } unlockEventId) meta.UnlockEventId = unlockEventId;
+        if (overrides.ReleaseDate is { } releaseDate &&
+            DateTime.TryParse(releaseDate, out var parsedReleaseDate))
+            meta.ReleaseDate = parsedReleaseDate;
+        if (overrides.MainTil is { } mainTil) meta.MainTil = mainTil;
     }
 
     private static AudioConvertResult CreateAudioConvertResult(string input, string output, int songId)

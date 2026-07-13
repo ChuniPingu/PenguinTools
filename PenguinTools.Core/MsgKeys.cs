@@ -1,4 +1,4 @@
-﻿namespace PenguinTools.Core;
+namespace PenguinTools.Core;
 
 public static class MsgKeys
 {
@@ -23,7 +23,6 @@ public static class MsgKeys
     public const string Cli_Msg_assets_collected = "cli.msg.assets_collected";
     public const string Cli_Msg_audio_exported = "cli.msg.audio_exported";
     public const string Cli_Msg_built_stage = "cli.msg.built_stage";
-    public const string Cli_Msg_chart_inspect_complete = "cli.msg.chart_inspect_complete";
     public const string Cli_Msg_chart_written = "cli.msg.chart_written";
     public const string Cli_Msg_command_line_parsing_failed = "cli.msg.command_line_parsing_failed";
     public const string Cli_Msg_exported_music = "cli.msg.exported_music";

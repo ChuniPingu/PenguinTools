@@ -21,8 +21,7 @@ internal static class ChartCommands
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunAsync("chart.inspect", (app, ct) => app.InspectChartAsync(
                     new ChartInspectRequest(parseResult.GetRequiredValue(input)), ct),
-                value => Msg.Create(MsgKeys.Cli_Msg_chart_inspect_complete, value.Chart.Title,
-                    value.Chart.Difficulty, value.Chart.Level),
+                _ => null,
                 CliJsonSerializerContext.Default.ChartInspectResult, cancellationToken, parseResult));
         return command;
     }

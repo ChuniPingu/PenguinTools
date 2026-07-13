@@ -113,7 +113,13 @@ public class CliOutputFormattingTests
             new ApplicationEntry(0, "Orange", "オレンジ"),
             new ApplicationEntry(8, "stage"),
             new ApplicationEntry(1000, "genre"),
-            new ApplicationEntry(-1, "Invalid"));
+            new ApplicationEntry(-1, "Invalid"),
+            0,
+            "N/A",
+            "",
+            null,
+            "2026-01-01",
+            0);
         var result = new ChartInspectResult(
             "input.ugc",
             new ChartSummary("1000", 1000, "Test", "", "Original", "Master", 0, 120, "input.ugc"),

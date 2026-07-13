@@ -50,7 +50,7 @@ internal static class OptionCommands
                     new OptionBuildRequest(
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                         parseResult.GetValue(options.Config), parseResult.GetValue(options.NoConfig),
-                        options.CreateOverrides(parseResult)), progress, ct),
+                        parseResult.GetValue(options.SaveConfig), options.CreateOverrides(parseResult)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_option_build_complete, value.OptionName, value.OutputDirectory),
                 CliJsonSerializerContext.Default.OptionBuildResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
@@ -82,6 +82,9 @@ internal static class OptionCommands
         internal Option<bool> NoConfig { get; } = new("--no-config")
             { Description = "Ignore auto-discovered options.json." };
 
+        internal Option<bool> SaveConfig { get; } = new("--save-config")
+            { Description = "Write options.json to the input directory after a successful build." };
+
         private Option<string?> OptionName { get; } = new("--option-name");
 
         private Option<string?> Discovery { get; } =
@@ -99,11 +102,18 @@ internal static class OptionCommands
         private Option<string?> ReleaseTagTitleName { get; } = new("--release-tag-title-name");
         private Option<int?> UltimaEventId { get; } = new("--ultima-event-id");
         private Option<int?> WeEventId { get; } = new("--we-event-id");
+        private Option<string[]?> MainDifficulties { get; } = new("--main-difficulty")
+        {
+            Description = "Override the main chart difficulty for a song (format: songId:Difficulty).",
+            AllowMultipleArgumentsPerToken = true,
+            Arity = ArgumentArity.ZeroOrMore
+        };
 
         internal void AddTo(Command command)
         {
             command.Options.Add(Config);
             command.Options.Add(NoConfig);
+            command.Options.Add(SaveConfig);
             command.Options.Add(OptionName);
             command.Options.Add(Discovery);
             command.Options.Add(BatchSize);
@@ -118,6 +128,7 @@ internal static class OptionCommands
             command.Options.Add(ReleaseTagTitleName);
             command.Options.Add(UltimaEventId);
             command.Options.Add(WeEventId);
+            command.Options.Add(MainDifficulties);
         }
 
         internal OptionBuildOverrides CreateOverrides(ParseResult result)
@@ -127,7 +138,26 @@ internal static class OptionCommands
                 result.GetValue(ConvertChart), result.GetValue(ConvertAudio), result.GetValue(ConvertJacket),
                 result.GetValue(ConvertBackground), result.GetValue(HcaKey), result.GetValue(GenerateEventXml),
                 result.GetValue(GenerateReleaseTagXml), result.GetValue(ReleaseTagId),
-                result.GetValue(ReleaseTagTitleName), result.GetValue(UltimaEventId), result.GetValue(WeEventId));
+                result.GetValue(ReleaseTagTitleName), result.GetValue(UltimaEventId), result.GetValue(WeEventId),
+                ParseMainDifficulties(result.GetValue(MainDifficulties)));
+        }
+
+        private static IReadOnlyList<OptionMainDifficultyOverride>? ParseMainDifficulties(string[]? values)
+        {
+            if (values is not { Length: > 0 }) return null;
+
+            List<OptionMainDifficultyOverride> overrides = [];
+            foreach (var value in values)
+            {
+                var separator = value.IndexOf(':');
+                if (separator <= 0 || separator >= value.Length - 1)
+                    throw new ArgumentException($"Invalid main difficulty override: {value}");
+                if (!int.TryParse(value[..separator], out var songId))
+                    throw new ArgumentException($"Invalid song ID in main difficulty override: {value}");
+                overrides.Add(new OptionMainDifficultyOverride(songId, value[(separator + 1)..]));
+            }
+
+            return overrides;
         }
     }
 }
