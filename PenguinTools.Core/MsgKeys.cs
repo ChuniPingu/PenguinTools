@@ -43,6 +43,7 @@ public static class MsgKeys
     public const string Error_Chart_format_brackets_mismatch = "diag.error.chart_format_brackets_mismatch";
     public const string Error_Chart_format_specify_at_least_one = "diag.error.chart_format_specify_at_least_one";
     public const string Error_Chart_format_unsupported = "diag.error.chart_format_unsupported";
+    public const string Error_Chart_conversion_unsupported = "diag.error.chart_conversion_unsupported";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
     public const string Error_File_ignored_due_to_id_missing = "diag.error.file_ignored_due_to_id_missing";
@@ -60,7 +61,8 @@ public static class MsgKeys
     public const string Error_Stage_background_required = "diag.error.stage_background_required";
     public const string Error_Stage_id_is_not_set = "diag.error.stage_id_is_not_set";
     public const string Error_Unhandled = "diag.error.unhandled";
-    public const string Hint_Preview_value_clamped = "diag.hint.preview_value_clamped";
+    public const string Hint_Preview_start_clamped = "diag.hint.preview_start_clamped";
+    public const string Hint_Preview_stop_clamped = "diag.hint.preview_stop_clamped";
     public const string Mg_Concurrent_ex_effects = "diag.mg.concurrent_ex_effects";
     public const string Mg_Head_BPM_not_found = "diag.mg.head_bpm_not_found";
     public const string Mg_Head_Time_Signature_event_not_found = "diag.mg.head_time_signature_event_not_found";

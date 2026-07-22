@@ -322,7 +322,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
         if (entry == null)
         {
-            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_String_id_not_found, value, type.ToString());
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_String_id_not_found, value, AssetTypeDisplayName(type));
             diag.Report(new Diagnostic(Severity.Information, msg)
             {
                 Target = args
@@ -333,6 +333,15 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             setter(entry);
         }
     }
+
+    private static string AssetTypeDisplayName(AssetType type) => type switch
+    {
+        AssetType.GenreNames => "genreNames",
+        AssetType.FieldLines => "notesFieldLine",
+        AssetType.StageNames => "stageName",
+        AssetType.WeTagNames => "worldsEndTagName",
+        _ => type.ToString()
+    };
 
     private void MetaGenreHandler(string[] args)
     {

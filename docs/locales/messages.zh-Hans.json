@@ -1,0 +1,127 @@
+{
+  "app": {
+    "batch_size_invalid": "批处理大小必须为 -1（自动）或正整数。",
+    "chart_file_not_found": "未找到谱面文件。",
+    "config_path_conflict": "ConfigPath 与 SkipConfig 不能同时使用。",
+    "game_directory_not_found": "未找到游戏目录。",
+    "input_directory_not_found": "未找到输入目录。",
+    "no_charts_to_export": "未找到可导出的谱面。",
+    "no_export_actions_enabled": "未启用任何导出操作。",
+    "option_name_required": "Option 名称必须恰好为四个字符。",
+    "output_directory_not_found": "未找到输出目录。",
+    "unsupported_chart_extension": "不支持的谱面文件扩展名。"
+  },
+  "cli": {
+    "msg": {
+      "assets_collected": "已收集资源并写入 {0}。",
+      "audio_exported": "已导出音源：{0}",
+      "built_stage": "已导出背景：{0}",
+      "chart_written": "已写入谱面：{0}",
+      "command_line_parsing_failed": "命令行解析失败：{0}",
+      "exported_music": "已导出音乐：{0}",
+      "extracted_dds": "已提取 DDS 文件：{0}",
+      "jacket_written": "已写入封面：{0}",
+      "operation_cancelled": "操作已取消。",
+      "option_build_complete": "已将 Option {0} 写入 {1}。",
+      "option_scan_complete": "找到 {0} 个曲包、{1} 个谱面。"
+    }
+  },
+  "diag": {
+    "c2s": {
+      "invalid_field": "无效或缺少 C2S {0}。",
+      "missing_field": "缺少 C2S {0}。",
+      "note_type_not_represented": "不支持 C2S 音符类型“{0}”。",
+      "parent_not_resolved": "无法为音符“{1}”解析 C2S 父级“{0}”。",
+      "resolution_must_be_positive": "C2S 分辨率必须大于零。",
+      "unknown_air_color": "未知的 C2S AIR 颜色“{0}”。",
+      "unknown_ex_effect": "未知的 C2S EX 效果“{0}”。",
+      "unsupported_version": "不支持的 C2S 版本“{0}”。",
+      "version_line_not_found": "未找到 C2S VERSION 行。"
+    },
+    "error": {
+      "audio_file_not_found": "未找到指定的音频文件。",
+      "audio_format_not_supported": "不支持的音频格式。仅支持 WAV（pcm_s16le，48000 Hz）。",
+      "background_file_is_not_set": "未设置背景文件。",
+      "background_file_not_found": "未找到指定的背景图片。",
+      "chart_conversion_unsupported": "不支持的谱面转换“{0}”。支持的转换为 mgxc/ugc/sus → c2s 以及 c2s → ugc。",
+      "chart_discovery_array_incomplete": "谱面格式列表不完整。",
+      "chart_discovery_must_be_array": "谱面格式必须以数组形式提供。",
+      "chart_discovery_must_be_string_or_array": "chartFileDiscovery 必须是谱面格式列表。",
+      "chart_format_brackets_mismatch": "谱面格式列表的 [ 与 ] 括号必须成对匹配。",
+      "chart_format_specify_at_least_one": "请至少指定一种谱面格式，例如 [mgxc, ugc, sus] 或 [ugc, sus]。",
+      "chart_format_unsupported": "不支持的谱面格式“{0}”。支持的值为 mgxc、ugc 和 sus。",
+      "command_failed": "命令执行失败。",
+      "effect_file_not_found": "未找到指定的背景效果文件。",
+      "file_ignored_due_to_id_missing": "该文件因缺少歌曲 ID 已被忽略。请在 Margrete 中为歌曲 ID 设置一个数字。",
+      "file_not_found": "未找到指定的文件。",
+      "invalid_audio": "音频格式无效。",
+      "invalid_bg_fx_image": "效果图片格式无效。",
+      "invalid_bg_image": "背景图片格式无效。",
+      "invalid_header": "谱面文件头为“{0}”，期望为“{1}”。",
+      "invalid_jk_image": "封面图片格式无效。",
+      "jacket_file_not_found": "未找到指定的封面文件。",
+      "main_meta_is_null": "缺少基准难度的谱面信息。",
+      "preview_stop_greater_than_start": "预览结束时间必须大于开始时间。",
+      "size_incompatible": "读取 {1} 时期望 {0} 字节，但实际只有 {2} 字节。",
+      "song_id_is_not_set": "未设置歌曲 ID。",
+      "stage_background_required": "生成背景需要指定背景图片路径。",
+      "stage_id_is_not_set": "未设置背景 ID。",
+      "unhandled": "发生意外错误：{detail}"
+    },
+    "hint": {
+      "preview_start_clamped": "预览开始时间（{0} 秒）超过最大值（{1} 秒），已自动限制以防溢出。",
+      "preview_stop_clamped": "预览结束时间（{0} 秒）超过最大值（{1} 秒），已自动限制以防溢出。"
+    },
+    "mg": {
+      "concurrent_ex_effects": "同一时刻存在多个不同的 EX 效果：{0}。游戏只会显示其中一个。",
+      "head_bpm_not_found": "在 tick 0 处未找到 BPM 变化。",
+      "head_time_signature_event_not_found": "在小节 0 处未找到拍号。将默认使用 4/4 拍。",
+      "invalid_joint_type_note": "{0} 的长条属性无效。",
+      "length_smaller_than_unit": "长条音符长度（{0}）短于最小单位 1/{1}。",
+      "main_timeline_not_found": "未找到基准时间轴 {0}，已跳过时间轴重映射。",
+      "meta_argument_count_min_one": "命令“{0}”的参数数量无效。",
+      "meta_first_argument_must_int": "第一个参数必须是有效的整数。",
+      "meta_invalid_date": "日期格式无效。应为“YYYYMMDD”。",
+      "meta_unknown_tag": "未知标记“{0}”。",
+      "no_sortname_provided": "未提供排序名称。已根据标题自动生成。",
+      "note_overlapped_in_different_til": "此音符与其他时间轴上的音符在同一时刻、轨道和宽度重叠。",
+      "overlapping_air_parent_slide": "此位置上的 Slide 终点多于 Air，无法唯一确定 Air 的父级。请将重叠的 Slide 终点至少错开一个 tick。",
+      "string_id_not_found": "在“{1}”中未找到 StringID “{0}”。请检查输入，或执行“读取游戏素材”以刷新数据。",
+      "unrecognized_meta": "未知属性“{0}”，数据：{1}。",
+      "unrecognized_note": "未知音符类型 {0}。"
+    },
+    "mgcrit": {
+      "air_parent_null": "Air 的父级不能为空。",
+      "air_slide_parent_null": "AirSlide 的父级不能为空。",
+      "hold_has_no_tail": "Hold 缺少尾部。",
+      "invalid_air_parent": "指定的 Air 父级无效。",
+      "invalid_airslide_parent": "指定的 AirSlide 父级无效。",
+      "pairing_notes_incompatible": "这些音符无法配对。",
+      "soflanarea_has_no_tail": "SoflanArea 缺少尾部。",
+      "unrecognized_data_type": "未知类型 {0}。",
+      "unrecognized_event": "未知事件“{0}”。"
+    },
+    "sus": {
+      "air_hold_ignored": "已忽略 SUS AIR-HOLD，因为不存在兼容的父音符。",
+      "air_hold_joint_ignored": "已忽略 SUS AIR-HOLD 连接点，因为当前没有进行中的 AIR-HOLD。",
+      "air_note_ignored": "已忽略 SUS AIR 音符，因为不存在兼容的父音符。",
+      "bpm_definition_not_found": "未找到 SUS BPM 定义“{0}”。",
+      "hold_joint_ignored": "已忽略 SUS HOLD 连接点，因为当前没有进行中的 HOLD。",
+      "malformed_line": "SUS 行格式错误：{0}",
+      "slide_joint_ignored": "已忽略 SUS SLIDE 连接点，因为当前没有进行中的 SLIDE。",
+      "unsupported_air_hold_point_type": "不支持的 SUS AIR-HOLD 点类型“{0}”。",
+      "unsupported_hold_point_type": "不支持的 SUS HOLD 点类型“{0}”。",
+      "unsupported_slide_point_type": "不支持的 SUS SLIDE 点类型“{0}”。",
+      "unsupported_tap_point_type": "不支持的 SUS TAP 点类型“{0}”。"
+    },
+    "warn": {
+      "config_invalid": "无法读取 options.json：{0}",
+      "duplicate_id_and_difficulty": "存在多个相同歌曲 ID 与难度的谱面，将使用最后扫描到的文件。",
+      "more_than_one_chart_marked_main": "该歌曲 ID 下有多个谱面在注释中标记了 `#meta main`，将使用最先匹配的谱面作为基准难度。",
+      "no_chart_marked_main": "该歌曲 ID 未设置基准难度，将默认使用最高难度的谱面。若要指定基准难度，请在谱面注释中添加 `#meta main`。",
+      "preview_later_than_120": "预览开始时间晚于 120 秒，可能导致选曲时游戏卡顿。",
+      "stage_already_exists": "素材库中已存在名为“{0}”、ID 为 {1} 的背景。",
+      "we_chart_must_be_unique_id": "World's End 谱面必须使用独立的歌曲 ID，否则其他难度将无法在普通分类中显示。"
+    }
+  }
+}

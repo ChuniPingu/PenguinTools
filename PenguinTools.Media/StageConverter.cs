@@ -53,7 +53,7 @@ public class StageConverter
         var duplicates = Assets.StageNames.Where(p => p.Id == StageId);
         foreach (var d in duplicates)
             Diagnostic.Report(new Diagnostic(Severity.Warning,
-                Msg.Create(MsgKeys.Warn_Stage_already_exists, d, StageId)));
+                Msg.Create(MsgKeys.Warn_Stage_already_exists, d.Str, StageId)));
 
         if (StageId is null)
         {

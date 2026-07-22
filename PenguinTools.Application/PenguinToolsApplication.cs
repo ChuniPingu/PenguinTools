@@ -85,7 +85,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                   targetFormat == ChartFormat.C2s;
             if (!supported)
                 return ApplicationDiagnostics.Failure<ChartConvertResult>(
-                    Msg.Key(MsgKeys.Error_Chart_format_unsupported), $"{sourceFormat} -> {targetFormat}");
+                    Msg.Create(MsgKeys.Error_Chart_conversion_unsupported, $"{sourceFormat} -> {targetFormat}"));
             if (sourceFormat == ChartFormat.C2s)
             {
                 var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
@@ -593,7 +593,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             ".ugc" => ChartFormat.Ugc,
             ".sus" => ChartFormat.Sus,
             ".c2s" => ChartFormat.C2s,
-            _ => throw new DiagnosticException(Msg.Create(MsgKeys.App_Unsupported_chart_extension, path))
+            _ => throw new DiagnosticException(Msg.Key(MsgKeys.App_Unsupported_chart_extension), path)
         };
     }
 

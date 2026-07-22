@@ -128,7 +128,7 @@ public partial class MgxcParser
             }
             else
             {
-                MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.HoldJoint));
+                MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.HoldJoint));
                 Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                 {
                     Target = longAttr
@@ -154,7 +154,7 @@ public partial class MgxcParser
                 }
                 else
                 {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.SlideJoint));
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.SlideJoint));
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr
@@ -212,7 +212,7 @@ public partial class MgxcParser
                 }
                 else
                 {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.AirSlideJoint));
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.AirSlideJoint));
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr
@@ -263,7 +263,7 @@ public partial class MgxcParser
                 var exNote = new umgr.AirCrashJoint();
                 if (longAttr is LongAttr.Step)
                 {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, typeof(umgr.AirCrashJoint));
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.AirCrashJoint));
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr

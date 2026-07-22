@@ -62,17 +62,15 @@ public class AudioConverter
 
         if (originalPvStart > maxSeconds)
         {
-            MessageDescriptor msg = Msg.Create(MsgKeys.Hint_Preview_value_clamped, nameof(Meta.BgmPreviewStart),
-                originalPvStart,
-                maxSeconds);
+            MessageDescriptor msg = Msg.Create(MsgKeys.Hint_Preview_start_clamped,
+                decimal.Round(originalPvStart, 3), maxSeconds);
             Diagnostic.Report(new Diagnostic(Severity.Information, msg));
         }
 
         if (originalPvStop > maxSeconds)
         {
-            MessageDescriptor msg = Msg.Create(MsgKeys.Hint_Preview_value_clamped, nameof(Meta.BgmPreviewStop),
-                originalPvStop,
-                maxSeconds);
+            MessageDescriptor msg = Msg.Create(MsgKeys.Hint_Preview_stop_clamped,
+                decimal.Round(originalPvStop, 3), maxSeconds);
             Diagnostic.Report(new Diagnostic(Severity.Information, msg));
         }
 
