@@ -50,6 +50,37 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
+    public async Task OptionScan_SurfacesMissingSongId_OnTopLevelAndUnmatched()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var chartPath = Path.Combine(directory, "graduation.ugc");
+        await File.WriteAllTextAsync(chartPath,
+            "@VER\t8\n@TICKS\t480\n@TITLE\tgraduation\n@DESIGN\tDesigner\n@DIFF\t3\n" +
+            "@SONGID\tgraduation\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n",
+            TestContext.Current.CancellationToken);
+        using var application = PenguinToolsApplication.CreateDefault();
+        try
+        {
+            var result = await application.ScanOptionAsync(
+                new OptionScanRequest(directory, [ChartFormat.Ugc]),
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.True(result.Succeeded);
+            Assert.NotNull(result.Value);
+            Assert.Empty(result.Value!.Books);
+            Assert.Contains(result.Value.UnmatchedDiagnostics,
+                d => d.Message.Key == MsgKeys.Error_File_ignored_due_to_id_missing);
+            Assert.Contains(result.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Error_File_ignored_due_to_id_missing);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task OptionScan_IncludesAutoDiscoveredConfig()
     {
         using var application = PenguinToolsApplication.CreateDefault();

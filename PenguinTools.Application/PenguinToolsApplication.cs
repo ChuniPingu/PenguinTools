@@ -162,12 +162,12 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
             var (configPath, config, configDiagnostics) =
                 await LoadScanConfigAsync(input, cancellationToken);
-            var value = CreateScanResult(input, applicationDiscovery, request.BatchSize, scanned.Value,
-                scanned.Diagnostics, configPath, config);
+            var (value, unmatchedDiagnostics) = CreateScanResult(input, applicationDiscovery, request.BatchSize,
+                scanned.Value, scanned.Diagnostics, configPath, config);
             return (scanned.Succeeded
                     ? OperationResult<OptionScanResult>.Success(value)
                     : OperationResult<OptionScanResult>.Failure())
-                .WithDiagnostics(configDiagnostics);
+                .WithDiagnostics(unmatchedDiagnostics.Merge(configDiagnostics));
         });
     }
 
@@ -646,7 +646,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             document.BatchSize);
     }
 
-    private static OptionScanResult CreateScanResult(
+    private static (OptionScanResult Result, DiagnosticSnapshot UnmatchedDiagnostics) CreateScanResult(
         string input,
         IReadOnlyList<ChartFormat> discovery,
         int batchSize,
@@ -688,8 +688,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 mainMeta.BgmEnableBarOffset, mainMeta.BgmInitialBpm, mainMeta.BgmInitialNumerator,
                 mainMeta.BgmInitialDenominator, charts);
         }).ToArray();
-        return new OptionScanResult(input, discovery.Select(ToChartFormatName).ToArray(), batchSize, books,
-            remaining.Select(x => ToApplicationDiagnostic(x.value)).ToArray(), configPath, config);
+        var unmatched = remaining.Select(x => x.value).ToArray();
+        var result = new OptionScanResult(input, discovery.Select(ToChartFormatName).ToArray(), batchSize, books,
+            unmatched.Select(ToApplicationDiagnostic).ToArray(), configPath, config);
+        return (result, DiagnosticSnapshot.Create(unmatched));
     }
 
     private static ApplicationDiagnostic ToApplicationDiagnostic(Diagnostic value)
