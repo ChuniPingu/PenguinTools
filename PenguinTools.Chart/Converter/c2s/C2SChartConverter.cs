@@ -73,6 +73,17 @@ public partial class C2SChartConverter
                 Target = longNote
             });
         }
+
+        foreach (var sla in Notes.OfType<c2s.Sla>())
+        {
+            if (sla.Length.Original >= ChartResolution.SingleTick) continue;
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Length_smaller_than_unit, sla.Length.Original,
+                ChartResolution.UmiguriTick / ChartResolution.SingleTick);
+            Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, sla.Tick.Original)
+            {
+                Target = sla
+            });
+        }
     }
 
     private void ApplyBgmBarOffset()
@@ -108,6 +119,16 @@ public partial class C2SChartConverter
                 airSlide.Tick.Original)
             {
                 Target = airSlide
+            });
+            hasError = true;
+        }
+
+        foreach (var airHold in Notes.OfType<c2s.AirHold>().Where(a => a.Parent is null))
+        {
+            Diagnostic.Report(new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null),
+                airHold.Tick.Original)
+            {
+                Target = airHold
             });
             hasError = true;
         }

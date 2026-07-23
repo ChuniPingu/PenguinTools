@@ -196,7 +196,7 @@ File translated from https://gist.github.com/inonote/5c01e73781cab17765a1d93641d
                 - x: horizontal note position (base 36)
                 - w: note width (base 36)
         - Child notes
-            - Format: `#OffsetTick:txw`
+            - Format: `#OffsetTick>txw` (also accepted: `#OffsetTick:txw`)
                 - t: note type
                 - x: horizontal note position (base 36)
                 - w: note width (base 36)
@@ -239,7 +239,7 @@ File translated from https://gist.github.com/inonote/5c01e73781cab17765a1d93641d
             - t = `h`
         - Child notes
             - Endpoint
-                - `#OffsetTick:t`
+                - `#OffsetTick>t`
                 - t = `s`
 
     - SLIDE
@@ -247,10 +247,10 @@ File translated from https://gist.github.com/inonote/5c01e73781cab17765a1d93641d
             - t = `s`
         - Child notes
             - Intermediate point / endpoint
-                - `#OffsetTick:txw`
+                - `#OffsetTick>txw`
                 - t = `s`
             - Control point
-                - `#OffsetTick:txw`
+                - `#OffsetTick>txw`
                 - t = `c`
 
     - AIR
@@ -277,16 +277,16 @@ File translated from https://gist.github.com/inonote/5c01e73781cab17765a1d93641d
                 - `I` Inverted
         - Child notes
             - Intermediate point / endpoint
-                - `#OffsetTick:t`
+                - `#OffsetTick>t`
                 - t = `s`
               - Inherits the parent AIR-HOLD height
-              - `#OffsetTick:txwhh` when height is present
+              - `#OffsetTick>txwhh` when height is present
               - hh: height, represented as a 2-digit base-36 value equal to the original value multiplied by 10
             - Endpoint without AIR-ACTION
-                - `#OffsetTick:t`
+                - `#OffsetTick>t`
                 - t = `c`
               - Inherits the parent AIR-HOLD height
-              - `#OffsetTick:txwhh` when height is present
+              - `#OffsetTick>txwhh` when height is present
               - hh: height, represented as a 2-digit base-36 value equal to the original value multiplied by 10
 
     - AIR-SLIDE
@@ -298,11 +298,11 @@ File translated from https://gist.github.com/inonote/5c01e73781cab17765a1d93641d
                 - `I` Inverted
         - Child notes
             - Intermediate point / endpoint
-                - `#OffsetTick:txwhh`
+                - `#OffsetTick>txwhh`
                 - t = `s`
                 - hh: height, represented as a 2-digit base-36 value equal to the original value multiplied by 10
             - Control point / endpoint without AIR-ACTION
-                - `#OffsetTick:txwhh`
+                - `#OffsetTick>txwhh`
                 - t = `c`
                 - hh: height, represented as a 2-digit base-36 value equal to the original value multiplied by 10
 
@@ -331,6 +331,6 @@ File translated from https://gist.github.com/inonote/5c01e73781cab17765a1d93641d
                 - If `0`, it becomes AIR-TRACE; if `$`, notes that generate combo only at the starting point are placed.
         - Child notes
             - Endpoint
-                - `#OffsetTick:txwhh`
+                - `#OffsetTick>txwhh`
                 - t = `c`
                 - hh: height, represented as a 2-digit base-36 value equal to the original value multiplied by 10

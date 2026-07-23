@@ -47,8 +47,12 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
         yield return $"@BGMPRV\t{F(m.BgmPreviewStart)}\t{F(m.BgmPreviewStop)}";
         yield return $"@JACKET\t{Clean(m.JacketFilePath)}";
         yield return $"@CMT\t{Clean(m.Comment)}";
+        yield return "@FLAG\tEXLONG\tTRUE";
+        yield return "@FLAG\tHIPRECISION\tTRUE";
 
-        var beats = _chart.Events.Children.OfType<umgr.BeatEvent>().OrderBy(x => x.Bar).ToArray();
+        var beats = _chart.Events.Children.OfType<umgr.BeatEvent>()
+            .Where(x => x.Numerator > 0 && x.Denominator > 0)
+            .OrderBy(x => x.Bar).ToArray();
         if (beats.Length == 0) beats = [new umgr.BeatEvent { Bar = 0, Tick = 0, Numerator = 4, Denominator = 4 }];
         foreach (var beat in beats) yield return $"@BEAT\t{beat.Bar}\t{beat.Numerator}\t{beat.Denominator}";
         var axis = new BarAxis(beats);
@@ -56,8 +60,7 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
             yield return $"@BPM\t{axis.Format(bpm.Tick.Original)}\t{F(bpm.Bpm)}";
         foreach (var speed in Canonical(_chart.Events.Children.OfType<umgr.NoteSpeedEvent>()))
             yield return $"@SPDMOD\t{axis.Format(speed.Tick.Original)}\t{F(speed.Speed)}";
-        foreach (var speed in Canonical(_chart.Events.Children.OfType<umgr.ScrollSpeedEvent>())
-                     .OrderBy(x => x.Timeline).ThenBy(x => x.Tick))
+        foreach (var speed in CanonicalScroll(_chart.Events.Children.OfType<umgr.ScrollSpeedEvent>()))
             yield return $"@TIL\t{speed.Timeline}\t{axis.Format(speed.Tick.Original)}\t{F(speed.Speed)}";
         yield return $"@MAINTIL\t{m.MainTil}";
         yield return "@ENDHEAD";
@@ -95,6 +98,20 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
         }
     }
 
+    private static IEnumerable<umgr.ScrollSpeedEvent> CanonicalScroll(IEnumerable<umgr.ScrollSpeedEvent> events)
+    {
+        foreach (var group in events.GroupBy(x => x.Timeline).OrderBy(g => g.Key))
+        {
+            umgr.ScrollSpeedEvent? previous = null;
+            foreach (var item in group.OrderBy(x => x.Tick))
+            {
+                if (previous is not null && previous.Tick == item.Tick && previous.Speed == item.Speed) continue;
+                previous = item;
+                yield return item;
+            }
+        }
+    }
+
     private static IEnumerable<string> NoteLines(umgr.Note note, BarAxis axis, bool hasEffectCarrier)
     {
         var prefix = $"#{axis.Format(note.Tick.Original)}:";
@@ -103,7 +120,7 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
         {
             case umgr.Tap: yield return prefix + "t" + pos; break;
             case umgr.ExTap x: yield return prefix + "x" + pos + Effect(x.Effect); break;
-            case umgr.Flick: yield return prefix + "f" + pos; break;
+            case umgr.Flick: yield return prefix + "f" + pos + "A"; break;
             case umgr.Damage: yield return prefix + "d" + pos; break;
             case umgr.Hold x:
                 if (!hasEffectCarrier && x.Effect is { } holdEffect) yield return prefix + "x" + pos + Effect(holdEffect);
@@ -111,7 +128,7 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
                 foreach (var c in x.Children)
                 {
                     if (c.Timeline != x.Timeline) yield return $"@USETIL\t{c.Timeline}";
-                    yield return $"#{c.Tick.Original - x.Tick.Original}:s";
+                    yield return $"#{c.Tick.Original - x.Tick.Original}>s";
                 }
                 if (x.Children.Any(c => c.Timeline != x.Timeline)) yield return $"@USETIL\t{x.Timeline}";
                 break;
@@ -121,19 +138,28 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
                 foreach (var c in x.Children.OfType<umgr.SlideJoint>())
                 {
                     if (c.Timeline != x.Timeline) yield return $"@USETIL\t{c.Timeline}";
-                    yield return $"#{c.Tick.Original - x.Tick.Original}:{(c.Joint == Joint.C ? 'c' : 's')}{B36(c.Lane)}{B36(c.Width)}";
+                    yield return $"#{c.Tick.Original - x.Tick.Original}>{(c.Joint == Joint.C ? 'c' : 's')}{B36(c.Lane)}{B36(c.Width)}";
                 }
                 if (x.Children.Any(c => c.Timeline != x.Timeline)) yield return $"@USETIL\t{x.Timeline}";
                 break;
             case umgr.Air x:
                 yield return prefix + "a" + pos + Direction(x.Direction) + AirColor(x.Color);
                 break;
+            case umgr.AirHold x:
+                yield return prefix + "H" + pos + AirColor(x.Color);
+                foreach (var c in x.Children.OfType<umgr.AirHoldJoint>())
+                {
+                    if (c.Timeline != x.Timeline) yield return $"@USETIL\t{c.Timeline}";
+                    yield return $"#{c.Tick.Original - x.Tick.Original}>{(c.Joint == Joint.C ? 'c' : 's')}";
+                }
+                if (x.Children.Any(c => c.Timeline != x.Timeline)) yield return $"@USETIL\t{x.Timeline}";
+                break;
             case umgr.AirSlide x:
                 yield return prefix + "S" + pos + B36((int)Math.Round(x.Height), 2) + AirColor(x.Color);
                 foreach (var c in x.Children.OfType<umgr.AirSlideJoint>())
                 {
                     if (c.Timeline != x.Timeline) yield return $"@USETIL\t{c.Timeline}";
-                    yield return $"#{c.Tick.Original - x.Tick.Original}:{(c.Joint == Joint.C ? 'c' : 's')}{B36(c.Lane)}{B36(c.Width)}{B36((int)Math.Round(c.Height), 2)}";
+                    yield return $"#{c.Tick.Original - x.Tick.Original}>{(c.Joint == Joint.C ? 'c' : 's')}{B36(c.Lane)}{B36(c.Width)}{B36((int)Math.Round(c.Height), 2)}";
                 }
                 if (x.Children.Any(c => c.Timeline != x.Timeline)) yield return $"@USETIL\t{x.Timeline}";
                 break;
@@ -142,7 +168,7 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
                 foreach (var c in x.Children.OfType<umgr.AirCrashJoint>())
                 {
                     if (c.Timeline != x.Timeline) yield return $"@USETIL\t{c.Timeline}";
-                    yield return $"#{c.Tick.Original - x.Tick.Original}:c{B36(c.Lane)}{B36(c.Width)}{B36((int)Math.Round(c.Height), 2)}";
+                    yield return $"#{c.Tick.Original - x.Tick.Original}>c{B36(c.Lane)}{B36(c.Width)}{B36((int)Math.Round(c.Height), 2)}";
                 }
                 if (x.Children.Any(c => c.Timeline != x.Timeline)) yield return $"@USETIL\t{x.Timeline}";
                 break;
@@ -178,11 +204,16 @@ public sealed class UgcChartWriter(UgcWriteRequest request)
 
     private sealed class BarAxis(IEnumerable<umgr.BeatEvent> source)
     {
-        private readonly umgr.BeatEvent[] _beats = source.OrderBy(x => x.Bar).ToArray();
+        private readonly umgr.BeatEvent[] _beats = source
+            .Where(x => x.Numerator > 0 && x.Denominator > 0)
+            .OrderBy(x => x.Bar).ToArray();
         public string Format(int tick)
         {
-            var active = _beats.Where(x => x.Tick.Original <= tick).LastOrDefault() ?? _beats[0];
+            var active = _beats.Where(x => x.Tick.Original <= tick).LastOrDefault()
+                         ?? _beats.FirstOrDefault()
+                         ?? new umgr.BeatEvent { Bar = 0, Tick = 0, Numerator = 4, Denominator = 4 };
             var length = ChartResolution.UmiguriTick * active.Numerator / active.Denominator;
+            if (length <= 0) length = ChartResolution.UmiguriTick;
             var delta = tick - active.Tick.Original;
             return $"{active.Bar + delta / length}'{delta % length}";
         }
