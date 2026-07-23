@@ -71,9 +71,10 @@ public class UgcTilTests
         Assert.Equal(3, Assert.Single(chart.Notes.Children.OfType<Hold>()).Children.Single().Timeline);
         Assert.Equal(4, Assert.Single(chart.Notes.Children.OfType<Slide>()).Children.Single().Timeline);
 
-        var airSlides = chart.Notes.Children.OfType<AirSlide>().OrderBy(n => n.Tick.Original).ToArray();
-        Assert.Equal(5, airSlides[0].Children.Single().Timeline);
-        Assert.Equal(6, airSlides[1].Children.Single().Timeline);
+        var airHold = Assert.Single(chart.Notes.Children.OfType<AirHold>());
+        Assert.Equal(5, airHold.Children.Single().Timeline);
+        var airSlide = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
+        Assert.Equal(6, airSlide.Children.Single().Timeline);
 
         Assert.Equal(7, Assert.Single(chart.Notes.Children.OfType<AirCrash>()).Children.Single().Timeline);
     }

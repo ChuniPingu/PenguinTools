@@ -85,6 +85,9 @@ public partial class C2SChartConverter
             case umgr.AirSlide airSlide:
                 ProcessAirSlide(airSlide);
                 break;
+            case umgr.AirHold airHold:
+                ProcessAirHold(airHold);
+                break;
             case umgr.AirCrash airCrash:
                 ProcessAirCrash(airCrash);
                 break;
@@ -145,6 +148,36 @@ public partial class C2SChartConverter
         }
 
         if (firstSegment != null) RegisterNegativePairRoot(airSlide, firstSegment);
+    }
+
+    private void ProcessAirHold(umgr.AirHold airHold)
+    {
+        if (airHold.PairNote?.PairNote != airHold)
+            throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airHold.Tick.Original,
+                airHold);
+
+        var joints = airHold.Children.OfType<umgr.AirHoldJoint>().Prepend(airHold.AsChild()).ToArray();
+        c2s.AirHold? firstSegment = null;
+        c2s.Note? previousSegment = null;
+        for (var i = 0; i < joints.Length - 1; i++)
+        {
+            var curr = joints[i];
+            var next = joints[i + 1];
+            var prevSeg = previousSegment;
+            var segment = CreateNote<umgr.AirHoldJoint, c2s.AirHold>(curr, x =>
+            {
+                x.Parent = prevSeg;
+                x.Color = airHold.Color;
+                x.Joint = next.Joint;
+                x.EndTick = next.Tick;
+                x.EndLane = next.Lane;
+                x.EndWidth = next.Width;
+            });
+            firstSegment ??= segment;
+            previousSegment = segment;
+        }
+
+        if (firstSegment != null) RegisterNegativePairRoot(airHold, firstSegment);
     }
 
     private void ProcessAir(umgr.Air airNote)

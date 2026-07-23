@@ -187,17 +187,57 @@ public partial class MgxcParser
         {
             if (longAttr == LongAttr.Begin)
             {
-                var exNote = new umgr.AirSlide();
-                if (_lastNote is umgr.Air oldLastNote)
+                umgr.NegativeNote exNote;
+                if (type == NoteType.AirHold)
                 {
-                    _lastNote.Parent?.RemoveChild(_lastNote);
-                    _lastNote = oldLastNote.PairNote;
-                    exNote.Color = oldLastNote.Color;
+                    var hold = new umgr.AirHold();
+                    if (_lastNote is umgr.Air oldLastNote)
+                    {
+                        _lastNote.Parent?.RemoveChild(_lastNote);
+                        _lastNote = oldLastNote.PairNote;
+                        hold.Color = oldLastNote.Color;
+                    }
+
+                    exNote = hold;
+                }
+                else
+                {
+                    var slide = new umgr.AirSlide { Height = height };
+                    if (_lastNote is umgr.Air oldLastNote)
+                    {
+                        _lastNote.Parent?.RemoveChild(_lastNote);
+                        _lastNote = oldLastNote.PairNote;
+                        slide.Color = oldLastNote.Color;
+                    }
+
+                    exNote = slide;
                 }
 
-                exNote.Height = height;
                 note = exNote;
                 isPairNote = true;
+            }
+            else if (type == NoteType.AirHold)
+            {
+                var exNote = new umgr.AirHoldJoint();
+                if (longAttr is LongAttr.Step or LongAttr.End)
+                {
+                    exNote.Joint = Joint.D;
+                }
+                else if (longAttr is LongAttr.Control or LongAttr.EndNoAct or LongAttr.CurveControl)
+                {
+                    exNote.Joint = Joint.C;
+                }
+                else
+                {
+                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.AirHoldJoint));
+                    Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
+                    {
+                        Target = longAttr
+                    });
+                }
+
+                note = exNote;
+                isChildNote = true;
             }
             else
             {

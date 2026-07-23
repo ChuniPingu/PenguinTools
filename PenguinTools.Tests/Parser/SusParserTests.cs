@@ -177,16 +177,14 @@ public class SusParserTests
 
         var chart = result.Value!;
         var tap = Assert.Single(chart.Notes.Children.OfType<Tap>());
-        var airSlide = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
+        var airHold = Assert.Single(chart.Notes.Children.OfType<AirHold>());
         Assert.Empty(chart.Notes.Children.OfType<Air>());
-        Assert.Same(tap, airSlide.PairNote);
-        Assert.Equal(0, airSlide.Tick.Original);
-        Assert.Equal(0m, airSlide.Height);
+        Assert.Same(tap, airHold.PairNote);
+        Assert.Equal(0, airHold.Tick.Original);
 
-        var child = Assert.Single(airSlide.Children.OfType<AirSlideJoint>());
+        var child = Assert.Single(airHold.Children.OfType<AirHoldJoint>());
         Assert.Equal(1920, child.Tick.Original);
-        Assert.Equal(airSlide.Lane, child.Lane);
-        Assert.Equal(airSlide.Width, child.Width);
-        Assert.Equal(0m, child.Height);
+        Assert.Equal(airHold.Lane, child.Lane);
+        Assert.Equal(airHold.Width, child.Width);
     }
 }

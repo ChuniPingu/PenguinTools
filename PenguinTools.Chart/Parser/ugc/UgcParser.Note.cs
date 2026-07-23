@@ -7,8 +7,6 @@ using umgr = Models.umgr;
 
 public partial class UgcParser
 {
-    private const decimal DefaultAirHoldHeight = 80m;
-
     private void DispatchBodyLine(string line)
     {
         if (!line.StartsWith('#')) return;
@@ -16,15 +14,14 @@ public partial class UgcParser
         var parentIdx = rest.IndexOf(':');
         if (parentIdx < 0)
         {
-            var legacyChildIdx = rest.IndexOf('>');
-            if (legacyChildIdx <= 0 || !int.TryParse(rest[..legacyChildIdx], out var legacyOffset))
+            var childIdx = rest.IndexOf('>');
+            if (childIdx <= 0 || !int.TryParse(rest[..childIdx], out var offsetTick))
             {
                 WarnMalformed(line);
                 return;
             }
 
-            var legacyPayload = rest[(legacyChildIdx + 1)..].ToString();
-            HandleChildPayload(legacyOffset, legacyPayload);
+            HandleChildPayload(offsetTick, rest[(childIdx + 1)..].ToString());
             return;
         }
 
@@ -112,13 +109,40 @@ public partial class UgcParser
             return;
         }
 
-        if (typeChar is 'H' or 'S')
+        if (typeChar == 'H')
         {
-            var (height, color) = typeChar == 'H'
-                ? ParseAirHoldExtras(extras)
-                : extras.Length >= 3
-                    ? (UgcPayload.Height36(extras.AsSpan(0, 2)), UgcPayload.AirColorChar(extras[2]))
-                    : (-1m, Color.DEF);
+            var color = ParseAirHoldColor(extras);
+            var airHold = new umgr.AirHold
+            {
+                Color = color,
+                Timeline = _currentTimeline
+            };
+            Ugc.Notes.AppendChild(airHold);
+
+            if (_lastNote is umgr.Air oldAir && oldAir.Tick.Original == absTick)
+            {
+                oldAir.Parent?.RemoveChild(oldAir);
+                _lastNote = oldAir.PairNote;
+            }
+
+            var pairPositive = FindPairPositive(absTick);
+            if (pairPositive != null)
+                pairPositive.MakePair(airHold);
+
+            _lastParentNote = airHold;
+            _lastNote = airHold;
+            return;
+        }
+
+        if (typeChar == 'S')
+        {
+            if (extras.Length < 3)
+            {
+                WarnMalformed(payload);
+                return;
+            }
+
+            var height = UgcPayload.Height36(extras.AsSpan(0, 2));
             if (height < 0)
             {
                 WarnMalformed(payload);
@@ -127,7 +151,8 @@ public partial class UgcParser
 
             var airSlide = new umgr.AirSlide
             {
-                Height = height, Color = color,
+                Height = height,
+                Color = UgcPayload.AirColorChar(extras[2]),
                 Timeline = _currentTimeline
             };
             Ugc.Notes.AppendChild(airSlide);
@@ -231,15 +256,11 @@ public partial class UgcParser
         };
     }
 
-    private static (decimal Height, Color Color) ParseAirHoldExtras(string extras)
+    private static Color ParseAirHoldColor(string extras)
     {
         if (extras.Length >= 3)
-        {
-            var height = UgcPayload.Height36(extras.AsSpan(0, 2));
-            return (height, UgcPayload.AirColorChar(extras[2]));
-        }
-
-        return (DefaultAirHoldHeight, extras.Length >= 1 ? UgcPayload.AirColorChar(extras[0]) : Color.DEF);
+            return UgcPayload.AirColorChar(extras[2]);
+        return extras.Length >= 1 ? UgcPayload.AirColorChar(extras[0]) : Color.DEF;
     }
 
     private void HandleChildPayload(int offsetTick, string payload)
@@ -261,6 +282,25 @@ public partial class UgcParser
             };
             hold.AppendChild(hj);
             _lastNote = hj;
+            return;
+        }
+
+        if (payload.Length == 1 && _lastParentNote is umgr.AirHold airHold)
+        {
+            if (payload[0] is not ('s' or 'c'))
+            {
+                WarnMalformed(payload);
+                return;
+            }
+
+            var joint = new umgr.AirHoldJoint
+            {
+                Tick = airHold.Tick.Original + offsetTick,
+                Timeline = _currentTimeline,
+                Joint = payload[0] == 'c' ? Joint.C : Joint.D
+            };
+            airHold.AppendChild(joint);
+            _lastNote = joint;
             return;
         }
 
@@ -317,7 +357,11 @@ public partial class UgcParser
                 break;
             case 's':
             case 'c':
-                if (_lastParentNote is umgr.AirSlide)
+                if (_lastParentNote is umgr.AirHold)
+                {
+                    child = new umgr.AirHoldJoint { Joint = typeChar == 'c' ? Joint.C : Joint.D };
+                }
+                else if (_lastParentNote is umgr.AirSlide)
                 {
                     if (payload.Length < 5)
                     {

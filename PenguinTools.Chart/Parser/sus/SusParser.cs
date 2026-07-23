@@ -713,7 +713,7 @@ public sealed class SusParser
     {
         foreach (var points in _airHoldPoints.Values)
         {
-            umgr.AirSlide? active = null;
+            umgr.AirHold? active = null;
             foreach (var point in ResolveLongPoints(points, timing))
             {
                 switch (point.Kind)
@@ -735,11 +735,10 @@ public sealed class SusParser
                                 air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
                         if (attachedAir != null) Sus.Notes.RemoveChild(attachedAir);
 
-                        active = new umgr.AirSlide
+                        active = new umgr.AirHold
                         {
                             Tick = point.Tick,
                             Timeline = point.Timeline,
-                            Height = 0,
                             Color = Color.DEF
                         };
                         pairPositive.MakePair(active);
@@ -758,14 +757,11 @@ public sealed class SusParser
                             break;
                         }
 
-                        active.AppendChild(new umgr.AirSlideJoint
+                        active.AppendChild(new umgr.AirHoldJoint
                         {
                             Tick = point.Tick,
-                            Lane = active.Lane,
-                            Width = active.Width,
                             Timeline = active.Timeline,
-                            Joint = point.Kind == 4 ? Joint.C : Joint.D,
-                            Height = 0
+                            Joint = point.Kind == 4 ? Joint.C : Joint.D
                         });
 
                         if (point.Kind == 2) active = null;

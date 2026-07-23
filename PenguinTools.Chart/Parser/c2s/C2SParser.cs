@@ -141,6 +141,8 @@ public sealed class C2SParser
                 break;
             case "AHD":
             case "AHX":
+                ParseAirHold(tokens, line.Number);
+                break;
             case "ASX":
                 ReportAtLine(Severity.Information,
                     Msg.Create(MsgKeys.C2s_Note_type_not_represented, tokens[0]), line.Number);
@@ -250,6 +252,14 @@ public sealed class C2SParser
             !TryGetInt(tokens, 3, lineNumber, "MET denominator", out var denominator) ||
             !TryGetInt(tokens, 4, lineNumber, "MET numerator", out var numerator))
             return;
+
+        if (numerator <= 0 || denominator <= 0)
+        {
+            ReportAtLine(Severity.Warning,
+                Msg.Create(MsgKeys.C2s_Invalid_field, numerator <= 0 ? "MET numerator" : "MET denominator"),
+                lineNumber);
+            return;
+        }
 
         C2s.Events.Add(new c2sModel.Met
         {
@@ -505,6 +515,30 @@ public sealed class C2SParser
         _pendingPairs.Add(new PendingPair(note, parentId, lineNumber));
     }
 
+    private void ParseAirHold(string[] tokens, int lineNumber)
+    {
+        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
+            !TryGetToken(tokens, 5, lineNumber, "AIR-HOLD parent", out var parentId) ||
+            !TryGetInt(tokens, 6, lineNumber, "AIR-HOLD length", out var length))
+            return;
+
+        var note = new c2sModel.AirHold
+        {
+            Tick = noteBase.Tick,
+            Lane = noteBase.Lane,
+            Width = noteBase.Width,
+            Joint = tokens[0].EndsWith("X", StringComparison.OrdinalIgnoreCase) ? Joint.C : Joint.D,
+            EndTick = AddLength(noteBase.Tick, length),
+            EndLane = noteBase.Lane,
+            EndWidth = noteBase.Width
+        };
+
+        if (TryReadColor(tokens, 7, lineNumber, out var color)) note.Color = color;
+
+        C2s.Notes.Add(note);
+        _pendingPairs.Add(new PendingPair(note, parentId, lineNumber));
+    }
+
     private void ParseAirCrash(string[] tokens, int lineNumber)
     {
         if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
@@ -604,6 +638,10 @@ public sealed class C2SParser
         // C2S writers use SLD as the generic parent marker even when the
         // attach-point segment itself is a control (SLC/SXC) segment.
         if (parentId.Equals("SLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Slide)
+            return true;
+        if (parentId.Equals("HLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Hold)
+            return true;
+        if (parentId.Equals("AHD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.AirHold)
             return true;
         return string.Equals(candidate.Id, parentId, StringComparison.OrdinalIgnoreCase);
     }

@@ -66,6 +66,15 @@ public class AirSlide : LongHeightNote, IPairable
     public Note? Parent { get; set; }
 }
 
+public class AirHold : LongNote, IPairable
+{
+    public Joint Joint { get; set; } = Joint.D;
+    public Color Color { get; set; } = Color.DEF;
+
+    public override string Id => Joint == Joint.C ? "AHX" : "AHD";
+    public Note? Parent { get; set; }
+}
+
 public class AirCrash : LongHeightNote
 {
     public Time Density { get; set; }

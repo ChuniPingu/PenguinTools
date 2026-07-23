@@ -71,6 +71,14 @@ public partial class C2SChartWriter
                     $"{FormatNote(airSlide)}\t{parent.Id}\t{airSlide.Height.Result:F1}\t{airSlide.Length.Scaled}\t{airSlide.EndLane}\t{airSlide.EndWidth}\t{airSlide.EndHeight.Result:F1}\t{airSlide.Color}";
                 error = null;
                 return true;
+            case c2s.AirHold { Parent: null }:
+                line = string.Empty;
+                error = Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null);
+                return false;
+            case c2s.AirHold { Parent: { } parent } airHold:
+                line = $"{FormatNote(airHold)}\t{parent.Id}\t{airHold.Length.Scaled}\t{airHold.Color}";
+                error = null;
+                return true;
             case c2s.AirCrash airCrash:
                 line =
                     $"{FormatNote(airCrash)}\t{airCrash.Density.Scaled}\t{airCrash.Height.Result:F1}\t{airCrash.Length.Scaled}\t{airCrash.EndLane}\t{airCrash.EndWidth}\t{airCrash.EndHeight.Result:F1}\t{airCrash.Color}";

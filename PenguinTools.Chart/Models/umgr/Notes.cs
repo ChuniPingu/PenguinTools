@@ -176,6 +176,73 @@ public class AirSlideJoint : Note
     public decimal Height { get; set; }
 }
 
+public class AirHold : NegativeNote
+{
+    public Color Color { get; set; }
+
+    public override int Lane
+    {
+        get => PairNote?.Lane ?? 0;
+        set
+        {
+            // do nothing
+        }
+    }
+
+    public override int Width
+    {
+        get => PairNote?.Width ?? 1;
+        set
+        {
+            // do nothing
+        }
+    }
+
+    public override Time Tick
+    {
+        get => PairNote?.Tick ?? 0;
+        set
+        {
+            // do nothing
+        }
+    }
+
+    public AirHoldJoint AsChild()
+    {
+        var child = new AirHoldJoint
+        {
+            Timeline = Timeline,
+            Tick = Tick,
+            Joint = Joint.C
+        };
+        child.MakeVirtual(this);
+        return child;
+    }
+}
+
+public class AirHoldJoint : Note
+{
+    public Joint Joint { get; set; } = Joint.D;
+
+    public override int Lane
+    {
+        get => (Parent as AirHold)?.Lane ?? 0;
+        set
+        {
+            /* Do nothing */
+        }
+    }
+
+    public override int Width
+    {
+        get => (Parent as AirHold)?.Width ?? 1;
+        set
+        {
+            // do nothing
+        }
+    }
+}
+
 public class AirCrash : Note
 {
     public decimal Height { get; set; }
