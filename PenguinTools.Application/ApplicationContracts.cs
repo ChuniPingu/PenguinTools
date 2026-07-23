@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 
@@ -183,6 +184,7 @@ public sealed record OptionScanConfig(
     bool ConvertAudio,
     bool ConvertJacket,
     bool ConvertBackground,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)]
     ulong HcaEncryptionKey,
     bool GenerateEventXml,
     bool GenerateReleaseTagXml,

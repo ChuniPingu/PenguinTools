@@ -10,6 +10,32 @@ namespace PenguinTools.Tests.Cli;
 public class CliOutputFormattingTests
 {
     [Fact]
+    public void OptionScanConfig_SerializesHcaEncryptionKeyAsString()
+    {
+        var config = new OptionScanConfig(
+            "A001",
+            "option-id",
+            true,
+            ["mgxc"],
+            true,
+            true,
+            true,
+            32931609366120192UL,
+            true,
+            true,
+            1,
+            "title",
+            1000001,
+            1000002,
+            8);
+        var json = JsonSerializer.Serialize(config, CliJsonSerializerContext.Default.OptionScanConfig);
+        using var document = JsonDocument.Parse(json);
+        var key = document.RootElement.GetProperty("hcaEncryptionKey");
+        Assert.Equal(JsonValueKind.String, key.ValueKind);
+        Assert.Equal("32931609366120192", key.GetString());
+    }
+
+    [Fact]
     public void JsonEnvelope_UsesSchemaVersionThree()
     {
         var response = new CliResponse(CliOutput.ResultType, 3, "info", true, 0, Msg.Key("cli.msg.done"), null, []);
