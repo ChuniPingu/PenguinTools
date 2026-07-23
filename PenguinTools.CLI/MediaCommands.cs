@@ -167,26 +167,22 @@ internal static class MediaCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_built_stage, value.OutputDirectory),
                 CliJsonSerializerContext.Default.StageBuildResult, cancellationToken, parseResult));
         root.Subcommands.Add(buildFiles);
-        return root;
-    }
 
-    internal static Command BuildAfbCommand()
-    {
-        var root = new Command("afb", "AFB operations.");
-        var input = new Argument<string>("input") { Description = "Input AFB file." };
-        var output = Output();
-        var command = new Command("extract", "Extract DDS textures from an AFB file.");
-        command.Arguments.Add(input);
-        command.Arguments.Add(output);
-        var noProgress = GlobalCliOptions.AddNoProgressOption(command);
-        command.SetAction((parseResult, cancellationToken) =>
-            CliCommandRunner.RunWithProgressAsync("afb.extract", (app, progress, ct) => app.ExtractAfbAsync(
+        var afbInput = new Argument<string>("input") { Description = "Input AFB file." };
+        var afbOutput = Output();
+        var extract = new Command("extract", "Extract stage textures from an AFB file.");
+        extract.Arguments.Add(afbInput);
+        extract.Arguments.Add(afbOutput);
+        var extractNoProgress = GlobalCliOptions.AddNoProgressOption(extract);
+        extract.SetAction((parseResult, cancellationToken) =>
+            CliCommandRunner.RunWithProgressAsync("stage.extract", (app, progress, ct) => app.ExtractAfbAsync(
                     new AfbExtractRequest(
-                        parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output)), progress, ct),
+                        parseResult.GetRequiredValue(afbInput), parseResult.GetRequiredValue(afbOutput)),
+                    progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_extracted_dds, value.OutputDirectory),
                 CliJsonSerializerContext.Default.AfbExtractResult, cancellationToken,
-                GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
-        root.Subcommands.Add(command);
+                GlobalCliOptions.IsNoProgress(parseResult, extractNoProgress), parseResult));
+        root.Subcommands.Add(extract);
         return root;
     }
 

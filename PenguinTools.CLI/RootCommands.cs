@@ -14,7 +14,6 @@ internal static class RootCommands
         rootCommand.Subcommands.Add(MediaCommands.BuildJacketCommand());
         rootCommand.Subcommands.Add(MediaCommands.BuildAudioCommand());
         rootCommand.Subcommands.Add(MediaCommands.BuildStageCommand());
-        rootCommand.Subcommands.Add(MediaCommands.BuildAfbCommand());
         rootCommand.Subcommands.Add(AssetCommands.BuildAssetCommand());
         rootCommand.Subcommands.Add(InfoCommands.BuildInfoCommand());
         return rootCommand;
