@@ -583,7 +583,7 @@ public sealed class PenguinToolsApplicationTests
 
         public string GetTempPath(string fileName)
         {
-            return Path.Combine(root, fileName);
+            return Path.Combine(root, Core.IO.TempFileNames.MakeUnique(fileName));
         }
 
         public Stream OpenRead(string assetName)

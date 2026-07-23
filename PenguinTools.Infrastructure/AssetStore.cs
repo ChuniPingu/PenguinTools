@@ -1,4 +1,5 @@
 using PenguinTools.Core;
+using PenguinTools.Core.IO;
 
 namespace PenguinTools.Infrastructure;
 
@@ -36,7 +37,7 @@ public sealed class AssetStore : IAssetStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         Directory.CreateDirectory(TempWorkPath);
-        return Path.Combine(TempWorkPath, fileName);
+        return Path.Combine(TempWorkPath, TempFileNames.MakeUnique(fileName));
     }
 
     public Stream OpenRead(string assetName)

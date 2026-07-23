@@ -93,7 +93,7 @@ public sealed class OptionExporterReleaseTagTests
         public string GetTempPath(string fileName)
         {
             Directory.CreateDirectory(TempWorkPath);
-            return Path.Combine(TempWorkPath, fileName);
+            return Path.Combine(TempWorkPath, Core.IO.TempFileNames.MakeUnique(fileName));
         }
 
         public Stream OpenRead(string assetName)
