@@ -102,4 +102,52 @@ public class UgcTilTests
             File.Delete(tmp);
         }
     }
+
+    [Fact]
+    public async Task Til_Overlap_WarnsWhenLaneSpanFullyContainsOtherOnDifferentTil()
+    {
+        // Wider note on TIL 2 fully contains narrower note on TIL 3 at the same tick.
+        const string body =
+            "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t04\n@USETIL\t3\n#0'0:t12\n";
+        var ct = TestContext.Current.CancellationToken;
+        var tmp = Path.GetTempFileName() + ".ugc";
+        await File.WriteAllTextAsync(tmp, Header + body, ct);
+        try
+        {
+            var r =
+                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(r.Succeeded);
+            Assert.Contains(r.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public async Task Til_PartialLaneOverlap_DoesNotWarn()
+    {
+        // Partial overlap only — neither note fully contains the other.
+        const string body =
+            "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t04\n@USETIL\t3\n#0'0:t24\n";
+        var ct = TestContext.Current.CancellationToken;
+        var tmp = Path.GetTempFileName() + ".ugc";
+        await File.WriteAllTextAsync(tmp, Header + body, ct);
+        try
+        {
+            var r =
+                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(r.Succeeded);
+            Assert.DoesNotContain(r.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
 }

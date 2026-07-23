@@ -113,7 +113,6 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         GroupNoteByTimeline(chart.Notes);
         MoveMainTimeline(chart.Meta.MainTil);
         ClearEmptyGroups();
-        // TODO: Find conflicting note, compare priority and put them in separate group (SLA with larger TIL => larger priority when applying on note)
         PlaceSoflanArea();
         FinalizeEvent();
         FindNoteViolations();
@@ -270,9 +269,12 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
     private void FindNoteViolations()
     {
         var violations = new HashSet<umgr.Note>();
-        var noteGroup = chart.Notes.Children.GroupBy(n => (n.Tick, n.Lane)).Where(g => g.Count() > 1);
+        var notes = chart.Notes.Children
+            .Where(n => n is not umgr.SoflanArea and not umgr.SoflanAreaJoint)
+            .GroupBy(n => n.Tick.Original)
+            .Where(g => g.Count() > 1);
 
-        foreach (var group in noteGroup)
+        foreach (var group in notes)
         {
             var notesInGroup = group.ToArray();
             for (var i = 0; i < notesInGroup.Length; i++)

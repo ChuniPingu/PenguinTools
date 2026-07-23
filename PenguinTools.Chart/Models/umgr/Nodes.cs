@@ -159,8 +159,10 @@ public class Note : TimeNode<Note>
 
     public bool IsViolate(Note other)
     {
-        return !ReferenceEquals(this, other) && Tick.Original == other.Tick.Original && Lane == other.Lane &&
-               Width == other.Width && Timeline != other.Timeline;
+        if (ReferenceEquals(this, other) || Tick.Original != other.Tick.Original || Timeline == other.Timeline)
+            return false;
+        return (Lane <= other.Lane && Lane + Width >= other.Lane + other.Width) ||
+               (other.Lane <= Lane && other.Lane + other.Width >= Lane + Width);
     }
 
     public override void Sort()
