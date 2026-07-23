@@ -86,18 +86,29 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (!supported)
                 return ApplicationDiagnostics.Failure<ChartConvertResult>(
                     Msg.Create(MsgKeys.Error_Chart_conversion_unsupported, $"{sourceFormat} -> {targetFormat}"));
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 0, Total: 1));
             if (sourceFormat == ChartFormat.C2s)
             {
                 var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
                 if (!parsedC2s.Succeeded || parsedC2s.Value is not { } c2s)
                     return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsedC2s.Diagnostics);
                 ApplyChartOverrides(c2s.Meta, request.Overrides);
+                progress?.Report(new ProgressReport(
+                    Item: Path.GetFileName(input),
+                    Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
+                    Completed: 0,
+                    Total: 1));
                 var convertedUgc = new UgcChartConverter(new UgcConvertRequest(c2s)).Convert();
                 if (!convertedUgc.Succeeded || convertedUgc.Value is null)
                     return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
                         parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics));
                 var writtenUgc = await new UgcChartWriter(new UgcWriteRequest(output, convertedUgc.Value))
                     .WriteAsync(cancellationToken);
+                progress?.Report(new ProgressReport(
+                    Item: Path.GetFileName(input),
+                    Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
+                    Completed: 1,
+                    Total: 1));
                 var reverseValue = new ChartConvertResult(input, output, sourceFormat, targetFormat,
                     CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart.ugc", output)]);
                 return ApplicationDiagnostics.Merge(reverseValue,
@@ -109,6 +120,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
 
             ApplyChartOverrides(chart.Meta, request.Overrides);
+            progress?.Report(new ProgressReport(
+                Item: Path.GetFileName(input),
+                Label: string.IsNullOrWhiteSpace(chart.Meta.Title) ? null : chart.Meta.Title,
+                Completed: 0,
+                Total: 1));
 
             var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
             if (!converted.Succeeded || converted.Value is null)
@@ -118,6 +134,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             EnsureParentDirectory(output);
             var written = await new C2SChartWriter(new C2SWriteRequest(output, converted.Value))
                 .WriteAsync(cancellationToken);
+            progress?.Report(new ProgressReport(
+                Item: Path.GetFileName(input),
+                Label: string.IsNullOrWhiteSpace(chart.Meta.Title) ? null : chart.Meta.Title,
+                Completed: 1,
+                Total: 1));
             var value = new ChartConvertResult(input, output, sourceFormat, targetFormat, CreateChartSummary(chart.Meta),
                 [new ApplicationArtifact("chart.c2s", output)]);
             return ApplicationDiagnostics.Merge(value, parsed.Diagnostics.Merge(converted.Diagnostics), written);
@@ -435,13 +456,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var paired = OptionalFullPath(request.PairedPath);
             if (!File.Exists(source))
                 return ApplicationDiagnostics.Failure<CriAudioExtractResult>(Msg.Key(MsgKeys.Error_File_not_found), source);
-            progress?.Report(new ProgressReport(Item: Path.GetFileName(source)));
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(source), Completed: 0, Total: 1));
             var extracted = await _dependencies.MediaTool.ExtractCriAudioAsync(
                 new MediaCriExtractOptions(source, output, paired, request.HcaKey), cancellationToken);
             var cues = extracted.Cues.Select(x => new CriCueSummary(
                 x.CueId, x.Name, x.WavPath, x.Channels, x.SampleRate, x.BitsPerSample, x.SampleFrames,
                 x.PreviewStartMs, x.PreviewStopMs)).ToArray();
             var artifacts = cues.Select(x => new ApplicationArtifact("audio.wav", x.WavPath)).ToArray();
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(source), Completed: 1, Total: 1));
             return OperationResult<CriAudioExtractResult>.Success(
                 new CriAudioExtractResult(source, output, cues, artifacts));
         });
@@ -457,13 +479,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             cancellationToken.ThrowIfCancellationRequested();
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputDirectory);
-            progress?.Report(new ProgressReport(Item: Path.GetFileName(input)));
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 0, Total: 1));
             var extracted = await new AfbExtractor(new MediaAfbExtractRequest(input, output), _dependencies.MediaTool)
                 .ExtractAsync(cancellationToken);
             var artifacts = Directory.Exists(output)
                 ? Directory.EnumerateFiles(output, "*.dds").OrderBy(x => x, StringComparer.Ordinal)
                     .Select(x => new ApplicationArtifact("dds.file", x)).ToArray()
                 : [];
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 1, Total: 1));
             var value = new AfbExtractResult(input, output, artifacts);
             return (extracted.Succeeded
                     ? OperationResult<AfbExtractResult>.Success(value)

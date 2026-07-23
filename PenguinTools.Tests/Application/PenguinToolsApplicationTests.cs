@@ -312,7 +312,7 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task ChartConversion_DoesNotReportProgress()
+    public async Task ChartConversion_ReportsProgress()
     {
         using var application = PenguinToolsApplication.CreateDefault();
         var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
@@ -328,7 +328,9 @@ public sealed class PenguinToolsApplicationTests
                 new InlineProgress(reports.Add), TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded);
             Assert.True(File.Exists(output));
-            Assert.Empty(reports);
+            Assert.NotEmpty(reports);
+            Assert.Contains(reports, report => report is { Completed: 1, Total: 1 });
+            Assert.All(reports, report => Assert.Equal(Path.GetFileName(input), report.Item));
         }
         finally
         {
