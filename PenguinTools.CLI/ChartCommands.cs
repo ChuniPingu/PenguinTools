@@ -42,6 +42,11 @@ internal static class ChartCommands
         {
             Description = "Disable insertion of a blank measure."
         };
+        var debugTil = new Option<bool>("--debug-til")
+        {
+            Description =
+                "C2S→UGC: emit transparent height-0 AirCrush markers (TIL 0) for each original SLA region."
+        };
         var command = new Command("convert", "Convert MGXC/UGC/SUS to C2S, or C2S to UGC v8.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
@@ -51,6 +56,7 @@ internal static class ChartCommands
         command.Options.Add(mainBpm);
         command.Options.Add(insertBlank);
         command.Options.Add(noInsertBlank);
+        command.Options.Add(debugTil);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("chart.convert", (app, progress, ct) => app.ConvertChartAsync(
@@ -61,7 +67,8 @@ internal static class ChartCommands
                             parseResult.GetValue(difficulty), parseResult.GetValue(mainBpm),
                             parseResult.GetValue(noInsertBlank)
                                 ? false
-                                : parseResult.GetValue(insertBlank))), progress, ct),
+                                : parseResult.GetValue(insertBlank),
+                            parseResult.GetValue(debugTil))), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_written, value.OutputPath),
                 CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));

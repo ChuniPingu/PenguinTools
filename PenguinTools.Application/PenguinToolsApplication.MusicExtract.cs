@@ -123,7 +123,7 @@ public sealed partial class PenguinToolsApplication
                         chart.Meta.BgmPreviewStart = (cue.PreviewStartMs ?? 0) / 1000m;
                         chart.Meta.BgmPreviewStop = (cue.PreviewStopMs ?? 0) / 1000m;
                     }
-                    var converted = new UgcChartConverter(new UgcConvertRequest(chart)).Convert();
+                    var converted = new UgcChartConverter(new UgcConvertRequest(chart, request.DebugTil)).Convert();
                     if (!converted.Succeeded || converted.Value is null)
                         return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(converted.Diagnostics);
                     var filename = $"{songId}_{difficultyId}.ugc";

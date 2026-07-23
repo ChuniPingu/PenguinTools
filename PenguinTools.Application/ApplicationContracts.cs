@@ -87,7 +87,8 @@ public sealed record ChartConvertOverrides(
     string? Designer = null,
     int? DifficultyId = null,
     decimal? MainBpm = null,
-    bool? InsertBlankMeasure = null);
+    bool? InsertBlankMeasure = null,
+    bool DebugTil = false);
 
 public sealed record ChartConvertRequest(
     string InputPath,
@@ -363,7 +364,8 @@ public sealed record MusicExtractRequest(
     string? AwbPath = null,
     bool NoAudio = false,
     bool NoJacket = false,
-    ulong? HcaKey = null);
+    ulong? HcaKey = null,
+    bool DebugTil = false);
 
 public sealed record MusicExtractChartSummary(
     int SongId,

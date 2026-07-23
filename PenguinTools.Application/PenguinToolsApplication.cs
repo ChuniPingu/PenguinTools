@@ -98,7 +98,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
                     Completed: 0,
                     Total: 1));
-                var convertedUgc = new UgcChartConverter(new UgcConvertRequest(c2s)).Convert();
+                var convertedUgc = new UgcChartConverter(new UgcConvertRequest(c2s, request.Overrides?.DebugTil ?? false)).Convert();
                 if (!convertedUgc.Succeeded || convertedUgc.Value is null)
                     return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
                         parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics));

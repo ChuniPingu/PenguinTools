@@ -57,6 +57,11 @@ internal static class MusicCommands
         var key = new Option<ulong?>("--hca-key") { Description = "HCA decryption key override." };
         var noAudio = new Option<bool>("--no-audio") { Description = "Allow output without audio." };
         var noJacket = new Option<bool>("--no-jacket") { Description = "Allow output without a jacket." };
+        var debugTil = new Option<bool>("--debug-til")
+        {
+            Description =
+                "Emit transparent height-0 AirCrush markers (TIL 0) for each original SLA region."
+        };
         var command = new Command("extract", "Convert a game Music.xml bundle to playable UGC charts.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
@@ -66,12 +71,14 @@ internal static class MusicCommands
         command.Options.Add(key);
         command.Options.Add(noAudio);
         command.Options.Add(noJacket);
+        command.Options.Add(debugTil);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("music.extract", (app, progress, ct) => app.ExtractMusicAsync(
                     new MusicExtractRequest(parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                         parseResult.GetValue(jacket), parseResult.GetValue(acb), parseResult.GetValue(awb),
-                        parseResult.GetValue(noAudio), parseResult.GetValue(noJacket), parseResult.GetValue(key)),
+                        parseResult.GetValue(noAudio), parseResult.GetValue(noJacket), parseResult.GetValue(key),
+                        parseResult.GetValue(debugTil)),
                     progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_exported_music, value.OutputDirectory),
                 CliJsonSerializerContext.Default.MusicExtractResult, cancellationToken,
