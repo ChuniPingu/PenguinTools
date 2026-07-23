@@ -89,7 +89,8 @@ public static class OptionExporter
             book,
             outputPaths.StageFolder,
             ct);
-        if (await OptionConversionCacheValidator.IsHitAsync(
+        if (!settings.IgnoreCache &&
+            await OptionConversionCacheValidator.IsHitAsync(
                 settings.ConversionCache,
                 cachedConversion.Key,
                 cachedConversion.State,
@@ -212,7 +213,8 @@ public static class OptionExporter
             jacketPath,
             outputPath,
             ct);
-        if (await OptionConversionCacheValidator.IsHitAsync(
+        if (!settings.IgnoreCache &&
+            await OptionConversionCacheValidator.IsHitAsync(
                 settings.ConversionCache,
                 cachedConversion.Key,
                 cachedConversion.State,
@@ -255,6 +257,7 @@ public static class OptionExporter
                 ct);
         if (songId is not null &&
             cachedConversion is not null &&
+            !settings.IgnoreCache &&
             await OptionConversionCacheValidator.IsHitAsync(
                 settings.ConversionCache,
                 cachedConversion.Key,

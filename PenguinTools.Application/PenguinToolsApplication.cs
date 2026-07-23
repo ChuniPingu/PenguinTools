@@ -220,8 +220,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
             var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
             var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
+            var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
             var exported = await OptionExporter.ExportAsync(
-                CreateExportContext(), document.ToExportSettings(), outputPaths, snapshots, output,
+                CreateExportContext(), exportSettings, outputPaths, snapshots, output,
                 cancellationToken, progress);
             var diagnostics = scanned.Diagnostics.Merge(exported.Diagnostics);
             if (!exported.Succeeded)

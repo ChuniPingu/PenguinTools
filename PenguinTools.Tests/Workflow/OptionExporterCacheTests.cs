@@ -96,6 +96,50 @@ public sealed class OptionExporterCacheTests
     }
 
     [Fact]
+    public async Task ExportAsync_ReconvertsJacket_WhenIgnoreCacheEvenIfHit()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        var outputPaths = ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX"));
+        var chartPath = Path.Combine(workPath, "chart.ugc");
+        var jacketPath = Path.Combine(workPath, "jacket.png");
+        var ct = TestContext.Current.CancellationToken;
+        Directory.CreateDirectory(workPath);
+        await File.WriteAllTextAsync(chartPath, "chart", ct);
+        await File.WriteAllTextAsync(jacketPath, "jacket", ct);
+
+        var cache = new OptionConversionCache();
+        var settings = CreateSettings(true, false, cache);
+        var ignoreCacheSettings = CreateSettings(true, false, cache, ignoreCache: true);
+        var mediaTool = new CountingMediaTool();
+        using var assetStore = new DummyAssetStore(workPath);
+        var context = new MusicExportContext(
+            TestAssets.Load(),
+            mediaTool,
+            assetStore,
+            new DummyInfrastructureAssetProvider(workPath));
+        var meta = CreateMeta(workPath, chartPath) with
+        {
+            JacketFilePath = jacketPath
+        };
+        var book = CreateBook(meta, false);
+
+        try
+        {
+            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+            Assert.NotNull(cache.GetEntry("jacket:music4321"));
+
+            await OptionExporter.ExportAsync(context, ignoreCacheSettings, outputPaths, [book], workPath, ct);
+
+            Assert.Equal(2, mediaTool.JacketConversions);
+            Assert.NotNull(cache.GetEntry("jacket:music4321"));
+        }
+        finally
+        {
+            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+        }
+    }
+
+    [Fact]
     public async Task ExportAsync_SkipsStage_WhenCachedInputsAndOutputsMatch()
     {
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -362,7 +406,8 @@ public sealed class OptionExporterCacheTests
     private static OptionExportSettings CreateSettings(
         bool convertJacket,
         bool convertBackground,
-        OptionConversionCache cache)
+        OptionConversionCache cache,
+        bool ignoreCache = false)
     {
         return new OptionExportSettings(
             false,
@@ -376,7 +421,8 @@ public sealed class OptionExporterCacheTests
             1000001,
             1000002,
             1,
-            cache);
+            cache,
+            IgnoreCache: ignoreCache);
     }
 
     private static Meta CreateMeta(string workPath, string chartPath)

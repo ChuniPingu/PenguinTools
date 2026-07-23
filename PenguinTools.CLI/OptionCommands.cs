@@ -53,7 +53,8 @@ internal static class OptionCommands
                     new OptionBuildRequest(
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                         parseResult.GetValue(options.Config), parseResult.GetValue(options.NoConfig),
-                        parseResult.GetValue(options.SaveConfig), options.CreateOverrides(parseResult)), progress, ct),
+                        parseResult.GetValue(options.SaveConfig), options.CreateOverrides(parseResult),
+                        parseResult.GetValue(options.IgnoreCache)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_option_build_complete, value.OptionName, value.OutputDirectory),
                 CliJsonSerializerContext.Default.OptionBuildResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
@@ -88,6 +89,12 @@ internal static class OptionCommands
         internal Option<bool> SaveConfig { get; } = new("--save-config")
             { Description = "Write options.json to the input directory after a successful build." };
 
+        internal Option<bool> IgnoreCache { get; } = new("--ignore-cache")
+        {
+            Description =
+                "Force reconversion of jacket, stage, and audio even when the conversion cache matches."
+        };
+
         private Option<string?> OptionName { get; } = new("--option-name");
 
         private Option<string?> Discovery { get; } =
@@ -117,6 +124,7 @@ internal static class OptionCommands
             command.Options.Add(Config);
             command.Options.Add(NoConfig);
             command.Options.Add(SaveConfig);
+            command.Options.Add(IgnoreCache);
             command.Options.Add(OptionName);
             command.Options.Add(Discovery);
             command.Options.Add(BatchSize);

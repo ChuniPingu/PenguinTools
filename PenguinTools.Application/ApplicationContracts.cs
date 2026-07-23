@@ -224,7 +224,8 @@ public sealed record OptionBuildRequest(
     string? ConfigPath = null,
     bool SkipConfig = false,
     bool SaveConfig = false,
-    OptionBuildOverrides? Overrides = null);
+    OptionBuildOverrides? Overrides = null,
+    bool IgnoreCache = false);
 
 public sealed record OptionBuildResult(
     string InputDirectory,

@@ -15,4 +15,5 @@ public sealed record OptionExportSettings(
     int WeEventId,
     int BatchSize,
     OptionConversionCache? ConversionCache = null,
-    ulong HcaEncryptionKey = AudioConvertRequest.DefaultHcaEncryptionKey);
+    ulong HcaEncryptionKey = AudioConvertRequest.DefaultHcaEncryptionKey,
+    bool IgnoreCache = false);
