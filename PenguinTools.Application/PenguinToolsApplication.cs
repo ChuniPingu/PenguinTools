@@ -538,7 +538,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 ? null
                 : Path.GetFullPath(options.UserAssetsPath.Trim());
             var assets = new AssetManager(assetsStream, userAssetsPath);
-            var mediaTool = new MuaMediaTool(assetProvider.GetPath(InfrastructureAsset.Mua));
+            var mediaTool = new MuaMediaTool(assetsDirectory);
             var dependencies = new PenguinToolsApplicationDependencies(
                 paths, assetStore, assets, mediaTool, assetProvider);
             return new PenguinToolsApplication(dependencies, assetStore);

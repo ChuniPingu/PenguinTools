@@ -6,13 +6,17 @@ using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
 
-public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
+public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
 {
-    private string MuaDirectory { get; } = RequireDirectory(muaDirectory, nameof(muaDirectory));
+    private string AssetDirectory { get; } = RequireDirectory(assetDirectory, nameof(assetDirectory));
 
-    private string WavExecutablePath => ResolveExecutable("mua_wav");
-    private string ImgExecutablePath => ResolveExecutable("mua_img");
-    private string CriExecutablePath => ResolveExecutable("mua_cri");
+    private string MuaDirectory => Path.Combine(AssetDirectory, "mua");
+
+    private string CriDirectory => Path.Combine(AssetDirectory, "cri");
+
+    private string WavExecutablePath => ResolveMuaExecutable("mua_wav");
+    private string ImgExecutablePath => ResolveMuaExecutable("mua_img");
+    private string CriExecutablePath => ResolveCriExecutable();
 
     public async Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
         CancellationToken ct = default)
@@ -108,15 +112,17 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
             args.Add("--paired-input");
             args.Add(options.PairedInputPath);
         }
+
         if (options.HcaKey is { } key)
         {
             args.Add("--hca-key");
             args.Add(key.ToString(CultureInfo.InvariantCulture));
         }
+
         var ret = await RunAsync(CriExecutablePath, args, ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
         return JsonSerializer.Deserialize(ret.StandardOutput, InfrastructureJsonContext.Default.CriExtractResult)
-               ?? throw new JsonException("mua_cri returned an empty extraction manifest.");
+               ?? throw new JsonException("PenguinTools.CRI returned an empty extraction manifest.");
     }
 
     public async Task ConvertCriAsync(
@@ -147,11 +153,20 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
     }
 
-    private string ResolveExecutable(string name)
+    private string ResolveMuaExecutable(string name)
     {
         var fileName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
         var path = Path.Combine(MuaDirectory, fileName);
-        ResourceStoreHelpers.EnsureExecutableIfNeeded(path, fileName);
+        ResourceStoreHelpers.EnsureExecutableIfNeeded(path, name);
+        return path;
+    }
+
+    private string ResolveCriExecutable()
+    {
+        const string name = "PenguinTools.CRI";
+        var fileName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
+        var path = Path.Combine(CriDirectory, fileName);
+        ResourceStoreHelpers.EnsureExecutableIfNeeded(path, name);
         return path;
     }
 
@@ -205,7 +220,7 @@ public sealed class MuaMediaTool(string muaDirectory) : IMediaTool
                 }
                 catch (Exception)
                 {
-                    // Best effort cleanup after a failed mua invocation.
+                    // Best effort cleanup after a failed tool invocation.
                 }
             }
 

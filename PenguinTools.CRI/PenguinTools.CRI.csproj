@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <Import Project="..\Common.props"/>
+
+    <PropertyGroup>
+        <TargetFramework>$(DotNetVersion)</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>PenguinTools.CRI</RootNamespace>
+        <AssemblyName>PenguinTools.CRI</AssemblyName>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine" Version="2.0.9"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\External\SonicAudioTools\Source\SonicAudioLib\SonicAudioLib.csproj"/>
+        <ProjectReference Include="..\External\vgaudio\src\VGAudio\VGAudio.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\dummy.acb" LogicalName="PenguinTools.CRI.Assets.dummy.acb"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="PenguinTools.Tests"/>
+    </ItemGroup>
+</Project>

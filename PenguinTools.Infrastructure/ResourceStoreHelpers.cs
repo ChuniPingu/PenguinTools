@@ -4,17 +4,17 @@ namespace PenguinTools.Infrastructure;
 
 internal static class ResourceStoreHelpers
 {
-    private static readonly HashSet<string> MuaExecutables = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> ExternalExecutables = new(StringComparer.Ordinal)
     {
         "mua_wav",
         "mua_img",
-        "mua_cri"
+        "PenguinTools.CRI"
     };
 
     public static void EnsureExecutableIfNeeded(string path, string resourceName)
     {
         if (OperatingSystem.IsWindows()) return;
-        if (!MuaExecutables.Contains(resourceName)) return;
+        if (!ExternalExecutables.Contains(resourceName)) return;
 
         try
         {
