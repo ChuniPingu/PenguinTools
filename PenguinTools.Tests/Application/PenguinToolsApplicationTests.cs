@@ -81,6 +81,44 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
+    public async Task OptionScan_UsesConfigChartFileDiscovery_WhenRequestOmitsIt()
+    {
+        using var application = PenguinToolsApplication.CreateDefault();
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var configPath = Path.Combine(directory, "options.json");
+        var document = new OptionDocument
+        {
+            OptionName = "TEST",
+            ChartFileDiscovery = [ChartFileFormat.Mgxc]
+        };
+        await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(document, OptionDocumentJson.Default),
+            TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(directory, "ignored.ugc"),
+            "@VER\t8\n@TICKS\t480\n@TITLE\tignored\n@DESIGN\tDesigner\n@DIFF\t3\n" +
+            "@SONGID\t1\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n",
+            TestContext.Current.CancellationToken);
+        try
+        {
+            var result = await application.ScanOptionAsync(new OptionScanRequest(directory),
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.True(result.Succeeded);
+            Assert.NotNull(result.Value);
+            Assert.Equal(["mgxc"], result.Value!.ChartFileDiscovery);
+            Assert.Empty(result.Value.Books);
+            Assert.DoesNotContain(result.Value.UnmatchedDiagnostics,
+                d => d.Path is not null && d.Path.EndsWith("ignored.ugc", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Diagnostics.Diagnostics,
+                d => d.Path is not null && d.Path.EndsWith("ignored.ugc", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task OptionScan_IncludesAutoDiscoveredConfig()
     {
         using var application = PenguinToolsApplication.CreateDefault();
@@ -108,7 +146,7 @@ public sealed class PenguinToolsApplicationTests
             Assert.NotNull(result.Value.Config);
             Assert.Equal("TEST", result.Value.Config!.OptionName);
             Assert.Equal(["ugc", "sus"], result.Value.Config.ChartFileDiscovery);
-            Assert.Equal(["mgxc", "ugc", "sus"], result.Value.ChartFileDiscovery);
+            Assert.Equal(["ugc", "sus"], result.Value.ChartFileDiscovery);
             Assert.False(result.Value.Config.ConvertChart);
             Assert.False(result.Value.Config.ConvertAudio);
             Assert.True(result.Value.Config.ConvertJacket);

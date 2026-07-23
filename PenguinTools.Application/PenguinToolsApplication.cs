@@ -139,20 +139,28 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (request.BatchSize == 0 || request.BatchSize < -1)
                 return ApplicationDiagnostics.Failure<OptionScanResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
 
+            var (configPath, configDocument, config, configDiagnostics) =
+                await LoadScanConfigAsync(input, cancellationToken);
+
             if (request.SaveConfig)
             {
                 var savePath = Path.Combine(input, "options.json");
-                var document = File.Exists(savePath)
+                var document = configDocument ?? (File.Exists(savePath)
                     ? await LoadOptionDocumentAsync(savePath, cancellationToken)
-                    : new OptionDocument();
+                    : new OptionDocument());
                 if (request.ChartFileDiscovery is not null)
                     document.ChartFileDiscovery = [.. request.ChartFileDiscovery.Select(ToWorkflow)];
                 document.BatchSize = request.BatchSize;
                 await SaveOptionDocumentAsync(savePath, document, cancellationToken);
+                configPath = savePath;
+                configDocument = document;
+                config = CreateScanConfig(document);
+                configDiagnostics = DiagnosticSnapshot.Empty;
             }
 
-            var applicationDiscovery = request.ChartFileDiscovery ??
-                                       [ChartFormat.Mgxc, ChartFormat.Ugc, ChartFormat.Sus];
+            var applicationDiscovery = request.ChartFileDiscovery
+                                       ?? configDocument?.ChartFileDiscovery.Select(FromWorkflow).ToArray()
+                                       ?? [ChartFormat.Mgxc, ChartFormat.Ugc, ChartFormat.Sus];
             var discovery = applicationDiscovery.Select(ToWorkflow).ToArray();
             var workingDirectory = FullPath(request.WorkingDirectory ?? input);
             var scanned = await ScanSnapshotsAsync(input, discovery, request.BatchSize, workingDirectory,
@@ -160,8 +168,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (scanned.Value is null)
                 return OperationResult<OptionScanResult>.Failure().WithDiagnostics(scanned.Diagnostics);
 
-            var (configPath, config, configDiagnostics) =
-                await LoadScanConfigAsync(input, cancellationToken);
             var (value, unmatchedDiagnostics) = CreateScanResult(input, applicationDiscovery, request.BatchSize,
                 scanned.Value, scanned.Diagnostics, configPath, config);
             return (scanned.Succeeded
@@ -606,23 +612,24 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             batchSize, workingDirectory, diagnostics, cancellationToken, progress: progress);
     }
 
-    private static async Task<(string? ConfigPath, OptionScanConfig? Config, DiagnosticSnapshot Diagnostics)>
+    private static async Task<(string? ConfigPath, OptionDocument? Document, OptionScanConfig? Config,
+            DiagnosticSnapshot Diagnostics)>
         LoadScanConfigAsync(string input, CancellationToken cancellationToken)
     {
         var candidate = Path.Combine(input, "options.json");
-        if (!File.Exists(candidate)) return (null, null, DiagnosticSnapshot.Empty);
+        if (!File.Exists(candidate)) return (null, null, null, DiagnosticSnapshot.Empty);
 
         try
         {
             var document = await LoadOptionDocumentAsync(candidate, cancellationToken);
-            return (candidate, CreateScanConfig(document), DiagnosticSnapshot.Empty);
+            return (candidate, document, CreateScanConfig(document), DiagnosticSnapshot.Empty);
         }
         catch (Exception ex)
         {
             var collector = new DiagnosticCollector();
             collector.Report(new PathDiagnostic(Severity.Warning,
                 Msg.Create(MsgKeys.Warn_Config_invalid, ex.Message), candidate));
-            return (candidate, null, DiagnosticSnapshot.Create(collector));
+            return (candidate, null, null, DiagnosticSnapshot.Create(collector));
         }
     }
 
@@ -956,6 +963,17 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             ChartFormat.Mgxc => ChartFileFormat.Mgxc,
             ChartFormat.Ugc => ChartFileFormat.Ugc,
             ChartFormat.Sus => ChartFileFormat.Sus,
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+        };
+    }
+
+    private static ChartFormat FromWorkflow(ChartFileFormat value)
+    {
+        return value switch
+        {
+            ChartFileFormat.Mgxc => ChartFormat.Mgxc,
+            ChartFileFormat.Ugc => ChartFormat.Ugc,
+            ChartFileFormat.Sus => ChartFormat.Sus,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
         };
     }
