@@ -47,7 +47,10 @@ internal static class MusicCommands
     private static Command BuildMusicExtractCommand()
     {
         var input = new Argument<string>("input") { Description = "Path to Music.xml." };
-        var output = new Argument<string>("output") { Description = "Output UGC music folder." };
+        var output = new Argument<string>("output")
+        {
+            Description = "Parent output folder; UGC files are written under a song-ID subfolder."
+        };
         var jacket = new Option<string?>("--jacket") { Description = "Explicit jacket input." };
         var acb = new Option<string?>("--acb") { Description = "Explicit ACB input." };
         var awb = new Option<string?>("--awb") { Description = "Explicit AWB input." };

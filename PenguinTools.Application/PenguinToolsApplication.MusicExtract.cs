@@ -31,18 +31,28 @@ public sealed partial class PenguinToolsApplication
             var cueName = EntryString(root.Element("cueFileName"));
             var starDifficulty = Int(root.Element("starDifType"));
             var xmlDirectory = Path.GetDirectoryName(xmlPath)!;
+            var songFolder = Path.Combine(output, songId.ToString());
             var outputParent = Path.GetDirectoryName(output) ?? output;
             Directory.CreateDirectory(outputParent);
             var stage = Path.Combine(outputParent, $".PenguinTools-reverse-{Guid.NewGuid():N}");
             Directory.CreateDirectory(stage);
             var artifacts = new List<ApplicationArtifact>();
             var chartSummaries = new List<MusicExtractChartSummary>();
-            progress?.Report(new ProgressReport(Item: Path.GetFileName(xmlPath), Label: title));
+            var musicFileName = $"{songId}_music.wav";
+            var jacketFileName = $"{songId}_jacket.png";
             try
             {
                 var fumenRows = root.Element("fumens")?.Elements("MusicFumenData")
                     .Where(x => Bool(x.Element("enable"))).ToArray() ?? [];
                 if (fumenRows.Length == 0) throw new InvalidDataException("Music.xml contains no enabled fumens.");
+
+                var totalSteps = (request.NoAudio ? 0 : 1) + (request.NoJacket ? 0 : 1) + fumenRows.Length;
+                var completed = 0;
+                progress?.Report(new ProgressReport(
+                    Item: Path.GetFileName(xmlPath),
+                    Label: title,
+                    Completed: 0,
+                    Total: totalSteps));
 
                 CriExtractResult? audio = null;
                 string? musicWav = null;
@@ -54,8 +64,14 @@ public sealed partial class PenguinToolsApplication
                         new CriExtractOptions(source, Path.Combine(stage, "audio"), acb is not null ? awb : acb,
                             request.HcaKey), cancellationToken);
                     var selected = SelectCue(audio.Cues, cueName);
-                    musicWav = Path.Combine(stage, "music.wav");
+                    musicWav = Path.Combine(stage, musicFileName);
                     File.Copy(selected.WavPath, musicWav, true);
+                    completed++;
+                    progress?.Report(new ProgressReport(
+                        Item: Path.GetFileName(source),
+                        Label: title,
+                        Completed: completed,
+                        Total: totalSteps));
                 }
 
                 string? jacketPng = null;
@@ -65,10 +81,16 @@ public sealed partial class PenguinToolsApplication
                         root.Element("jaketFile")?.Element("path")?.Value);
                     if (jacket is null || !File.Exists(jacket))
                         throw new FileNotFoundException("Required jacket media was not found.", jacket);
-                    jacketPng = Path.Combine(stage, "jacket.png");
+                    jacketPng = Path.Combine(stage, jacketFileName);
                     if (Path.GetExtension(jacket).Equals(".dds", StringComparison.OrdinalIgnoreCase))
                         await _dependencies.MediaTool.DecodeDdsAsync(jacket, jacketPng, cancellationToken);
                     else File.Copy(jacket, jacketPng, true);
+                    completed++;
+                    progress?.Report(new ProgressReport(
+                        Item: Path.GetFileName(jacket),
+                        Label: title,
+                        Completed: completed,
+                        Total: totalSteps));
                 }
 
                 foreach (var row in fumenRows)
@@ -93,8 +115,8 @@ public sealed partial class PenguinToolsApplication
                     chart.Meta.Designer = Value(row.Element("notesDesigner"), chart.Meta.Designer);
                     var xmlBpm = Decimal(row.Element("defaultBpm"));
                     if (xmlBpm > 0) chart.Meta.MainBpm = xmlBpm;
-                    chart.Meta.BgmFilePath = musicWav is null ? string.Empty : "music.wav";
-                    chart.Meta.JacketFilePath = jacketPng is null ? string.Empty : "jacket.png";
+                    chart.Meta.BgmFilePath = musicWav is null ? string.Empty : musicFileName;
+                    chart.Meta.JacketFilePath = jacketPng is null ? string.Empty : jacketFileName;
                     if (audio is not null)
                     {
                         var cue = SelectCue(audio.Cues, cueName);
@@ -109,13 +131,19 @@ public sealed partial class PenguinToolsApplication
                     await new UgcChartWriter(new UgcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);
                     chartSummaries.Add(new MusicExtractChartSummary(songId, difficultyId,
                         chart.Meta.Difficulty.ToString(), chart.Meta.Level, chart.Meta.Designer, chart.Meta.MainBpm,
-                        Path.Combine(output, filename)));
+                        Path.Combine(songFolder, filename)));
+                    completed++;
+                    progress?.Report(new ProgressReport(
+                        Item: Path.GetFileName(chartPath),
+                        Label: title,
+                        Completed: completed,
+                        Total: totalSteps));
                 }
 
-                Directory.CreateDirectory(output);
+                Directory.CreateDirectory(songFolder);
                 foreach (var file in Directory.EnumerateFiles(stage, "*", SearchOption.TopDirectoryOnly))
                 {
-                    var destination = Path.Combine(output, Path.GetFileName(file));
+                    var destination = Path.Combine(songFolder, Path.GetFileName(file));
                     File.Move(file, destination, true);
                     var kind = Path.GetExtension(file).ToLowerInvariant() switch
                     {
@@ -124,7 +152,7 @@ public sealed partial class PenguinToolsApplication
                     artifacts.Add(new ApplicationArtifact(kind, destination));
                 }
                 return OperationResult<MusicExtractResult>.Success(new MusicExtractResult(
-                    xmlPath, output, songId, title, artist, chartSummaries, artifacts));
+                    xmlPath, songFolder, songId, title, artist, chartSummaries, artifacts));
             }
             finally
             {
