@@ -158,10 +158,7 @@ public sealed class C2SParser
                 if (tokens[0].Length == 3)
                     ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
                         line.Number);
-                else
-                    ReportAtLine(Severity.Information,
-                        Msg.Create(MsgKeys.Mg_Unrecognized_meta, tokens[0], string.Join('\t', tokens.Skip(1))),
-                        line.Number);
+                // Skip unknown meta properties (e.g. T_* chart statistics).
                 break;
         }
     }
