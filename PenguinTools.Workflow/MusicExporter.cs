@@ -123,7 +123,7 @@ public static class MusicExporter
             return OperationResult.Failure().WithDiagnostics(diagnostics);
 
         var writtenChart =
-            await new C2SChartWriter(new C2SWriteRequest(chartPath, convertedChart.Value))
+            await new C2SChartWriter(new C2SWriteRequest(chartPath, convertedChart.Value, chart.GetCalculator()))
                 .WriteAsync(cancellationToken);
         diagnostics = diagnostics.Merge(writtenChart.Diagnostics);
         if (!writtenChart.Succeeded) return OperationResult.Failure().WithDiagnostics(diagnostics);

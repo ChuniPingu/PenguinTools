@@ -180,7 +180,8 @@ public static class OptionExporter
                 return;
             }
 
-            var chartWriter = new C2SChartWriter(new C2SWriteRequest(chartPath, convertedChart.Value));
+            var chartWriter = new C2SChartWriter(
+                new C2SWriteRequest(chartPath, convertedChart.Value, item.Chart.GetCalculator()));
             var writtenChart = await chartWriter.WriteAsync(ct);
             chartDiagnostics.Report(writtenChart.Diagnostics);
             FlushChartDiagnostics();

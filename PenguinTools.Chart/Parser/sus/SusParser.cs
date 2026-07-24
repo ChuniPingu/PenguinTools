@@ -66,6 +66,7 @@ public sealed class SusParser
 
             BuildChart();
             Diagnostic.TimeCalculator = Sus.GetCalculator();
+            Diagnostic.BackfillTimeCalculator();
 
             var post = new ChartPostProcessor(Sus, Diagnostic, Assets);
             post.Run();
@@ -76,6 +77,8 @@ public sealed class SusParser
         }
         catch (DiagnosticException ex)
         {
+            Diagnostic.TimeCalculator ??= Sus.GetCalculator();
+            Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
             return OperationResult<umgr.Chart>.Failure().WithDiagnostics(Diagnostic);
         }

@@ -9,4 +9,9 @@ public interface IDiagnosticSink
 
     void Report(Diagnostic item);
     void Report(Exception ex);
+
+    /// <summary>
+    /// Applies <see cref="TimeCalculator"/> to diagnostics reported before it was set.
+    /// </summary>
+    void BackfillTimeCalculator();
 }

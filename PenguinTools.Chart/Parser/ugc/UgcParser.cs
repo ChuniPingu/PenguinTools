@@ -56,6 +56,7 @@ public partial class UgcParser
 
             ClearCurrentLine();
             BuildBarAxis();
+            Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
             _currentTimeline = 0;
             foreach (var line in lines)
@@ -67,7 +68,6 @@ public partial class UgcParser
             }
 
             ClearCurrentLine();
-            Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
             post.Run();
@@ -78,6 +78,8 @@ public partial class UgcParser
         }
         catch (DiagnosticException ex)
         {
+            Diagnostic.TimeCalculator ??= Ugc.GetCalculator();
+            Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
             return OperationResult<umgr.Chart>.Failure().WithDiagnostics(Diagnostic);
         }

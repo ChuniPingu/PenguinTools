@@ -15,6 +15,7 @@ public partial class C2SChartWriter
 
         OutPath = request.OutPath;
         Chart = request.Chart;
+        Diagnostic.TimeCalculator = request.TimeCalculator;
     }
 
     private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();

@@ -132,7 +132,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     .WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));
 
             EnsureParentDirectory(output);
-            var written = await new C2SChartWriter(new C2SWriteRequest(output, converted.Value))
+            var written = await new C2SChartWriter(new C2SWriteRequest(output, converted.Value, chart.GetCalculator()))
                 .WriteAsync(cancellationToken);
             progress?.Report(new ProgressReport(
                 Item: Path.GetFileName(input),
@@ -732,7 +732,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             value.Message,
             value.Path,
             value.Line,
-            value.Time);
+            value.Time,
+            DiagnosticTime.TryGetPosition(value));
     }
 
     private static bool PathsEqual(string root, string chartPath, string? diagnosticPath)

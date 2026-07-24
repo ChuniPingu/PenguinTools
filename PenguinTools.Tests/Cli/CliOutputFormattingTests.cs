@@ -1,8 +1,10 @@
 using System.Text.Json;
 using PenguinTools.Application;
+using PenguinTools.Chart;
 using PenguinTools.CLI;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
+using PenguinTools.Core.Diagnostic;
 using Xunit;
 
 namespace PenguinTools.Tests.Cli;
@@ -175,6 +177,80 @@ public class CliOutputFormattingTests
             .GetString());
         Assert.Equal("1 genre data",
             document.RootElement.GetProperty("message").GetProperty("args").GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public void CliResponse_SerializesDiagnosticsWithStructuredTimePosition()
+    {
+        var calculator = new TimeCalculator(1920, []);
+        var diagnostic = new TimedDiagnostic(Severity.Warning, Msg.Key("diag.test.timed"), 1920)
+        {
+            TimeCalculator = calculator
+        };
+        var json = CliOutput.Serialize(new CliResponse(
+            CliOutput.ResultType,
+            3,
+            "test",
+            true,
+            CliExitCodes.Success,
+            null,
+            null,
+            CliDiagnostics.ToPayload([diagnostic])));
+        using var document = JsonDocument.Parse(json);
+        var payload = document.RootElement.GetProperty("diagnostics")[0];
+        Assert.Equal(1920, payload.GetProperty("time").GetInt32());
+        var position = payload.GetProperty("timePosition");
+        Assert.Equal(2, position.GetProperty("bar").GetInt32());
+        Assert.Equal(1, position.GetProperty("beat").GetInt32());
+        Assert.Equal(0, position.GetProperty("tickOffset").GetInt32());
+        Assert.False(payload.TryGetProperty("formattedTime", out _));
+    }
+
+    [Fact]
+    public void OptionScanDifficulty_SerializesEmbeddedDiagnosticTimePosition()
+    {
+        var calculator = new TimeCalculator(1920, []);
+        var diagnostic = new TimedDiagnostic(Severity.Warning, Msg.Key("diag.test.timed"), 1920)
+        {
+            TimeCalculator = calculator
+        };
+        var position = DiagnosticTime.TryGetPosition(diagnostic);
+        Assert.NotNull(position);
+
+        var chart = new OptionScanDifficulty(
+            "Master", null, 1, "Title", "Artist", "Designer", 14, 180, 0, true, "chart.ugc",
+            new ApplicationEntry(0, "tag"), 0, "N/A", "", new ApplicationEntry(0, "genre"), null, "2026-01-01",
+            "", "", 0, 0, 0, 0, false, 120, 4, 4, false, null, "",
+            new ApplicationEntry(0, "line"), new ApplicationEntry(0, "stage"),
+            [new ApplicationDiagnostic("Warning", Msg.Key("diag.test.timed"), "chart.ugc", null, 1920, position)]);
+        var book = new OptionScanBook(
+            1, "Title", "Artist", "Master", "", new ApplicationEntry(0, "genre"), null, "2026-01-01",
+            false, null, "", new ApplicationEntry(0, "line"), new ApplicationEntry(0, "stage"),
+            new ApplicationEntry(0, "tag"), 0, "N/A", "", "", 0, 0, 0, 0, false, 120, 4, 4, [chart]);
+        var result = new OptionScanResult("input", ["ugc"], 1, [book], [], null, null);
+        var element = JsonSerializer.SerializeToElement(result, CliJsonSerializerContext.Default.OptionScanResult);
+        var embedded = element.GetProperty("books")[0].GetProperty("charts")[0].GetProperty("diagnostics")[0];
+        Assert.Equal(1920, embedded.GetProperty("time").GetInt32());
+        Assert.Equal(2, embedded.GetProperty("timePosition").GetProperty("bar").GetInt32());
+    }
+
+    [Fact]
+    public void CliResponse_OmitsTimePositionWhenCalculatorMissing()
+    {
+        var diagnostic = new TimedDiagnostic(Severity.Warning, Msg.Key("diag.test.timed"), 1920);
+        var json = CliOutput.Serialize(new CliResponse(
+            CliOutput.ResultType,
+            3,
+            "test",
+            true,
+            CliExitCodes.Success,
+            null,
+            null,
+            CliDiagnostics.ToPayload([diagnostic])));
+        using var document = JsonDocument.Parse(json);
+        var payload = document.RootElement.GetProperty("diagnostics")[0];
+        Assert.Equal(1920, payload.GetProperty("time").GetInt32());
+        Assert.False(payload.TryGetProperty("timePosition", out _));
     }
 
     [Fact]

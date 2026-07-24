@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using PenguinTools.Application;
 using PenguinTools.Core.Asset;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.CLI;
 
@@ -12,6 +13,7 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(MessageDescriptor))]
 [JsonSerializable(typeof(Dictionary<string, object?>))]
 [JsonSerializable(typeof(CliDiagnosticPayload[]))]
+[JsonSerializable(typeof(TickPosition))]
 [JsonSerializable(typeof(ChartInspectResult))]
 [JsonSerializable(typeof(ChartConvertResult))]
 [JsonSerializable(typeof(OptionScanConfig))]

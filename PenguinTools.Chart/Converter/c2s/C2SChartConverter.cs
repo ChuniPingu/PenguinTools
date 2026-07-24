@@ -25,19 +25,27 @@ public partial class C2SChartConverter
     public OperationResult<c2s.Chart> Convert()
     {
         Diagnostic.TimeCalculator = Mgxc.GetCalculator();
-        C2s.Meta = Mgxc.Meta;
+        try
+        {
+            C2s.Meta = Mgxc.Meta;
 
-        foreach (var note in Mgxc.Notes.Children) ConvertNote(note);
-        ResolvePairings();
-        ConvertEvent(Mgxc);
+            foreach (var note in Mgxc.Notes.Children) ConvertNote(note);
+            ResolvePairings();
+            ConvertEvent(Mgxc);
 
-        ValidateOverlappingAirParents();
-        ValidateLongNoteLengths();
-        ApplyBgmBarOffset();
+            ValidateOverlappingAirParents();
+            ValidateLongNoteLengths();
+            ApplyBgmBarOffset();
 
-        return ValidatePairings()
-            ? OperationResult<c2s.Chart>.Success(C2s).WithDiagnostics(Diagnostic)
-            : OperationResult<c2s.Chart>.Failure().WithDiagnostics(Diagnostic);
+            return ValidatePairings()
+                ? OperationResult<c2s.Chart>.Success(C2s).WithDiagnostics(Diagnostic)
+                : OperationResult<c2s.Chart>.Failure().WithDiagnostics(Diagnostic);
+        }
+        catch (DiagnosticException ex)
+        {
+            Diagnostic.Report(ex);
+            return OperationResult<c2s.Chart>.Failure().WithDiagnostics(Diagnostic);
+        }
     }
 
     private void ValidateOverlappingAirParents()

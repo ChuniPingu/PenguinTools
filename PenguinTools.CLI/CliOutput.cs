@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.CLI;
 
@@ -35,7 +36,8 @@ internal sealed record CliDiagnosticPayload(
     MessageDescriptor Message,
     string? Path = null,
     int? Line = null,
-    int? Time = null);
+    int? Time = null,
+    TickPosition? TimePosition = null);
 
 internal static class CliOutput
 {

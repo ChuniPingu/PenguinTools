@@ -38,8 +38,10 @@ public class UgcC2sEndToEndTests
             Assert.True(ugcConvert.Succeeded, $"UGC c2s convert failed for {name}: {ugcConvert}");
             Assert.True(mgxcConvert.Succeeded, $"MGXC c2s convert failed for {name}: {mgxcConvert}");
 
-            var ugcWrite = await new C2SChartWriter(new C2SWriteRequest(ugcOut, ugcConvert.Value!)).WriteAsync(ct);
-            var mgxcWrite = await new C2SChartWriter(new C2SWriteRequest(mgxcOut, mgxcConvert.Value!)).WriteAsync(ct);
+            var ugcWrite = await new C2SChartWriter(
+                new C2SWriteRequest(ugcOut, ugcConvert.Value!, ugcParse.Value!.GetCalculator())).WriteAsync(ct);
+            var mgxcWrite = await new C2SChartWriter(
+                new C2SWriteRequest(mgxcOut, mgxcConvert.Value!, mgxcParse.Value!.GetCalculator())).WriteAsync(ct);
 
             Assert.True(ugcWrite.Succeeded, $"UGC c2s write failed for {name}: {ugcWrite}");
             Assert.True(mgxcWrite.Succeeded, $"MGXC c2s write failed for {name}: {mgxcWrite}");

@@ -46,7 +46,8 @@ internal static class CliDiagnostics
             SanitizeMessage(diagnostic.Message),
             diagnostic.Path,
             diagnostic.Line,
-            diagnostic.Time);
+            diagnostic.Time,
+            DiagnosticTime.TryGetPosition(diagnostic));
     }
 
     internal static MessageDescriptor SanitizeMessage(MessageDescriptor message)

@@ -90,6 +90,8 @@ public partial class MgxcParser
         }
         catch (DiagnosticException ex)
         {
+            Diagnostic.TimeCalculator ??= Mgxc.GetCalculator();
+            Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
             return OperationResult<umgr.Chart>.Failure().WithDiagnostics(Diagnostic);
         }

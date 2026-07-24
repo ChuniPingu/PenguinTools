@@ -47,12 +47,7 @@ public class TimeCalculator : ITickFormatter
         return [.. timeSignatures];
     }
 
-    public string FormatTick(int tick)
-    {
-        return GetPositionFromTick(tick).ToString();
-    }
-
-    public Position GetPositionFromTick(int tick)
+    public TickPosition GetPosition(int tick)
     {
         var idx = FindTimeSignatureIndex(tick);
         var ts = _timeSignatures[idx];
@@ -66,7 +61,12 @@ public class TimeCalculator : ITickFormatter
         var beatIndex = (int)(remainder / beatTick);
         var tickOffset = (int)(remainder % beatTick);
 
-        return new Position(ts.Bar + barsSince + 1, beatIndex + 1, tickOffset);
+        return new TickPosition(ts.Bar + barsSince + 1, beatIndex + 1, tickOffset);
+    }
+
+    public string FormatTick(int tick)
+    {
+        return GetPosition(tick).ToString();
     }
 
     private int FindTimeSignatureIndex(int tick)
@@ -96,12 +96,4 @@ public class TimeCalculator : ITickFormatter
     }
 
     private readonly record struct TimeSignature(int Bar, int Tick, int Numerator, int Denominator);
-
-    public readonly record struct Position(int BarIndex, int BeatIndex, int TickOffset)
-    {
-        public override string ToString()
-        {
-            return $"{BarIndex}:{BeatIndex}.{TickOffset}";
-        }
-    }
 }
