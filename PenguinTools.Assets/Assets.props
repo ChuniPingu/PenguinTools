@@ -2,7 +2,7 @@
     <PropertyGroup>
         <PenguinToolsMuaRoot>$(MSBuildThisFileDirectory)..\External\mua</PenguinToolsMuaRoot>
         <PenguinToolsMuaPublishDir>$(PenguinToolsMuaRoot)\target\release\mua</PenguinToolsMuaPublishDir>
-        <PenguinToolsCriPublishDir>$(MSBuildThisFileDirectory)..\PenguinTools.CRI\bin\Release\net10.0\publish\WinX64-SelfContained-SingleFile</PenguinToolsCriPublishDir>
+        <PenguinToolsCriPublishDir>$(MSBuildThisFileDirectory)..\PenguinTools.CRI\bin\Release\net10.0\publish\WinX64-NativeAOT</PenguinToolsCriPublishDir>
     </PropertyGroup>
 
     <ItemGroup>

@@ -2,6 +2,10 @@ $ErrorActionPreference = 'Stop'
 
 $publishTargets = @(
     @{
+        Project   = 'PenguinTools.CRI/PenguinTools.CRI.csproj'
+        Profile   = 'WinX64-NativeAOT'
+    },
+    @{
         Project   = 'PenguinTools.CLI/PenguinTools.CLI.csproj'
         Profile   = 'WinX64-NativeAOT'
     },
