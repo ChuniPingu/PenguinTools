@@ -1,6 +1,7 @@
 using System.Text.Json;
 using PenguinTools.Application;
 using PenguinTools.Chart;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.CLI;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
@@ -38,13 +39,13 @@ public class CliOutputFormattingTests
     }
 
     [Fact]
-    public void JsonEnvelope_UsesSchemaVersionThree()
+    public void JsonEnvelope_UsesSchemaVersionFour()
     {
-        var response = new CliResponse(CliOutput.ResultType, 3, "info", true, 0, Msg.Key("cli.msg.done"), null, []);
+        var response = new CliResponse(CliOutput.ResultType, 4, "info", true, 0, Msg.Key("cli.msg.done"), null, []);
         var json = CliOutput.Serialize(response);
         using var document = JsonDocument.Parse(json);
         Assert.Equal("result", document.RootElement.GetProperty("type").GetString());
-        Assert.Equal(3, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(4, document.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("cli.msg.done", document.RootElement.GetProperty("message").GetProperty("key").GetString());
         Assert.DoesNotContain(Environment.NewLine, json);
     }
@@ -232,6 +233,35 @@ public class CliOutputFormattingTests
         var embedded = element.GetProperty("books")[0].GetProperty("charts")[0].GetProperty("diagnostics")[0];
         Assert.Equal(1920, embedded.GetProperty("time").GetInt32());
         Assert.Equal(2, embedded.GetProperty("timePosition").GetProperty("bar").GetInt32());
+    }
+
+    [Fact]
+    public void CliResponse_SerializesNotePairDiagnosticTarget()
+    {
+        var pair = new NotePairDiagnosticTarget(
+            new NoteDiagnosticTarget("Tap", 0, 0, 4, 2),
+            new NoteDiagnosticTarget("Tap", 0, 1, 2, 3));
+        var diagnostic = new TimedDiagnostic(Severity.Warning,
+            Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), 0)
+        {
+            Target = pair
+        };
+        var json = CliOutput.Serialize(new CliResponse(
+            CliOutput.ResultType,
+            4,
+            "test",
+            true,
+            CliExitCodes.Success,
+            null,
+            null,
+            CliDiagnostics.ToPayload([diagnostic])));
+        using var document = JsonDocument.Parse(json);
+        var target = document.RootElement.GetProperty("diagnostics")[0].GetProperty("target");
+        Assert.Equal("Tap", target.GetProperty("left").GetProperty("type").GetString());
+        Assert.Equal(4, target.GetProperty("left").GetProperty("width").GetInt32());
+        Assert.Equal(2, target.GetProperty("left").GetProperty("timeline").GetInt32());
+        Assert.Equal(1, target.GetProperty("right").GetProperty("lane").GetInt32());
+        Assert.Equal(3, target.GetProperty("right").GetProperty("timeline").GetInt32());
     }
 
     [Fact]

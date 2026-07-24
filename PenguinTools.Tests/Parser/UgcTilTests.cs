@@ -1,3 +1,4 @@
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Core;
@@ -119,8 +120,15 @@ public class UgcTilTests
             var r =
                 await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(r.Succeeded);
-            Assert.Contains(r.Diagnostics.Diagnostics,
+            var overlap = Assert.Single(r.Diagnostics.Diagnostics,
                 d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+            var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
+            Assert.Equal(0, pair.Left.Tick);
+            Assert.Equal(0, pair.Right.Tick);
+            Assert.Contains(new[] { pair.Left, pair.Right },
+                n => n is { Type: "Tap", Lane: 0, Width: 4, Timeline: 2 });
+            Assert.Contains(new[] { pair.Left, pair.Right },
+                n => n is { Type: "Tap", Lane: 1, Width: 2, Timeline: 3 });
         }
         finally
         {
@@ -191,8 +199,9 @@ public class UgcTilTests
             var r =
                 await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(r.Succeeded);
-            Assert.Contains(r.Diagnostics.Diagnostics,
+            var overlap = Assert.Single(r.Diagnostics.Diagnostics,
                 d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+            Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
         }
         finally
         {

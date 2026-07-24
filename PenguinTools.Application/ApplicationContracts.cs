@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
@@ -17,7 +18,8 @@ public sealed record ApplicationDiagnostic(
     string? Path = null,
     int? Line = null,
     int? Time = null,
-    TickPosition? TimePosition = null);
+    TickPosition? TimePosition = null,
+    JsonElement? Target = null);
 
 public enum ChartFormat
 {

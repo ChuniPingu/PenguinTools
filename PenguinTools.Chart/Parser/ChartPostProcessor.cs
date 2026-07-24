@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -268,7 +269,6 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void FindNoteViolations()
     {
-        var violations = new HashSet<umgr.Note>();
         var notes = chart.Notes.Children
             .Where(n => n is not umgr.SoflanArea and not umgr.SoflanAreaJoint)
             .GroupBy(n => n.Tick.Original)
@@ -281,17 +281,13 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             for (var j = i + 1; j < notesInGroup.Length; j++)
             {
                 if (!notesInGroup[i].IsViolate(notesInGroup[j])) continue;
-                violations.Add(notesInGroup[i]);
-                violations.Add(notesInGroup[j]);
+                diag.Report(new TimedDiagnostic(Severity.Warning,
+                    Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), notesInGroup[i].Tick.Original)
+                {
+                    Target = NotePairDiagnosticTarget.From(notesInGroup[i], notesInGroup[j])
+                });
             }
         }
-
-        foreach (var note in violations)
-            diag.Report(new TimedDiagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL),
-                note.Tick.Original)
-            {
-                Target = note
-            });
     }
 
     private void MetaEntryHandler(string name, string[] args, Action<Entry> setter, AssetType type)

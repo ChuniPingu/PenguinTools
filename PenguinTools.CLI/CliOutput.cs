@@ -37,13 +37,14 @@ internal sealed record CliDiagnosticPayload(
     string? Path = null,
     int? Line = null,
     int? Time = null,
-    TickPosition? TimePosition = null);
+    TickPosition? TimePosition = null,
+    JsonElement? Target = null);
 
 internal static class CliOutput
 {
     internal const string ProgressType = "progress";
     internal const string ResultType = "result";
-    private const int SchemaVersion = 3;
+    private const int SchemaVersion = 4;
 
     internal static void WriteProgress(string operation, ProgressReport report)
     {

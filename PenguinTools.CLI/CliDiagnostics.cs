@@ -1,3 +1,5 @@
+using System.Text.Json;
+using PenguinTools.Application;
 using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.CLI;
@@ -47,7 +49,8 @@ internal static class CliDiagnostics
             diagnostic.Path,
             diagnostic.Line,
             diagnostic.Time,
-            DiagnosticTime.TryGetPosition(diagnostic));
+            DiagnosticTime.TryGetPosition(diagnostic),
+            DiagnosticTargetSerializer.ToJsonElement(diagnostic.Target));
     }
 
     internal static MessageDescriptor SanitizeMessage(MessageDescriptor message)
