@@ -50,7 +50,7 @@ internal static class CliDiagnostics
             diagnostic.Line,
             diagnostic.Time,
             DiagnosticTime.TryGetPosition(diagnostic),
-            DiagnosticTargetSerializer.ToJsonElement(diagnostic.Target));
+            DiagnosticTargetSerializer.ToJsonElement(diagnostic.Target, diagnostic));
     }
 
     internal static MessageDescriptor SanitizeMessage(MessageDescriptor message)

@@ -238,13 +238,15 @@ public class CliOutputFormattingTests
     [Fact]
     public void CliResponse_SerializesNotePairDiagnosticTarget()
     {
+        var calculator = new TimeCalculator(1920, []);
         var pair = new NotePairDiagnosticTarget(
             new NoteDiagnosticTarget("Tap", 0, 0, 4, 2),
             new NoteDiagnosticTarget("Tap", 0, 1, 2, 3));
         var diagnostic = new TimedDiagnostic(Severity.Warning,
-            Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), 0)
+            Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), 1920)
         {
-            Target = pair
+            Target = pair,
+            TimeCalculator = calculator
         };
         var json = CliOutput.Serialize(new CliResponse(
             CliOutput.ResultType,
@@ -262,6 +264,9 @@ public class CliOutputFormattingTests
         Assert.Equal(2, target.GetProperty("left").GetProperty("timeline").GetInt32());
         Assert.Equal(1, target.GetProperty("right").GetProperty("lane").GetInt32());
         Assert.Equal(3, target.GetProperty("right").GetProperty("timeline").GetInt32());
+        Assert.Equal(2, target.GetProperty("timePosition").GetProperty("bar").GetInt32());
+        Assert.Equal(1, target.GetProperty("timePosition").GetProperty("beat").GetInt32());
+        Assert.Equal(0, target.GetProperty("timePosition").GetProperty("tickOffset").GetInt32());
     }
 
     [Fact]

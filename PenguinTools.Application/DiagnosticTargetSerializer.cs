@@ -1,18 +1,20 @@
 using System.Text.Json;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models.umgr;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Workflow;
 
 namespace PenguinTools.Application;
 
 public static class DiagnosticTargetSerializer
 {
-    public static JsonElement? ToJsonElement(object? target)
+    public static JsonElement? ToJsonElement(object? target, Diagnostic? diagnostic = null)
     {
         return target switch
         {
             null => null,
-            NotePairDiagnosticTarget pair => JsonSerializer.SerializeToElement(pair,
+            NotePairDiagnosticTarget pair => JsonSerializer.SerializeToElement(
+                EnrichPair(pair, diagnostic),
                 DiagnosticTargetJsonContext.Default.NotePairDiagnosticTarget),
             NoteDiagnosticTarget noteTarget => JsonSerializer.SerializeToElement(noteTarget,
                 DiagnosticTargetJsonContext.Default.NoteDiagnosticTarget),
@@ -26,5 +28,13 @@ public static class DiagnosticTargetSerializer
             _ => JsonSerializer.SerializeToElement(target.ToString() ?? string.Empty,
                 DiagnosticTargetJsonContext.Default.String)
         };
+    }
+
+    private static NotePairDiagnosticTarget EnrichPair(NotePairDiagnosticTarget pair, Diagnostic? diagnostic)
+    {
+        if (diagnostic?.TimeCalculator is not { } calculator || diagnostic.Time is not { } tick)
+            return pair;
+
+        return pair.WithTime(calculator, tick);
     }
 }

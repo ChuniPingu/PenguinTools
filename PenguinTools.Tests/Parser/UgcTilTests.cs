@@ -125,6 +125,7 @@ public class UgcTilTests
             var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
             Assert.Equal(0, pair.Left.Tick);
             Assert.Equal(0, pair.Right.Tick);
+            Assert.NotNull(pair.TimePosition);
             Assert.Contains(new[] { pair.Left, pair.Right },
                 n => n is { Type: "Tap", Lane: 0, Width: 4, Timeline: 2 });
             Assert.Contains(new[] { pair.Left, pair.Right },

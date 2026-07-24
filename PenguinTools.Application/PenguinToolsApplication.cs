@@ -734,7 +734,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             value.Line,
             value.Time,
             DiagnosticTime.TryGetPosition(value),
-            DiagnosticTargetSerializer.ToJsonElement(value.Target));
+            DiagnosticTargetSerializer.ToJsonElement(value.Target, value));
     }
 
     private static bool PathsEqual(string root, string chartPath, string? diagnosticPath)

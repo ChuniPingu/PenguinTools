@@ -284,7 +284,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 diag.Report(new TimedDiagnostic(Severity.Warning,
                     Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), notesInGroup[i].Tick.Original)
                 {
-                    Target = NotePairDiagnosticTarget.From(notesInGroup[i], notesInGroup[j])
+                    Target = NotePairDiagnosticTarget.From(notesInGroup[i], notesInGroup[j], diag.TimeCalculator)
                 });
             }
         }
