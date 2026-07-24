@@ -161,8 +161,12 @@ public class Note : TimeNode<Note>
     {
         if (ReferenceEquals(this, other) || Tick.Original != other.Tick.Original || Timeline == other.Timeline)
             return false;
-        return (Lane <= other.Lane && Lane + Width >= other.Lane + other.Width) ||
-               (other.Lane <= Lane && other.Lane + other.Width >= Lane + Width);
+
+        static bool Contains(Note outer, Note inner) =>
+            outer.Lane <= inner.Lane && outer.Lane + outer.Width >= inner.Lane + inner.Width;
+
+        return (Timeline != 0 && Contains(this, other)) ||
+               (other.Timeline != 0 && Contains(other, this));
     }
 
     public override void Sort()

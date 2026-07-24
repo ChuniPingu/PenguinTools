@@ -151,4 +151,52 @@ public class UgcTilTests
             File.Delete(tmp);
         }
     }
+
+    [Fact]
+    public async Task Til_MainTilContainingOther_DoesNotWarn()
+    {
+        // Main TIL never places SLA, so a wider main-TIL note cannot affect another TIL.
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t0\n#0'0:t04\n@USETIL\t2\n#0'0:t12\n";
+        var ct = TestContext.Current.CancellationToken;
+        var tmp = Path.GetTempFileName() + ".ugc";
+        await File.WriteAllTextAsync(tmp, Header + body, ct);
+        try
+        {
+            var r =
+                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(r.Succeeded);
+            Assert.DoesNotContain(r.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public async Task Til_OtherContainingMainTil_Warns()
+    {
+        // Non-main note's SLA fully contains a main-TIL note — that can affect conversion.
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t0\n#0'0:t12\n@USETIL\t2\n#0'0:t04\n";
+        var ct = TestContext.Current.CancellationToken;
+        var tmp = Path.GetTempFileName() + ".ugc";
+        await File.WriteAllTextAsync(tmp, Header + body, ct);
+        try
+        {
+            var r =
+                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(r.Succeeded);
+            Assert.Contains(r.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
 }
