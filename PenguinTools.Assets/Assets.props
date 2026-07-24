@@ -2,7 +2,8 @@
     <PropertyGroup>
         <PenguinToolsMuaRoot>$(MSBuildThisFileDirectory)..\External\mua</PenguinToolsMuaRoot>
         <PenguinToolsMuaPublishDir>$(PenguinToolsMuaRoot)\target\release\mua</PenguinToolsMuaPublishDir>
-        <PenguinToolsCriPublishDir>$(MSBuildThisFileDirectory)..\PenguinTools.CRI\bin\Release\net10.0\publish\WinX64-NativeAOT</PenguinToolsCriPublishDir>
+        <PenguinToolsCriPublishProfile Condition="'$(PenguinToolsCriPublishProfile)' == ''">WinX64-NativeAOT</PenguinToolsCriPublishProfile>
+        <PenguinToolsCriPublishDir>$(MSBuildThisFileDirectory)..\PenguinTools.CRI\bin\Release\net10.0\publish\$(PenguinToolsCriPublishProfile)</PenguinToolsCriPublishDir>
     </PropertyGroup>
 
     <ItemGroup>
