@@ -26,8 +26,40 @@ function Get-ProjectVersion {
     return $commonProps.Project.PropertyGroup.Version
 }
 
+function Get-PreviousReleaseTag {
+    param(
+        [Parameter(Mandatory = $true)][string]$CurrentTag,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+
+    $tags = @(git -C $RepoRoot tag --list 'v*' --sort=-version:refname)
+    $foundCurrent = $false
+    foreach ($candidate in $tags) {
+        if ($foundCurrent) {
+            return [string]$candidate
+        }
+
+        if ($candidate -eq $CurrentTag) {
+            $foundCurrent = $true
+        }
+    }
+
+    return $null
+}
+
 function Get-DefaultReleaseNotes {
-    return '**Full Changelog**: https://github.com/Foahh/PenguinTools/compare/v1.10.4...v1.11.0'
+    param(
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+
+    $previousTag = Get-PreviousReleaseTag -CurrentTag $Tag -RepoRoot $RepoRoot
+    if ($previousTag) {
+        return "**Full Changelog**: https://github.com/$Repository/compare/$previousTag...$Tag"
+    }
+
+    return "**Full Changelog**: https://github.com/$Repository/releases/tag/$Tag"
 }
 
 function Compress-PublishOutput {
@@ -45,19 +77,6 @@ function Compress-PublishOutput {
     }
 
     Compress-Archive -Path (Join-Path $Source '*') -DestinationPath $Destination
-}
-
-function Copy-ReleaseAsset {
-    param(
-        [Parameter(Mandatory = $true)][string]$Source,
-        [Parameter(Mandatory = $true)][string]$Destination
-    )
-
-    if (-not (Test-Path $Source -PathType Leaf)) {
-        throw "Publish asset '$Source' does not exist. Run release.ps1 without -SkipBuild first."
-    }
-
-    Copy-Item -Path $Source -Destination $Destination -Force
 }
 
 function Test-GitHubRelease {
@@ -133,11 +152,12 @@ if ($NotesFile -and $Notes) {
     throw 'Use either -Notes or -NotesFile, not both.'
 }
 
+$repoRoot = (Resolve-Path $PSScriptRoot).Path
+
 if (-not $NotesFile -and -not $Notes) {
-    $Notes = Get-DefaultReleaseNotes
+    $Notes = Get-DefaultReleaseNotes -Tag $Tag -Repository $Repository -RepoRoot $repoRoot
 }
 
-$repoRoot = (Resolve-Path $PSScriptRoot).Path
 Push-Location $repoRoot
 try {
     if (-not $AllowDirty) {
@@ -167,29 +187,20 @@ try {
 
     $assetDefinitions = @(
         @{
-            SourceFile = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-NativeAOT/PenguinTools.CLI.exe'
-            AssetName  = "PenguinTools.CLI.$Tag.exe"
+            Source    = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64'
+            AssetName = "PenguinTools.CLI.$Tag.zip"
         },
         @{
-            Source = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-SelfContained-SingleFile'
-            AssetName = "PenguinTools.CLI.$Tag.external-assets.zip"
+            Source    = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-NativeAOT'
+            AssetName = "PenguinTools.CLI.$Tag.AOT.zip"
         }
     )
 
     $assetPaths = foreach ($asset in $assetDefinitions) {
         $destination = Join-Path $artifactRoot $asset.AssetName
-
-        if ($asset.SourceFile) {
-            $source = Join-Path $repoRoot $asset.SourceFile
-            Write-Host "Copying $($asset.AssetName)..."
-            Copy-ReleaseAsset -Source $source -Destination $destination
-        }
-        else {
-            $source = Join-Path $repoRoot $asset.Source
-            Write-Host "Compressing $($asset.AssetName)..."
-            Compress-PublishOutput -Source $source -Destination $destination
-        }
-
+        $source = Join-Path $repoRoot $asset.Source
+        Write-Host "Compressing $($asset.AssetName)..."
+        Compress-PublishOutput -Source $source -Destination $destination
         $destination
     }
 
