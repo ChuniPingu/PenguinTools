@@ -7,7 +7,6 @@ namespace PenguinTools.Chart.Converter.ugc;
 using c2s = Models.c2s;
 using umgr = Models.umgr;
 
-/// <summary>Converts the legacy C2S interchange model into the current editor model.</summary>
 public sealed class UgcChartConverter
 {
     private readonly c2s.Chart _source;
