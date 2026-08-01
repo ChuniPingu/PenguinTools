@@ -207,6 +207,7 @@ public partial class C2SChartConverter
                 x.EndTick = next.Tick;
                 x.EndLane = next.Lane;
                 x.EndWidth = next.Width;
+                x.NoLine = curr.NoLine;
                 x.Effect = index == 0 ? slide.Effect : null;
             });
             // pair the last joint with air

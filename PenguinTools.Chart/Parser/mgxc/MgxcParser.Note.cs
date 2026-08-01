@@ -137,13 +137,22 @@ public partial class MgxcParser
         }
         else if (type == NoteType.Slide)
         {
+            var noLine = variationId == 0x7F;
+
             if (longAttr == LongAttr.Begin)
             {
-                note = new umgr.Slide();
+                note = new umgr.Slide
+                {
+                    NoLine = noLine
+                };
             }
             else
             {
-                var exNote = new umgr.SlideJoint();
+                var exNote = new umgr.SlideJoint
+                {
+                    NoLine = noLine
+                };
+
                 if (longAttr is LongAttr.Step or LongAttr.End)
                 {
                     exNote.Joint = Joint.D;
@@ -154,7 +163,10 @@ public partial class MgxcParser
                 }
                 else
                 {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.SlideJoint));
+                   MessageDescriptor msg = Msg.Create(
+                        MsgKeys.Mg_Invalid_joint_type_note,
+                        nameof(umgr.SlideJoint));
+
                     Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
                     {
                         Target = longAttr
