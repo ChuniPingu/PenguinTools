@@ -456,7 +456,12 @@ public sealed class C2SParser
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
-        // Column 8 is the legacy literal slide linkage marker (SLD), not an effect.
+        // SLD / NCL
+        if (tokens.Length > 8 &&
+            !string.IsNullOrWhiteSpace(tokens[8]) &&
+            tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase))
+            note.NoLine = true;
+
         if (TryReadEffect(tokens, 9, lineNumber, out var effect))
             note.Effect = effect;
 

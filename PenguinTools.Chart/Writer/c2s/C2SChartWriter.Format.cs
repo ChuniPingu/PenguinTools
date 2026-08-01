@@ -50,8 +50,9 @@ public partial class C2SChartWriter
                 error = null;
                 return true;
             case c2s.Slide slide:
+                var marker = slide.NoLine ? "NCL" : "SLD";
                 line =
-                    $"{FormatNote(slide)}\t{slide.Length.Scaled}\t{slide.EndLane}\t{slide.EndWidth}\tSLD{FormatEffect(slide.Effect)}";
+                    $"{FormatNote(slide)}\t{slide.Length.Scaled}\t{slide.EndLane}\t{slide.EndWidth}\t{marker}{FormatEffect(slide.Effect)}";
                 error = null;
                 return true;
             case c2s.Air { Parent: null }:

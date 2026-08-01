@@ -40,6 +40,12 @@ public class Sla : Note
 public class Slide : ExTapableLongNote
 {
     public Joint Joint { get; set; }
+
+    /// <summary>
+    /// Whether this slide segment should be written with the NCL marker.
+    /// </summary>
+    public bool NoLine { get; set; }
+
     public override string Id => $"S{Effect.GetMark()}{Joint}";
 }
 

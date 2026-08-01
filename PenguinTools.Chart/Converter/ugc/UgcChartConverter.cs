@@ -143,6 +143,7 @@ public sealed class UgcChartConverter
         {
             var open = _openSlides[matchIndex];
             open.LastJoint.Joint = IntermediateJoint(open.LastSegment);
+            open.LastJoint.NoLine = source.NoLine;
             var joint = CreateSlideJoint(source);
             open.Slide.AppendChild(joint);
             _positiveNotes[source] = joint;
@@ -150,7 +151,7 @@ public sealed class UgcChartConverter
             return;
         }
 
-        var slide = new umgr.Slide { Effect = source.Effect };
+        var slide = new umgr.Slide { Effect = source.Effect, NoLine = source.NoLine };
         Copy(source, slide);
         _target.Notes.AppendChild(slide);
         var firstJoint = CreateSlideJoint(source);

@@ -20,6 +20,11 @@ public class Slide : ExTapableNote
 {
     public override ExEffect? Effect { get; set; }
 
+    /// <summary>
+    /// Whether the segment starting at this slide point has no center line.
+    /// </summary>
+    public bool NoLine { get; set; }
+
     public SlideJoint AsChild()
     {
         var child = new SlideJoint
@@ -28,8 +33,10 @@ public class Slide : ExTapableNote
             Tick = Tick,
             Lane = Lane,
             Width = Width,
-            Joint = Joint.C
+            Joint = Joint.C,
+            NoLine = NoLine
         };
+
         child.MakeVirtual(this);
         return child;
     }
@@ -38,6 +45,11 @@ public class Slide : ExTapableNote
 public class SlideJoint : PositiveNote
 {
     public Joint Joint { get; set; } = Joint.D;
+
+    /// <summary>
+    /// Whether the segment starting at this joint has no center line.
+    /// </summary>
+    public bool NoLine { get; set; }
 }
 
 public class Hold : ExTapableNote
