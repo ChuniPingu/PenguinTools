@@ -18,7 +18,7 @@ An all-in-one toolbox for converting custom assets for **CHUNITHM** (charts, mus
 Clone with submodules:
 
 ```bash
-git clone --recurse-submodules https://github.com/Foahh/PenguinTools.git
+git clone --recurse-submodules https://github.com/ChuniPingu/PenguinTools.git
 cd PenguinTools
 ```
 

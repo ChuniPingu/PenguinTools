@@ -3,7 +3,7 @@ param(
     [string]$Title,
     [string]$Notes,
     [string]$NotesFile,
-    [string]$Repository = 'Foahh/PenguinTools',
+    [string]$Repository = 'ChuniPingu/PenguinTools',
     [switch]$Draft,
     [switch]$Prerelease,
     [switch]$SkipBuild,
