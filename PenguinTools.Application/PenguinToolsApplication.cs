@@ -7,7 +7,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.sus;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Chart.Writer.ugc;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -80,7 +80,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var sourceFormat = GetChartFormat(input);
             var targetFormat = GetChartFormat(output);
             var supported = sourceFormat == ChartFormat.C2s
-                ? targetFormat == ChartFormat.Ugc
+                ? targetFormat == ChartFormat.Mgxc
                 : sourceFormat is ChartFormat.Mgxc or ChartFormat.Ugc or ChartFormat.Sus &&
                   targetFormat == ChartFormat.C2s;
             if (!supported)
@@ -98,11 +98,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
                     Completed: 0,
                     Total: 1));
-                var convertedUgc = new UgcChartConverter(new UgcConvertRequest(c2s, request.Overrides?.DebugTil ?? false)).Convert();
-                if (!convertedUgc.Succeeded || convertedUgc.Value is null)
+                var convertedUmgr = new UgcChartConverter(new UgcConvertRequest(c2s, request.Overrides?.DebugTil ?? false)).Convert();
+                if (!convertedUmgr.Succeeded || convertedUmgr.Value is null)
                     return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
-                        parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics));
-                var writtenUgc = await new UgcChartWriter(new UgcWriteRequest(output, convertedUgc.Value))
+                        parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics));
+                var writtenReverse = await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value))
                     .WriteAsync(cancellationToken);
                 progress?.Report(new ProgressReport(
                     Item: Path.GetFileName(input),
@@ -110,9 +110,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     Completed: 1,
                     Total: 1));
                 var reverseValue = new ChartConvertResult(input, output, sourceFormat, targetFormat,
-                    CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart.ugc", output)]);
+                    CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart.mgxc", output)]);
                 return ApplicationDiagnostics.Merge(reverseValue,
-                    parsedC2s.Diagnostics.Merge(convertedUgc.Diagnostics), writtenUgc);
+                    parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics), writtenReverse);
             }
 
             var parsed = await ParseChartAsync(input, cancellationToken);

@@ -100,7 +100,7 @@ public class CliOutputFormattingTests
     [InlineData("chart inspect file.mgxc")]
     [InlineData("chart convert input.mgxc output.c2s")]
     [InlineData("chart convert input.mgxc output.c2s --no-progress")]
-    [InlineData("chart convert input.c2s output.ugc --debug-til")]
+    [InlineData("chart convert input.c2s output.mgxc --debug-til")]
     [InlineData("option scan input --no-progress")]
     [InlineData("option scan input")]
     [InlineData("option build input output --no-progress")]

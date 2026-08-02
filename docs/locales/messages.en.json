@@ -43,7 +43,7 @@
       "audio_format_not_supported": "Unsupported audio format. Only WAV (pcm_s16le at 48,000 Hz) is supported.",
       "background_file_is_not_set": "Background file is not set.",
       "background_file_not_found": "The specified background image was not found.",
-      "chart_conversion_unsupported": "Unsupported chart conversion '{0}'. Supported conversions are mgxc/ugc/sus → c2s and c2s → ugc.",
+      "chart_conversion_unsupported": "Unsupported chart conversion '{0}'. Supported conversions are mgxc/ugc/sus → c2s and c2s → mgxc.",
       "chart_discovery_array_incomplete": "Chart format list is incomplete.",
       "chart_discovery_must_be_array": "Chart formats must be provided as an array.",
       "chart_discovery_must_be_string_or_array": "chartFileDiscovery must be a list of chart formats.",

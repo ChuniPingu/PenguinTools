@@ -1,7 +1,7 @@
 using System.Xml.Linq;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Parser.c2s;
-using PenguinTools.Chart.Writer.ugc;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Media;
@@ -126,9 +126,9 @@ public sealed partial class PenguinToolsApplication
                     var converted = new UgcChartConverter(new UgcConvertRequest(chart, request.DebugTil)).Convert();
                     if (!converted.Succeeded || converted.Value is null)
                         return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(converted.Diagnostics);
-                    var filename = $"{songId}_{difficultyId}.ugc";
+                    var filename = $"{songId}_{difficultyId}.mgxc";
                     var staged = Path.Combine(stage, filename);
-                    await new UgcChartWriter(new UgcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);
+                    await new MgxcChartWriter(new MgxcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);
                     chartSummaries.Add(new MusicExtractChartSummary(songId, difficultyId,
                         chart.Meta.Difficulty.ToString(), chart.Meta.Level, chart.Meta.Designer, chart.Meta.MainBpm,
                         Path.Combine(songFolder, filename)));
@@ -147,7 +147,7 @@ public sealed partial class PenguinToolsApplication
                     File.Move(file, destination, true);
                     var kind = Path.GetExtension(file).ToLowerInvariant() switch
                     {
-                        ".ugc" => "chart.ugc", ".wav" => "audio.wav", ".png" => "jacket.png", _ => "music.file"
+                        ".mgxc" => "chart.mgxc", ".wav" => "audio.wav", ".png" => "jacket.png", _ => "music.file"
                     };
                     artifacts.Add(new ApplicationArtifact(kind, destination));
                 }

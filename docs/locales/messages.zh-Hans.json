@@ -43,7 +43,7 @@
       "audio_format_not_supported": "不支持的音频格式。仅支持 WAV（pcm_s16le，48000 Hz）。",
       "background_file_is_not_set": "未设置背景文件。",
       "background_file_not_found": "未找到指定的背景图片。",
-      "chart_conversion_unsupported": "不支持的谱面转换“{0}”。支持的转换为 mgxc/ugc/sus → c2s 以及 c2s → ugc。",
+      "chart_conversion_unsupported": "不支持的谱面转换“{0}”。支持的转换为 mgxc/ugc/sus → c2s 以及 c2s → mgxc。",
       "chart_discovery_array_incomplete": "谱面格式列表不完整。",
       "chart_discovery_must_be_array": "谱面格式必须以数组形式提供。",
       "chart_discovery_must_be_string_or_array": "chartFileDiscovery 必须是谱面格式列表。",

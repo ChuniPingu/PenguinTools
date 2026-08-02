@@ -1,8 +1,9 @@
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
-using PenguinTools.Chart.Writer.ugc;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
+using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core;
 using Xunit;
@@ -205,10 +206,8 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
-    public async Task UgcWriter_KeepsSharedTickSpeedPointsOnDistinctTimelines()
+    public void Converter_KeepsSharedTickSpeedPointsOnDistinctTimelines()
     {
-        // Freeze-style SLPs often share the same yank/hold (tick, speed) across timelines.
-        // Canonical must not drop later timelines' points when only tick+speed match.
         var source = new C2sChart();
         source.Events.Add(new Met { Tick = 0, Numerator = 4, Denominator = 4 });
         source.Events.Add(new Bpm { Tick = 0, Value = 160m });
@@ -224,21 +223,18 @@ public sealed class C2sReverseConversionTests
         source.Notes.Add(new Sla { Tick = 1680, Length = 480, Lane = 3, Width = 4, Timeline = 15 });
 
         var chart = new UgcChartConverter(new UgcConvertRequest(source)).Convert().Value!;
-        var path = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"), "shared-til.ugc");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await new UgcChartWriter(new UgcWriteRequest(path, chart)).WriteAsync(TestContext.Current.CancellationToken);
-        var text = await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken);
+        var scrolls = chart.Events.Children.OfType<PenguinTools.Chart.Models.umgr.ScrollSpeedEvent>().ToArray();
 
-        Assert.Contains("@TIL\t14\t0'0\t1000", text);
-        Assert.Contains("@TIL\t15\t0'0\t1000", text);
-        Assert.Matches(@"@TIL\t14\t[^\n]+\t0\r?\n", text);
-        Assert.Matches(@"@TIL\t15\t[^\n]+\t0\r?\n", text);
-        Assert.Matches(@"@TIL\t14\t[^\n]+\t24\r?\n", text);
-        Assert.Matches(@"@TIL\t15\t[^\n]+\t48\r?\n", text);
+        Assert.Contains(scrolls, x => x is { Timeline: 14, Tick.Original: 0, Speed: 1000m });
+        Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 0, Speed: 1000m });
+        Assert.Contains(scrolls, x => x is { Timeline: 14, Tick.Original: 480, Speed: 0m });
+        Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 480, Speed: 0m });
+        Assert.Contains(scrolls, x => x is { Timeline: 14, Tick.Original: 1439, Speed: 24m });
+        Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 1919, Speed: 48m });
     }
 
     [Fact]
-    public async Task UgcWriter_IsDeterministicUtf8AndEmitsTimelines()
+    public async Task MgxcWriter_IsDeterministicAndEmitsTimelines()
     {
         var source = new C2sChart { Meta = new Meta { Title = "Reverse", MainBpm = 120m } };
         source.Events.Add(new Met { Tick = 0, Numerator = 4, Denominator = 4 });
@@ -254,21 +250,32 @@ public sealed class C2sReverseConversionTests
         source.Notes.Add(new Sla { Tick = 0, Length = 10, Lane = 1, Width = 2, Timeline = 4 });
         var chart = new UgcChartConverter(new UgcConvertRequest(source)).Convert().Value!;
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
-        var first = Path.Combine(directory, "first.ugc");
-        var second = Path.Combine(directory, "second.ugc");
+        Directory.CreateDirectory(directory);
+        var first = Path.Combine(directory, "first.mgxc");
+        var second = Path.Combine(directory, "second.mgxc");
         var ct = TestContext.Current.CancellationToken;
-        await new UgcChartWriter(new UgcWriteRequest(first, chart)).WriteAsync(ct);
-        await new UgcChartWriter(new UgcWriteRequest(second, chart)).WriteAsync(ct);
+        try
+        {
+            await new MgxcChartWriter(new MgxcWriteRequest(first, chart)).WriteAsync(ct);
+            await new MgxcChartWriter(new MgxcWriteRequest(second, chart)).WriteAsync(ct);
 
-        Assert.Equal(await File.ReadAllBytesAsync(first, ct), await File.ReadAllBytesAsync(second, ct));
-        var text = await File.ReadAllTextAsync(first, ct);
-        Assert.Contains("@VER\t8", text);
-        Assert.Contains("@FLAG\tHIPRECISION\tTRUE", text);
-        Assert.Contains("@TIL\t4\t0'0\t2", text);
-        Assert.Contains("@USETIL\t4", text);
-        Assert.Contains("28", text);
-        Assert.Contains(":f12A", text);
-        Assert.Contains(">c", text);
+            Assert.Equal(await File.ReadAllBytesAsync(first, ct), await File.ReadAllBytesAsync(second, ct));
+
+            var parsed = await new MgxcParser(new MgxcParseRequest(first, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Contains(parsed.Value!.Events.Children.OfType<PenguinTools.Chart.Models.umgr.ScrollSpeedEvent>(),
+                x => x is { Timeline: 4, Tick.Original: 0, Speed: 2m });
+            Assert.Contains(parsed.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Flick>(),
+                x => x is { Lane: 1, Width: 2 });
+            Assert.Contains(parsed.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirCrash>(),
+                x => x.Children.Count > 0);
+            Assert.Contains(parsed.Value.Notes.Children, n => n.Timeline == 4);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     [Fact]
@@ -331,14 +338,6 @@ public sealed class C2sReverseConversionTests
         Assert.Equal(2, airHolds[0].Children.Count);
         Assert.Equal(Joint.D, airHolds[0].Children.OfType<PenguinTools.Chart.Models.umgr.AirHoldJoint>().Last().Joint);
         Assert.Equal(Joint.C, airHolds[1].Children.OfType<PenguinTools.Chart.Models.umgr.AirHoldJoint>().Single().Joint);
-
-        var outPath = Path.Combine(directory, "ahd.ugc");
-        await new UgcChartWriter(new UgcWriteRequest(outPath, ugc.Value)).WriteAsync(TestContext.Current.CancellationToken);
-        var text = await File.ReadAllTextAsync(outPath, TestContext.Current.CancellationToken);
-        Assert.Contains(":H", text);
-        Assert.DoesNotContain(":S", text);
-        Assert.Contains(">s", text);
-        Assert.Contains(">c", text);
     }
 
     [Fact]
@@ -379,17 +378,10 @@ public sealed class C2sReverseConversionTests
         Assert.Equal(Joint.D, chained[0].Joint);
         Assert.Equal(Joint.C, chained[1].Joint);
         Assert.Equal(Joint.C, airSlides[1].Children.OfType<PenguinTools.Chart.Models.umgr.AirSlideJoint>().Single().Joint);
-
-        var outPath = Path.Combine(directory, "asc.ugc");
-        await new UgcChartWriter(new UgcWriteRequest(outPath, ugc.Value)).WriteAsync(TestContext.Current.CancellationToken);
-        var text = await File.ReadAllTextAsync(outPath, TestContext.Current.CancellationToken);
-        Assert.Contains(":S", text);
-        Assert.Contains(">c", text);
-        Assert.Contains(">s", text);
     }
 
     [Fact]
-    public async Task ZeroNumeratorMet_IsSkippedAndUgcStillWrites()
+    public async Task ZeroNumeratorMet_IsSkippedAndMgxcStillWrites()
     {
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         var path = Path.Combine(directory, "zero-met.c2s");
@@ -416,13 +408,57 @@ public sealed class C2sReverseConversionTests
         Assert.DoesNotContain(converted.Value!.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BeatEvent>(),
             beat => beat.Numerator <= 0 || beat.Denominator <= 0);
 
-        var outPath = Path.Combine(directory, "zero-met.ugc");
-        await new UgcChartWriter(new UgcWriteRequest(outPath, converted.Value))
+        var outPath = Path.Combine(directory, "zero-met.mgxc");
+        var written = await new MgxcChartWriter(new MgxcWriteRequest(outPath, converted.Value))
             .WriteAsync(TestContext.Current.CancellationToken);
-        var text = await File.ReadAllTextAsync(outPath, TestContext.Current.CancellationToken);
-        Assert.Contains("@BEAT\t0\t4\t4", text);
-        Assert.DoesNotContain(text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries),
-            line => line.StartsWith("@BEAT\t", StringComparison.Ordinal) && line.EndsWith("\t0", StringComparison.Ordinal));
-        Assert.Contains("@TIL\t0\t", text);
+        Assert.True(written.Succeeded, written.ToString());
+
+        var reparsed = await new MgxcParser(new MgxcParseRequest(outPath, TestAssets.Load()), TestMediaTool.Instance)
+            .ParseAsync(TestContext.Current.CancellationToken);
+        Assert.True(reparsed.Succeeded, reparsed.ToString());
+        Assert.Contains(reparsed.Value!.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BeatEvent>(),
+            beat => beat is { Bar: 0, Numerator: 4, Denominator: 4 });
+        Assert.DoesNotContain(reparsed.Value.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BeatEvent>(),
+            beat => beat.Denominator == 0);
+        Assert.Contains(reparsed.Value.Events.Children.OfType<PenguinTools.Chart.Models.umgr.ScrollSpeedEvent>(),
+            til => til.Timeline == 0);
+    }
+
+    [Fact]
+    public async Task MgxcWriter_PreservesNegativeLanes()
+    {
+        var source = new C2sChart();
+        source.Notes.Add(new Tap { Tick = 0, Lane = -2, Width = 4 });
+        source.Notes.Add(new Tap { Tick = 480, Lane = 0, Width = 2 });
+        source.Notes.Add(new Tap { Tick = 960, Lane = 16, Width = 3 });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "negative-lanes.mgxc");
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var taps = parsed.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Tap>()
+                .OrderBy(n => n.Tick.Original).ToArray();
+            Assert.Equal(3, taps.Length);
+            Assert.Equal(-2, taps[0].Lane);
+            Assert.Equal(4, taps[0].Width);
+            Assert.Equal(0, taps[1].Lane);
+            Assert.Equal(16, taps[2].Lane);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 }

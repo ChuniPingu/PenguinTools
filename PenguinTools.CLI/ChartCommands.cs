@@ -29,7 +29,7 @@ internal static class ChartCommands
     private static Command BuildConvertCommand()
     {
         var input = InputArgument();
-        var output = new Argument<string>("output") { Description = "Path to the output .c2s or .ugc file." };
+        var output = new Argument<string>("output") { Description = "Path to the output .c2s or .mgxc file." };
         var songId = new Option<int?>("--song-id") { Description = "Override the chart song ID." };
         var designer = new Option<string?>("--designer") { Description = "Override the chart designer." };
         var difficulty = new Option<int?>("--difficulty-id") { Description = "Override the difficulty ID (0-5)." };
@@ -45,9 +45,9 @@ internal static class ChartCommands
         var debugTil = new Option<bool>("--debug-til")
         {
             Description =
-                "C2S→UGC: emit transparent height-0 AirCrush markers (TIL 0) for each original SLA region."
+                "C2S→MGXC: emit transparent height-0 AirCrush markers (TIL 0) for each original SLA region."
         };
-        var command = new Command("convert", "Convert MGXC/UGC/SUS to C2S, or C2S to UGC v8.");
+        var command = new Command("convert", "Convert MGXC/UGC/SUS to C2S, or C2S to MGXC.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
         command.Options.Add(songId);
