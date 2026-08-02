@@ -85,6 +85,7 @@ public class AirCrash : LongHeightNote
 {
     public Time Density { get; set; }
     public Color Color { get; set; } = Color.DEF;
+    public AirLadderAttr Attr { get; set; } = AirLadderAttr.DEF;
 
     public override string Id => "ALD";
 }

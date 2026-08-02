@@ -137,6 +137,7 @@ public class SoflanAreaJoint : Note
 public class AirSlide : NegativeNote
 {
     public Color Color { get; set; }
+    public AirDirection Direction { get; set; } = AirDirection.IR;
     public decimal Height { get; set; }
 
     public override int Lane
@@ -191,6 +192,7 @@ public class AirSlideJoint : Note
 public class AirHold : NegativeNote
 {
     public Color Color { get; set; }
+    public AirDirection Direction { get; set; } = AirDirection.IR;
 
     public override int Lane
     {
@@ -260,6 +262,7 @@ public class AirCrash : Note
     public decimal Height { get; set; }
     public Color Color { get; set; }
     public Time Density { get; set; }
+    public AirLadderAttr Attr { get; set; } = AirLadderAttr.DEF;
 
     public AirCrashJoint AsChild()
     {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core;
@@ -77,7 +78,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteIntField(bw, "diff", DifficultyValue(m.Difficulty));
         WriteStringField(bw, "plvl", m.Difficulty == Difficulty.WorldsEnd
             ? WeLevel(m.WeDifficulty)
-            : "");
+            : FormatPlayLevel(m.Level));
         WriteStringField(bw, "weat", m.WeTag?.Str ?? "");
         WriteDoubleField(bw, "cnst", m.Difficulty == Difficulty.WorldsEnd ? 0 : (double)m.Level);
         WriteStringField(bw, "sgid", string.IsNullOrWhiteSpace(m.MgxcId)
@@ -209,10 +210,12 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                     }
                     break;
                 case umgr.Air air:
+                    if (HasAirActionAt(air)) break;
                     WriteNote(bw, NoteType.Air, LongAttr.None, AirDir(air.Direction), AirEx(air.Color), 0,
                         air.Lane, air.Width, DefaultHeight, air.Tick.Original, air.Timeline);
                     break;
                 case umgr.AirHold airHold:
+                    WriteAirBase(bw, airHold.Direction, airHold.Color, airHold);
                     WriteNote(bw, NoteType.AirHold, LongAttr.Begin, Direction.None, ExAttr.None, 0,
                         airHold.Lane, airHold.Width, DefaultHeight, airHold.Tick.Original, airHold.Timeline);
                     var airHoldJoints = airHold.Children.OfType<umgr.AirHoldJoint>().ToArray();
@@ -225,6 +228,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                     }
                     break;
                 case umgr.AirSlide airSlide:
+                    WriteAirBase(bw, airSlide.Direction, airSlide.Color, airSlide);
                     WriteNote(bw, NoteType.AirSlide, LongAttr.Begin, Direction.None, ExAttr.None, 0,
                         airSlide.Lane, airSlide.Width, Height(airSlide.Height), airSlide.Tick.Original,
                         airSlide.Timeline);
@@ -257,6 +261,15 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteNote(bw, NoteType.ExTap, LongAttr.None, EffectDirection(effect), ExAttr.None, 0,
             note.Lane, note.Width, DefaultHeight, note.Tick.Original, note.Timeline);
     }
+
+    private void WriteAirBase(BinaryWriter bw, AirDirection direction, Color color, umgr.NegativeNote action)
+    {
+        WriteNote(bw, NoteType.Air, LongAttr.None, AirDir(direction), AirEx(color), 0,
+            action.Lane, action.Width, DefaultHeight, action.Tick.Original, action.Timeline);
+    }
+
+    private static bool HasAirActionAt(umgr.Air air) =>
+        air.PairNote?.PairNote is umgr.AirHold or umgr.AirSlide;
 
     private bool HasEffectCarrier(umgr.Note note) =>
         _chart.Notes.Children.OfType<umgr.ExTap>().Any(x =>
@@ -363,6 +376,13 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         StarDifficulty.S5 => "5",
         _ => ""
     };
+
+    internal static string FormatPlayLevel(decimal level)
+    {
+        if (level <= 0) return "";
+        var whole = (int)decimal.Truncate(level);
+        return level - whole >= 0.5m ? $"{whole}+" : whole.ToString(CultureInfo.InvariantCulture);
+    }
 
     private static void WriteStringField(BinaryWriter bw, string name, string value)
     {

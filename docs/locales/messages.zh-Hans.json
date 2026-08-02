@@ -30,10 +30,10 @@
     "c2s": {
       "invalid_field": "无效或缺少 C2S {0}。",
       "missing_field": "缺少 C2S {0}。",
-      "note_type_not_represented": "不支持 C2S 音符类型“{0}”。",
       "parent_not_resolved": "无法为音符“{1}”解析 C2S 父级“{0}”。",
       "resolution_must_be_positive": "C2S 分辨率必须大于零。",
       "unknown_air_color": "未知的 C2S AIR 颜色“{0}”。",
+      "unknown_air_ladder_attr": "未知的 C2S ALD 属性“{0}”。",
       "unknown_ex_effect": "未知的 C2S EX 效果“{0}”。",
       "unsupported_version": "不支持的 C2S 版本“{0}”。",
       "version_line_not_found": "未找到 C2S VERSION 行。"

@@ -68,7 +68,6 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             .ToDictionary(g => g.Key, g => g.ToArray());
 
         var exEffects = new Dictionary<Time, HashSet<ExEffect>>();
-        var tbRemoved = new HashSet<umgr.ExTap>();
 
         foreach (var exTap in chart.Notes.Children.OfType<umgr.ExTap>())
         {
@@ -88,13 +87,8 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 if (!covering) continue;
 
                 note.Effect = exTap.Effect;
-
-                var overlapping = exTap.Lane == note.Lane && exTap.Width == note.Width;
-                if (overlapping && exTap.Children.Count <= 0 && exTap.PairNote == null) tbRemoved.Add(exTap);
             }
         }
-
-        foreach (var exTap in tbRemoved) chart.Notes.RemoveChild(exTap);
 
         chart.Notes.Sort();
 

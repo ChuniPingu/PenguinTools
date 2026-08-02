@@ -121,6 +121,8 @@ public partial class UgcParser
 
             if (_lastNote is umgr.Air oldAir && oldAir.Tick.Original == absTick)
             {
+                airHold.Direction = oldAir.Direction;
+                airHold.Color = oldAir.Color;
                 oldAir.Parent?.RemoveChild(oldAir);
                 _lastNote = oldAir.PairNote;
             }
@@ -159,6 +161,8 @@ public partial class UgcParser
 
             if (_lastNote is umgr.Air oldAir && oldAir.Tick.Original == absTick)
             {
+                airSlide.Direction = oldAir.Direction;
+                airSlide.Color = oldAir.Color;
                 oldAir.Parent?.RemoveChild(oldAir);
                 _lastNote = oldAir.PairNote;
             }

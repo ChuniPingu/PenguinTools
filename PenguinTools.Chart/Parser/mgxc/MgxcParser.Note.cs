@@ -208,6 +208,7 @@ public partial class MgxcParser
                         _lastNote.Parent?.RemoveChild(_lastNote);
                         _lastNote = oldLastNote.PairNote;
                         hold.Color = oldLastNote.Color;
+                        hold.Direction = oldLastNote.Direction;
                     }
 
                     exNote = hold;
@@ -220,6 +221,7 @@ public partial class MgxcParser
                         _lastNote.Parent?.RemoveChild(_lastNote);
                         _lastNote = oldLastNote.PairNote;
                         slide.Color = oldLastNote.Color;
+                        slide.Direction = oldLastNote.Direction;
                     }
 
                     exNote = slide;

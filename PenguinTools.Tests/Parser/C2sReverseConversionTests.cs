@@ -1,6 +1,8 @@
+using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
+using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
@@ -455,6 +457,567 @@ public sealed class C2sReverseConversionTests
             Assert.Equal(4, taps[0].Width);
             Assert.Equal(0, taps[1].Lane);
             Assert.Equal(16, taps[2].Lane);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Parser_AcceptsVersion114_WithNegativeLanes()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "v114.c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+            VERSION	1.14.00	1.14.00
+            MUSIC	0
+            SEQUENCEID	0
+            DIFFICULT	03
+            LEVEL	15.0
+            CREATOR	test
+            BPM_DEF	120.000	120.000	120.000	120.000
+            MET_DEF	4	4
+            RESOLUTION	384
+            CLK_DEF	384
+            PROGJUDGE_BPM	240.000
+            PROGJUDGE_AER	0.999
+            TUTORIAL	0
+
+            MET	0	0	4	4
+            BPM	0	0	120.000
+
+            TAP	0	0	-2	4
+            """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.C2s_Unsupported_version);
+            Assert.Contains(parsed.Value!.Notes.OfType<Tap>(), tap => tap is { Lane: -2, Width: 4 });
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Parser_AcceptsVersion115()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "v115.c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+            VERSION	1.15.00	1.15.00
+            MUSIC	0
+            SEQUENCEID	0
+            DIFFICULT	03
+            LEVEL	15.0
+            CREATOR	test
+            BPM_DEF	120.000	120.000	120.000	120.000
+            MET_DEF	4	4
+            RESOLUTION	384
+            CLK_DEF	384
+            PROGJUDGE_BPM	240.000
+            PROGJUDGE_AER	0.999
+            TUTORIAL	0
+
+            MET	0	0	4	4
+            BPM	0	0	120.000
+
+            TAP	0	0	0	4
+            """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.C2s_Unsupported_version);
+            Assert.Contains(parsed.Value!.Notes.OfType<Tap>(), tap => tap is { Lane: 0, Width: 4 });
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Parser_LegacySevenTokenSlide_DefaultsEndWidthToStartWidth()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "legacy-slide.c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+            VERSION	1.01.00	1.01.00
+            MUSIC	0
+            SEQUENCEID	0
+            DIFFICULT	00
+            LEVEL	0.0
+            CREATOR	test
+            BPM_DEF	165.000	165.000	165.000	165.000
+            MET_DEF	4	4
+            RESOLUTION	384
+            CLK_DEF	384
+            PROGJUDGE_BPM	240.000
+            PROGJUDGE_AER	0.999
+            TUTORIAL	0
+
+            BPM	0	0	165.000
+            MET	0	0	4	4
+
+            SLD	19	0	0	8	384	8
+            AIR	19	384	8	8	SLD
+            """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.DoesNotContain(parsed.Diagnostics.Diagnostics,
+                d => d.Message.Key is MsgKeys.C2s_Invalid_field or MsgKeys.C2s_Parent_not_resolved);
+
+            var slide = Assert.Single(parsed.Value!.Notes.OfType<Slide>());
+            Assert.Equal(0, slide.Lane);
+            Assert.Equal(8, slide.Width);
+            Assert.Equal(8, slide.EndLane);
+            Assert.Equal(8, slide.EndWidth);
+            Assert.Equal(1920, slide.EndTick.Original - slide.Tick.Original); // length 384 @ RES 384 → 1920 umgr ticks
+
+            Assert.Single(parsed.Value.Notes.OfType<Air>());
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Parser_UnknownVersion_WarnsAndContinues()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "unknown-ver.c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+            VERSION	9.99.00	9.99.00
+            MUSIC	0
+            SEQUENCEID	0
+            DIFFICULT	03
+            LEVEL	15.0
+            CREATOR	test
+            BPM_DEF	120.000	120.000	120.000	120.000
+            MET_DEF	4	4
+            RESOLUTION	384
+            CLK_DEF	384
+            PROGJUDGE_BPM	240.000
+            PROGJUDGE_AER	0.999
+            TUTORIAL	0
+
+            MET	0	0	4	4
+            BPM	0	0	120.000
+
+            TAP	0	0	0	4
+            """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Contains(parsed.Diagnostics.Diagnostics,
+                d => d is { Severity: PenguinTools.Core.Diagnostic.Severity.Warning, Message.Key: MsgKeys.C2s_Unsupported_version });
+            Assert.Contains(parsed.Value!.Notes.OfType<Tap>(), tap => tap is { Lane: 0, Width: 4 });
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, "")]
+    [InlineData(13.0, "13")]
+    [InlineData(15.4, "15")]
+    [InlineData(15.5, "15+")]
+    [InlineData(15.6, "15+")]
+    [InlineData(8.5, "8+")]
+    [InlineData(16.0, "16")]
+    public void FormatPlayLevel_MatchesMagreteConvention(decimal level, string expected)
+    {
+        Assert.Equal(expected, MgxcChartWriter.FormatPlayLevel(level));
+    }
+
+    [Fact]
+    public async Task MgxcWriter_WritesPlayLevelAndConstant()
+    {
+        var source = new C2sChart();
+        source.Meta.Id = 2999;
+        source.Meta.Title = "Melodiniq";
+        source.Meta.Difficulty = Difficulty.Ultima;
+        source.Meta.Level = 16.0m;
+        source.Meta.Designer = "test";
+        source.Meta.MainBpm = 193m;
+        source.Notes.Add(new Tap { Tick = 0, Lane = 0, Width = 4 });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "plvl.mgxc");
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var bytes = await File.ReadAllBytesAsync(path, TestContext.Current.CancellationToken);
+            var ascii = System.Text.Encoding.ASCII.GetString(bytes);
+            Assert.Contains("plvl", ascii);
+            Assert.Contains("cnst", ascii);
+            // Play level "16" is written as a UTF-8 string field after plvl.
+            var plvlIndex = ascii.IndexOf("plvl", StringComparison.Ordinal);
+            Assert.True(plvlIndex >= 0);
+            var plvlSlice = System.Text.Encoding.UTF8.GetString(bytes, plvlIndex, Math.Min(32, bytes.Length - plvlIndex));
+            Assert.Contains("16", plvlSlice);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_WritesHeaderFromMeta()
+    {
+        var source = new C2sChart();
+        source.Meta.Id = 2999;
+        source.Meta.Difficulty = Difficulty.Master;
+        source.Meta.Level = 15.6m;
+        source.Meta.Designer = "Memoir";
+        source.Meta.MainBpm = 193m;
+        source.Meta.BgmInitialDenominator = 4;
+        source.Meta.BgmInitialNumerator = 4;
+        source.Events.Add(new Bpm { Tick = 0, Value = 193m });
+        source.Events.Add(new Bpm { Tick = 480, Value = 240m });
+        source.Events.Add(new Bpm { Tick = 960, Value = 120.625m });
+        source.Notes.Add(new Tap { Tick = 0, Lane = 0, Width = 4 });
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "header.c2s");
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var header = (await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken))
+                .Take(12).ToArray();
+            Assert.Equal("VERSION\t1.14.00\t1.14.00", header[0]);
+            Assert.Equal("MUSIC\t2999", header[1]);
+            Assert.Equal("DIFFICULT\t03", header[3]);
+            Assert.Equal("LEVEL\t15.6", header[4]);
+            Assert.Equal("CREATOR\tMemoir", header[5]);
+            Assert.Equal("BPM_DEF\t193.000\t193.000\t240.000\t120.625", header[6]);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_EmitsAirBeforeAirHold()
+    {
+        var source = new C2sChart();
+        source.Meta.MainBpm = 120m;
+        var hold = new Hold { Tick = 0, Lane = 2, Width = 2, EndTick = 480 };
+        source.Notes.Add(hold);
+        source.Notes.Add(new AirHold
+        {
+            Tick = 0, Lane = 2, Width = 2, EndTick = 480, EndLane = 2, EndWidth = 2,
+            Parent = hold, Color = Color.DEF, Joint = Joint.D
+        });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "air-hold.mgxc");
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            await using var stream = File.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+            Assert.Equal("MGXC", System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4)));
+            reader.ReadInt32();
+            reader.ReadInt32();
+
+            sbyte? previousType = null;
+            var sawAirBeforeHold = false;
+            while (stream.Position + 8 <= stream.Length)
+            {
+                var block = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));
+                var size = reader.ReadInt32();
+                var end = stream.Position + size;
+                if (block == "dat2")
+                {
+                    while (stream.Position + 24 <= end)
+                    {
+                        var type = reader.ReadSByte();
+                        var longAttr = reader.ReadSByte();
+                        reader.ReadSByte();
+                        reader.ReadSByte();
+                        reader.ReadSByte();
+                        reader.ReadSByte();
+                        reader.ReadInt16();
+                        reader.ReadInt32();
+                        reader.ReadInt32();
+                        reader.ReadInt32();
+                        if (type == 0x0A && longAttr == 0x01) reader.ReadInt32();
+                        if (type == 0x08 && longAttr == 0x01 && previousType == 0x07)
+                            sawAirBeforeHold = true;
+                        previousType = type;
+                    }
+                }
+                else
+                {
+                    stream.Position = end;
+                }
+            }
+
+            Assert.True(sawAirBeforeHold);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Parser_ReadsAirLadderAttr_AndWriterRoundTrips()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "ald-attr.c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+                VERSION	1.15.00	1.15.00
+                MUSIC	0
+                SEQUENCEID	0
+                DIFFICULT	03
+                LEVEL	15.0
+                CREATOR	test
+                BPM_DEF	120.000	120.000	120.000	120.000
+                MET_DEF	4	4
+                RESOLUTION	384
+                CLK_DEF	384
+                PROGJUDGE_BPM	240.000
+                PROGJUDGE_AER	0.999
+                TUTORIAL	0
+
+                MET	0	0	4	4
+                BPM	0	0	120.000
+
+                ALD	0	0	0	4	0	1.0	96	0	4	1.0	DEF	DEF
+                ALD	1	0	2	2	38400	5.0	48	3	2	5.0	NON	AxisY
+                ALD	2	0	4	4	1	2.0	24	5	4	3.0	RED	Trace
+                ALD	3	0	6	2	0	1.0	12	7	2	1.0	CYN	AxisZ
+                """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var crashes = parsed.Value!.Notes.OfType<AirCrash>().OrderBy(x => x.Tick.Original).ToArray();
+            Assert.Equal(4, crashes.Length);
+            Assert.Equal(AirLadderAttr.DEF, crashes[0].Attr);
+            Assert.Equal(AirLadderAttr.AxisY, crashes[1].Attr);
+            Assert.Equal(Color.NON, crashes[1].Color);
+            Assert.Equal(AirLadderAttr.Trace, crashes[2].Attr);
+            Assert.Equal(AirLadderAttr.AxisZ, crashes[3].Attr);
+
+            var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            Assert.Contains(converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirCrash>(),
+                x => x is { Attr: AirLadderAttr.AxisY, Color: Color.NON });
+            Assert.Contains(converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirCrash>(),
+                x => x.Attr == AirLadderAttr.Trace);
+
+            var roundtripPath = Path.Combine(directory, "ald-attr-out.c2s");
+            var back = new C2SChartConverter(new C2SConvertRequest(converted.Value)).Convert();
+            Assert.True(back.Succeeded, back.ToString());
+            var written = await new C2SChartWriter(new C2SWriteRequest(roundtripPath, back.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(roundtripPath, TestContext.Current.CancellationToken);
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", lines[0]);
+            // Global 1.15: every ALD line carries ATTR, including DEF.
+            Assert.Contains(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal) && line.EndsWith("\tDEF\tDEF", StringComparison.Ordinal));
+            Assert.Contains(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal) && line.EndsWith("\tNON\tAxisY", StringComparison.Ordinal));
+            Assert.Contains(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal) && line.EndsWith("\tRED\tTrace", StringComparison.Ordinal));
+            Assert.Contains(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal) && line.EndsWith("\tCYN\tAxisZ", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Writer_KeepsV114_WhenAldAttrIsDefault()
+    {
+        var source = new C2sChart { Meta = new Meta { MainBpm = 120m } };
+        source.Events.Add(new Bpm { Tick = 0, Value = 120m });
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 0, Lane = 0, Width = 4, EndTick = 480, EndLane = 0, EndWidth = 4,
+            Height = 0m, EndHeight = 0m, Density = 0, Color = Color.CYN, Attr = AirLadderAttr.DEF
+        });
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "ald-v114.c2s");
+        try
+        {
+            Assert.False(C2SChartWriter.NeedsV115(source));
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken);
+            Assert.Equal("VERSION\t1.14.00\t1.14.00", lines[0]);
+            var ald = Assert.Single(lines, l => l.StartsWith("ALD\t", StringComparison.Ordinal));
+            Assert.EndsWith("\tCYN", ald);
+            Assert.DoesNotContain("AxisY", ald);
+            Assert.False(ald.EndsWith("\tDEF", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Writer_SwitchesToV115_ForNoLineSlide()
+    {
+        var source = new C2sChart { Meta = new Meta { MainBpm = 120m } };
+        source.Events.Add(new Bpm { Tick = 0, Value = 120m });
+        source.Notes.Add(new Slide
+        {
+            Tick = 0, Lane = 0, Width = 4, EndTick = 480, EndLane = 2, EndWidth = 4,
+            Joint = Joint.D, NoLine = true
+        });
+        source.Notes.Add(new Slide
+        {
+            Tick = 480, Lane = 2, Width = 4, EndTick = 960, EndLane = 4, EndWidth = 4,
+            Joint = Joint.D, NoLine = false
+        });
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 0, Lane = 4, Width = 2, EndTick = 96, EndLane = 4, EndWidth = 2,
+            Height = 0m, EndHeight = 0m, Density = 0, Color = Color.DEF, Attr = AirLadderAttr.DEF
+        });
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "noline-v115.c2s");
+        try
+        {
+            Assert.True(C2SChartWriter.NeedsV115(source));
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken);
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", lines[0]);
+            Assert.Contains(lines, l => l.Contains("\tNCL", StringComparison.Ordinal));
+            Assert.Contains(lines, l => l.Contains("\tSLD", StringComparison.Ordinal));
+            // Global 1.15: default ALD still emits ATTR.
+            Assert.Contains(lines, l => l.StartsWith("ALD\t", StringComparison.Ordinal) && l.EndsWith("\tDEF\tDEF", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Writer_OmitsSlideLinkMarker_OnV114()
+    {
+        var source = new C2sChart { Meta = new Meta { MainBpm = 120m } };
+        source.Events.Add(new Bpm { Tick = 0, Value = 120m });
+        source.Notes.Add(new Slide
+        {
+            Tick = 0, Lane = 0, Width = 4, EndTick = 480, EndLane = 2, EndWidth = 4,
+            Joint = Joint.D, Effect = ExEffect.UP
+        });
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "slide-v114.c2s");
+        try
+        {
+            Assert.False(C2SChartWriter.NeedsV115(source));
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken);
+            Assert.Equal("VERSION\t1.14.00\t1.14.00", lines[0]);
+            var slide = Assert.Single(lines, l => l.StartsWith("SXD\t", StringComparison.Ordinal) || l.StartsWith("SLD\t", StringComparison.Ordinal));
+            Assert.DoesNotContain("\tSLD\t", slide);
+            Assert.DoesNotContain("\tNCL", slide);
+            Assert.EndsWith("\tUP", slide);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var note = Assert.Single(parsed.Value!.Notes.OfType<Slide>());
+            Assert.False(note.NoLine);
+            Assert.Equal(ExEffect.UP, note.Effect);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Parser_LegacyAldWithoutAttr_DefaultsToDef()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "ald-legacy.c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+                VERSION	1.13.00	1.13.00
+                RESOLUTION	384
+                ALD	0	0	0	4	0	1.0	96	0	4	1.0	CYN
+                """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var crash = Assert.Single(parsed.Value!.Notes.OfType<AirCrash>());
+            Assert.Equal(Color.CYN, crash.Color);
+            Assert.Equal(AirLadderAttr.DEF, crash.Attr);
+
+            var outPath = Path.Combine(directory, "ald-legacy-out.c2s");
+            var written = await new C2SChartWriter(new C2SWriteRequest(outPath, parsed.Value))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+            var lines = await File.ReadAllLinesAsync(outPath, TestContext.Current.CancellationToken);
+            Assert.Equal("VERSION\t1.14.00\t1.14.00", lines[0]);
+            var ald = Assert.Single(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal));
+            Assert.EndsWith("\tCYN", ald);
+            Assert.DoesNotContain("AxisY", ald);
+            Assert.False(ald.EndsWith("\tDEF", StringComparison.Ordinal));
         }
         finally
         {

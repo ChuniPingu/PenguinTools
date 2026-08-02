@@ -18,7 +18,9 @@ public sealed class C2SParser
         "1.10.01",
         "1.11.00",
         "1.12.00",
-        "1.13.00"
+        "1.13.00",
+        "1.14.00",
+        "1.15.00"
     ];
 
     private readonly List<PendingPair> _pendingPairs = [];
@@ -143,10 +145,6 @@ public sealed class C2SParser
             case "AHX":
                 ParseAirHold(tokens, line.Number);
                 break;
-            case "ASX":
-                ReportAtLine(Severity.Information,
-                    Msg.Create(MsgKeys.C2s_Note_type_not_represented, tokens[0]), line.Number);
-                break;
             case "SEQUENCEID":
             case "CLK_DEF":
             case "PROGJUDGE_BPM":
@@ -169,7 +167,7 @@ public sealed class C2SParser
 
         _version = version;
         if (!SupportedVersions.Contains(version))
-            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Unsupported_version, version), lineNumber);
+            ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Unsupported_version, version), lineNumber);
     }
 
     private void ParseMusic(string[] tokens)
@@ -440,9 +438,19 @@ public sealed class C2SParser
     {
         if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
             !TryGetInt(tokens, 5, lineNumber, "SLIDE length", out var length) ||
-            !TryGetInt(tokens, 6, lineNumber, "SLIDE end lane", out var endLane) ||
-            !TryGetInt(tokens, 7, lineNumber, "SLIDE end width", out var endWidth))
+            !TryGetInt(tokens, 6, lineNumber, "SLIDE end lane", out var endLane))
             return;
+
+        int endWidth;
+        if (HasToken(tokens, 7))
+        {
+            if (!TryGetInt(tokens, 7, lineNumber, "SLIDE end width", out endWidth))
+                return;
+        }
+        else
+        {
+            endWidth = noteBase.Width;
+        }
 
         var type = tokens[0].ToUpperInvariant();
         var note = new c2sModel.Slide
@@ -456,13 +464,21 @@ public sealed class C2SParser
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
-        // SLD / NCL
-        if (tokens.Length > 8 &&
-            !string.IsNullOrWhiteSpace(tokens[8]) &&
-            tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase))
-            note.NoLine = true;
+        var effectIndex = 8;
+        if (HasToken(tokens, 8))
+        {
+            if (tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase))
+            {
+                note.NoLine = true;
+                effectIndex = 9;
+            }
+            else if (tokens[8].Equals("SLD", StringComparison.OrdinalIgnoreCase))
+            {
+                effectIndex = 9;
+            }
+        }
 
-        if (TryReadEffect(tokens, 9, lineNumber, out var effect))
+        if (TryReadEffect(tokens, effectIndex, lineNumber, out var effect))
             note.Effect = effect;
 
         C2s.Notes.Add(note);
@@ -566,6 +582,7 @@ public sealed class C2SParser
         };
 
         if (TryReadColor(tokens, 11, lineNumber, out var color)) note.Color = color;
+        if (TryReadAirLadderAttr(tokens, 12, lineNumber, out var attr)) note.Attr = attr;
         C2s.Notes.Add(note);
     }
 
@@ -677,23 +694,23 @@ public sealed class C2SParser
         return Math.Abs(candidate.Tick.Original - note.Tick.Original);
     }
 
-    private bool TryReadEffect(string[] tokens, int index, int lineNumber, out ExEffect effect)
+    private bool TryReadEffect(string[] tokens, int index, int lineNumber, out ExEffect effect) =>
+        TryReadEnum(tokens, index, lineNumber, MsgKeys.C2s_Unknown_ex_effect, default, out effect);
+
+    private bool TryReadColor(string[] tokens, int index, int lineNumber, out Color color) =>
+        TryReadEnum(tokens, index, lineNumber, MsgKeys.C2s_Unknown_air_color, Color.DEF, out color);
+
+    private bool TryReadAirLadderAttr(string[] tokens, int index, int lineNumber, out AirLadderAttr attr) =>
+        TryReadEnum(tokens, index, lineNumber, MsgKeys.C2s_Unknown_air_ladder_attr, AirLadderAttr.DEF, out attr);
+
+    private bool TryReadEnum<TEnum>(string[] tokens, int index, int lineNumber, string unknownKey,
+        TEnum defaultValue, out TEnum value) where TEnum : struct, Enum
     {
-        effect = default;
-        if (index >= tokens.Length || string.IsNullOrWhiteSpace(tokens[index])) return false;
-        if (Enum.TryParse(tokens[index], true, out effect) && Enum.IsDefined(effect)) return true;
+        value = defaultValue;
+        if (!HasToken(tokens, index)) return false;
+        if (Enum.TryParse(tokens[index], true, out value) && Enum.IsDefined(value)) return true;
 
-        ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Unknown_ex_effect, tokens[index]), lineNumber);
-        return false;
-    }
-
-    private bool TryReadColor(string[] tokens, int index, int lineNumber, out Color color)
-    {
-        color = Color.DEF;
-        if (index >= tokens.Length || string.IsNullOrWhiteSpace(tokens[index])) return false;
-        if (Enum.TryParse(tokens[index], true, out color) && Enum.IsDefined(color)) return true;
-
-        ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Unknown_air_color, tokens[index]), lineNumber);
+        ReportAtLine(Severity.Warning, Msg.Create(unknownKey, tokens[index]), lineNumber);
         return false;
     }
 
@@ -748,6 +765,11 @@ public sealed class C2SParser
 
         ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Missing_field, field), lineNumber);
         return false;
+    }
+
+    private static bool HasToken(string[] tokens, int index)
+    {
+        return index < tokens.Length && !string.IsNullOrWhiteSpace(tokens[index]);
     }
 
     private bool TryGetInt(string[] tokens, int index, int lineNumber, string field, out int value)

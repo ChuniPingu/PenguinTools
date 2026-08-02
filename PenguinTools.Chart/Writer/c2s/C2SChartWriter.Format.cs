@@ -21,7 +21,7 @@ public partial class C2SChartWriter
     }
 #pragma warning restore CS0612
 
-    private static bool TryFormat(c2s.Note note, out string line, out MessageDescriptor? error)
+    private bool TryFormat(c2s.Note note, out string line, out MessageDescriptor? error)
     {
         switch (note)
         {
@@ -50,9 +50,9 @@ public partial class C2SChartWriter
                 error = null;
                 return true;
             case c2s.Slide slide:
-                var marker = slide.NoLine ? "NCL" : "SLD";
-                line =
-                    $"{FormatNote(slide)}\t{slide.Length.Scaled}\t{slide.EndLane}\t{slide.EndWidth}\t{marker}{FormatEffect(slide.Effect)}";
+                line = $"{FormatNote(slide)}\t{slide.Length.Scaled}\t{slide.EndLane}\t{slide.EndWidth}";
+                if (EmitV115) line += slide.NoLine ? "\tNCL" : "\tSLD";
+                line += FormatEffect(slide.Effect);
                 error = null;
                 return true;
             case c2s.Air { Parent: null }:
@@ -83,6 +83,7 @@ public partial class C2SChartWriter
             case c2s.AirCrash airCrash:
                 line =
                     $"{FormatNote(airCrash)}\t{airCrash.Density.Scaled}\t{airCrash.Height.Result:F1}\t{airCrash.Length.Scaled}\t{airCrash.EndLane}\t{airCrash.EndWidth}\t{airCrash.EndHeight.Result:F1}\t{airCrash.Color}";
+                if (EmitV115) line += $"\t{airCrash.Attr}";
                 error = null;
                 return true;
             default:

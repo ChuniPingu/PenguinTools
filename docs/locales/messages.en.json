@@ -30,10 +30,10 @@
     "c2s": {
       "invalid_field": "Invalid or missing C2S {0}.",
       "missing_field": "Missing C2S {0}.",
-      "note_type_not_represented": "C2S note type '{0}' is not supported.",
       "parent_not_resolved": "Could not resolve C2S parent '{0}' for note '{1}'.",
       "resolution_must_be_positive": "C2S resolution must be greater than zero.",
       "unknown_air_color": "Unknown C2S AIR color '{0}'.",
+      "unknown_air_ladder_attr": "Unknown C2S ALD attribute '{0}'.",
       "unknown_ex_effect": "Unknown C2S EX effect '{0}'.",
       "unsupported_version": "Unsupported C2S version '{0}'.",
       "version_line_not_found": "C2S VERSION line was not found."

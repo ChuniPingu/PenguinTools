@@ -50,3 +50,11 @@ public enum Joint
     [Description("Control")] C,
     [Description("Step")] D
 }
+
+public enum AirLadderAttr
+{
+    [Description("Default")] DEF,
+    [Description("Axis Y")] AxisY,
+    [Description("Axis Z")] AxisZ,
+    [Description("Trace")] Trace
+}

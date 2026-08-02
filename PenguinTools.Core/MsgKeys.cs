@@ -13,10 +13,10 @@ public static class MsgKeys
     public const string App_Unsupported_chart_extension = "app.unsupported_chart_extension";
     public const string C2s_Invalid_field = "diag.c2s.invalid_field";
     public const string C2s_Missing_field = "diag.c2s.missing_field";
-    public const string C2s_Note_type_not_represented = "diag.c2s.note_type_not_represented";
     public const string C2s_Parent_not_resolved = "diag.c2s.parent_not_resolved";
     public const string C2s_Resolution_must_be_positive = "diag.c2s.resolution_must_be_positive";
     public const string C2s_Unknown_air_color = "diag.c2s.unknown_air_color";
+    public const string C2s_Unknown_air_ladder_attr = "diag.c2s.unknown_air_ladder_attr";
     public const string C2s_Unknown_ex_effect = "diag.c2s.unknown_ex_effect";
     public const string C2s_Unsupported_version = "diag.c2s.unsupported_version";
     public const string C2s_Version_line_not_found = "diag.c2s.version_line_not_found";

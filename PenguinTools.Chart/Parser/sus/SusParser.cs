@@ -736,14 +736,18 @@ public sealed class SusParser
                         var attachedAir = Sus.Notes.Children.OfType<umgr.Air>()
                             .LastOrDefault(air =>
                                 air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
-                        if (attachedAir != null) Sus.Notes.RemoveChild(attachedAir);
-
                         active = new umgr.AirHold
                         {
                             Tick = point.Tick,
-                            Timeline = point.Timeline,
-                            Color = Color.DEF
+                            Timeline = point.Timeline
                         };
+                        if (attachedAir != null)
+                        {
+                            active.Direction = attachedAir.Direction;
+                            active.Color = attachedAir.Color;
+                            Sus.Notes.RemoveChild(attachedAir);
+                        }
+
                         pairPositive.MakePair(active);
                         Sus.Notes.AppendChild(active);
                         break;

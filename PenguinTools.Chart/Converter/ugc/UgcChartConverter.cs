@@ -172,6 +172,19 @@ public sealed class UgcChartConverter
         if (source.Parent is null || !_positiveNotes.TryGetValue(source.Parent, out var parent))
             return;
 
+        // AirHold/AirSlide convert before Air and already MakePair the parent.
+        switch (parent.PairNote)
+        {
+            case umgr.AirHold hold:
+                hold.Direction = source.Direction;
+                hold.Color = source.Color;
+                return;
+            case umgr.AirSlide slide:
+                slide.Direction = source.Direction;
+                slide.Color = source.Color;
+                return;
+        }
+
         var air = new umgr.Air { Direction = source.Direction, Color = source.Color };
         _target.Notes.AppendChild(air);
         parent.MakePair(air);
@@ -225,7 +238,10 @@ public sealed class UgcChartConverter
     {
         var crash = new umgr.AirCrash
         {
-            Height = source.Height.Original, Color = source.Color, Density = source.Density
+            Height = source.Height.Original,
+            Color = source.Color,
+            Density = source.Density,
+            Attr = source.Attr
         };
         Copy(source, crash);
         crash.AppendChild(new umgr.AirCrashJoint

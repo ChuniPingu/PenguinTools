@@ -45,6 +45,8 @@ public sealed class SlideNoLineConversionTests
 
             Assert.True(written.Succeeded, written.ToString());
 
+            var header = (await File.ReadAllLinesAsync(outputPath, TestContext.Current.CancellationToken))[0];
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", header);
             Assert.Equal(
                 new[] { "NCL", "SLD", "NCL" },
                 await ReadSlideMarkersAsync(outputPath, TestContext.Current.CancellationToken));
@@ -74,6 +76,9 @@ public sealed class SlideNoLineConversionTests
                     new C2SWriteRequest(outputPath, converted.Value!))
                 .WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded, written.ToString());
+
+            Assert.Equal("VERSION\t1.15.00\t1.15.00",
+                (await File.ReadAllLinesAsync(outputPath, TestContext.Current.CancellationToken))[0]);
 
             var parsed = await new C2SParser(new C2SParseRequest(outputPath))
                 .ParseAsync(TestContext.Current.CancellationToken);
