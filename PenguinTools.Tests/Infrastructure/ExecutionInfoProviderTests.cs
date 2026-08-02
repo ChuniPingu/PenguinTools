@@ -40,6 +40,7 @@ public class ExecutionInfoProviderTests
             Assert.Equal(
                 Path.Combine(AppContext.BaseDirectory, AssetPaths.DefaultSubdirectory),
                 info.InfrastructureAssetsPath);
+            Assert.Matches(@"^\d+\.\d+\.\d+$", info.Version);
         }
         finally
         {

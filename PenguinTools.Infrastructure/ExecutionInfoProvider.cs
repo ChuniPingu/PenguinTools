@@ -12,7 +12,7 @@ public static class ExecutionInfoProvider
 
         var entryAssembly = Assembly.GetEntryAssembly();
         var applicationName = entryAssembly?.GetName().Name ?? "PenguinTools";
-        var version = entryAssembly?.GetName().Version?.ToString() ?? "unknown";
+        var version = entryAssembly?.GetName().Version?.ToString(3) ?? "N/A";
 
         return new ExecutionInfo(
             applicationName,
