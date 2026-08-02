@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Metadata;
@@ -19,7 +19,7 @@ public partial record Meta
     public string Title { get; set; } = string.Empty;
     public string SortName { get; set; } = string.Empty;
     public string Artist { get; set; } = string.Empty;
-    public Entry Genre { get; set; } = new(1000, "自制譜");
+    public Entry? Genre { get; set; }
     public string Designer { get; set; } = string.Empty;
     public DateTime ReleaseDate { get; set; } = DateTime.Now;
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PenguinTools.Core.Asset;
 using PenguinTools.Core.Xml;
 using PenguinTools.Media;
 
@@ -45,6 +46,22 @@ public sealed class OptionDocument
             : value.Trim();
     } = ReleaseTag.CustomDefaultTitleName;
 
+    public bool CustomGenre { get; set; }
+
+    public int SelectedGenreId { get; set; } = GenreDefaults.SelectedDefaultId;
+
+    public int CustomGenreId { get; set; } = GenreDefaults.CustomDefaultId;
+
+    public string CustomGenreName
+    {
+        get => string.IsNullOrWhiteSpace(field) ? GenreDefaults.CustomDefaultName : field;
+        set => field = string.IsNullOrWhiteSpace(value)
+            ? GenreDefaults.CustomDefaultName
+            : value.Trim();
+    } = GenreDefaults.CustomDefaultName;
+
+    public bool OverrideChartGenre { get; set; } = true;
+
     public int UltimaEventId { get; set; } = 1000001;
 
     public int WeEventId { get; set; } = 1000002;
@@ -71,6 +88,11 @@ public sealed class OptionDocument
             SelectedReleaseTagId,
             CustomReleaseTagId,
             CustomReleaseTagTitleName,
+            CustomGenre,
+            SelectedGenreId,
+            CustomGenreId,
+            CustomGenreName,
+            OverrideChartGenre,
             GenerateEventXml,
             UltimaEventId,
             WeEventId,

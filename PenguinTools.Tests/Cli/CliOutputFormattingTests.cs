@@ -29,6 +29,11 @@ public class CliOutputFormattingTests
             1,
             99,
             "自制譜",
+            true,
+            0,
+            1000,
+            "自制譜",
+            true,
             1000001,
             1000002,
             8);

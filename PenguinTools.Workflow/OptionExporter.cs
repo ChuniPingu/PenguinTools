@@ -26,10 +26,11 @@ public static class OptionExporter
         var weEntries = new ConcurrentBag<Entry>();
         var ultEntries = new ConcurrentBag<Entry>();
         var releaseTag = ResolveReleaseTag(ctx.Assets, settings);
+        var optionGenre = ResolveOptionGenre(ctx.Assets, settings);
 
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
             books,
-            (book, innerDiagnostics) => ConvertBookAsync(ctx, book, settings, outputPaths, releaseTag,
+            (book, innerDiagnostics) => ConvertBookAsync(ctx, book, settings, outputPaths, releaseTag, optionGenre,
                 processContext.WorkingDirectory, innerDiagnostics, weEntries, ultEntries, ct),
             book => book.BookMeta.FilePath,
             processContext,
@@ -48,6 +49,7 @@ public static class OptionExporter
         OptionExportSettings settings,
         ExportOutputPaths outputPaths,
         ReleaseTag releaseTag,
+        Entry optionGenre,
         string workingDirectory,
         IDiagnosticSink diagnostics,
         ConcurrentBag<Entry> weEntries,
@@ -57,9 +59,10 @@ public static class OptionExporter
         var stage = await BuildStageAsync(ctx, book, settings, outputPaths, diagnostics, ct) ?? book.Stage;
         string? chartFolder = null;
         MusicXml? xml = null;
+        var genre = ResolveBookGenre(book, settings, optionGenre);
 
         if (settings.ConvertChart || settings.ConvertJacket)
-            (xml, chartFolder) = await CreateMusicXmlAsync(book, stage, releaseTag, outputPaths.MusicFolder);
+            (xml, chartFolder) = await CreateMusicXmlAsync(book, stage, releaseTag, genre, outputPaths.MusicFolder);
 
         if (settings.ConvertChart && xml is not null && chartFolder is not null)
             await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, weEntries, ultEntries, ct);
@@ -126,13 +129,15 @@ public static class OptionExporter
         OptionBookSnapshot book,
         Entry stage,
         ReleaseTag releaseTag,
+        Entry genre,
         string musicFolder)
     {
         var metaMap = book.Difficulties.ToDictionary(kv => kv.Key, kv => kv.Value.Meta);
         var xml = new MusicXml(metaMap, book.BookMeta.Difficulty)
         {
             ReleaseTagName = releaseTag.Name,
-            StageName = stage
+            StageName = stage,
+            GenreNames = new List<Entry> { genre }
         };
 
         var chartFolder = await xml.SaveDirectoryAsync(musicFolder);
@@ -324,5 +329,24 @@ public static class OptionExporter
             .FirstOrDefault(entry => entry.Id == settings.SelectedReleaseTagId)?.Str;
         return new ReleaseTag(settings.SelectedReleaseTagId,
             string.IsNullOrWhiteSpace(titleName) ? ReleaseTag.DefaultTitleName : titleName);
+    }
+
+    private static Entry ResolveOptionGenre(AssetManager assets, OptionExportSettings settings)
+    {
+        if (settings.CustomGenre)
+            return new Entry(settings.CustomGenreId, settings.CustomGenreName);
+
+        var name = assets.GenreNames.FirstOrDefault(entry => entry.Id == settings.SelectedGenreId)?.Str;
+        return new Entry(settings.SelectedGenreId, name ?? string.Empty);
+    }
+
+    private static Entry ResolveBookGenre(
+        OptionBookSnapshot book,
+        OptionExportSettings settings,
+        Entry optionGenre)
+    {
+        var chartGenre = book.BookMeta.Genre;
+        if (chartGenre is not null && !settings.OverrideChartGenre) return chartGenre;
+        return optionGenre;
     }
 }

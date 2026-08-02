@@ -1,6 +1,7 @@
 using System.Xml.Linq;
 using PenguinTools.Assets;
 using PenguinTools.Core;
+using PenguinTools.Core.Asset;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core.Xml;
 using PenguinTools.Infrastructure;
@@ -26,6 +27,11 @@ public sealed class OptionExporterReleaseTagTests
             ReleaseTag.DefaultId,
             ReleaseTag.CustomDefaultId,
             ReleaseTag.CustomDefaultTitleName,
+            true,
+            GenreDefaults.SelectedDefaultId,
+            GenreDefaults.CustomDefaultId,
+            GenreDefaults.CustomDefaultName,
+            true,
             false,
             1000001,
             1000002,
@@ -91,6 +97,11 @@ public sealed class OptionExporterReleaseTagTests
             ReleaseTag.DefaultId,
             99,
             "自制譜",
+            true,
+            GenreDefaults.SelectedDefaultId,
+            GenreDefaults.CustomDefaultId,
+            GenreDefaults.CustomDefaultName,
+            true,
             false,
             1000001,
             1000002,
@@ -139,6 +150,218 @@ public sealed class OptionExporterReleaseTagTests
             var customXml = XDocument.Load(customXmlPath).Root;
             Assert.Equal("99", customXml?.Element("name")?.Element("id")?.Value);
             Assert.Equal("自制譜", customXml?.Element("titleName")?.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExportAsync_WhenCustomGenreEnabled_OverridesChartGenreInMusicXml()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        var outputPaths = ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX"));
+        var settings = new OptionExportSettings(
+            false,
+            true,
+            false,
+            false,
+            false,
+            ReleaseTag.DefaultId,
+            ReleaseTag.CustomDefaultId,
+            ReleaseTag.CustomDefaultTitleName,
+            true,
+            GenreDefaults.SelectedDefaultId,
+            GenreDefaults.CustomDefaultId,
+            GenreDefaults.CustomDefaultName,
+            true,
+            false,
+            1000001,
+            1000002,
+            1);
+        var meta = new Meta
+        {
+            Id = 4321,
+            Title = "Test Song",
+            SortName = "Test Song",
+            Artist = "Tester",
+            Genre = new Entry(5, "ORIGINAL"),
+            Difficulty = Difficulty.Master,
+            FilePath = Path.Combine(workPath, "chart.ugc")
+        };
+        var book = new OptionBookSnapshot(
+            meta,
+            false,
+            null,
+            meta.NotesFieldLine,
+            meta.Stage,
+            meta.Title,
+            new Dictionary<Difficulty, OptionDifficultySnapshot>
+            {
+                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+            });
+        using var assetStore = new DummyAssetStore(workPath);
+        var context = new MusicExportContext(
+            TestAssets.Load(),
+            TestMediaTool.Instance,
+            assetStore,
+            DummyInfrastructureAssetProvider.Instance);
+
+        try
+        {
+            var result = await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath,
+                CancellationToken.None);
+
+            Assert.True(result.Succeeded);
+            var musicXmlPath = Path.Combine(outputPaths.MusicFolder, "music4321", "Music.xml");
+            var genreNames = XDocument.Load(musicXmlPath).Root?.Element("genreNames")?.Element("list")
+                ?.Element("StringID");
+            Assert.NotNull(genreNames);
+            Assert.Equal("1000", genreNames.Element("id")?.Value);
+            Assert.Equal("自制譜", genreNames.Element("str")?.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExportAsync_WhenCustomGenreDisabled_WritesSelectedAssetGenreToMusicXml()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        var outputPaths = ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX"));
+        var settings = new OptionExportSettings(
+            false,
+            true,
+            false,
+            false,
+            false,
+            ReleaseTag.DefaultId,
+            ReleaseTag.CustomDefaultId,
+            ReleaseTag.CustomDefaultTitleName,
+            false,
+            5,
+            GenreDefaults.CustomDefaultId,
+            GenreDefaults.CustomDefaultName,
+            true,
+            false,
+            1000001,
+            1000002,
+            1);
+        var meta = new Meta
+        {
+            Id = 4321,
+            Title = "Test Song",
+            SortName = "Test Song",
+            Artist = "Tester",
+            Genre = new Entry(GenreDefaults.CustomDefaultId, GenreDefaults.CustomDefaultName),
+            Difficulty = Difficulty.Master,
+            FilePath = Path.Combine(workPath, "chart.ugc")
+        };
+        var book = new OptionBookSnapshot(
+            meta,
+            false,
+            null,
+            meta.NotesFieldLine,
+            meta.Stage,
+            meta.Title,
+            new Dictionary<Difficulty, OptionDifficultySnapshot>
+            {
+                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+            });
+        using var assetStore = new DummyAssetStore(workPath);
+        var context = new MusicExportContext(
+            TestAssets.Load(),
+            TestMediaTool.Instance,
+            assetStore,
+            DummyInfrastructureAssetProvider.Instance);
+
+        try
+        {
+            var result = await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath,
+                CancellationToken.None);
+
+            Assert.True(result.Succeeded);
+            var musicXmlPath = Path.Combine(outputPaths.MusicFolder, "music4321", "Music.xml");
+            var genreNames = XDocument.Load(musicXmlPath).Root?.Element("genreNames")?.Element("list")
+                ?.Element("StringID");
+            Assert.NotNull(genreNames);
+            Assert.Equal("5", genreNames.Element("id")?.Value);
+            var expectedName = context.Assets.GenreNames.FirstOrDefault(entry => entry.Id == 5)?.Str ?? string.Empty;
+            Assert.Equal(expectedName, genreNames.Element("str")?.Value);
+            Assert.NotEqual(GenreDefaults.CustomDefaultName, genreNames.Element("str")?.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExportAsync_WhenOverrideChartGenreDisabled_KeepsChartGenre()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        var outputPaths = ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX"));
+        var settings = new OptionExportSettings(
+            false,
+            true,
+            false,
+            false,
+            false,
+            ReleaseTag.DefaultId,
+            ReleaseTag.CustomDefaultId,
+            ReleaseTag.CustomDefaultTitleName,
+            true,
+            GenreDefaults.SelectedDefaultId,
+            GenreDefaults.CustomDefaultId,
+            GenreDefaults.CustomDefaultName,
+            false,
+            false,
+            1000001,
+            1000002,
+            1);
+        var meta = new Meta
+        {
+            Id = 4321,
+            Title = "Test Song",
+            SortName = "Test Song",
+            Artist = "Tester",
+            Genre = new Entry(5, "ORIGINAL"),
+            Difficulty = Difficulty.Master,
+            FilePath = Path.Combine(workPath, "chart.ugc")
+        };
+        var book = new OptionBookSnapshot(
+            meta,
+            false,
+            null,
+            meta.NotesFieldLine,
+            meta.Stage,
+            meta.Title,
+            new Dictionary<Difficulty, OptionDifficultySnapshot>
+            {
+                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+            });
+        using var assetStore = new DummyAssetStore(workPath);
+        var context = new MusicExportContext(
+            TestAssets.Load(),
+            TestMediaTool.Instance,
+            assetStore,
+            DummyInfrastructureAssetProvider.Instance);
+
+        try
+        {
+            var result = await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath,
+                CancellationToken.None);
+
+            Assert.True(result.Succeeded);
+            var musicXmlPath = Path.Combine(outputPaths.MusicFolder, "music4321", "Music.xml");
+            var genreNames = XDocument.Load(musicXmlPath).Root?.Element("genreNames")?.Element("list")
+                ?.Element("StringID");
+            Assert.NotNull(genreNames);
+            Assert.Equal("5", genreNames.Element("id")?.Value);
+            Assert.Equal("ORIGINAL", genreNames.Element("str")?.Value);
         }
         finally
         {

@@ -31,8 +31,9 @@ public enum ChartFormat
 
 public sealed record ApplicationEntry(int Id, string Name, string? Data = null)
 {
-    internal static ApplicationEntry From(Entry entry)
+    internal static ApplicationEntry From(Entry? entry)
     {
+        entry ??= Entry.Default;
         return new ApplicationEntry(entry.Id, entry.Str, string.IsNullOrWhiteSpace(entry.Data) ? null : entry.Data);
     }
 }
@@ -196,6 +197,11 @@ public sealed record OptionScanConfig(
     int SelectedReleaseTagId,
     int CustomReleaseTagId,
     string CustomReleaseTagTitleName,
+    bool CustomGenre,
+    int SelectedGenreId,
+    int CustomGenreId,
+    string CustomGenreName,
+    bool OverrideChartGenre,
     int UltimaEventId,
     int WeEventId,
     int BatchSize);
@@ -223,6 +229,11 @@ public sealed record OptionBuildOverrides(
     int? SelectedReleaseTagId = null,
     int? CustomReleaseTagId = null,
     string? CustomReleaseTagTitleName = null,
+    bool? CustomGenre = null,
+    int? SelectedGenreId = null,
+    int? CustomGenreId = null,
+    string? CustomGenreName = null,
+    bool? OverrideChartGenre = null,
     int? UltimaEventId = null,
     int? WeEventId = null,
     IReadOnlyList<OptionMainDifficultyOverride>? MainDifficulties = null);

@@ -34,7 +34,7 @@ public class MusicXml : XmlElement<MusicXml>
         ArtistName = new Entry(songId, main.Artist);
         GenreNames = new List<Entry>
         {
-            main.Genre
+            main.Genre ?? new Entry(GenreDefaults.CustomDefaultId, GenreDefaults.CustomDefaultName)
         };
         JaketFile = $"CHU_UI_Jacket_{songId:0000}.dds";
         EnableUltima = main.Difficulty == Difficulty.Ultima;

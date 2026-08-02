@@ -673,6 +673,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             document.SelectedReleaseTagId,
             document.CustomReleaseTagId,
             document.CustomReleaseTagTitleName,
+            document.CustomGenre,
+            document.SelectedGenreId,
+            document.CustomGenreId,
+            document.CustomGenreName,
+            document.OverrideChartGenre,
             document.UltimaEventId,
             document.WeEventId,
             document.BatchSize);
@@ -803,6 +808,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (value.CustomReleaseTagId is { } customReleaseId) document.CustomReleaseTagId = customReleaseId;
         if (value.CustomReleaseTagTitleName is not null)
             document.CustomReleaseTagTitleName = value.CustomReleaseTagTitleName;
+        if (value.CustomGenre is { } customGenre) document.CustomGenre = customGenre;
+        if (value.SelectedGenreId is { } selectedGenreId) document.SelectedGenreId = selectedGenreId;
+        if (value.CustomGenreId is { } customGenreId) document.CustomGenreId = customGenreId;
+        if (value.CustomGenreName is not null) document.CustomGenreName = value.CustomGenreName;
+        if (value.OverrideChartGenre is { } overrideChartGenre) document.OverrideChartGenre = overrideChartGenre;
         if (value.UltimaEventId is { } ultima) document.UltimaEventId = ultima;
         if (value.WeEventId is { } we) document.WeEventId = we;
     }
@@ -943,7 +953,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (overrides.InsertBlankMeasure is { } insertBlankMeasure)
             meta.BgmEnableBarOffset = insertBlankMeasure;
         if (overrides.GenreId is not null || overrides.GenreName is not null)
-            meta.Genre = new Entry(overrides.GenreId ?? meta.Genre.Id, overrides.GenreName ?? meta.Genre.Str);
+            meta.Genre = new Entry(
+                overrides.GenreId ?? meta.Genre?.Id ?? GenreDefaults.CustomDefaultId,
+                overrides.GenreName ?? meta.Genre?.Str ?? GenreDefaults.CustomDefaultName);
         if (overrides.WeTagId is not null || overrides.WeTagName is not null)
             meta.WeTag = new Entry(overrides.WeTagId ?? meta.WeTag.Id, overrides.WeTagName ?? meta.WeTag.Str);
         if (overrides.WeDifficultyId is { } weDifficultyId &&

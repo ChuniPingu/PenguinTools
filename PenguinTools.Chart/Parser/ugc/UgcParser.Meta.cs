@@ -1,4 +1,5 @@
 using System.Globalization;
+using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 
@@ -119,7 +120,7 @@ public partial class UgcParser
     {
         if (args.Length < 1) return;
         var entry = Assets.GenreNames.FirstOrDefault(x => x.Str.Equals(args[0], StringComparison.Ordinal));
-        if (entry != null) Ugc.Meta.Genre = entry;
+        Ugc.Meta.Genre = entry ?? new Entry(-1, args[0]);
     }
 
     private void HandleDiff(string[] args)

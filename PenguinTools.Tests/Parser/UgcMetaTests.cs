@@ -95,7 +95,7 @@ public class UgcMetaTests
 
         var r = await Parse(ugc);
         Assert.True(r.Succeeded, r.ToString());
-        Assert.Equal("自制譜", r.Value!.Meta.Genre.Str);
+        Assert.Equal("自制譜", r.Value!.Meta.Genre!.Str);
         Assert.Equal(new DateTime(2026, 4, 20), r.Value.Meta.ReleaseDate);
     }
 }

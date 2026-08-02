@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using PenguinTools.Assets;
 using PenguinTools.Core;
+using PenguinTools.Core.Asset;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core.Xml;
 using PenguinTools.Infrastructure;
@@ -419,6 +420,11 @@ public sealed class OptionExporterCacheTests
             ReleaseTag.DefaultId,
             ReleaseTag.CustomDefaultId,
             ReleaseTag.CustomDefaultTitleName,
+            true,
+            GenreDefaults.SelectedDefaultId,
+            GenreDefaults.CustomDefaultId,
+            GenreDefaults.CustomDefaultName,
+            true,
             false,
             1000001,
             1000002,

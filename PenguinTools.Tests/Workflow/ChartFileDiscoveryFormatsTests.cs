@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PenguinTools.Core.Asset;
 using PenguinTools.Core.Xml;
 using PenguinTools.Workflow;
 using Xunit;
@@ -58,6 +59,11 @@ public class ChartFileDiscoveryFormatsTests
         Assert.False(document.CustomReleaseTagXml);
         Assert.Equal(ReleaseTag.CustomDefaultId, document.CustomReleaseTagId);
         Assert.Equal(ReleaseTag.CustomDefaultTitleName, document.CustomReleaseTagTitleName);
+        Assert.False(document.CustomGenre);
+        Assert.Equal(GenreDefaults.SelectedDefaultId, document.SelectedGenreId);
+        Assert.Equal(GenreDefaults.CustomDefaultId, document.CustomGenreId);
+        Assert.Equal(GenreDefaults.CustomDefaultName, document.CustomGenreName);
+        Assert.True(document.OverrideChartGenre);
     }
 
     [Fact]
@@ -143,7 +149,12 @@ public class ChartFileDiscoveryFormatsTests
             SelectedReleaseTagId = 12,
             CustomReleaseTagXml = true,
             CustomReleaseTagId = 123,
-            CustomReleaseTagTitleName = "My Pack"
+            CustomReleaseTagTitleName = "My Pack",
+            CustomGenre = true,
+            SelectedGenreId = 5,
+            CustomGenreId = 1000,
+            CustomGenreName = "Custom Genre",
+            OverrideChartGenre = false
         };
 
         var json = JsonSerializer.Serialize(document, OptionDocumentJson.Default);
@@ -152,5 +163,10 @@ public class ChartFileDiscoveryFormatsTests
         Assert.Contains("\"customReleaseTagXml\": true", json);
         Assert.Contains("\"customReleaseTagId\": 123", json);
         Assert.Contains("\"customReleaseTagTitleName\": \"My Pack\"", json);
+        Assert.Contains("\"customGenre\": true", json);
+        Assert.Contains("\"selectedGenreId\": 5", json);
+        Assert.Contains("\"customGenreId\": 1000", json);
+        Assert.Contains("\"customGenreName\": \"Custom Genre\"", json);
+        Assert.Contains("\"overrideChartGenre\": false", json);
     }
 }

@@ -111,6 +111,11 @@ internal static class OptionCommands
         private Option<int?> SelectedReleaseTagId { get; } = new("--selected-release-tag-id");
         private Option<int?> CustomReleaseTagId { get; } = new("--custom-release-tag-id");
         private Option<string?> CustomReleaseTagTitleName { get; } = new("--custom-release-tag-title-name");
+        private Option<bool?> CustomGenre { get; } = new("--custom-genre");
+        private Option<int?> SelectedGenreId { get; } = new("--selected-genre-id");
+        private Option<int?> CustomGenreId { get; } = new("--custom-genre-id");
+        private Option<string?> CustomGenreName { get; } = new("--custom-genre-name");
+        private Option<bool?> OverrideChartGenre { get; } = new("--override-chart-genre");
         private Option<int?> UltimaEventId { get; } = new("--ultima-event-id");
         private Option<int?> WeEventId { get; } = new("--we-event-id");
         private Option<string[]?> MainDifficulties { get; } = new("--main-difficulty")
@@ -139,6 +144,11 @@ internal static class OptionCommands
             command.Options.Add(SelectedReleaseTagId);
             command.Options.Add(CustomReleaseTagId);
             command.Options.Add(CustomReleaseTagTitleName);
+            command.Options.Add(CustomGenre);
+            command.Options.Add(SelectedGenreId);
+            command.Options.Add(CustomGenreId);
+            command.Options.Add(CustomGenreName);
+            command.Options.Add(OverrideChartGenre);
             command.Options.Add(UltimaEventId);
             command.Options.Add(WeEventId);
             command.Options.Add(MainDifficulties);
@@ -152,6 +162,9 @@ internal static class OptionCommands
                 result.GetValue(ConvertBackground), result.GetValue(HcaKey), result.GetValue(GenerateEventXml),
                 result.GetValue(CustomReleaseTagXml), result.GetValue(SelectedReleaseTagId),
                 result.GetValue(CustomReleaseTagId), result.GetValue(CustomReleaseTagTitleName),
+                result.GetValue(CustomGenre), result.GetValue(SelectedGenreId),
+                result.GetValue(CustomGenreId), result.GetValue(CustomGenreName),
+                result.GetValue(OverrideChartGenre),
                 result.GetValue(UltimaEventId), result.GetValue(WeEventId),
                 ParseMainDifficulties(result.GetValue(MainDifficulties)));
         }
