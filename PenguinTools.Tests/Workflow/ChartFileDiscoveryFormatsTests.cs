@@ -54,8 +54,10 @@ public class ChartFileDiscoveryFormatsTests
     {
         var document = new OptionDocument();
 
-        Assert.Equal(ReleaseTag.DefaultId, document.ReleaseTagId);
-        Assert.Equal(ReleaseTag.DefaultTitleName, document.ReleaseTagTitleName);
+        Assert.Equal(ReleaseTag.DefaultId, document.SelectedReleaseTagId);
+        Assert.False(document.CustomReleaseTagXml);
+        Assert.Equal(ReleaseTag.CustomDefaultId, document.CustomReleaseTagId);
+        Assert.Equal(ReleaseTag.CustomDefaultTitleName, document.CustomReleaseTagTitleName);
     }
 
     [Fact]
@@ -138,13 +140,17 @@ public class ChartFileDiscoveryFormatsTests
         var document = new OptionDocument
         {
             OptionName = "TEST",
-            ReleaseTagId = 123,
-            ReleaseTagTitleName = "My Pack"
+            SelectedReleaseTagId = 12,
+            CustomReleaseTagXml = true,
+            CustomReleaseTagId = 123,
+            CustomReleaseTagTitleName = "My Pack"
         };
 
         var json = JsonSerializer.Serialize(document, OptionDocumentJson.Default);
 
-        Assert.Contains("\"releaseTagId\": 123", json);
-        Assert.Contains("\"releaseTagTitleName\": \"My Pack\"", json);
+        Assert.Contains("\"selectedReleaseTagId\": 12", json);
+        Assert.Contains("\"customReleaseTagXml\": true", json);
+        Assert.Contains("\"customReleaseTagId\": 123", json);
+        Assert.Contains("\"customReleaseTagTitleName\": \"My Pack\"", json);
     }
 }

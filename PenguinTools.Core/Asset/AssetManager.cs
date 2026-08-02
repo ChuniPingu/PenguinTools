@@ -41,6 +41,7 @@ public class AssetManager : INotifyPropertyChanged
     public IReadOnlySet<Entry> FieldLines => MergeAssets.FieldLines;
     public IReadOnlySet<Entry> StageNames => MergeAssets.StageNames;
     public IReadOnlySet<Entry> WeTagNames => MergeAssets.WeTagNames;
+    public IReadOnlySet<Entry> ReleaseTagNames => MergeAssets.ReleaseTagNames;
 
     /// <summary>
     ///     Scans a game install, subtracts entries already present in <paramref name="hardAssets" />,

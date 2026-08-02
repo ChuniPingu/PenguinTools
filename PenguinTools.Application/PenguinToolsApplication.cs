@@ -669,9 +669,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             document.ConvertBackground,
             document.HcaEncryptionKey,
             document.GenerateEventXml,
-            document.GenerateReleaseTagXml,
-            document.ReleaseTagId,
-            document.ReleaseTagTitleName,
+            document.CustomReleaseTagXml,
+            document.SelectedReleaseTagId,
+            document.CustomReleaseTagId,
+            document.CustomReleaseTagTitleName,
             document.UltimaEventId,
             document.WeEventId,
             document.BatchSize);
@@ -797,9 +798,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (value.ConvertBackground is { } convertBackground) document.ConvertBackground = convertBackground;
         if (value.HcaEncryptionKey is { } key) document.HcaEncryptionKey = key;
         if (value.GenerateEventXml is { } eventXml) document.GenerateEventXml = eventXml;
-        if (value.GenerateReleaseTagXml is { } releaseXml) document.GenerateReleaseTagXml = releaseXml;
-        if (value.ReleaseTagId is { } releaseId) document.ReleaseTagId = releaseId;
-        if (value.ReleaseTagTitleName is not null) document.ReleaseTagTitleName = value.ReleaseTagTitleName;
+        if (value.CustomReleaseTagXml is { } customReleaseXml) document.CustomReleaseTagXml = customReleaseXml;
+        if (value.SelectedReleaseTagId is { } selectedReleaseId) document.SelectedReleaseTagId = selectedReleaseId;
+        if (value.CustomReleaseTagId is { } customReleaseId) document.CustomReleaseTagId = customReleaseId;
+        if (value.CustomReleaseTagTitleName is not null)
+            document.CustomReleaseTagTitleName = value.CustomReleaseTagTitleName;
         if (value.UltimaEventId is { } ultima) document.UltimaEventId = ultima;
         if (value.WeEventId is { } we) document.WeEventId = we;
     }

@@ -1,4 +1,4 @@
-﻿using System.Xml.Serialization;
+using System.Xml.Serialization;
 using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Xml;
@@ -6,8 +6,10 @@ namespace PenguinTools.Core.Xml;
 [XmlRoot("ReleaseTagData")]
 public class ReleaseTag : XmlElement<ReleaseTag>
 {
-    public const int DefaultId = 000099;
-    public const string DefaultTitleName = "自制譜";
+    public const int DefaultId = 0;
+    public const string DefaultTitleName = "CHUNITHM";
+    public const int CustomDefaultId = 99;
+    public const string CustomDefaultTitleName = "自制譜";
 
     public static readonly ReleaseTag Default = new(DefaultId);
 

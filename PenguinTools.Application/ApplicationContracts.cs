@@ -192,9 +192,10 @@ public sealed record OptionScanConfig(
     [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)]
     ulong HcaEncryptionKey,
     bool GenerateEventXml,
-    bool GenerateReleaseTagXml,
-    int ReleaseTagId,
-    string ReleaseTagTitleName,
+    bool CustomReleaseTagXml,
+    int SelectedReleaseTagId,
+    int CustomReleaseTagId,
+    string CustomReleaseTagTitleName,
     int UltimaEventId,
     int WeEventId,
     int BatchSize);
@@ -218,9 +219,10 @@ public sealed record OptionBuildOverrides(
     bool? ConvertBackground = null,
     ulong? HcaEncryptionKey = null,
     bool? GenerateEventXml = null,
-    bool? GenerateReleaseTagXml = null,
-    int? ReleaseTagId = null,
-    string? ReleaseTagTitleName = null,
+    bool? CustomReleaseTagXml = null,
+    int? SelectedReleaseTagId = null,
+    int? CustomReleaseTagId = null,
+    string? CustomReleaseTagTitleName = null,
     int? UltimaEventId = null,
     int? WeEventId = null,
     IReadOnlyList<OptionMainDifficultyOverride>? MainDifficulties = null);

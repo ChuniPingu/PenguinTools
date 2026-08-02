@@ -3,6 +3,7 @@ using System.Text.Json;
 using PenguinTools.Assets;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
+using PenguinTools.Core.Xml;
 using PenguinTools.Infrastructure;
 using PenguinTools.Media;
 using PenguinTools.Workflow;
@@ -415,8 +416,9 @@ public sealed class OptionExporterCacheTests
             false,
             convertBackground,
             false,
-            123,
-            "My Pack",
+            ReleaseTag.DefaultId,
+            ReleaseTag.CustomDefaultId,
+            ReleaseTag.CustomDefaultTitleName,
             false,
             1000001,
             1000002,

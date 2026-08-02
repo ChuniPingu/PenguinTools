@@ -2,6 +2,7 @@ using System.Xml.Linq;
 using PenguinTools.Assets;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
+using PenguinTools.Core.Xml;
 using PenguinTools.Infrastructure;
 using PenguinTools.Workflow;
 using Xunit;
@@ -22,8 +23,9 @@ public sealed class OptionExporterReleaseTagTests
             false,
             false,
             false,
-            123,
-            "My Pack",
+            ReleaseTag.DefaultId,
+            ReleaseTag.CustomDefaultId,
+            ReleaseTag.CustomDefaultTitleName,
             false,
             1000001,
             1000002,
@@ -64,10 +66,79 @@ public sealed class OptionExporterReleaseTagTests
             var musicXmlPath = Path.Combine(outputPaths.MusicFolder, "music4321", "Music.xml");
             var releaseTagName = XDocument.Load(musicXmlPath).Root?.Element("releaseTagName");
             Assert.NotNull(releaseTagName);
-            Assert.Equal("123", releaseTagName.Element("id")?.Value);
-            Assert.Equal("My Pack", releaseTagName.Element("str")?.Value);
+            Assert.Equal("0", releaseTagName.Element("id")?.Value);
+            Assert.Equal("CHUNITHM", releaseTagName.Element("str")?.Value);
             Assert.Equal(string.Empty, releaseTagName.Element("data")?.Value);
             Assert.False(Directory.Exists(outputPaths.ReleaseTagPath));
+        }
+        finally
+        {
+            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExportAsync_WhenCustomReleaseTagEnabled_WritesCustomTagToMusicAndXml()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        var outputPaths = ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX"));
+        var settings = new OptionExportSettings(
+            false,
+            true,
+            false,
+            false,
+            true,
+            ReleaseTag.DefaultId,
+            99,
+            "自制譜",
+            false,
+            1000001,
+            1000002,
+            1);
+        var meta = new Meta
+        {
+            Id = 4321,
+            Title = "Test Song",
+            SortName = "Test Song",
+            Artist = "Tester",
+            Difficulty = Difficulty.Master,
+            FilePath = Path.Combine(workPath, "chart.ugc")
+        };
+        var book = new OptionBookSnapshot(
+            meta,
+            false,
+            null,
+            meta.NotesFieldLine,
+            meta.Stage,
+            meta.Title,
+            new Dictionary<Difficulty, OptionDifficultySnapshot>
+            {
+                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+            });
+        using var assetStore = new DummyAssetStore(workPath);
+        var context = new MusicExportContext(
+            TestAssets.Load(),
+            TestMediaTool.Instance,
+            assetStore,
+            DummyInfrastructureAssetProvider.Instance);
+
+        try
+        {
+            var result = await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath,
+                CancellationToken.None);
+
+            Assert.True(result.Succeeded);
+            var musicXmlPath = Path.Combine(outputPaths.MusicFolder, "music4321", "Music.xml");
+            var releaseTagName = XDocument.Load(musicXmlPath).Root?.Element("releaseTagName");
+            Assert.NotNull(releaseTagName);
+            Assert.Equal("99", releaseTagName.Element("id")?.Value);
+            Assert.Equal("自制譜", releaseTagName.Element("str")?.Value);
+
+            var customXmlPath = Path.Combine(outputPaths.ReleaseTagPath, "releaseTag000099", "ReleaseTag.xml");
+            Assert.True(File.Exists(customXmlPath));
+            var customXml = XDocument.Load(customXmlPath).Root;
+            Assert.Equal("99", customXml?.Element("name")?.Element("id")?.Value);
+            Assert.Equal("自制譜", customXml?.Element("titleName")?.Value);
         }
         finally
         {

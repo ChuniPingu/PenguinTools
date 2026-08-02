@@ -31,15 +31,19 @@ public sealed class OptionDocument
 
     public bool GenerateEventXml { get; set; } = true;
 
-    public bool GenerateReleaseTagXml { get; set; } = true;
+    public bool CustomReleaseTagXml { get; set; }
 
-    public int ReleaseTagId { get; set; } = ReleaseTag.DefaultId;
+    public int SelectedReleaseTagId { get; set; } = ReleaseTag.DefaultId;
 
-    public string ReleaseTagTitleName
+    public int CustomReleaseTagId { get; set; } = ReleaseTag.CustomDefaultId;
+
+    public string CustomReleaseTagTitleName
     {
-        get => string.IsNullOrWhiteSpace(field) ? ReleaseTag.DefaultTitleName : field;
-        set => field = string.IsNullOrWhiteSpace(value) ? ReleaseTag.DefaultTitleName : value.Trim();
-    } = ReleaseTag.DefaultTitleName;
+        get => string.IsNullOrWhiteSpace(field) ? ReleaseTag.CustomDefaultTitleName : field;
+        set => field = string.IsNullOrWhiteSpace(value)
+            ? ReleaseTag.CustomDefaultTitleName
+            : value.Trim();
+    } = ReleaseTag.CustomDefaultTitleName;
 
     public int UltimaEventId { get; set; } = 1000001;
 
@@ -63,9 +67,10 @@ public sealed class OptionDocument
             ConvertJacket,
             ConvertAudio,
             ConvertBackground,
-            GenerateReleaseTagXml,
-            ReleaseTagId,
-            ReleaseTagTitleName,
+            CustomReleaseTagXml,
+            SelectedReleaseTagId,
+            CustomReleaseTagId,
+            CustomReleaseTagTitleName,
             GenerateEventXml,
             UltimaEventId,
             WeEventId,

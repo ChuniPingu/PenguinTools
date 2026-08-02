@@ -25,7 +25,7 @@ public static class OptionExporter
             new OptionExportProcessContext(diagnostics, ct, settings.BatchSize, diagnosticsWorkingDirectory, progress);
         var weEntries = new ConcurrentBag<Entry>();
         var ultEntries = new ConcurrentBag<Entry>();
-        var releaseTag = new ReleaseTag(settings.ReleaseTagId, settings.ReleaseTagTitleName);
+        var releaseTag = ResolveReleaseTag(ctx.Assets, settings);
 
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
             books,
@@ -298,7 +298,7 @@ public static class OptionExporter
         ReleaseTag releaseTag,
         CancellationToken ct)
     {
-        if (settings.GenerateReleaseTagXml) await releaseTag.SaveDirectoryAsync(outputPaths.ReleaseTagPath);
+        if (settings.CustomReleaseTagXml) await releaseTag.SaveDirectoryAsync(outputPaths.ReleaseTagPath);
 
         if (settings.GenerateEventXml && !ultEntries.IsEmpty)
         {
@@ -313,5 +313,16 @@ public static class OptionExporter
             await eventXml.SaveDirectoryAsync(outputPaths.EventFolder);
             ct.ThrowIfCancellationRequested();
         }
+    }
+
+    private static ReleaseTag ResolveReleaseTag(AssetManager assets, OptionExportSettings settings)
+    {
+        if (settings.CustomReleaseTagXml)
+            return new ReleaseTag(settings.CustomReleaseTagId, settings.CustomReleaseTagTitleName);
+
+        var titleName = assets.ReleaseTagNames
+            .FirstOrDefault(entry => entry.Id == settings.SelectedReleaseTagId)?.Str;
+        return new ReleaseTag(settings.SelectedReleaseTagId,
+            string.IsNullOrWhiteSpace(titleName) ? ReleaseTag.DefaultTitleName : titleName);
     }
 }

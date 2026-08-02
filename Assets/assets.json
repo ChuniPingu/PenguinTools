@@ -1336,5 +1336,117 @@
       "str": "覚",
       "data": ""
     }
+  ],
+  "releaseTagName": [
+    {
+      "id": 0,
+      "str": "CHUNITHM",
+      "data": "v1 1.00.00"
+    },
+    {
+      "id": 1,
+      "str": "CHUNITHM PLUS",
+      "data": "v1 1.05.00"
+    },
+    {
+      "id": 2,
+      "str": "CHUNITHM AIR",
+      "data": "v1 1.10.00"
+    },
+    {
+      "id": 3,
+      "str": "CHUNITHM AIR PLUS",
+      "data": "v1 1.15.00"
+    },
+    {
+      "id": 4,
+      "str": "CHUNITHM STAR",
+      "data": "v1 1.20.00"
+    },
+    {
+      "id": 5,
+      "str": "CHUNITHM STAR PLUS",
+      "data": "v1 1.25.00"
+    },
+    {
+      "id": 6,
+      "str": "CHUNITHM AMAZON",
+      "data": "v1 1.30.00"
+    },
+    {
+      "id": 7,
+      "str": "CHUNITHM AMAZON PLUS",
+      "data": "v1 1.35.00"
+    },
+    {
+      "id": 8,
+      "str": "CHUNITHM CRYSTAL",
+      "data": "v1 1.40.00"
+    },
+    {
+      "id": 9,
+      "str": "CHUNITHM CRYSTAL PLUS",
+      "data": "v1 1.45.00"
+    },
+    {
+      "id": 10,
+      "str": "CHUNITHM PARADISE",
+      "data": "v1 1.50.00"
+    },
+    {
+      "id": 11,
+      "str": "CHUNITHM PARADISE LOST",
+      "data": "v1 1.55.00"
+    },
+    {
+      "id": 12,
+      "str": "CHUNITHM NEW",
+      "data": "v2 2.00.00"
+    },
+    {
+      "id": 13,
+      "str": "CHUNITHM NEW PLUS",
+      "data": "v2 2.05.00"
+    },
+    {
+      "id": 14,
+      "str": "CHUNITHM SUN",
+      "data": "v2 2.10.00"
+    },
+    {
+      "id": 15,
+      "str": "CHUNITHM SUN PLUS",
+      "data": "v2 2.15.00"
+    },
+    {
+      "id": 16,
+      "str": "CHUNITHM LUMINOUS",
+      "data": "v2 2.20.00"
+    },
+    {
+      "id": 17,
+      "str": "CHUNITHM LUMINOUS PLUS",
+      "data": "v2 2.25.00"
+    },
+    {
+      "id": 18,
+      "str": "CHUNITHM VERSE",
+      "data": "v2 2.30.00"
+    },
+    {
+      "id": 19,
+      "str": "CHUNITHM X-VERSE",
+      "data": "v2 2.40.00"
+    },
+    {
+      "id": 20,
+      "str": "CHUNITHM X-VERSE-X",
+      "data": "v2 2.45.00"
+    },
+    {
+      "id": 21,
+      "str": "CHUNITHM Mate",
+      "data": "v2 2.50.00"
+    }
   ]
 }

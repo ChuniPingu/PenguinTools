@@ -107,9 +107,10 @@ internal static class OptionCommands
         private Option<bool?> ConvertBackground { get; } = new("--convert-background");
         private Option<ulong?> HcaKey { get; } = new("--hca-key");
         private Option<bool?> GenerateEventXml { get; } = new("--generate-event-xml");
-        private Option<bool?> GenerateReleaseTagXml { get; } = new("--generate-release-tag-xml");
-        private Option<int?> ReleaseTagId { get; } = new("--release-tag-id");
-        private Option<string?> ReleaseTagTitleName { get; } = new("--release-tag-title-name");
+        private Option<bool?> CustomReleaseTagXml { get; } = new("--custom-release-tag-xml");
+        private Option<int?> SelectedReleaseTagId { get; } = new("--selected-release-tag-id");
+        private Option<int?> CustomReleaseTagId { get; } = new("--custom-release-tag-id");
+        private Option<string?> CustomReleaseTagTitleName { get; } = new("--custom-release-tag-title-name");
         private Option<int?> UltimaEventId { get; } = new("--ultima-event-id");
         private Option<int?> WeEventId { get; } = new("--we-event-id");
         private Option<string[]?> MainDifficulties { get; } = new("--main-difficulty")
@@ -134,9 +135,10 @@ internal static class OptionCommands
             command.Options.Add(ConvertBackground);
             command.Options.Add(HcaKey);
             command.Options.Add(GenerateEventXml);
-            command.Options.Add(GenerateReleaseTagXml);
-            command.Options.Add(ReleaseTagId);
-            command.Options.Add(ReleaseTagTitleName);
+            command.Options.Add(CustomReleaseTagXml);
+            command.Options.Add(SelectedReleaseTagId);
+            command.Options.Add(CustomReleaseTagId);
+            command.Options.Add(CustomReleaseTagTitleName);
             command.Options.Add(UltimaEventId);
             command.Options.Add(WeEventId);
             command.Options.Add(MainDifficulties);
@@ -148,8 +150,9 @@ internal static class OptionCommands
                 result.GetValue(OptionName), ParseDiscovery(result, Discovery), result.GetValue(BatchSize),
                 result.GetValue(ConvertChart), result.GetValue(ConvertAudio), result.GetValue(ConvertJacket),
                 result.GetValue(ConvertBackground), result.GetValue(HcaKey), result.GetValue(GenerateEventXml),
-                result.GetValue(GenerateReleaseTagXml), result.GetValue(ReleaseTagId),
-                result.GetValue(ReleaseTagTitleName), result.GetValue(UltimaEventId), result.GetValue(WeEventId),
+                result.GetValue(CustomReleaseTagXml), result.GetValue(SelectedReleaseTagId),
+                result.GetValue(CustomReleaseTagId), result.GetValue(CustomReleaseTagTitleName),
+                result.GetValue(UltimaEventId), result.GetValue(WeEventId),
                 ParseMainDifficulties(result.GetValue(MainDifficulties)));
         }
 
