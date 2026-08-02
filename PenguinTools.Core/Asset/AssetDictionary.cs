@@ -260,9 +260,40 @@ public class AssetDictionary()
             yield break;
         }
 
-        foreach (var directory in Directory.EnumerateDirectories(root, "*", SearchOption.TopDirectoryOnly))
-            if (IsAllowedAssetFolder(directory))
-                yield return directory;
+        const int maxDepth = 8;
+        var queue = new Queue<(string Path, int Depth)>();
+        queue.Enqueue((root, 0));
+
+        while (queue.Count > 0)
+        {
+            var (path, depth) = queue.Dequeue();
+            if (depth >= maxDepth) continue;
+
+            IEnumerable<string> children;
+            try
+            {
+                children = Directory.EnumerateDirectories(path, "*", SearchOption.TopDirectoryOnly);
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            foreach (var directory in children)
+            {
+                if (IsAllowedAssetFolder(directory))
+                {
+                    yield return directory;
+                    continue;
+                }
+
+                if (depth + 1 < maxDepth) queue.Enqueue((directory, depth + 1));
+            }
+        }
     }
 
     private static bool IsAllowedAssetFolder(string path)

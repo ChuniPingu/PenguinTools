@@ -70,13 +70,7 @@ public class Entry : IComparable<Entry>, IEquatable<Entry>
         if (ReferenceEquals(this, other)) return 0;
         if (other is null) return 1;
 
-        var idComparison = Id.CompareTo(other.Id);
-        if (idComparison != 0) return idComparison;
-
-        var strComparison = string.Compare(Str, other.Str, StringComparison.Ordinal);
-        if (strComparison != 0) return strComparison;
-
-        return string.Compare(Data, other.Data, StringComparison.Ordinal);
+        return Id.CompareTo(other.Id);
     }
 
     #endregion
