@@ -1,4 +1,6 @@
 using PenguinTools.Chart.Models;
+using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 
@@ -12,7 +14,6 @@ public sealed class UgcChartConverter
     private readonly c2s.Chart _source;
     private readonly umgr.Chart _target = new();
     private readonly Dictionary<c2s.Note, umgr.PositiveNote> _positiveNotes = [];
-    private readonly List<OpenSlide> _openSlides = [];
 
     private readonly bool _debugTil;
 
@@ -27,18 +28,104 @@ public sealed class UgcChartConverter
     public OperationResult<umgr.Chart> Convert()
     {
         _target.Meta = _source.Meta;
+
+        if (_target.Meta.C2sSlaSnapshot is null)
+        {
+            _target.Meta.C2sSlaSnapshot = string.Join(
+                ";",
+                _source.Notes
+                    .OfType<c2s.Sla>()
+                    .Select(x =>
+                        $"{x.Tick.Original},{x.Timeline},{x.Lane},{x.Width},{x.Length.Original}"));
+        }
+
+        if (_target.Meta.C2sSlpSnapshot is null &&
+            !_source.Events.Any(x => x.Id == "SFL"))
+        {
+            _target.Meta.C2sSlpSnapshot = string.Join(
+                ";",
+                _source.Events
+                    .OfType<c2s.Slp>()
+                    .Select(x =>
+                        $"{x.Tick.Original},{x.Timeline},{x.Length.Original}," +
+                        x.Speed.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+
+        if (_target.Meta.C2sMeterDefDenominator is null)
+            _target.Meta.C2sMeterDefDenominator =
+                _source.Meta.BgmInitialDenominator;
+
+        if (_target.Meta.C2sMeterDefNumerator is null)
+            _target.Meta.C2sMeterDefNumerator =
+                _source.Meta.BgmInitialNumerator;
+
+        if (_source.Meta.TryGetC2sJudgeSummary(
+                out _,
+                out _,
+                out _,
+                out _,
+                out _,
+                out _))
+        {
+            if (_source.Meta.C2sJudgeSldProxyBaseline is null)
+            {
+                _source.Meta.C2sJudgeSldProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateSlideProxy(
+                        _source);
+            }
+        }
+
         ConvertEvents();
+
         var notes = _source.Notes.Where(x => x is not c2s.Sla).ToArray();
-        foreach (var note in notes.Where(x => x is not c2s.Air and not c2s.AirSlide and not c2s.AirHold))
+        var slides = notes.OfType<c2s.Slide>().ToArray();
+        var airCrashes = notes.OfType<c2s.AirCrash>().ToArray();
+
+        foreach (var note in notes.Where(
+                     x => x is not c2s.Air
+                          and not c2s.AirSlide
+                          and not c2s.AirHold
+                          and not c2s.Slide
+                          and not c2s.AirCrash))
             ConvertNote(note);
+
+        ConvertSlides(slides);
+        ConvertAirCrashes(airCrashes);
+
         foreach (var note in notes.OfType<c2s.AirSlide>().Where(x => x.Parent is not c2s.AirSlide))
             ConvertAirSlideChain(note, notes.OfType<c2s.AirSlide>().ToArray());
         foreach (var note in notes.OfType<c2s.AirHold>().Where(x => x.Parent is not c2s.AirHold))
             ConvertAirHoldChain(note, notes.OfType<c2s.AirHold>().ToArray());
         foreach (var note in notes.OfType<c2s.Air>()) ConvertNote(note);
+
         ApplySlaTimelines();
         if (_debugTil) EmitDebugTilMarkers();
         _target.Notes.Sort();
+
+        if (_source.Meta.C2sJudgeHldProxyBaseline is null &&
+            _source.Meta.TryGetC2sJudgeSummary(
+                out _,
+                out _,
+                out _,
+                out _,
+                out _,
+                out _))
+        {
+            var normalized =
+                new C2SChartConverter(
+                    new C2SConvertRequest(
+                        _target))
+                    .Convert();
+
+            if (normalized.Succeeded &&
+                normalized.Value is not null)
+            {
+                _source.Meta.C2sJudgeHldProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateHoldProxy(
+                        normalized.Value);
+            }
+        }
+
         return OperationResult<umgr.Chart>.Success(_target);
     }
 
@@ -106,11 +193,15 @@ public sealed class UgcChartConverter
             case c2s.Tap x: AddPositive(x, new umgr.Tap()); break;
             case c2s.Damage x: AddPositive(x, new umgr.Damage()); break;
             case c2s.Flick x: AddPositive(x, new umgr.Flick()); break;
-            case c2s.ExTap x: AddPositive(x, new umgr.ExTap { Effect = x.Effect ?? ExEffect.UP }); break;
+            case c2s.ExTap x:
+                AddPositive(x, new umgr.ExTap
+                {
+                    Effect = x.Effect ?? ExEffect.UP,
+                    Role = umgr.ExTapRole.Explicit
+                });
+                break;
             case c2s.Hold x: ConvertHold(x); break;
-            case c2s.Slide x: ConvertSlide(x); break;
             case c2s.Air x: ConvertAir(x); break;
-            case c2s.AirCrash x: ConvertAirCrash(x); break;
         }
     }
 
@@ -131,45 +222,90 @@ public sealed class UgcChartConverter
         _positiveNotes[source] = tail;
     }
 
-    private void ConvertSlide(c2s.Slide source)
+    private void ConvertSlides(IEnumerable<c2s.Slide> source)
     {
-        var matchIndex = _openSlides.FindIndex(open =>
-            open.LastJoint.Tick.Original == source.Tick.Original &&
-            open.LastJoint.Lane == source.Lane &&
-            open.LastJoint.Width == source.Width);
+        var active = new Dictionary<SlidePathKey, Queue<OpenSlide>>();
 
-        if (matchIndex >= 0)
+        foreach (var entry in source
+                     .Select((segment, index) => (Segment: segment, SourceOrder: index))
+                     .OrderBy(x => x.Segment.Tick.Original)
+                     .ThenBy(x => x.SourceOrder))
         {
-            var open = _openSlides[matchIndex];
-            open.LastJoint.Joint = IntermediateJoint(open.LastSegment);
-            open.LastJoint.NoLine = source.NoLine;
-            var joint = CreateSlideJoint(source);
-            open.Slide.AppendChild(joint);
-            _positiveNotes[source] = joint;
-            _openSlides[matchIndex] = new OpenSlide(open.Slide, joint, source);
-            return;
-        }
+            var segment = entry.Segment;
+            var startKey = new SlidePathKey(
+                segment.Tick.Original,
+                segment.Lane,
+                segment.Width);
 
-        var slide = new umgr.Slide { Effect = source.Effect, NoLine = source.NoLine };
-        Copy(source, slide);
-        _target.Notes.AppendChild(slide);
-        var firstJoint = CreateSlideJoint(source);
-        slide.AppendChild(firstJoint);
-        _positiveNotes[source] = firstJoint;
-        _openSlides.Add(new OpenSlide(slide, firstJoint, source));
+            OpenSlide open;
+
+            if (active.TryGetValue(startKey, out var startQueue) && startQueue.Count > 0)
+            {
+                open = startQueue.Dequeue();
+                if (startQueue.Count == 0)
+                    active.Remove(startKey);
+
+                if (open.Slide.Effect is null && segment.Effect is { } effect)
+                    open.Slide.Effect = effect;
+
+                open.LastJoint.Joint = IntermediateJoint(open.LastSegment);
+                open.LastJoint.NoLine = segment.NoLine;
+
+                var joint = CreateSlideJoint(segment);
+                open.Slide.AppendChild(joint);
+                _positiveNotes[segment] = joint;
+
+                open = new OpenSlide(open.Slide, joint, segment);
+            }
+            else
+            {
+                var slide = new umgr.Slide
+                {
+                    Effect = segment.Effect,
+                    NoLine = segment.NoLine
+                };
+
+                Copy(segment, slide);
+                _target.Notes.AppendChild(slide);
+
+                var firstJoint = CreateSlideJoint(segment);
+                slide.AppendChild(firstJoint);
+                _positiveNotes[segment] = firstJoint;
+
+                open = new OpenSlide(slide, firstJoint, segment);
+            }
+
+            var endKey = new SlidePathKey(
+                segment.EndTick.Original,
+                segment.EndLane,
+                segment.EndWidth);
+
+            if (!active.TryGetValue(endKey, out var endQueue))
+            {
+                endQueue = new Queue<OpenSlide>();
+                active[endKey] = endQueue;
+            }
+
+            endQueue.Enqueue(open);
+        }
     }
 
     private static umgr.SlideJoint CreateSlideJoint(c2s.Slide source) => new()
     {
-        Tick = source.EndTick, Lane = source.EndLane, Width = source.EndWidth,
-        Timeline = Timeline(source), Joint = Joint.D
+        Tick = source.EndTick,
+        Lane = source.EndLane,
+        Width = source.EndWidth,
+        Timeline = Timeline(source),
+        Joint = source.Joint
     };
 
-    private static Joint IntermediateJoint(c2s.Slide segment) => segment.Joint;
+    private static Joint IntermediateJoint(c2s.Slide segment) =>
+        segment.Joint;
 
     private void ConvertAir(c2s.Air source)
     {
-        if (source.Parent is null || !_positiveNotes.TryGetValue(source.Parent, out var parent))
+        if (source.Parent is null ||
+            !_positiveNotes.TryGetValue(source.Parent, out var parent))
             return;
 
         // AirHold/AirSlide convert before Air and already MakePair the parent.
@@ -178,78 +314,288 @@ public sealed class UgcChartConverter
             case umgr.AirHold hold:
                 hold.Direction = source.Direction;
                 hold.Color = source.Color;
+                hold.HasAirArrow = true;
                 return;
+
             case umgr.AirSlide slide:
                 slide.Direction = source.Direction;
                 slide.Color = source.Color;
+                slide.HasAirArrow = true;
                 return;
         }
 
-        var air = new umgr.Air { Direction = source.Direction, Color = source.Color };
+        var air = new umgr.Air
+        {
+            Direction = source.Direction,
+            Color = source.Color
+        };
+
+        Copy(source, air);
         _target.Notes.AppendChild(air);
-        parent.MakePair(air);
+        PairAirAction(source.Parent, air);
     }
 
-    private void ConvertAirSlideChain(c2s.AirSlide source, IReadOnlyList<c2s.AirSlide> allSegments)
+    private void PairAirAction(
+        c2s.Note sourceParent,
+        umgr.NegativeNote action)
     {
-        var air = new umgr.AirSlide { Height = source.Height.Original, Color = source.Color };
+        if (!_positiveNotes.TryGetValue(sourceParent, out var parent))
+            return;
+
+        // UMGR only allows one NegativeNote to pair directly with a
+        // PositiveNote. Keep the normal one-to-one case unchanged.
+        if (parent.PairNote is null)
+        {
+            parent.MakePair(action);
+            return;
+        }
+
+        // C2S may attach more than one AIR action to the same positive
+        // parent. Pairing another action directly would detach the first one,
+        // so additional actions use an internal carrier instead.
+        var carrierParent = sourceParent switch
+        {
+            c2s.Tap =>
+                umgr.AirActionCarrierParent.Tap,
+
+            c2s.ExTap =>
+                umgr.AirActionCarrierParent.ExTap,
+
+            c2s.Flick =>
+                umgr.AirActionCarrierParent.Flick,
+
+            c2s.Damage =>
+                umgr.AirActionCarrierParent.Damage,
+
+            c2s.Hold =>
+                umgr.AirActionCarrierParent.Hold,
+
+            c2s.Slide =>
+                umgr.AirActionCarrierParent.Slide,
+
+            _ =>
+                umgr.AirActionCarrierParent.None
+        };
+
+        if (carrierParent == umgr.AirActionCarrierParent.None)
+        {
+            parent.MakePair(action);
+            return;
+        }
+
+        var carrierEffect = sourceParent switch
+        {
+            c2s.ExTap exTap =>
+                exTap.Effect ?? ExEffect.UP,
+
+            c2s.Hold hold =>
+                hold.Effect ?? ExEffect.UP,
+
+            c2s.Slide slide =>
+                slide.Effect ?? ExEffect.UP,
+
+            _ =>
+                ExEffect.UP
+        };
+
+        var carrier = new umgr.ExTap
+        {
+            Tick = parent.Tick,
+            Lane = parent.Lane,
+            Width = parent.Width,
+            Timeline = parent.Timeline,
+            Effect = carrierEffect,
+            Role = umgr.ExTapRole.AirActionCarrier,
+            AirActionParent = carrierParent,
+
+            AirActionParentJoint =
+                sourceParent is c2s.Slide slideParent
+                    ? slideParent.Joint
+                    : Joint.D,
+
+            AirActionParentIsEx =
+                sourceParent switch
+                {
+                    c2s.Hold holdParent =>
+                        holdParent.Effect is not null,
+
+                    c2s.Slide slideEffectParent =>
+                        slideEffectParent.Effect is not null,
+
+                    _ =>
+                        false
+                }
+        };
+
+        _target.Notes.AppendChild(carrier);
+        carrier.MakePair(action);
+    }
+
+    private void ConvertAirSlideChain(
+        c2s.AirSlide source,
+        IReadOnlyList<c2s.AirSlide> allSegments)
+    {
+        var air = new umgr.AirSlide
+        {
+            Height = source.Height.Original,
+            Color = source.Color,
+            HasAirArrow = false
+        };
+
         Copy(source, air);
+
         var segment = source;
+
         while (true)
         {
-            var next = allSegments.FirstOrDefault(x => ReferenceEquals(x.Parent, segment));
+            var next = allSegments.FirstOrDefault(
+                x => ReferenceEquals(x.Parent, segment));
+
             air.AppendChild(new umgr.AirSlideJoint
             {
-                Tick = segment.EndTick, Lane = segment.EndLane, Width = segment.EndWidth,
-                Timeline = Timeline(segment), Height = segment.EndHeight.Original,
+                Tick = segment.EndTick,
+                Lane = segment.EndLane,
+                Width = segment.EndWidth,
+                Timeline = Timeline(segment),
+                Height = segment.EndHeight.Original,
                 Joint = segment.Joint
             });
-            if (next is null) break;
+
+            if (next is null)
+                break;
+
             segment = next;
         }
+
         _target.Notes.AppendChild(air);
-        if (source.Parent is not null && _positiveNotes.TryGetValue(source.Parent, out var parent)) parent.MakePair(air);
+
+        if (source.Parent is not null)
+            PairAirAction(source.Parent, air);
     }
 
-    private void ConvertAirHoldChain(c2s.AirHold source, IReadOnlyList<c2s.AirHold> allSegments)
+    private void ConvertAirHoldChain(
+        c2s.AirHold source,
+        IReadOnlyList<c2s.AirHold> allSegments)
     {
-        var air = new umgr.AirHold { Color = source.Color };
+        var air = new umgr.AirHold
+        {
+            Color = source.Color,
+            HasAirArrow = false
+        };
         Copy(source, air);
+
         var segment = source;
+
         while (true)
         {
-            var next = allSegments.FirstOrDefault(x => ReferenceEquals(x.Parent, segment));
+            var next = allSegments.FirstOrDefault(
+                x => ReferenceEquals(x.Parent, segment));
+
             air.AppendChild(new umgr.AirHoldJoint
             {
                 Tick = segment.EndTick,
                 Timeline = Timeline(segment),
                 Joint = segment.Joint
             });
-            if (next is null) break;
+
+            if (next is null)
+                break;
+
             segment = next;
         }
+
         _target.Notes.AppendChild(air);
-        if (source.Parent is not null && _positiveNotes.TryGetValue(source.Parent, out var parent)) parent.MakePair(air);
+
+        if (source.Parent is not null)
+            PairAirAction(source.Parent, air);
     }
 
-    private readonly record struct OpenSlide(umgr.Slide Slide, umgr.SlideJoint LastJoint, c2s.Slide LastSegment);
+    private readonly record struct OpenSlide(
+        umgr.Slide Slide,
+        umgr.SlideJoint LastJoint,
+        c2s.Slide LastSegment);
 
-    private void ConvertAirCrash(c2s.AirCrash source)
+    private readonly record struct SlidePathKey(
+        int Tick,
+        int Lane,
+        int Width);
+
+    private readonly record struct AirCrashPathKey(
+        int Tick,
+        int Lane,
+        int Width,
+        decimal Height,
+        Color Color,
+        int Density,
+        AirLadderAttr Attr);
+
+    private static AirLadderAttr AirCrashPathAttr(AirLadderAttr attr) =>
+        attr == AirLadderAttr.Trace ? AirLadderAttr.DEF : attr;
+
+    private static AirCrashPathKey AirCrashStartKey(c2s.AirCrash note) => new(
+        note.Tick.Original,
+        note.Lane,
+        note.Width,
+        note.Height.Original,
+        note.Color,
+        note.Density.Original,
+        AirCrashPathAttr(note.Attr));
+
+    private static AirCrashPathKey AirCrashEndKey(c2s.AirCrash note) => new(
+        note.EndTick.Original,
+        note.EndLane,
+        note.EndWidth,
+        note.EndHeight.Original,
+        note.Color,
+        note.Density.Original,
+        AirCrashPathAttr(note.Attr));
+
+    private void ConvertAirCrashes(IEnumerable<c2s.AirCrash> source)
     {
-        var crash = new umgr.AirCrash
+        var active = new Dictionary<AirCrashPathKey, Queue<umgr.AirCrash>>();
+
+        foreach (var segment in source.OrderBy(x => x.Tick.Original))
         {
-            Height = source.Height.Original,
-            Color = source.Color,
-            Density = source.Density,
-            Attr = source.Attr
-        };
-        Copy(source, crash);
-        crash.AppendChild(new umgr.AirCrashJoint
-        {
-            Tick = source.EndTick, Lane = source.EndLane, Width = source.EndWidth,
-            Timeline = Timeline(source), Height = source.EndHeight.Original
-        });
-        _target.Notes.AppendChild(crash);
+            var startKey = AirCrashStartKey(segment);
+            umgr.AirCrash crash;
+
+            if (active.TryGetValue(startKey, out var startQueue) && startQueue.Count > 0)
+            {
+                crash = startQueue.Dequeue();
+                if (startQueue.Count == 0)
+                    active.Remove(startKey);
+            }
+            else
+            {
+                crash = new umgr.AirCrash
+                {
+                    Height = segment.Height.Original,
+                    Color = segment.Color,
+                    Density = segment.Density,
+                    Attr = segment.Attr
+                };
+                Copy(segment, crash);
+                _target.Notes.AppendChild(crash);
+            }
+
+            crash.AppendChild(new umgr.AirCrashJoint
+            {
+                Tick = segment.EndTick,
+                Lane = segment.EndLane,
+                Width = segment.EndWidth,
+                Timeline = Timeline(segment),
+                Height = segment.EndHeight.Original
+            });
+
+            var endKey = AirCrashEndKey(segment);
+            if (!active.TryGetValue(endKey, out var endQueue))
+            {
+                endQueue = new Queue<umgr.AirCrash>();
+                active[endKey] = endQueue;
+            }
+
+            endQueue.Enqueue(crash);
+        }
     }
 
     private static void Copy(c2s.Note source, umgr.Note target)

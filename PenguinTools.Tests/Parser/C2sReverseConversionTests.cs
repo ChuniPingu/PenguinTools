@@ -153,6 +153,35 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public void SlcTail_RemainsControlJoint()
+    {
+        var source = new C2sChart();
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 120,
+            EndLane = 6,
+            EndWidth = 4,
+            Joint = Joint.C
+        });
+
+        var result = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+
+        var slide = Assert.IsType<PenguinTools.Chart.Models.umgr.Slide>(
+            Assert.Single(result.Value!.Notes.Children));
+
+        var tail = Assert.IsType<PenguinTools.Chart.Models.umgr.SlideJoint>(
+            Assert.Single(slide.Children));
+
+        Assert.Equal(Joint.C, tail.Joint);
+    }
+
+    [Fact]
     public void PlainSldIntermediate_StaysStepJoint()
     {
         var source = new C2sChart();
@@ -189,6 +218,100 @@ public sealed class C2sReverseConversionTests
         var air = Assert.Single(ugc.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Air>());
         Assert.Equal(480, air.Tick.Original);
         Assert.NotNull(air.PairNote);
+    }
+
+    [Fact]
+    public async Task LaterSxd_MarksWholeSlideEx_AndPreservesNoLine()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "later-sxd.c2s");
+
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+                VERSION	1.15.00	1.15.00
+                RESOLUTION	384
+                SLD	0	0	0	4	96	2	4	SLD
+                SXD	0	96	2	4	96	4	4	NCL
+                """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path))
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var segments = parsed.Value!.Notes
+                .OfType<Slide>()
+                .OrderBy(x => x.Tick.Original)
+                .ToArray();
+
+            Assert.Equal(2, segments.Length);
+            Assert.Null(segments[0].Effect);
+            Assert.Equal(ExEffect.UP, segments[1].Effect);
+            Assert.False(segments[0].NoLine);
+            Assert.True(segments[1].NoLine);
+
+            var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
+
+            Assert.True(converted.Succeeded, converted.ToString());
+
+            var slide = Assert.Single(
+                converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Slide>());
+
+            Assert.Equal(ExEffect.UP, slide.Effect);
+            Assert.False(slide.NoLine);
+
+            var joints = slide.Children
+                .OfType<PenguinTools.Chart.Models.umgr.SlideJoint>()
+                .ToArray();
+
+            Assert.Equal(2, joints.Length);
+            Assert.True(joints[0].NoLine);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task HxdWithoutExplicitEffect_RemainsExHold()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "hxd-default.c2s");
+
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+                VERSION	1.15.00	1.15.00
+                RESOLUTION	384
+                HXD	0	0	0	4	96
+                """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(new C2SParseRequest(path))
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var hold = Assert.Single(parsed.Value!.Notes.OfType<Hold>());
+            Assert.Equal(ExEffect.UP, hold.Effect);
+            Assert.Equal("HXD", hold.Id);
+
+            var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
+
+            Assert.True(converted.Succeeded, converted.ToString());
+
+            var convertedHold = Assert.Single(
+                converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Hold>());
+
+            Assert.Equal(ExEffect.UP, convertedHold.Effect);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     [Fact]
@@ -273,6 +396,242 @@ public sealed class C2sReverseConversionTests
             Assert.Contains(parsed.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirCrash>(),
                 x => x.Children.Count > 0);
             Assert.Contains(parsed.Value.Notes.Children, n => n.Timeline == 4);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_DeduplicatesGeneratedExLongCarriersAtSamePosition()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 0,
+            EndWidth = 4,
+            Effect = ExEffect.UP
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 0,
+            EndWidth = 4,
+            Effect = ExEffect.UP
+        });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "stacked-ex-hold.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var holds = parsed.Value!.Notes.Children
+                .OfType<PenguinTools.Chart.Models.umgr.Hold>()
+                .ToArray();
+
+            var carriers = parsed.Value.Notes.Children
+                .OfType<PenguinTools.Chart.Models.umgr.ExTap>()
+                .ToArray();
+
+            Assert.Equal(2, holds.Length);
+            Assert.Single(carriers);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task HoldOnlyCarrier_DoesNotMarkOverlappingPlainSlideEx()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 0,
+            EndWidth = 4,
+            Effect = ExEffect.UP
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "hold-only-carrier-overlapping-slide.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var hold = Assert.Single(
+                parsed.Value!.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.Hold>());
+
+            var slide = Assert.Single(
+                parsed.Value.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.Slide>());
+
+            Assert.Equal(ExEffect.UP, hold.Effect);
+            Assert.Null(slide.Effect);
+
+            var carrier = Assert.Single(
+                parsed.Value.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.ExTap>());
+
+            Assert.Equal(
+                PenguinTools.Chart.Models.umgr.ExTapRole.HoldOnlyCarrier,
+                carrier.Role);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task ExplicitChr_DoesNotReplaceOverlappingExHoldCarrier()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new ExTap
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Effect = ExEffect.UP
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 0,
+            EndWidth = 4,
+            Effect = ExEffect.UP
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var mgxcPath = Path.Combine(
+            directory,
+            "explicit-chr-overlapping-hxd.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(mgxcPath, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(mgxcPath, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var explicitChr = Assert.Single(
+                parsed.Value!.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.ExTap>(),
+                x => x.Role == PenguinTools.Chart.Models.umgr.ExTapRole.Explicit);
+
+            Assert.Equal(ExEffect.UP, explicitChr.Effect);
+
+            var hold = Assert.Single(
+                parsed.Value.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.Hold>());
+
+            Assert.Equal(ExEffect.UP, hold.Effect);
+
+            var roundtrip = new C2SChartConverter(
+                new C2SConvertRequest(parsed.Value)).Convert();
+
+            Assert.True(roundtrip.Succeeded, roundtrip.ToString());
+
+            Assert.Single(roundtrip.Value!.Notes.OfType<ExTap>());
+
+            var roundtripHold = Assert.Single(
+                roundtrip.Value.Notes.OfType<Hold>());
+
+            Assert.Equal(ExEffect.UP, roundtripHold.Effect);
+            Assert.Equal("HXD", roundtripHold.Id);
         }
         finally
         {
@@ -729,6 +1088,1448 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public async Task C2sWriter_DoesNotReuseStaleJudgeSummaryAfterNoteEdit()
+    {
+        var source = new C2sChart();
+        source.Meta.Id = 2999;
+        source.Meta.Difficulty = Difficulty.Master;
+        source.Meta.Level = 15.6m;
+        source.Meta.Designer = "JudgeStats";
+        source.Meta.MainBpm = 120m;
+        source.Meta.BgmInitialBpm = 120m;
+        source.Meta.BgmInitialDenominator = 4;
+        source.Meta.BgmInitialNumerator = 4;
+
+        // Simulate statistics inherited from the source C2S.
+        source.Meta.C2sJudgeTap = 1;
+        source.Meta.C2sJudgeHld = 0;
+        source.Meta.C2sJudgeSld = 0;
+        source.Meta.C2sJudgeAir = 0;
+        source.Meta.C2sJudgeFlk = 0;
+        source.Meta.C2sJudgeAll = 1;
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 120m
+        });
+
+        // Original chart had one TAP.
+        source.Notes.Add(new Tap
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 2
+        });
+
+        // Simulate adding another TAP in Margrete.
+        source.Notes.Add(new Tap
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 2
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(directory, "judge-stale.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var text = await File.ReadAllTextAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains("T_JUDGE_TAP\t2", text);
+            Assert.Contains("T_JUDGE_HLD\t0", text);
+            Assert.Contains("T_JUDGE_SLD\t0", text);
+            Assert.Contains("T_JUDGE_AIR\t0", text);
+            Assert.Contains("T_JUDGE_FLK\t0", text);
+            Assert.Contains("T_JUDGE_ALL\t2", text);
+
+            Assert.DoesNotContain("T_JUDGE_TAP\t1", text);
+            Assert.DoesNotContain("T_JUDGE_ALL\t1", text);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_RecalculatesSimpleHoldJudgeCount()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m,
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 0,
+                C2sJudgeSld = 0,
+                C2sJudgeAir = 0,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 1,
+                C2sJudgeHldProxyBaseline = 0
+            }
+        };
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 240,
+            EndLane = 4,
+            EndWidth = 4
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "simple-hold-judge.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains(
+                "T_JUDGE_TAP\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_HLD\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_SLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_AIR\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_FLK\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_ALL\t2",
+                lines);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_AirAtHoldEndReplacesHoldEndJudge()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m,
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 1,
+                C2sJudgeSld = 0,
+                C2sJudgeAir = 1,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 3,
+                C2sJudgeHldProxyBaseline = 1
+            }
+        };
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        var hold = new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 240,
+            EndLane = 4,
+            EndWidth = 4
+        };
+
+        source.Notes.Add(hold);
+
+        source.Notes.Add(new Air
+        {
+            Tick = 240,
+            Lane = 4,
+            Width = 4,
+            Parent = hold
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "air-at-hold-end-judge.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains(
+                "T_JUDGE_TAP\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_HLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_SLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_AIR\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_FLK\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_ALL\t2",
+                lines);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_CountsTapHeadsAndSlideRoots()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new Tap
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 2
+        });
+
+        source.Notes.Add(new ExTap
+        {
+            Tick = 0,
+            Lane = 2,
+            Width = 2
+        });
+
+        source.Notes.Add(new Damage
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 2
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 6,
+            Width = 2,
+            EndTick = 480,
+            EndLane = 6,
+            EndWidth = 2
+        });
+
+        source.Notes.Add(new Flick
+        {
+            Tick = 0,
+            Lane = 8,
+            Width = 2
+        });
+
+        // Slide path #1, segment 1.
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 2,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 2,
+            Joint = Joint.D
+        });
+
+        // Slide path #2.
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 8,
+            Width = 2,
+            EndTick = 480,
+            EndLane = 10,
+            EndWidth = 2,
+            Joint = Joint.D
+        });
+
+        // Continuation of slide path #1.
+        // This must NOT be counted as another TAP head.
+        source.Notes.Add(new Slide
+        {
+            Tick = 480,
+            Lane = 2,
+            Width = 2,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 2,
+            Joint = Joint.D
+        });
+
+        Assert.Equal(
+            6,
+            C2SJudgeSummaryCalculator.CalculateTap(source));
+
+        Assert.Equal(
+            1,
+            C2SJudgeSummaryCalculator.CalculateFlick(source));
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_ReconstructsOverlappingSlidesWithFifo()
+    {
+        var source = new C2sChart();
+
+        // Two independent slide roots with exactly the same geometry.
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        // Continuation for the first open slide.
+        source.Notes.Add(new Slide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 8,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        // Continuation for the second open slide.
+        source.Notes.Add(new Slide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 8,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        Assert.Equal(
+            2,
+            C2SJudgeSummaryCalculator.CalculateTap(source));
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_DoesNotConsumeNewRootAtSharedSlideJunction()
+    {
+        var source = new C2sChart();
+
+        // Existing slide path.
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        // Continuation of the existing path.
+        source.Notes.Add(new Slide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 8,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        // A completely new slide happens to begin at exactly
+        // the same point as the continuation above.
+        source.Notes.Add(new Slide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 0,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        Assert.Equal(
+            2,
+            C2SJudgeSummaryCalculator.CalculateTap(source));
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_DoesNotCountSharedLongCarrier()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 0,
+            EndWidth = 4,
+            Effect = ExEffect.UP
+        });
+
+        var toUmgr = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(toUmgr.Succeeded, toUmgr.ToString());
+
+        // Simulate the auxiliary EX head used by overlapping EX long notes.
+        // It must never become another real C2S CHR judgement head.
+        toUmgr.Value!.Notes.AppendChild(
+            new PenguinTools.Chart.Models.umgr.ExTap
+            {
+                Tick = 0,
+                Lane = 0,
+                Width = 4,
+                Effect = ExEffect.UP,
+                Role = PenguinTools.Chart.Models.umgr.ExTapRole.SharedLongCarrier
+            });
+
+        var backToC2s = new C2SChartConverter(
+            new C2SConvertRequest(toUmgr.Value)).Convert();
+
+        Assert.True(backToC2s.Succeeded, backToC2s.ToString());
+
+        Assert.Equal(
+            1,
+            C2SJudgeSummaryCalculator.CalculateTap(backToC2s.Value!));
+
+        Assert.Empty(
+            backToC2s.Value!.Notes.OfType<ExTap>());
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_HoldProxyHandlesPairedAir()
+    {
+        var plainChart = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m
+            }
+        };
+
+        plainChart.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        plainChart.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 240,
+            EndLane = 4,
+            EndWidth = 4
+        });
+
+        Assert.Equal(
+            1,
+            C2SJudgeSummaryCalculator.CalculateHoldProxy(
+                plainChart));
+
+        var airChart = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m
+            }
+        };
+
+        airChart.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        var hold = new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 240,
+            EndLane = 4,
+            EndWidth = 4
+        };
+
+        airChart.Notes.Add(hold);
+
+        airChart.Notes.Add(new Air
+        {
+            Tick = 240,
+            Lane = 4,
+            Width = 4,
+            Parent = hold
+        });
+
+        Assert.Equal(
+            0,
+            C2SJudgeSummaryCalculator.CalculateHoldProxy(
+                airChart));
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_SlideProxyUsesWholePathDuration()
+    {
+        var singleSegmentChart = new C2sChart();
+
+        singleSegmentChart.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 8,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        Assert.Equal(
+            5,
+            C2SJudgeSummaryCalculator.CalculateSlideProxy(
+                singleSegmentChart));
+
+        var splitSegmentChart = new C2sChart();
+
+        splitSegmentChart.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 240,
+            EndLane = 6,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        splitSegmentChart.Notes.Add(new Slide
+        {
+            Tick = 240,
+            Lane = 6,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 8,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        Assert.Equal(
+            5,
+            C2SJudgeSummaryCalculator.CalculateSlideProxy(
+                splitSegmentChart));
+    }
+
+    [Fact]
+    public void C2sJudgeSummaryCalculator_SlideProxyUsesFifoAtSharedJunction()
+    {
+        var chart = new C2sChart();
+
+        chart.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 96,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        chart.Notes.Add(new Slide
+        {
+            Tick = 12,
+            Lane = 8,
+            Width = 4,
+            EndTick = 96,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        chart.Notes.Add(new Slide
+        {
+            Tick = 96,
+            Lane = 4,
+            Width = 4,
+            EndTick = 108,
+            EndLane = 2,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        chart.Notes.Add(new Slide
+        {
+            Tick = 96,
+            Lane = 4,
+            Width = 4,
+            EndTick = 120,
+            EndLane = 6,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        Assert.Equal(
+            4,
+            C2SJudgeSummaryCalculator.CalculateSlideProxy(
+                chart));
+    }
+
+    [Fact]
+    public void UgcChartConverter_InitializesJudgeProxyBaselinesOnce()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m,
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 2,
+                C2sJudgeSld = 3,
+                C2sJudgeAir = 4,
+                C2sJudgeFlk = 5,
+                C2sJudgeAll = 15
+            }
+        };
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 240,
+            EndLane = 4,
+            EndWidth = 4
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 8,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 12,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        var first = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(
+            first.Succeeded,
+            first.ToString());
+
+        Assert.Equal(
+            1,
+            first.Value!.Meta.C2sJudgeHldProxyBaseline);
+
+        Assert.Equal(
+            5,
+            first.Value.Meta.C2sJudgeSldProxyBaseline);
+
+        source.Meta.C2sJudgeHldProxyBaseline = 77;
+        source.Meta.C2sJudgeSldProxyBaseline = 88;
+
+        var second = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(
+            second.Succeeded,
+            second.ToString());
+
+        Assert.Equal(
+            77,
+            second.Value!.Meta.C2sJudgeHldProxyBaseline);
+
+        Assert.Equal(
+            88,
+            second.Value.Meta.C2sJudgeSldProxyBaseline);
+    }
+
+    [Fact]
+    public async Task C2sWriter_AppliesHoldProxyDeltaToSourceJudgeSummary()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m,
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 500,
+                C2sJudgeSld = 0,
+                C2sJudgeAir = 0,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 501,
+                C2sJudgeHldProxyBaseline = 1
+            }
+        };
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 1440,
+            EndLane = 4,
+            EndWidth = 4
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "hold-proxy-delta.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains(
+                "T_JUDGE_TAP\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_HLD\t505",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_SLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_AIR\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_FLK\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_ALL\t506",
+                lines);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_PreservesSourceHoldJudgeWithoutProxyBaseline()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 206m,
+                BgmInitialBpm = 206m,
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 500,
+                C2sJudgeSld = 0,
+                C2sJudgeAir = 0,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 501
+            }
+        };
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 206m
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 1440,
+            EndLane = 4,
+            EndWidth = 4
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "hold-without-proxy-baseline.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains(
+                "T_JUDGE_TAP\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_HLD\t500",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_SLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_AIR\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_FLK\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_ALL\t501",
+                lines);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_RecalculatesFlickJudgeAfterNoteEdit()
+    {
+        var source = new C2sChart();
+        source.Meta.Id = 1;
+        source.Meta.Difficulty = Difficulty.Master;
+        source.Meta.Level = 1m;
+        source.Meta.Designer = "JudgeStats";
+        source.Meta.MainBpm = 120m;
+        source.Meta.BgmInitialBpm = 120m;
+        source.Meta.BgmInitialDenominator = 4;
+        source.Meta.BgmInitialNumerator = 4;
+
+        // Deliberately stale source statistics.
+        source.Meta.C2sJudgeTap = 99;
+        source.Meta.C2sJudgeHld = 0;
+        source.Meta.C2sJudgeSld = 0;
+        source.Meta.C2sJudgeAir = 0;
+        source.Meta.C2sJudgeFlk = 99;
+        source.Meta.C2sJudgeAll = 198;
+
+        source.Events.Add(new Bpm
+        {
+            Tick = 0,
+            Value = 120m
+        });
+
+        source.Notes.Add(new Flick
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 2
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "judge-flick-edit.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var text = await File.ReadAllTextAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains("T_JUDGE_TAP\t0", text);
+            Assert.Contains("T_JUDGE_HLD\t0", text);
+            Assert.Contains("T_JUDGE_SLD\t0", text);
+            Assert.Contains("T_JUDGE_AIR\t0", text);
+            Assert.Contains("T_JUDGE_FLK\t1", text);
+            Assert.Contains("T_JUDGE_ALL\t1", text);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_AppliesSlideProxyDeltaToSourceJudgeSummary()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 0,
+                C2sJudgeSld = 1000,
+                C2sJudgeAir = 0,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 1001,
+                C2sJudgeSldProxyBaseline = 5
+            }
+        };
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 8,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 12,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "slide-proxy-delta.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains(
+                "T_JUDGE_TAP\t2",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_HLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_SLD\t1005",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_AIR\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_FLK\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_ALL\t1007",
+                lines);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_PreservesSourceSlideJudgeWithoutProxyBaseline()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 0,
+                C2sJudgeSld = 1000,
+                C2sJudgeAir = 0,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 1001
+            }
+        };
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 8,
+            EndWidth = 4,
+            Joint = Joint.D
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "slide-without-proxy-baseline.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains(
+                "T_JUDGE_TAP\t1",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_HLD\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_SLD\t1000",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_AIR\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_FLK\t0",
+                lines);
+
+            Assert.Contains(
+                "T_JUDGE_ALL\t1001",
+                lines);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcJudgeSummary_PreservesCopyrightAndJudgeSummary()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new Tap
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 2
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var chart = converted.Value!;
+
+        chart.Meta.Copyright = "Original Copyright Text";
+        chart.Meta.C2sJudgeTap = 1;
+        chart.Meta.C2sJudgeHld = 2;
+        chart.Meta.C2sJudgeSld = 3;
+        chart.Meta.C2sJudgeAir = 4;
+        chart.Meta.C2sJudgeFlk = 5;
+        chart.Meta.C2sJudgeAll = 15;
+
+        chart.Meta.C2sJudgeHldProxyBaseline = 11;
+        chart.Meta.C2sJudgeSldProxyBaseline = 22;
+        chart.Meta.C2sJudgeAirProxyBaseline = 33;
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "copyright-judge-summary.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var meta = parsed.Value!.Meta;
+
+            Assert.Equal(
+                "Original Copyright Text",
+                meta.Copyright);
+
+            Assert.Equal(1, meta.C2sJudgeTap);
+            Assert.Equal(2, meta.C2sJudgeHld);
+            Assert.Equal(3, meta.C2sJudgeSld);
+            Assert.Equal(4, meta.C2sJudgeAir);
+            Assert.Equal(5, meta.C2sJudgeFlk);
+            Assert.Equal(15, meta.C2sJudgeAll);
+
+            Assert.Equal(
+                11,
+                meta.C2sJudgeHldProxyBaseline);
+
+            Assert.Equal(
+                22,
+                meta.C2sJudgeSldProxyBaseline);
+
+            Assert.Equal(
+                33,
+                meta.C2sJudgeAirProxyBaseline);
+
+            Assert.True(
+                meta.TryGetC2sJudgeSummary(
+                    out var tap,
+                    out var hld,
+                    out var sld,
+                    out var air,
+                    out var flk,
+                    out var all));
+
+            Assert.Equal(1, tap);
+            Assert.Equal(2, hld);
+            Assert.Equal(3, sld);
+            Assert.Equal(4, air);
+            Assert.Equal(5, flk);
+            Assert.Equal(15, all);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcMetadataSnapshots_PreserveWithoutJudgeSummary()
+    {
+        var chart = new PenguinTools.Chart.Models.umgr.Chart();
+
+        chart.Meta.Copyright = "Original Copyright Text";
+        chart.Meta.C2sMeterDefDenominator = 4;
+        chart.Meta.C2sMeterDefNumerator = 4;
+        chart.Meta.C2sSlpSnapshot = "0,0,480,1.25";
+        chart.Meta.C2sSlaSnapshot = "0,1,4,2,480";
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "metadata-without-judge-summary.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var meta = parsed.Value!.Meta;
+
+            Assert.Equal(
+                "Original Copyright Text",
+                meta.Copyright);
+
+            Assert.Equal(4, meta.C2sMeterDefDenominator);
+            Assert.Equal(4, meta.C2sMeterDefNumerator);
+            Assert.Equal("0,0,480,1.25", meta.C2sSlpSnapshot);
+            Assert.Equal("0,1,4,2,480", meta.C2sSlaSnapshot);
+
+            Assert.False(
+                meta.TryGetC2sJudgeSummary(
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out _));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcJudgeSummary_PreservesPartialProxyBaselines()
+    {
+        var source = new PenguinTools.Chart.Models.umgr.Chart
+        {
+            Meta =
+            {
+                C2sJudgeTap = 3000,
+                C2sJudgeHld = 500,
+                C2sJudgeSld = 1000,
+                C2sJudgeAir = 1000,
+                C2sJudgeFlk = 216,
+                C2sJudgeAll = 5716,
+                C2sJudgeHldProxyBaseline = 509,
+                C2sJudgeSldProxyBaseline = 1005,
+                C2sJudgeAirProxyBaseline = null
+            }
+        };
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "partial-proxy-baseline.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(
+                        path,
+                        TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                parsed.Succeeded,
+                parsed.ToString());
+
+            Assert.Equal(
+                509,
+                parsed.Value!.Meta.C2sJudgeHldProxyBaseline);
+
+            Assert.Equal(
+                1005,
+                parsed.Value.Meta.C2sJudgeSldProxyBaseline);
+
+            Assert.Null(
+                parsed.Value.Meta.C2sJudgeAirProxyBaseline);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
+        }
+    }
+
+    [Fact]
     public async Task MgxcWriter_EmitsAirBeforeAirHold()
     {
         var source = new C2sChart();
@@ -739,6 +2540,16 @@ public sealed class C2sReverseConversionTests
         {
             Tick = 0, Lane = 2, Width = 2, EndTick = 480, EndLane = 2, EndWidth = 2,
             Parent = hold, Color = Color.DEF, Joint = Joint.D
+        });
+
+        source.Notes.Add(new Air
+        {
+            Tick = 0,
+            Lane = 2,
+            Width = 2,
+            Parent = hold,
+            Direction = AirDirection.IR,
+            Color = Color.DEF
         });
 
         var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
@@ -793,6 +2604,205 @@ public sealed class C2sReverseConversionTests
             }
 
             Assert.True(sawAirBeforeHold);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_PreservesAirCrashAxis()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Height = 80m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisY,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 4,
+            EndHeight = 90m
+        });
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 960,
+            Lane = 4,
+            Width = 4,
+            Height = 80m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisZ,
+            EndTick = 1440,
+            EndLane = 6,
+            EndWidth = 4,
+            EndHeight = 90m
+        });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "air-crash-axis.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var crashes = parsed.Value!.Notes.Children
+                .OfType<PenguinTools.Chart.Models.umgr.AirCrash>()
+                .OrderBy(x => x.Tick.Original)
+                .ToArray();
+
+            Assert.Equal(2, crashes.Length);
+            Assert.Equal(AirLadderAttr.AxisY, crashes[0].Attr);
+            Assert.Equal(AirLadderAttr.AxisZ, crashes[1].Attr);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_WritesOnlyFinalAirCrashJointAsEnd()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Height = 80m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisY,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 4,
+            EndHeight = 90m
+        });
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 480,
+            Lane = 2,
+            Width = 4,
+            Height = 90m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisY,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 4,
+            EndHeight = 100m
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var convertedCrash = Assert.Single(
+            converted.Value!.Notes.Children
+                .OfType<PenguinTools.Chart.Models.umgr.AirCrash>());
+
+        Assert.Equal(
+            2,
+            convertedCrash.Children
+                .OfType<PenguinTools.Chart.Models.umgr.AirCrashJoint>()
+                .Count());
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "air-crash-joints.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, converted.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var airCrashLongAttrs = new List<sbyte>();
+
+            await using var stream = File.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+
+            Assert.Equal(
+                "MGXC",
+                System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4)));
+
+            reader.ReadInt32(); // 文件大小
+            reader.ReadInt32(); // MGXC 版本
+
+            while (stream.Position + 8 <= stream.Length)
+            {
+                var blockName = System.Text.Encoding.ASCII.GetString(
+                    reader.ReadBytes(4));
+
+                var blockSize = reader.ReadInt32();
+                var blockEnd = stream.Position + blockSize;
+
+                if (blockName != "dat2")
+                {
+                    stream.Position = blockEnd;
+                    continue;
+                }
+
+                while (stream.Position + 20 <= blockEnd)
+                {
+                    var noteType = reader.ReadSByte();
+                    var longAttr = reader.ReadSByte();
+
+                    reader.ReadSByte(); // direction
+                    reader.ReadSByte(); // exAttr
+                    reader.ReadSByte(); // variation
+                    reader.ReadSByte(); // lane
+                    reader.ReadInt16(); // width
+                    reader.ReadInt32(); // height
+                    reader.ReadInt32(); // tick
+                    reader.ReadInt32(); // timeline
+
+                    if (noteType == 0x0A)
+                        airCrashLongAttrs.Add(longAttr);
+
+                    // AirCrush Begin 比普通记录多一个 density/option 字段。
+                    if (noteType == 0x0A && longAttr == 0x01)
+                        reader.ReadInt32();
+                }
+
+                stream.Position = blockEnd;
+            }
+
+            Assert.Equal(
+                new sbyte[] { 0x01, 0x03, 0x05 },
+                airCrashLongAttrs.ToArray());
         }
         finally
         {
@@ -869,7 +2879,177 @@ public sealed class C2sReverseConversionTests
             Directory.Delete(directory, true);
         }
     }
+    [Fact]
+    public void AirCrashSegments_AreReconstructedAsSinglePath()
+    {
+        var source = new C2sChart();
 
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Height = 80m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisY,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 4,
+            EndHeight = 90m
+        });
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 480,
+            Lane = 2,
+            Width = 4,
+            Height = 90m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisY,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 4,
+            EndHeight = 100m
+        });
+
+        var result = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+
+        var crash = Assert.Single(
+            result.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirCrash>());
+
+        Assert.Equal(AirLadderAttr.AxisY, crash.Attr);
+
+        var joints = crash.Children
+            .OfType<PenguinTools.Chart.Models.umgr.AirCrashJoint>()
+            .ToArray();
+
+        Assert.Equal(2, joints.Length);
+        Assert.Equal(480, joints[0].Tick.Original);
+        Assert.Equal(960, joints[1].Tick.Original);
+    }
+    [Fact]
+    public void AirCrashSegments_WithDifferentAxis_StartSeparatePaths()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Height = 80m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisY,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 4,
+            EndHeight = 90m
+        });
+
+        source.Notes.Add(new AirCrash
+        {
+            Tick = 480,
+            Lane = 2,
+            Width = 4,
+            Height = 90m,
+            Density = 20,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.AxisZ,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 4,
+            EndHeight = 100m
+        });
+
+        var result = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+
+        var crashes = result.Value!.Notes.Children
+            .OfType<PenguinTools.Chart.Models.umgr.AirCrash>()
+            .ToArray();
+
+        Assert.Equal(2, crashes.Length);
+    }
+    [Fact]
+    public void C2sBaseHeads_AreReconstructedByPaths()
+    {
+        var source = new C2sChart();
+
+        source.Notes.Add(new Tap
+        {
+            Tick = 0, Lane = 0, Width = 1
+        });
+
+        source.Notes.Add(new ExTap
+        {
+            Tick = 100, Lane = 1, Width = 1, Effect = ExEffect.UP
+        });
+
+        source.Notes.Add(new Damage
+        {
+            Tick = 200, Lane = 2, Width = 1
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 300, Lane = 3, Width = 1,
+            EndTick = 400, EndLane = 3, EndWidth = 1
+        });
+
+        source.Notes.Add(new Hold
+        {
+            Tick = 500, Lane = 4, Width = 1,
+            EndTick = 600, EndLane = 4, EndWidth = 1,
+            Effect = ExEffect.UP
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 700, Lane = 5, Width = 1,
+            EndTick = 800, EndLane = 6, EndWidth = 1,
+            Joint = Joint.D
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 800, Lane = 6, Width = 1,
+            EndTick = 900, EndLane = 7, EndWidth = 1,
+            Joint = Joint.D
+        });
+
+        source.Notes.Add(new Slide
+        {
+            Tick = 1000, Lane = 9, Width = 1,
+            EndTick = 1100, EndLane = 10, EndWidth = 1,
+            Joint = Joint.D
+        });
+
+        source.Notes.Add(new Flick
+        {
+            Tick = 1200, Lane = 11, Width = 1
+        });
+
+        var result = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+
+        var roots = result.Value!.Notes.Children;
+
+        var baseHeadCount = roots.Count(note =>
+            note is PenguinTools.Chart.Models.umgr.Tap
+                or PenguinTools.Chart.Models.umgr.ExTap
+                or PenguinTools.Chart.Models.umgr.Damage
+                or PenguinTools.Chart.Models.umgr.Hold
+                or PenguinTools.Chart.Models.umgr.Slide);
+
+        Assert.Equal(7, baseHeadCount);
+    }
     [Fact]
     public async Task Writer_KeepsV114_WhenAldAttrIsDefault()
     {

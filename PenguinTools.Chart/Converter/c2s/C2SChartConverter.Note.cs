@@ -39,26 +39,109 @@ public partial class C2SChartConverter
 
     private void RegisterPositivePairTarget(umgr.PositiveNote source, c2s.Note target)
     {
+        if (target is c2s.Hold)
+            target = new c2s.Hold();
+        else if (target is c2s.Slide)
+            target = new c2s.Slide { Joint = Joint.D };
+
         _positivePairTargets[source] = target;
     }
 
-    private void RegisterNegativePairRoot(umgr.NegativeNote source, c2s.IPairable target)
+    private void RegisterNegativePairRoot(
+        umgr.NegativeNote source,
+        c2s.IPairable target)
     {
         _negativePairRoots[source] = target;
+    }
+
+    private void RegisterAirActionCarrier(
+        umgr.ExTap carrier)
+    {
+        c2s.Note? parent = carrier.AirActionParent switch
+        {
+            umgr.AirActionCarrierParent.Tap =>
+                new c2s.Tap(),
+
+            umgr.AirActionCarrierParent.ExTap =>
+                new c2s.ExTap
+                {
+                    Effect = carrier.Effect
+                },
+
+            umgr.AirActionCarrierParent.Flick =>
+                new c2s.Flick(),
+
+            umgr.AirActionCarrierParent.Damage =>
+                new c2s.Damage(),
+
+            umgr.AirActionCarrierParent.Hold =>
+                new c2s.Hold
+                {
+                    Effect = carrier.AirActionParentIsEx
+                        ? carrier.Effect
+                        : null
+                },
+
+            umgr.AirActionCarrierParent.Slide =>
+                new c2s.Slide
+                {
+                    Effect = carrier.AirActionParentIsEx
+                        ? carrier.Effect
+                        : null,
+                    Joint = carrier.AirActionParentJoint
+                },
+
+            _ => null
+        };
+
+        if (parent is not null)
+            _positivePairTargets[carrier] = parent;
     }
 
     private void ResolvePairings()
     {
         foreach (var (source, root) in _negativePairRoots)
         {
-            if (source.PairNote is null) continue;
-            if (_positivePairTargets.TryGetValue(source.PairNote, out var parent)) root.Parent = parent;
+            if (source.PairNote is null)
+                continue;
+
+            if (!_positivePairTargets.ContainsKey(source.PairNote) &&
+                source.PairNote is umgr.ExTap
+                {
+                    Role: umgr.ExTapRole.AirActionCarrier
+                } carrier)
+            {
+                RegisterAirActionCarrier(carrier);
+            }
+
+            if (_positivePairTargets.TryGetValue(
+                    source.PairNote,
+                    out var parent))
+            {
+                root.Parent = parent;
+            }
         }
 
         foreach (var (action, arrow) in _airArrows)
         {
-            if (action.PairNote is null) continue;
-            if (_positivePairTargets.TryGetValue(action.PairNote, out var parent)) arrow.Parent = parent;
+            if (action.PairNote is null)
+                continue;
+
+            if (!_positivePairTargets.ContainsKey(action.PairNote) &&
+                action.PairNote is umgr.ExTap
+                {
+                    Role: umgr.ExTapRole.AirActionCarrier
+                } carrier)
+            {
+                RegisterAirActionCarrier(carrier);
+            }
+
+            if (_positivePairTargets.TryGetValue(
+                    action.PairNote,
+                    out var parent))
+            {
+                arrow.Parent = parent;
+            }
         }
     }
 
@@ -72,8 +155,17 @@ public partial class C2SChartConverter
             case umgr.Tap tap:
                 CreatePositiveNote<umgr.Tap, c2s.Tap>(tap);
                 break;
+            case umgr.ExTap
+            {
+                Role: umgr.ExTapRole.SharedLongCarrier
+                    or umgr.ExTapRole.HoldOnlyCarrier
+                    or umgr.ExTapRole.AirActionCarrier
+            }:
+                break;
             case umgr.ExTap exTap:
-                CreatePositiveNote<umgr.ExTap, c2s.ExTap>(exTap, x => x.Effect = exTap.Effect);
+                CreatePositiveNote<umgr.ExTap, c2s.ExTap>(
+                    exTap,
+                    x => x.Effect = exTap.Effect);
                 break;
             case umgr.Flick flick:
                 CreatePositiveNote<umgr.Flick, c2s.Flick>(flick);
@@ -132,8 +224,8 @@ public partial class C2SChartConverter
         if (airSlide.PairNote?.PairNote != airSlide)
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airSlide.Tick.Original,
                 airSlide);
-
-        EmitAirArrow(airSlide);
+        if (airSlide.HasAirArrow)
+            EmitAirArrow(airSlide);
 
         var joints = airSlide.Children.OfType<umgr.AirSlideJoint>().Prepend(airSlide.AsChild()).ToArray();
         c2s.AirSlide? firstSegment = null;
@@ -167,7 +259,8 @@ public partial class C2SChartConverter
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airHold.Tick.Original,
                 airHold);
 
-        EmitAirArrow(airHold);
+        if (airHold.HasAirArrow)
+            EmitAirArrow(airHold);
 
         var joints = airHold.Children.OfType<umgr.AirHoldJoint>().Prepend(airHold.AsChild()).ToArray();
         c2s.AirHold? firstSegment = null;
@@ -235,10 +328,11 @@ public partial class C2SChartConverter
                 x.EndLane = next.Lane;
                 x.EndWidth = next.Width;
                 x.NoLine = curr.NoLine;
-                x.Effect = index == 0 ? slide.Effect : null;
+                x.Effect = slide.Effect;
             });
             // pair the last joint with air
-            if (i == joints.Length - 2) RegisterPositivePairTarget(next, note);
+            if (i == joints.Length - 2)
+                RegisterPositivePairTarget(next, note);
         }
     }
 

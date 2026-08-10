@@ -22,6 +22,101 @@ public partial class C2SChartConverter
     private List<c2s.Note> Notes => C2s.Notes;
     private List<c2s.Event> Events => C2s.Events;
 
+    private bool RestoreSlaSnapshot()
+    {
+        var snapshot = Mgxc.Meta.C2sSlaSnapshot;
+
+        if (snapshot is null)
+            return false;
+
+        if (snapshot.Length == 0)
+            return true;
+
+        var restored = new List<c2s.Sla>();
+
+        foreach (var entry in snapshot.Split(
+                     ';',
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = entry.Split(',');
+
+            if (fields.Length != 5 ||
+                !int.TryParse(fields[0], out var tick) ||
+                !int.TryParse(fields[1], out var timeline) ||
+                !int.TryParse(fields[2], out var lane) ||
+                !int.TryParse(fields[3], out var width) ||
+                !int.TryParse(fields[4], out var length))
+                return false;
+
+            restored.Add(new c2s.Sla
+            {
+                Tick = tick,
+                Timeline = timeline,
+                Lane = lane,
+                Width = width,
+                Length = length
+            });
+        }
+
+        foreach (var sla in restored)
+            Notes.Add(sla);
+
+        return true;
+    }
+
+    private bool RestoreSlpSnapshot()
+    {
+        var snapshot = Mgxc.Meta.C2sSlpSnapshot;
+
+        if (snapshot is null)
+            return false;
+
+        var restored = new List<c2s.Slp>();
+
+        if (snapshot.Length != 0)
+        {
+            foreach (var entry in snapshot.Split(
+                         ';',
+                         StringSplitOptions.RemoveEmptyEntries))
+            {
+                var fields = entry.Split(',');
+
+                if (fields.Length != 4 ||
+                    !int.TryParse(fields[0], out var tick) ||
+                    !int.TryParse(fields[1], out var timeline) ||
+                    !int.TryParse(fields[2], out var length) ||
+                    !decimal.TryParse(
+                        fields[3],
+                        System.Globalization.NumberStyles.Number,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var speed))
+                    return false;
+
+                restored.Add(new c2s.Slp
+                {
+                    Tick = tick,
+                    Timeline = timeline,
+                    Length = length,
+                    Speed = speed
+                });
+            }
+        }
+
+        Events.RemoveAll(x => x is c2s.Slp);
+        Events.AddRange(restored);
+
+        return true;
+    }
+
+    private void RestoreMeterDefSnapshot()
+    {
+        if (Mgxc.Meta.C2sMeterDefDenominator is { } denominator)
+            C2s.Meta.BgmInitialDenominator = denominator;
+
+        if (Mgxc.Meta.C2sMeterDefNumerator is { } numerator)
+            C2s.Meta.BgmInitialNumerator = numerator;
+    }
+
     public OperationResult<c2s.Chart> Convert()
     {
         Diagnostic.TimeCalculator = Mgxc.GetCalculator();
@@ -29,13 +124,23 @@ public partial class C2SChartConverter
         {
             C2s.Meta = Mgxc.Meta;
 
-            foreach (var note in Mgxc.Notes.Children) ConvertNote(note);
+            var restoredSla = RestoreSlaSnapshot();
+
+            foreach (var note in Mgxc.Notes.Children)
+            {
+                if (restoredSla && note is umgr.SoflanArea)
+                    continue;
+
+                ConvertNote(note);
+            }
             ResolvePairings();
             ConvertEvent(Mgxc);
 
             ValidateOverlappingAirParents();
             ValidateLongNoteLengths();
             ApplyBgmBarOffset();
+            RestoreSlpSnapshot();
+            RestoreMeterDefSnapshot();
 
             return ValidatePairings()
                 ? OperationResult<c2s.Chart>.Success(C2s).WithDiagnostics(Diagnostic)

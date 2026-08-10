@@ -62,6 +62,20 @@ internal enum ExAttr : sbyte
 
 public partial class MgxcParser
 {
+    private const int DefaultExTapHeight = 80;
+    private const int ExplicitC2sChrMarkerHeight = 81;
+    private const int ExHoldHelperMarkerHeight = 82;
+    private const int AirActionCarrierTapMarkerHeight = 83;
+    private const int AirActionCarrierExTapMarkerHeight = 84;
+    private const int AirActionCarrierFlickMarkerHeight = 85;
+    private const int AirActionCarrierDamageMarkerHeight = 86;
+    private const int AirActionCarrierHoldMarkerHeight = 87;
+    private const int AirActionCarrierSlideDMarkerHeight = 88;
+    private const int AirActionCarrierSlideCMarkerHeight = 89;
+    private const int AirActionCarrierExHoldMarkerHeight = 90;
+    private const int AirActionCarrierExSlideDMarkerHeight = 91;
+    private const int AirActionCarrierExSlideCMarkerHeight = 92;
+
     private umgr.Note? _lastNote;
     private umgr.Note? _lastParentNote;
 
@@ -103,7 +117,59 @@ public partial class MgxcParser
                     Direction.InOut => ExEffect.BS,
                     Direction.OutIn => ExEffect.CE,
                     _ => ExEffect.UP
-                }
+                },
+                Role = height switch
+                {
+                    ExplicitC2sChrMarkerHeight =>
+                        umgr.ExTapRole.Explicit,
+                    ExHoldHelperMarkerHeight =>
+                        umgr.ExTapRole.HoldOnlyCarrier,
+                    AirActionCarrierTapMarkerHeight or
+                    AirActionCarrierExTapMarkerHeight or
+                    AirActionCarrierFlickMarkerHeight or
+                    AirActionCarrierDamageMarkerHeight or
+                    AirActionCarrierHoldMarkerHeight or
+                    AirActionCarrierSlideDMarkerHeight or
+                    AirActionCarrierSlideCMarkerHeight or
+                    AirActionCarrierExHoldMarkerHeight or
+                    AirActionCarrierExSlideDMarkerHeight or
+                    AirActionCarrierExSlideCMarkerHeight =>
+                        umgr.ExTapRole.AirActionCarrier,
+                    DefaultExTapHeight =>
+                        umgr.ExTapRole.Auto,
+                    _ =>
+                        umgr.ExTapRole.Auto
+                },
+                AirActionParent = height switch
+                {
+                    AirActionCarrierTapMarkerHeight =>
+                        umgr.AirActionCarrierParent.Tap,
+                    AirActionCarrierExTapMarkerHeight =>
+                        umgr.AirActionCarrierParent.ExTap,
+                    AirActionCarrierFlickMarkerHeight =>
+                        umgr.AirActionCarrierParent.Flick,
+                    AirActionCarrierDamageMarkerHeight =>
+                        umgr.AirActionCarrierParent.Damage,
+                    AirActionCarrierHoldMarkerHeight or
+                    AirActionCarrierExHoldMarkerHeight =>
+                        umgr.AirActionCarrierParent.Hold,
+                    AirActionCarrierSlideDMarkerHeight or
+                    AirActionCarrierSlideCMarkerHeight or
+                    AirActionCarrierExSlideDMarkerHeight or
+                    AirActionCarrierExSlideCMarkerHeight =>
+                        umgr.AirActionCarrierParent.Slide,
+                    _ =>
+                        umgr.AirActionCarrierParent.None
+                },
+                AirActionParentJoint =
+                    height is AirActionCarrierSlideCMarkerHeight or
+                        AirActionCarrierExSlideCMarkerHeight
+                        ? Joint.C
+                        : Joint.D,
+                AirActionParentIsEx =
+                    height is AirActionCarrierExHoldMarkerHeight or
+                        AirActionCarrierExSlideDMarkerHeight or
+                        AirActionCarrierExSlideCMarkerHeight
             };
             note = exNote;
         }
@@ -202,26 +268,37 @@ public partial class MgxcParser
                 umgr.NegativeNote exNote;
                 if (type == NoteType.AirHold)
                 {
-                    var hold = new umgr.AirHold();
+                    var hold = new umgr.AirHold
+                    {
+                        HasAirArrow = false
+                    };
+
                     if (_lastNote is umgr.Air oldLastNote)
                     {
                         _lastNote.Parent?.RemoveChild(_lastNote);
                         _lastNote = oldLastNote.PairNote;
                         hold.Color = oldLastNote.Color;
                         hold.Direction = oldLastNote.Direction;
+                        hold.HasAirArrow = true;
                     }
 
                     exNote = hold;
                 }
                 else
                 {
-                    var slide = new umgr.AirSlide { Height = height };
+                    var slide = new umgr.AirSlide
+                    {
+                        Height = height,
+                        HasAirArrow = false
+                    };
+
                     if (_lastNote is umgr.Air oldLastNote)
                     {
                         _lastNote.Parent?.RemoveChild(_lastNote);
                         _lastNote = oldLastNote.PairNote;
                         slide.Color = oldLastNote.Color;
                         slide.Direction = oldLastNote.Direction;
+                        slide.HasAirArrow = true;
                     }
 
                     exNote = slide;
@@ -308,7 +385,13 @@ public partial class MgxcParser
                 {
                     Color = color,
                     Height = height,
-                    Density = optionValue
+                    Density = optionValue,
+                    Attr = direction switch
+                    {
+                        Direction.RotateLeft => AirLadderAttr.AxisY,
+                        Direction.RotateRight => AirLadderAttr.AxisZ,
+                        _ => AirLadderAttr.DEF
+                    }
                 };
                 note = exNote;
             }

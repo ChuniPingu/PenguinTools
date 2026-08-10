@@ -164,4 +164,31 @@ public class UgcNoteTests
         Assert.Equal(1295m, child.Height);
         Assert.Equal(Joint.D, child.Joint);
     }
+
+    [Fact]
+    public async Task AirSlide_DirectionAndColorSurviveC2sConversion()
+    {
+        var chart = await Parse("#0'0:t14\n#0'0:S140AI\n#480:s24ZZ\n");
+
+        var airSlide = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
+        airSlide.Direction = AirDirection.UL;
+        airSlide.Color = Color.RED;
+
+        var convert = new C2SChartConverter(
+            new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(convert.Succeeded, convert.ToString());
+
+        var air = Assert.Single(
+            convert.Value!.Notes.OfType<Chart.Models.c2s.Air>());
+
+        var convertedAirSlide = Assert.Single(
+            convert.Value.Notes.OfType<Chart.Models.c2s.AirSlide>());
+
+        Assert.Equal(AirDirection.UL, air.Direction);
+        Assert.Equal(Color.RED, air.Color);
+
+        Assert.NotNull(air.Parent);
+        Assert.Same(convertedAirSlide.Parent, air.Parent);
+    }
 }

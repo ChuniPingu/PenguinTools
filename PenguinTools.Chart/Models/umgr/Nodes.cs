@@ -140,9 +140,18 @@ public abstract class TimeNode<T> where T : TimeNode<T>
 
     protected void SortChild(Comparison<T> comparison)
     {
-        ChildNodes.Sort(comparison);
+        var comparer = Comparer<T>.Create(comparison);
+        var sorted = ChildNodes
+            .OrderBy(x => x, comparer)
+            .ToArray();
+
+        ChildNodes.Clear();
+        ChildNodes.AddRange(sorted);
+
         ArrangeSibling();
-        foreach (var child in ChildNodes) child.SortChild(comparison);
+
+        foreach (var child in ChildNodes)
+            child.SortChild(comparison);
     }
 
     public virtual void Sort()

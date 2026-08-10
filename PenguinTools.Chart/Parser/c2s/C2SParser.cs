@@ -145,6 +145,14 @@ public sealed class C2SParser
             case "AHX":
                 ParseAirHold(tokens, line.Number);
                 break;
+            case "T_JUDGE_TAP":
+            case "T_JUDGE_HLD":
+            case "T_JUDGE_SLD":
+            case "T_JUDGE_AIR":
+            case "T_JUDGE_FLK":
+            case "T_JUDGE_ALL":
+                ParseJudgeSummary(tokens, line.Number);
+                break;
             case "SEQUENCEID":
             case "CLK_DEF":
             case "PROGJUDGE_BPM":
@@ -157,6 +165,44 @@ public sealed class C2SParser
                     ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
                         line.Number);
                 // Skip unknown meta properties (e.g. T_* chart statistics).
+                break;
+        }
+    }
+
+    private void ParseJudgeSummary(string[] tokens, int lineNumber)
+    {
+        if (!TryGetInt(tokens, 1, lineNumber, tokens[0], out var value))
+            return;
+
+        if (value < 0)
+        {
+            ReportAtLine(
+                Severity.Error,
+                Msg.Create(MsgKeys.C2s_Invalid_field, tokens[0]),
+                lineNumber,
+                value);
+            return;
+        }
+
+        switch (tokens[0].ToUpperInvariant())
+        {
+            case "T_JUDGE_TAP":
+                C2s.Meta.C2sJudgeTap = value;
+                break;
+            case "T_JUDGE_HLD":
+                C2s.Meta.C2sJudgeHld = value;
+                break;
+            case "T_JUDGE_SLD":
+                C2s.Meta.C2sJudgeSld = value;
+                break;
+            case "T_JUDGE_AIR":
+                C2s.Meta.C2sJudgeAir = value;
+                break;
+            case "T_JUDGE_FLK":
+                C2s.Meta.C2sJudgeFlk = value;
+                break;
+            case "T_JUDGE_ALL":
+                C2s.Meta.C2sJudgeAll = value;
                 break;
         }
     }
@@ -403,6 +449,8 @@ public sealed class C2SParser
             !TryGetInt(tokens, 5, lineNumber, "HOLD length", out var length))
             return;
 
+        var type = tokens[0].ToUpperInvariant();
+
         var note = new c2sModel.Hold
         {
             Tick = noteBase.Tick,
@@ -413,7 +461,11 @@ public sealed class C2SParser
             EndWidth = noteBase.Width
         };
 
-        if (TryReadEffect(tokens, 6, lineNumber, out var effect)) note.Effect = effect;
+        if (TryReadEffect(tokens, 6, lineNumber, out var effect))
+            note.Effect = effect;
+        else if (type == "HXD")
+            note.Effect = ExEffect.UP;
+
         C2s.Notes.Add(note);
     }
 
@@ -480,6 +532,8 @@ public sealed class C2SParser
 
         if (TryReadEffect(tokens, effectIndex, lineNumber, out var effect))
             note.Effect = effect;
+        else if (type is "SXD" or "SXC")
+            note.Effect = ExEffect.UP;
 
         C2s.Notes.Add(note);
     }
