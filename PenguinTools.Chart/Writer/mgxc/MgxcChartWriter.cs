@@ -117,92 +117,17 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteStringField(bw, "atls", "");
         WriteStringField(bw, "atst", "");
         WriteStringField(bw, "durl", "");
-        WriteStringField(bw, "lcpy", FormatCopyrightField(m));
+        WriteStringField(bw, "lcpy", "");
         WriteStringField(bw, "ltyp", "");
         WriteStringField(bw, "lurl", "");
         WriteIntField(bw, "xver", 1);
-        WriteStringField(bw, "cmmt", m.Comment);
+        WriteStringField(bw, "cmmt", C2sRoundTripComment.Apply(m));
         WriteIntField(bw, "CTCK", 0);
         WriteStringField(bw, "LXFN", "");
         WriteDoubleField(bw, "HSCL", 10);
         bw.Write(0);
         bw.Write((short)0);
         bw.Write((short)0);
-    }
-
-    private static string FormatCopyrightField(Meta meta)
-    {
-        var hasJudgeSummary = meta.TryGetC2sJudgeSummary(
-            out var tap,
-            out var hld,
-            out var sld,
-            out var air,
-            out var flk,
-            out var all);
-
-        var proxySummary = string.Empty;
-
-        if (meta.C2sJudgeHldProxyBaseline is >= 0 ||
-            meta.C2sJudgeSldProxyBaseline is >= 0 ||
-            meta.C2sJudgeAirProxyBaseline is >= 0)
-        {
-            var proxyHld =
-                meta.C2sJudgeHldProxyBaseline is >= 0 and var hldProxy
-                    ? $"{hldProxy:X8}"
-                    : "FFFFFFFF";
-
-            var proxySld =
-                meta.C2sJudgeSldProxyBaseline is >= 0 and var sldProxy
-                    ? $"{sldProxy:X8}"
-                    : "FFFFFFFF";
-
-            var proxyAir =
-                meta.C2sJudgeAirProxyBaseline is >= 0 and var airProxy
-                    ? $"{airProxy:X8}"
-                    : "FFFFFFFF";
-
-            proxySummary =
-                $";GJP:{proxyHld}{proxySld}{proxyAir}";
-        }
-
-        var meterSummary = string.Empty;
-
-        if (meta.C2sMeterDefDenominator is >= 0 and var meterDenominator &&
-            meta.C2sMeterDefNumerator is >= 0 and var meterNumerator)
-        {
-            meterSummary =
-                $";GJM:{meterDenominator:X8}{meterNumerator:X8}";
-        }
-
-        var slpSummary =
-            meta.C2sSlpSnapshot is not null
-                ? $";GJL:{meta.C2sSlpSnapshot}"
-                : string.Empty;
-
-        var slaSummary =
-            meta.C2sSlaSnapshot is not null
-                ? $";GJS:{meta.C2sSlaSnapshot}"
-                : string.Empty;
-
-        var metadataSummary =
-            meterSummary +
-            slpSummary +
-            slaSummary;
-
-        var summary = hasJudgeSummary
-            ? $"GJ2:{tap:X8}{hld:X8}{sld:X8}{air:X8}{flk:X8}{all:X8}" +
-            proxySummary +
-            metadataSummary +
-            $";PENGUINTOOLS_T_JUDGE_TAP={tap};HLD={hld};SLD={sld};AIR={air};FLK={flk};ALL={all}"
-            : metadataSummary;
-
-        if (string.IsNullOrEmpty(summary))
-            return meta.Copyright;
-
-        if (string.IsNullOrEmpty(meta.Copyright))
-            return summary;
-
-        return $"{meta.Copyright}\n{summary}";
     }
 
     private void WriteEvents(BinaryWriter bw)

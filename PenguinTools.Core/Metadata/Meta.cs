@@ -6,7 +6,6 @@ public partial record Meta
 
     public string FilePath { get; set; } = string.Empty;
     public string Comment { get; set; } = string.Empty;
-    public string Copyright { get; set; } = string.Empty;
 
     public bool IsMain { get; set; } = true; // used in option convert
 

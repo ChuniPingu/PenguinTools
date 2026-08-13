@@ -5,6 +5,7 @@ using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Metadata;
 
 namespace PenguinTools.Chart.Parser;
 
@@ -433,6 +434,15 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 break;
             case "date":
                 MetaDateHandler(value);
+                break;
+            case C2sRoundTripComment.JudgeTag:
+            case C2sRoundTripComment.JudgeProxyTag:
+            case C2sRoundTripComment.MeterTag:
+            case C2sRoundTripComment.SlpTag:
+            case C2sRoundTripComment.SlaTag:
+            case C2sRoundTripComment.SlpEditTag:
+            case C2sRoundTripComment.SlaEditTag:
+                C2sRoundTripComment.TryHandle(chart.Meta, name, value);
                 break;
             default:
                 diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Unknown_tag, name))

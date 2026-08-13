@@ -2293,7 +2293,7 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
-    public async Task MgxcJudgeSummary_PreservesCopyrightAndJudgeSummary()
+    public async Task MgxcJudgeSummary_PreservesCommentAndJudgeSummary()
     {
         var source = new C2sChart();
 
@@ -2311,7 +2311,7 @@ public sealed class C2sReverseConversionTests
 
         var chart = converted.Value!;
 
-        chart.Meta.Copyright = "Original Copyright Text";
+        chart.Meta.Comment = "Original comment text";
         chart.Meta.C2sJudgeTap = 1;
         chart.Meta.C2sJudgeHld = 2;
         chart.Meta.C2sJudgeSld = 3;
@@ -2351,9 +2351,12 @@ public sealed class C2sReverseConversionTests
 
             var meta = parsed.Value!.Meta;
 
-            Assert.Equal(
-                "Original Copyright Text",
-                meta.Copyright);
+            Assert.Contains(
+                "Original comment text",
+                meta.Comment);
+            Assert.Contains(
+                "#meta c2sjudge",
+                meta.Comment);
 
             Assert.Equal(1, meta.C2sJudgeTap);
             Assert.Equal(2, meta.C2sJudgeHld);
@@ -2401,7 +2404,7 @@ public sealed class C2sReverseConversionTests
     {
         var chart = new PenguinTools.Chart.Models.umgr.Chart();
 
-        chart.Meta.Copyright = "Original Copyright Text";
+        chart.Meta.Comment = "Original comment text";
         chart.Meta.C2sMeterDefDenominator = 4;
         chart.Meta.C2sMeterDefNumerator = 4;
         chart.Meta.C2sSlpSnapshot = "0,0,480,1.25";
@@ -2435,9 +2438,12 @@ public sealed class C2sReverseConversionTests
 
             var meta = parsed.Value!.Meta;
 
-            Assert.Equal(
-                "Original Copyright Text",
-                meta.Copyright);
+            Assert.Contains(
+                "Original comment text",
+                meta.Comment);
+            Assert.Contains(
+                "#meta c2ssla",
+                meta.Comment);
 
             Assert.Equal(4, meta.C2sMeterDefDenominator);
             Assert.Equal(4, meta.C2sMeterDefNumerator);
