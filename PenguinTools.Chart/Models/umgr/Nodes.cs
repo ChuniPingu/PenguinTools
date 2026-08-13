@@ -140,6 +140,8 @@ public abstract class TimeNode<T> where T : TimeNode<T>
 
     protected void SortChild(Comparison<T> comparison)
     {
+        // List<T>.Sort is unstable; overlapping notes at the same tick must keep
+        // insertion order so FIFO slide/air-crash pairing survives a re-sort.
         var comparer = Comparer<T>.Create(comparison);
         var sorted = ChildNodes
             .OrderBy(x => x, comparer)

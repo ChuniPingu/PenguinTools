@@ -554,8 +554,12 @@ public sealed class UgcChartConverter
     {
         var active = new Dictionary<AirCrashPathKey, Queue<umgr.AirCrash>>();
 
-        foreach (var segment in source.OrderBy(x => x.Tick.Original))
+        foreach (var entry in source
+                     .Select((segment, index) => (Segment: segment, SourceOrder: index))
+                     .OrderBy(x => x.Segment.Tick.Original)
+                     .ThenBy(x => x.SourceOrder))
         {
+            var segment = entry.Segment;
             var startKey = AirCrashStartKey(segment);
             umgr.AirCrash crash;
 
