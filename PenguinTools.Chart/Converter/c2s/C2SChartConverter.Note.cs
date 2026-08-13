@@ -39,12 +39,7 @@ public partial class C2SChartConverter
 
     private void RegisterPositivePairTarget(umgr.PositiveNote source, c2s.Note target)
     {
-        if (target is c2s.Hold)
-            target = new c2s.Hold();
-        else if (target is c2s.Slide)
-            target = new c2s.Slide { Joint = Joint.D };
-
-        _positivePairTargets[source] = target;
+        _positivePairTargets[source] = CreateGenericAirParent(target);
     }
 
     private void RegisterNegativePairRoot(
@@ -53,6 +48,15 @@ public partial class C2SChartConverter
     {
         _negativePairRoots[source] = target;
     }
+
+    // C2S AIR parent tokens are generic HLD/SLD even when the attach point is
+    // an EX or control segment. Keep one dummy shape so pairing and writing agree.
+    private static c2s.Note CreateGenericAirParent(c2s.Note target) => target switch
+    {
+        c2s.Hold => new c2s.Hold(),
+        c2s.Slide => new c2s.Slide { Joint = Joint.D },
+        _ => target
+    };
 
     private void RegisterAirActionCarrier(
         umgr.ExTap carrier)
@@ -75,21 +79,10 @@ public partial class C2SChartConverter
                 new c2s.Damage(),
 
             umgr.AirActionCarrierParent.Hold =>
-                new c2s.Hold
-                {
-                    Effect = carrier.AirActionParentIsEx
-                        ? carrier.Effect
-                        : null
-                },
+                CreateGenericAirParent(new c2s.Hold()),
 
             umgr.AirActionCarrierParent.Slide =>
-                new c2s.Slide
-                {
-                    Effect = carrier.AirActionParentIsEx
-                        ? carrier.Effect
-                        : null,
-                    Joint = carrier.AirActionParentJoint
-                },
+                CreateGenericAirParent(new c2s.Slide()),
 
             _ => null
         };
