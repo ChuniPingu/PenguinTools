@@ -13,6 +13,7 @@ public sealed class UgcChartConverter
     private readonly c2s.Chart _source;
     private readonly umgr.Chart _target = new();
     private readonly Dictionary<c2s.Note, umgr.PositiveNote> _positiveNotes = [];
+    private readonly Dictionary<c2s.Note, List<umgr.NegativeNote>> _airActionsByParent = [];
 
     private readonly bool _debugTil;
 
@@ -287,8 +288,33 @@ public sealed class UgcChartConverter
 
     private void ConvertAir(c2s.Air source)
     {
-        if (source.Parent is null ||
-            !_positiveNotes.TryGetValue(source.Parent, out var parent))
+        if (source.Parent is null)
+            return;
+
+        if (_airActionsByParent.TryGetValue(source.Parent, out var actions))
+        {
+            foreach (var action in actions)
+            {
+                switch (action)
+                {
+                    case umgr.AirHold hold:
+                        hold.Direction = source.Direction;
+                        hold.Color = source.Color;
+                        hold.HasAirArrow = true;
+                        break;
+
+                    case umgr.AirSlide slide:
+                        slide.Direction = source.Direction;
+                        slide.Color = source.Color;
+                        slide.HasAirArrow = true;
+                        break;
+                }
+            }
+
+            return;
+        }
+
+        if (!_positiveNotes.TryGetValue(source.Parent, out var parent))
             return;
 
         // AirHold/AirSlide convert before Air and already MakePair the parent.
@@ -452,8 +478,7 @@ public sealed class UgcChartConverter
 
         _target.Notes.AppendChild(air);
 
-        if (source.Parent is not null)
-            PairAirAction(source.Parent, air);
+        EnsureAirActionPaired(source, source.Parent, air);
     }
 
     private void ConvertAirHoldChain(
@@ -489,8 +514,65 @@ public sealed class UgcChartConverter
 
         _target.Notes.AppendChild(air);
 
-        if (source.Parent is not null)
-            PairAirAction(source.Parent, air);
+        EnsureAirActionPaired(source, source.Parent, air);
+    }
+
+    private void EnsureAirActionPaired(
+        c2s.Note source,
+        c2s.Note? parent,
+        umgr.NegativeNote action)
+    {
+        // AirHold/AirSlide inherit tick/lane/width from PairNote, and MGXC
+        // pairing is strictly sequential. Always emit a dedicated ExTap
+        // carrier so the writer can place it immediately before the action.
+        var carrier = new umgr.ExTap
+        {
+            Tick = source.Tick,
+            Lane = source.Lane,
+            Width = source.Width,
+            Timeline = Timeline(source),
+            Effect = parent switch
+            {
+                c2s.ExTap exTap => exTap.Effect ?? ExEffect.UP,
+                c2s.Hold hold => hold.Effect ?? ExEffect.UP,
+                c2s.Slide slide => slide.Effect ?? ExEffect.UP,
+                _ => ExEffect.UP
+            },
+            Role = umgr.ExTapRole.AirActionCarrier,
+            AirActionParent = parent switch
+            {
+                c2s.Tap => umgr.AirActionCarrierParent.Tap,
+                c2s.ExTap => umgr.AirActionCarrierParent.ExTap,
+                c2s.Flick => umgr.AirActionCarrierParent.Flick,
+                c2s.Damage => umgr.AirActionCarrierParent.Damage,
+                c2s.Hold => umgr.AirActionCarrierParent.Hold,
+                c2s.Slide => umgr.AirActionCarrierParent.Slide,
+                _ => umgr.AirActionCarrierParent.Tap
+            },
+            AirActionParentJoint = parent is c2s.Slide slideParent
+                ? slideParent.Joint
+                : Joint.D,
+            AirActionParentIsEx = parent switch
+            {
+                c2s.Hold holdParent => holdParent.Effect is not null,
+                c2s.Slide slideEffectParent => slideEffectParent.Effect is not null,
+                _ => false
+            }
+        };
+
+        _target.Notes.AppendChild(carrier);
+        carrier.MakePair(action);
+
+        if (parent is null)
+            return;
+
+        if (!_airActionsByParent.TryGetValue(parent, out var actions))
+        {
+            actions = [];
+            _airActionsByParent[parent] = actions;
+        }
+
+        actions.Add(action);
     }
 
     private readonly record struct OpenSlide(
