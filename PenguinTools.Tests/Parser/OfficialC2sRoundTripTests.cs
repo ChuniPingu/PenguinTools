@@ -11,10 +11,7 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class OfficialC2sRoundTripTests
 {
-    private static readonly string AssetDirectory =
-        FindAssetDirectory();
-
-    private static string FindAssetDirectory()
+    private static bool TryGetAssetDirectory(out string directory)
     {
         var cursor = AppContext.BaseDirectory;
 
@@ -36,22 +33,26 @@ public sealed class OfficialC2sRoundTripTests
                             SearchOption.TopDirectoryOnly)
                         .Any())
                 {
-                    return candidate;
+                    directory = candidate;
+                    return true;
                 }
             }
 
             cursor = Directory.GetParent(cursor)?.FullName;
         }
 
-        throw new DirectoryNotFoundException(
-            $"Could not find PenguinTools.Tests/Assets containing C2S files above {AppContext.BaseDirectory}");
+        directory = string.Empty;
+        return false;
     }
 
     [Fact]
     public async Task OfficialCharts_C2sMgxcC2s_FirstRoundPreservesJudgeSummary()
     {
+        if (!TryGetAssetDirectory(out var assetDirectory))
+            Assert.Skip("PenguinTools.Tests/Assets has no .c2s files.");
+
         var files = Directory.GetFiles(
-                AssetDirectory,
+                assetDirectory,
                 "*.c2s",
                 SearchOption.TopDirectoryOnly)
             .OrderBy(x => x)
