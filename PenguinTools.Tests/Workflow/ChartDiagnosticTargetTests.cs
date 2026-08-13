@@ -16,7 +16,7 @@ public sealed class ChartDiagnosticTargetTests
             Title = "Test Song",
             Difficulty = Difficulty.Ultima,
             Designer = "Tester",
-            FilePath = @"C:\charts\test\ULTIMA.mgxc",
+            FilePath = "ULTIMA.mgxc",
             IsMain = true
         };
 
@@ -27,7 +27,7 @@ public sealed class ChartDiagnosticTargetTests
         Assert.Equal("Test Song", target.Title);
         Assert.Equal(Difficulty.Ultima, target.Difficulty);
         Assert.Equal("Tester", target.Designer);
-        Assert.Equal(@"C:\charts\test\ULTIMA.mgxc", target.FilePath);
+        Assert.Equal("ULTIMA.mgxc", target.FilePath);
         Assert.True(target.IsMain);
     }
 }

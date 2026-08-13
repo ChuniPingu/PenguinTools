@@ -25,11 +25,9 @@ Non-obvious gotchas:
 - Building `mua` (Rust media executables) is NOT required for `dotnet build`/`test` or for chart
   conversion. It's only needed at runtime for audio/jacket/stage media conversion, which shells
   out to the `mua*` binaries. Those media CLI subcommands will fail without the built `mua` tools.
-- On Linux, one test fails and three are skipped; this is expected and unrelated to setup:
-  - `TempFileNamesTests.MakeUnique_UsesFileNameOnly_WhenPathIsProvided` hardcodes a Windows path
-    (`C:\...`) and only passes on Windows (`\` is not a path separator on Linux).
-  - Three parser tests are `Skip`ped because their sample chart assets are not committed (they load
-    from `PenguinTools.Tests/Assets`, which only ships a Fixtures README).
+- On Linux, all tests pass and three are `Skip`ped; the skips are expected and unrelated to setup:
+  the three parser tests load sample chart assets that are not committed (they resolve from
+  `PenguinTools.Tests/Assets`, which only ships a Fixtures README).
 - `dotnet format --verify-no-changes` reports pre-existing whitespace diffs in some committed files
   and in the third-party `External/` submodules. These are not introduced by setup; do not "fix"
   submodule or unrelated files. `scripts/format-all.sh` has a stale default project list

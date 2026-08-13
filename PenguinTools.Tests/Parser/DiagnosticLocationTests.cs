@@ -9,16 +9,16 @@ public class DiagnosticLocationTests
     [Fact]
     public void FormattedLocation_UsesLineNumbers_ForTextFiles()
     {
-        var diagnostic = new LocationDiagnostic(Severity.Warning, Msg.Key("test.message"), 12, @"D:\charts\test.ugc");
+        var diagnostic = new LocationDiagnostic(Severity.Warning, Msg.Key("test.message"), 12, "test.ugc");
 
-        Assert.Equal(@"D:\charts\test.ugc(12)", diagnostic.FormattedLocation);
+        Assert.Equal("test.ugc(12)", diagnostic.FormattedLocation);
     }
 
     [Fact]
     public void FormattedLocation_UsesHexOffsets_ForMgxcFiles()
     {
-        var diagnostic = new LocationDiagnostic(Severity.Warning, Msg.Key("test.message"), 26, @"D:\charts\test.mgxc");
+        var diagnostic = new LocationDiagnostic(Severity.Warning, Msg.Key("test.message"), 26, "test.mgxc");
 
-        Assert.Equal(@"D:\charts\test.mgxc(0x1A)", diagnostic.FormattedLocation);
+        Assert.Equal("test.mgxc(0x1A)", diagnostic.FormattedLocation);
     }
 }
