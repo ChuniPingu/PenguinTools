@@ -62,20 +62,6 @@ internal enum ExAttr : sbyte
 
 public partial class MgxcParser
 {
-    private const int DefaultExTapHeight = 80;
-    private const int ExplicitC2sChrMarkerHeight = 81;
-    private const int ExHoldHelperMarkerHeight = 82;
-    private const int AirActionCarrierTapMarkerHeight = 83;
-    private const int AirActionCarrierExTapMarkerHeight = 84;
-    private const int AirActionCarrierFlickMarkerHeight = 85;
-    private const int AirActionCarrierDamageMarkerHeight = 86;
-    private const int AirActionCarrierHoldMarkerHeight = 87;
-    private const int AirActionCarrierSlideDMarkerHeight = 88;
-    private const int AirActionCarrierSlideCMarkerHeight = 89;
-    private const int AirActionCarrierExHoldMarkerHeight = 90;
-    private const int AirActionCarrierExSlideDMarkerHeight = 91;
-    private const int AirActionCarrierExSlideCMarkerHeight = 92;
-
     private umgr.Note? _lastNote;
     private umgr.Note? _lastParentNote;
 
@@ -120,56 +106,54 @@ public partial class MgxcParser
                 },
                 Role = height switch
                 {
-                    ExplicitC2sChrMarkerHeight =>
+                    MgxcExTapMarkers.ExplicitChr =>
                         umgr.ExTapRole.Explicit,
-                    ExHoldHelperMarkerHeight =>
+                    MgxcExTapMarkers.HoldOnlyCarrier =>
                         umgr.ExTapRole.HoldOnlyCarrier,
-                    AirActionCarrierTapMarkerHeight or
-                    AirActionCarrierExTapMarkerHeight or
-                    AirActionCarrierFlickMarkerHeight or
-                    AirActionCarrierDamageMarkerHeight or
-                    AirActionCarrierHoldMarkerHeight or
-                    AirActionCarrierSlideDMarkerHeight or
-                    AirActionCarrierSlideCMarkerHeight or
-                    AirActionCarrierExHoldMarkerHeight or
-                    AirActionCarrierExSlideDMarkerHeight or
-                    AirActionCarrierExSlideCMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierTap or
+                    MgxcExTapMarkers.AirActionCarrierExTap or
+                    MgxcExTapMarkers.AirActionCarrierFlick or
+                    MgxcExTapMarkers.AirActionCarrierDamage or
+                    MgxcExTapMarkers.AirActionCarrierHold or
+                    MgxcExTapMarkers.AirActionCarrierSlideD or
+                    MgxcExTapMarkers.AirActionCarrierSlideC or
+                    MgxcExTapMarkers.AirActionCarrierExHold or
+                    MgxcExTapMarkers.AirActionCarrierExSlideD or
+                    MgxcExTapMarkers.AirActionCarrierExSlideC =>
                         umgr.ExTapRole.AirActionCarrier,
-                    DefaultExTapHeight =>
-                        umgr.ExTapRole.Auto,
                     _ =>
                         umgr.ExTapRole.Auto
                 },
                 AirActionParent = height switch
                 {
-                    AirActionCarrierTapMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierTap =>
                         umgr.AirActionCarrierParent.Tap,
-                    AirActionCarrierExTapMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierExTap =>
                         umgr.AirActionCarrierParent.ExTap,
-                    AirActionCarrierFlickMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierFlick =>
                         umgr.AirActionCarrierParent.Flick,
-                    AirActionCarrierDamageMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierDamage =>
                         umgr.AirActionCarrierParent.Damage,
-                    AirActionCarrierHoldMarkerHeight or
-                    AirActionCarrierExHoldMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierHold or
+                    MgxcExTapMarkers.AirActionCarrierExHold =>
                         umgr.AirActionCarrierParent.Hold,
-                    AirActionCarrierSlideDMarkerHeight or
-                    AirActionCarrierSlideCMarkerHeight or
-                    AirActionCarrierExSlideDMarkerHeight or
-                    AirActionCarrierExSlideCMarkerHeight =>
+                    MgxcExTapMarkers.AirActionCarrierSlideD or
+                    MgxcExTapMarkers.AirActionCarrierSlideC or
+                    MgxcExTapMarkers.AirActionCarrierExSlideD or
+                    MgxcExTapMarkers.AirActionCarrierExSlideC =>
                         umgr.AirActionCarrierParent.Slide,
                     _ =>
                         umgr.AirActionCarrierParent.None
                 },
                 AirActionParentJoint =
-                    height is AirActionCarrierSlideCMarkerHeight or
-                        AirActionCarrierExSlideCMarkerHeight
+                    height is MgxcExTapMarkers.AirActionCarrierSlideC or
+                        MgxcExTapMarkers.AirActionCarrierExSlideC
                         ? Joint.C
                         : Joint.D,
                 AirActionParentIsEx =
-                    height is AirActionCarrierExHoldMarkerHeight or
-                        AirActionCarrierExSlideDMarkerHeight or
-                        AirActionCarrierExSlideCMarkerHeight
+                    height is MgxcExTapMarkers.AirActionCarrierExHold or
+                        MgxcExTapMarkers.AirActionCarrierExSlideD or
+                        MgxcExTapMarkers.AirActionCarrierExSlideC
             };
             note = exNote;
         }

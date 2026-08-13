@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using PenguinTools.Chart.Models;
+using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Core;
 using PenguinTools.Core.IO;
 using PenguinTools.Core.Metadata;
@@ -13,19 +14,7 @@ using umgr = Models.umgr;
 public sealed class MgxcChartWriter(MgxcWriteRequest request)
 {
     private const int Version = 2;
-    private const int DefaultHeight = 80;
-    private const int ExplicitC2sChrMarkerHeight = 81;
-    private const int ExHoldHelperMarkerHeight = 82;
-    private const int AirActionCarrierTapMarkerHeight = 83;
-    private const int AirActionCarrierExTapMarkerHeight = 84;
-    private const int AirActionCarrierFlickMarkerHeight = 85;
-    private const int AirActionCarrierDamageMarkerHeight = 86;
-    private const int AirActionCarrierHoldMarkerHeight = 87;
-    private const int AirActionCarrierSlideDMarkerHeight = 88;
-    private const int AirActionCarrierSlideCMarkerHeight = 89;
-    private const int AirActionCarrierExHoldMarkerHeight = 90;
-    private const int AirActionCarrierExSlideDMarkerHeight = 91;
-    private const int AirActionCarrierExSlideCMarkerHeight = 92;
+    private const int DefaultHeight = MgxcExTapMarkers.DefaultHeight;
     private const sbyte NoLineVariation = 0x7F;
 
     private readonly umgr.Chart _chart = request.Chart ?? throw new ArgumentNullException(nameof(request));
@@ -284,9 +273,9 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                     var exTapHeight = ex.Role switch
                     {
                         umgr.ExTapRole.Explicit =>
-                            ExplicitC2sChrMarkerHeight,
+                            MgxcExTapMarkers.ExplicitChr,
                         umgr.ExTapRole.HoldOnlyCarrier =>
-                            ExHoldHelperMarkerHeight,
+                            MgxcExTapMarkers.HoldOnlyCarrier,
                         _ =>
                             DefaultHeight
                     };
@@ -464,7 +453,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                         selected.Timeline,
                         selected is umgr.Slide
                             ? DefaultHeight
-                            : ExHoldHelperMarkerHeight);
+                            : MgxcExTapMarkers.HoldOnlyCarrier);
                 });
     }
 
@@ -490,32 +479,32 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         var height = carrier.AirActionParent switch
         {
             umgr.AirActionCarrierParent.Tap =>
-                AirActionCarrierTapMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierTap,
             umgr.AirActionCarrierParent.ExTap =>
-                AirActionCarrierExTapMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierExTap,
             umgr.AirActionCarrierParent.Flick =>
-                AirActionCarrierFlickMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierFlick,
             umgr.AirActionCarrierParent.Damage =>
-                AirActionCarrierDamageMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierDamage,
             umgr.AirActionCarrierParent.Hold
                 when carrier.AirActionParentIsEx =>
-                AirActionCarrierExHoldMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierExHold,
             umgr.AirActionCarrierParent.Hold =>
-                AirActionCarrierHoldMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierHold,
             umgr.AirActionCarrierParent.Slide
                 when carrier.AirActionParentIsEx &&
                      carrier.AirActionParentJoint == Joint.C =>
-                AirActionCarrierExSlideCMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierExSlideC,
             umgr.AirActionCarrierParent.Slide
                 when carrier.AirActionParentIsEx =>
-                AirActionCarrierExSlideDMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierExSlideD,
             umgr.AirActionCarrierParent.Slide
                 when carrier.AirActionParentJoint == Joint.C =>
-                AirActionCarrierSlideCMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierSlideC,
             umgr.AirActionCarrierParent.Slide =>
-                AirActionCarrierSlideDMarkerHeight,
+                MgxcExTapMarkers.AirActionCarrierSlideD,
             _ =>
-                AirActionCarrierTapMarkerHeight
+                MgxcExTapMarkers.AirActionCarrierTap
         };
 
         WriteNote(
