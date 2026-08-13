@@ -24,8 +24,8 @@ public class TempFileNamesTests
     [Fact]
     public void MakeUnique_UsesFileNameOnly_WhenPathIsProvided()
     {
-        var name = TempFileNames.MakeUnique(@"songs\Grief & Malice\240.mp3");
-        Assert.StartsWith("240.", name);
+        var name = TempFileNames.MakeUnique(@"music\Sample & Demo\track.mp3");
+        Assert.StartsWith("track.", name);
         Assert.EndsWith(".mp3", name);
         Assert.DoesNotContain('\\', name);
         Assert.DoesNotContain('/', name);

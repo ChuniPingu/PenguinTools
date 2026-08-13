@@ -653,7 +653,7 @@ public sealed class C2sReverseConversionTests
     {
         var source = new C2sChart();
         source.Meta.Id = 2999;
-        source.Meta.Title = "Melodiniq";
+        source.Meta.Title = "Test Song";
         source.Meta.Difficulty = Difficulty.Ultima;
         source.Meta.Level = 16.0m;
         source.Meta.Designer = "test";
@@ -695,7 +695,7 @@ public sealed class C2sReverseConversionTests
         source.Meta.Id = 2999;
         source.Meta.Difficulty = Difficulty.Master;
         source.Meta.Level = 15.6m;
-        source.Meta.Designer = "Memoir";
+        source.Meta.Designer = "Tester";
         source.Meta.MainBpm = 193m;
         source.Meta.BgmInitialDenominator = 4;
         source.Meta.BgmInitialNumerator = 4;
@@ -719,7 +719,7 @@ public sealed class C2sReverseConversionTests
             Assert.Equal("MUSIC\t2999", header[1]);
             Assert.Equal("DIFFICULT\t03", header[3]);
             Assert.Equal("LEVEL\t15.6", header[4]);
-            Assert.Equal("CREATOR\tMemoir", header[5]);
+            Assert.Equal("CREATOR\tTester", header[5]);
             Assert.Equal("BPM_DEF\t193.000\t193.000\t240.000\t120.625", header[6]);
         }
         finally
