@@ -1,5 +1,4 @@
 using PenguinTools.Chart.Models;
-using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
@@ -64,6 +63,20 @@ public sealed class UgcChartConverter
                     C2SJudgeSummaryCalculator.CalculateSlideProxy(
                         _source);
             }
+
+            if (_source.Meta.C2sJudgeHldProxyBaseline is null)
+            {
+                _source.Meta.C2sJudgeHldProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateHoldProxy(
+                        _source);
+            }
+
+            if (_source.Meta.C2sJudgeAirProxyBaseline is null)
+            {
+                _source.Meta.C2sJudgeAirProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateAirProxy(
+                        _source);
+            }
         }
 
         ConvertEvents();
@@ -92,30 +105,6 @@ public sealed class UgcChartConverter
         ApplySlaTimelines();
         if (_debugTil) EmitDebugTilMarkers();
         _target.Notes.Sort();
-
-        if (_source.Meta.C2sJudgeHldProxyBaseline is null &&
-            _source.Meta.TryGetC2sJudgeSummary(
-                out _,
-                out _,
-                out _,
-                out _,
-                out _,
-                out _))
-        {
-            var normalized =
-                new C2SChartConverter(
-                    new C2SConvertRequest(
-                        _target))
-                    .Convert();
-
-            if (normalized.Succeeded &&
-                normalized.Value is not null)
-            {
-                _source.Meta.C2sJudgeHldProxyBaseline =
-                    C2SJudgeSummaryCalculator.CalculateHoldProxy(
-                        normalized.Value);
-            }
-        }
 
         _target.Meta.C2sSlaEditKey ??= C2sRoundTripKeys.FormatSlaEditKey(_target);
         _target.Meta.C2sSlpEditKey ??= C2sRoundTripKeys.FormatSlpEditKey(_target);

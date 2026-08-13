@@ -118,6 +118,24 @@ public partial class C2SChartWriter
             }
         }
 
+        if (Chart.Meta.C2sJudgeAirProxyBaseline is int airProxyBaseline &&
+            airProxyBaseline >= 0)
+        {
+            var currentAirProxy =
+                C2SJudgeSummaryCalculator.CalculateAirProxy(Chart);
+
+            var adjustedAir =
+                (long)air +
+                currentAirProxy -
+                airProxyBaseline;
+
+            if (adjustedAir >= 0 &&
+                adjustedAir <= int.MaxValue)
+            {
+                air = (int)adjustedAir;
+            }
+        }
+
         var all = tap + hld + sld + air + flk;
 
         sb.AppendLine($"T_JUDGE_TAP\t{tap}");

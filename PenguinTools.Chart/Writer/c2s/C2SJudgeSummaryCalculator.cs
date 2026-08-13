@@ -151,6 +151,16 @@ internal static class C2SJudgeSummaryCalculator
         return chart.Notes.Count(note => note is c2s.Flick);
     }
 
+    public static int CalculateAirProxy(c2s.Chart chart)
+    {
+        ArgumentNullException.ThrowIfNull(chart);
+
+        return chart.Notes.Count(note =>
+            note is c2s.Air
+                or c2s.AirHold { Parent: not c2s.AirHold }
+                or c2s.AirSlide { Parent: not c2s.AirSlide });
+    }
+
     private static decimal GetBpmAt(
         c2s.Chart chart,
         IReadOnlyList<c2s.Bpm> bpmEvents,
@@ -190,11 +200,10 @@ internal static class C2SJudgeSummaryCalculator
     {
         return chart.Notes.Count(note =>
             note.Tick.Original == hold.EndTick.Original &&
-            (note is c2s.Air
-                or c2s.AirSlide
-                or c2s.AirHold) &&
-            note is c2s.IPairable pairable &&
-            ReferenceEquals(pairable.Parent, hold));
+            note.Lane == hold.Lane &&
+            note.Width == hold.Width &&
+            note is (c2s.Air or c2s.AirSlide or c2s.AirHold) and
+                c2s.IPairable { Parent: c2s.Hold });
     }
 
     private static List<c2s.Slide> GetSlideRoots(c2s.Chart chart)

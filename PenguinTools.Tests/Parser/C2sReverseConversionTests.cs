@@ -1675,6 +1675,57 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public void C2sJudgeSummaryCalculator_CountsAirRoots()
+    {
+        var chart = new C2sChart();
+        var tap = new Tap { Tick = 0, Lane = 0, Width = 4 };
+        chart.Notes.Add(tap);
+        chart.Notes.Add(new Air
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Parent = tap
+        });
+
+        var hold = new Hold
+        {
+            Tick = 480,
+            Lane = 0,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 0,
+            EndWidth = 4
+        };
+        chart.Notes.Add(hold);
+
+        var firstHold = new AirHold
+        {
+            Tick = 480,
+            Lane = 0,
+            Width = 4,
+            EndTick = 720,
+            EndLane = 0,
+            EndWidth = 4,
+            Parent = hold
+        };
+        var secondHold = new AirHold
+        {
+            Tick = 720,
+            Lane = 0,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 0,
+            EndWidth = 4,
+            Parent = firstHold
+        };
+        chart.Notes.Add(firstHold);
+        chart.Notes.Add(secondHold);
+
+        Assert.Equal(2, C2SJudgeSummaryCalculator.CalculateAirProxy(chart));
+    }
+
+    [Fact]
     public void C2sJudgeSummaryCalculator_SlideProxyUsesWholePathDuration()
     {
         var singleSegmentChart = new C2sChart();
@@ -2532,6 +2583,79 @@ public sealed class C2sReverseConversionTests
             Directory.Delete(
                 directory,
                 true);
+        }
+    }
+
+    [Fact]
+    public async Task C2sWriter_AppliesAirProxyDeltaToSourceJudgeSummary()
+    {
+        var source = new C2sChart
+        {
+            Meta =
+            {
+                MainBpm = 120m,
+                BgmInitialBpm = 120m,
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 0,
+                C2sJudgeSld = 0,
+                C2sJudgeAir = 10,
+                C2sJudgeFlk = 0,
+                C2sJudgeAll = 11,
+                C2sJudgeAirProxyBaseline = 1
+            }
+        };
+
+        var tap = new Tap
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4
+        };
+        source.Notes.Add(tap);
+        source.Notes.Add(new Air
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Parent = tap
+        });
+        source.Notes.Add(new Air
+        {
+            Tick = 480,
+            Lane = 0,
+            Width = 4,
+            Parent = tap
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "air-proxy-delta.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            Assert.Contains("T_JUDGE_AIR\t11", lines);
+            Assert.Contains("T_JUDGE_ALL\t12", lines);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
         }
     }
 
