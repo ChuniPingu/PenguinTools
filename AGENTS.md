@@ -17,20 +17,6 @@ Standard commands (run from the repo root; `dotnet` is on `PATH` via `~/.bashrc`
 - Lint/format check: `dotnet format PenguinTools.slnx --verify-no-changes`
 - Run the CLI: `dotnet run --project PenguinTools.CLI -- <args>` (e.g. `-- chart convert in.sus out.c2s`, `-- info`, `-- --help`)
 
-Non-obvious gotchas:
-
-- The three `External/` git submodules (`SonicAudioTools`, `vgaudio`, `mua`) MUST be initialized
-  or the build fails — `PenguinTools.CRI` project-references `SonicAudioTools` and `vgaudio`. The
-  update script runs `git submodule update --init --recursive`.
-- Building `mua` (Rust media executables) is NOT required for `dotnet build`/`test` or for chart
-  conversion. It's only needed at runtime for audio/jacket/stage media conversion, which shells
-  out to the `mua*` binaries. Those media CLI subcommands will fail without the built `mua` tools.
-- On Linux, all tests pass and three are `Skip`ped; the skips are expected and unrelated to setup:
-  the three parser tests load sample chart assets that are not committed (they resolve from
-  `PenguinTools.Tests/Assets`, which only ships a Fixtures README).
-- `dotnet format --verify-no-changes` reports pre-existing whitespace diffs in some committed files
-  and in the third-party `External/` submodules. These are not introduced by setup; do not "fix"
-  submodule or unrelated files. `scripts/format-all.sh` has a stale default project list
-  (`PenguinTools/PenguinTools.csproj` no longer exists) — pass explicit project paths if you use it.
-- Chart conversion round-trips work with a plain-text `.sus` chart. Minimal smoke test:
-  `dotnet run --project PenguinTools.CLI -- chart convert input.sus output.c2s`.
+All three `External/` git submodules (`SonicAudioTools`, `vgaudio`, `mua`) must be initialized
+(`git submodule update --init --recursive`), and the `mua` Rust media tools should be built
+(see the README) so audio/jacket/stage media conversion works at runtime.
