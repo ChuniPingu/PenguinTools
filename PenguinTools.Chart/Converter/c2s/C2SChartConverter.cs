@@ -29,6 +29,14 @@ public partial class C2SChartConverter
         if (snapshot is null)
             return false;
 
+        if (Mgxc.Meta.C2sSlaEditKey is { } editKey &&
+            editKey != C2sRoundTripKeys.FormatSlaEditKey(Mgxc))
+        {
+            Mgxc.Meta.C2sSlaSnapshot = null;
+            Mgxc.Meta.C2sSlaEditKey = null;
+            return false;
+        }
+
         if (snapshot.Length == 0)
             return true;
 
@@ -70,6 +78,14 @@ public partial class C2SChartConverter
 
         if (snapshot is null)
             return false;
+
+        if (Mgxc.Meta.C2sSlpEditKey is { } editKey &&
+            editKey != C2sRoundTripKeys.FormatSlpEditKey(Mgxc))
+        {
+            Mgxc.Meta.C2sSlpSnapshot = null;
+            Mgxc.Meta.C2sSlpEditKey = null;
+            return false;
+        }
 
         var restored = new List<c2s.Slp>();
 

@@ -2536,6 +2536,45 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public void SlaSnapshot_IsDroppedWhenNonZeroTimelinesChange()
+    {
+        var source = new C2sChart();
+        source.Notes.Add(new Tap
+        {
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            Timeline = 1
+        });
+        source.Notes.Add(new Sla
+        {
+            Tick = 0,
+            Timeline = 1,
+            Lane = 0,
+            Width = 4,
+            Length = 480
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.NotNull(converted.Value!.Meta.C2sSlaSnapshot);
+        Assert.NotNull(converted.Value.Meta.C2sSlaEditKey);
+
+        var tap = Assert.Single(
+            converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Tap>());
+        tap.Timeline = 2;
+
+        var roundTrip = new C2SChartConverter(
+            new C2SConvertRequest(converted.Value)).Convert();
+
+        Assert.True(roundTrip.Succeeded, roundTrip.ToString());
+        Assert.Null(roundTrip.Value!.Meta.C2sSlaSnapshot);
+        Assert.Null(roundTrip.Value.Meta.C2sSlaEditKey);
+    }
+
+    [Fact]
     public async Task MgxcWriter_EmitsAirBeforeAirHold()
     {
         var source = new C2sChart();

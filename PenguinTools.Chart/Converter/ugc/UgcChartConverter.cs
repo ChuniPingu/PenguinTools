@@ -31,24 +31,15 @@ public sealed class UgcChartConverter
 
         if (_target.Meta.C2sSlaSnapshot is null)
         {
-            _target.Meta.C2sSlaSnapshot = string.Join(
-                ";",
-                _source.Notes
-                    .OfType<c2s.Sla>()
-                    .Select(x =>
-                        $"{x.Tick.Original},{x.Timeline},{x.Lane},{x.Width},{x.Length.Original}"));
+            _target.Meta.C2sSlaSnapshot = C2sRoundTripKeys.FormatSlaSnapshot(
+                _source.Notes.OfType<c2s.Sla>());
         }
 
         if (_target.Meta.C2sSlpSnapshot is null &&
             !_source.Events.Any(x => x.Id == "SFL"))
         {
-            _target.Meta.C2sSlpSnapshot = string.Join(
-                ";",
-                _source.Events
-                    .OfType<c2s.Slp>()
-                    .Select(x =>
-                        $"{x.Tick.Original},{x.Timeline},{x.Length.Original}," +
-                        x.Speed.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            _target.Meta.C2sSlpSnapshot = C2sRoundTripKeys.FormatSlpSnapshot(
+                _source.Events.OfType<c2s.Slp>());
         }
 
         if (_target.Meta.C2sMeterDefDenominator is null)
@@ -125,6 +116,9 @@ public sealed class UgcChartConverter
                         normalized.Value);
             }
         }
+
+        _target.Meta.C2sSlaEditKey ??= C2sRoundTripKeys.FormatSlaEditKey(_target);
+        _target.Meta.C2sSlpEditKey ??= C2sRoundTripKeys.FormatSlpEditKey(_target);
 
         return OperationResult<umgr.Chart>.Success(_target);
     }

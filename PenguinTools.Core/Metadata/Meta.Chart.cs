@@ -42,6 +42,8 @@ public partial record Meta
 
     public string? C2sSlaSnapshot { get; set; }
     public string? C2sSlpSnapshot { get; set; }
+    public string? C2sSlaEditKey { get; set; }
+    public string? C2sSlpEditKey { get; set; }
 
     public int? C2sMeterDefDenominator { get; set; }
     public int? C2sMeterDefNumerator { get; set; }
