@@ -45,13 +45,13 @@ public partial class MgxcParser
         }
         else if (name == "bmrk")
         {
-            br.ReadWideField(); // hash
             e = new umgr.BookmarkEvent
             {
+                Id = (string)br.ReadWideField(),
                 Tick = (int)br.ReadField(),
-                Tag = (string)br.ReadWideField()
+                Tag = (string)br.ReadWideField(),
+                Rgb = (string)br.ReadWideField()
             };
-            br.ReadWideField(); // rgb
         }
         else if (name == "mbkm")
         {

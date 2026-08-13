@@ -1,23 +1,24 @@
 using System.Globalization;
-using System.Text;
 
 namespace PenguinTools.Core.Metadata;
 
 /// <summary>
-/// Persists C2S round-trip state as <c>#meta</c> lines in <see cref="Meta.Comment"/>,
-/// the same channel already used for stage/genre/date overrides.
+/// Persists converter-owned C2S round-trip state as <c>#meta</c> lines in MGXC
+/// bookmarks. User-controlled <c>#meta</c> directives stay in
+/// <see cref="Meta.Comment"/>.
 /// </summary>
 public static class C2sRoundTripComment
 {
-    public const string JudgeTag = "c2sjudge";
-    public const string JudgeProxyTag = "c2sjudgeproxy";
-    public const string MeterTag = "c2smeter";
-    public const string SlpTag = "c2sslp";
-    public const string SlaTag = "c2ssla";
-    public const string SlpEditTag = "c2sslpedit";
-    public const string SlaEditTag = "c2sslaedit";
+    private const string JudgeTag = "c2sjudge";
+    private const string JudgeProxyTag = "c2sjudgeproxy";
+    private const string MeterTag = "c2smeter";
+    private const string SlpTag = "c2sslp";
+    private const string SlaTag = "c2ssla";
+    private const string SlpEditTag = "c2sslpedit";
+    private const string SlaEditTag = "c2sslaedit";
 
     private const string NullProxyToken = "x";
+    private const string MetaPrefix = "#meta ";
 
     private static readonly HashSet<string> TagNames =
     [
@@ -30,22 +31,55 @@ public static class C2sRoundTripComment
         SlaEditTag
     ];
 
-    public static bool IsRoundTripTag(string name) => TagNames.Contains(name);
+    public static bool IsRoundTripLine(string line) =>
+        TryParseRoundTripLine(line, out _, out _);
 
-    public static string Apply(Meta meta)
+    public static IReadOnlyList<string> FormatBookmarks(Meta meta)
     {
         ArgumentNullException.ThrowIfNull(meta);
 
-        var body = Strip(meta.Comment);
-        var tags = FormatTags(meta);
+        var bookmarks = new List<string>();
 
-        if (tags.Length == 0)
-            return body;
+        if (meta.TryGetC2sJudgeSummary(out var tap, out var hld, out var sld, out var air, out var flk, out var all))
+            AppendBookmark(bookmarks, JudgeTag, $"{tap} {hld} {sld} {air} {flk} {all}");
 
-        if (string.IsNullOrEmpty(body))
-            return tags;
+        if (meta.C2sJudgeHldProxyBaseline is >= 0 ||
+            meta.C2sJudgeSldProxyBaseline is >= 0 ||
+            meta.C2sJudgeAirProxyBaseline is >= 0)
+        {
+            AppendBookmark(
+                bookmarks,
+                JudgeProxyTag,
+                $"{FormatProxy(meta.C2sJudgeHldProxyBaseline)} " +
+                $"{FormatProxy(meta.C2sJudgeSldProxyBaseline)} " +
+                $"{FormatProxy(meta.C2sJudgeAirProxyBaseline)}");
+        }
 
-        return body.TrimEnd('\r', '\n') + "\n" + tags;
+        if (meta.C2sMeterDefDenominator is >= 0 and var denominator &&
+            meta.C2sMeterDefNumerator is >= 0 and var numerator)
+            AppendBookmark(bookmarks, MeterTag, $"{denominator} {numerator}");
+
+        AppendBookmark(bookmarks, SlpEditTag, meta.C2sSlpEditKey);
+        AppendBookmark(bookmarks, SlaEditTag, meta.C2sSlaEditKey);
+        AppendBookmark(bookmarks, SlpTag, meta.C2sSlpSnapshot);
+        AppendBookmark(bookmarks, SlaTag, meta.C2sSlaSnapshot);
+
+        return bookmarks;
+    }
+
+    public static void Absorb(Meta meta, IEnumerable<string> lines)
+    {
+        ArgumentNullException.ThrowIfNull(meta);
+        ArgumentNullException.ThrowIfNull(lines);
+
+        foreach (var line in lines)
+        {
+            if (!TryParseRoundTripLine(line, out var tag, out var payload))
+                continue;
+
+            var args = payload.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            Handle(meta, tag, args);
+        }
     }
 
     public static string Strip(string comment)
@@ -58,7 +92,7 @@ public static class C2sRoundTripComment
 
         foreach (var line in lines)
         {
-            if (IsRoundTripMetaLine(line))
+            if (IsRoundTripLine(line))
                 continue;
 
             kept.Add(line);
@@ -70,87 +104,62 @@ public static class C2sRoundTripComment
         return string.Join('\n', kept);
     }
 
-    public static bool TryHandle(Meta meta, string name, string[] args)
+    private static void Handle(Meta meta, string name, string[] args)
     {
-        ArgumentNullException.ThrowIfNull(meta);
-        ArgumentNullException.ThrowIfNull(name);
-        ArgumentNullException.ThrowIfNull(args);
-
         switch (name)
         {
             case JudgeTag:
                 ParseJudge(meta, args);
-                return true;
+                break;
             case JudgeProxyTag:
                 ParseJudgeProxy(meta, args);
-                return true;
+                break;
             case MeterTag:
                 ParseMeter(meta, args);
-                return true;
+                break;
             case SlpTag:
                 meta.C2sSlpSnapshot = JoinArgs(args);
-                return true;
+                break;
             case SlaTag:
                 meta.C2sSlaSnapshot = JoinArgs(args);
-                return true;
+                break;
             case SlpEditTag:
                 meta.C2sSlpEditKey = JoinArgs(args);
-                return true;
+                break;
             case SlaEditTag:
                 meta.C2sSlaEditKey = JoinArgs(args);
-                return true;
-            default:
-                return false;
+                break;
         }
     }
 
-    private static string FormatTags(Meta meta)
+    private static void AppendBookmark(List<string> bookmarks, string tag, string? args)
     {
-        var sb = new StringBuilder();
+        if (args is null)
+            return;
 
-        if (meta.TryGetC2sJudgeSummary(out var tap, out var hld, out var sld, out var air, out var flk, out var all))
-            Append(sb, JudgeTag, $"{tap} {hld} {sld} {air} {flk} {all}");
-
-        if (meta.C2sJudgeHldProxyBaseline is >= 0 ||
-            meta.C2sJudgeSldProxyBaseline is >= 0 ||
-            meta.C2sJudgeAirProxyBaseline is >= 0)
-        {
-            Append(sb, JudgeProxyTag,
-                $"{FormatProxy(meta.C2sJudgeHldProxyBaseline)} " +
-                $"{FormatProxy(meta.C2sJudgeSldProxyBaseline)} " +
-                $"{FormatProxy(meta.C2sJudgeAirProxyBaseline)}");
-        }
-
-        if (meta.C2sMeterDefDenominator is >= 0 and var denominator &&
-            meta.C2sMeterDefNumerator is >= 0 and var numerator)
-            Append(sb, MeterTag, $"{denominator} {numerator}");
-
-        if (meta.C2sSlpSnapshot is not null)
-            Append(sb, SlpTag, meta.C2sSlpSnapshot);
-
-        if (meta.C2sSlaSnapshot is not null)
-            Append(sb, SlaTag, meta.C2sSlaSnapshot);
-
-        if (meta.C2sSlpEditKey is not null)
-            Append(sb, SlpEditTag, meta.C2sSlpEditKey);
-
-        if (meta.C2sSlaEditKey is not null)
-            Append(sb, SlaEditTag, meta.C2sSlaEditKey);
-
-        return sb.ToString().TrimEnd('\r', '\n');
+        bookmarks.Add(args.Length == 0
+            ? MetaPrefix + tag
+            : MetaPrefix + tag + " " + args);
     }
 
-    private static void Append(StringBuilder sb, string tag, string args)
+    private static bool TryParseRoundTripLine(string line, out string tag, out string payload)
     {
-        sb.Append("#meta ");
-        sb.Append(tag);
-        if (args.Length > 0)
-        {
-            sb.Append(' ');
-            sb.Append(args);
-        }
+        tag = string.Empty;
+        payload = string.Empty;
 
-        sb.Append('\n');
+        var trimmed = line.Trim();
+        if (!trimmed.StartsWith(MetaPrefix, StringComparison.Ordinal))
+            return false;
+
+        var rest = trimmed[MetaPrefix.Length..];
+        var space = rest.IndexOf(' ');
+        var name = space < 0 ? rest : rest[..space];
+        if (!TagNames.Contains(name))
+            return false;
+
+        tag = name;
+        payload = space < 0 ? string.Empty : rest[(space + 1)..];
+        return true;
     }
 
     private static void ParseJudge(Meta meta, string[] args)
@@ -232,16 +241,4 @@ public static class C2sRoundTripComment
     }
 
     private static string JoinArgs(string[] args) => string.Join(' ', args);
-
-    private static bool IsRoundTripMetaLine(string line)
-    {
-        var trimmed = line.Trim();
-        if (!trimmed.StartsWith('#'))
-            return false;
-
-        var parts = trimmed[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length >= 2 &&
-               parts[0].Equals("meta", StringComparison.Ordinal) &&
-               TagNames.Contains(parts[1]);
-    }
 }

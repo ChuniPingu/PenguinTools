@@ -2383,7 +2383,7 @@ public sealed class C2sReverseConversionTests
 
         var path = Path.Combine(
             directory,
-            "copyright-judge-summary.mgxc");
+            "judge-summary.mgxc");
 
         try
         {
@@ -2402,10 +2402,10 @@ public sealed class C2sReverseConversionTests
 
             var meta = parsed.Value!.Meta;
 
-            Assert.Contains(
+            Assert.Equal(
                 "Original comment text",
                 meta.Comment);
-            Assert.Contains(
+            Assert.DoesNotContain(
                 "#meta c2sjudge",
                 meta.Comment);
 
@@ -2443,6 +2443,10 @@ public sealed class C2sReverseConversionTests
             Assert.Equal(4, air);
             Assert.Equal(5, flk);
             Assert.Equal(15, all);
+
+            Assert.DoesNotContain(
+                parsed.Value.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BookmarkEvent>(),
+                bookmark => C2sRoundTripComment.IsRoundTripLine(bookmark.Tag));
         }
         finally
         {
@@ -2489,10 +2493,10 @@ public sealed class C2sReverseConversionTests
 
             var meta = parsed.Value!.Meta;
 
-            Assert.Contains(
+            Assert.Equal(
                 "Original comment text",
                 meta.Comment);
-            Assert.Contains(
+            Assert.DoesNotContain(
                 "#meta c2ssla",
                 meta.Comment);
 
@@ -2509,6 +2513,88 @@ public sealed class C2sReverseConversionTests
                     out _,
                     out _,
                     out _));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void FormatBookmarks_EmitsOneBookmarkPerConverterTag()
+    {
+        var snapshot = new string('a', 40_000);
+        var meta = new Meta
+        {
+            C2sJudgeTap = 1,
+            C2sJudgeHld = 2,
+            C2sJudgeSld = 3,
+            C2sJudgeAir = 4,
+            C2sJudgeFlk = 5,
+            C2sJudgeAll = 15,
+            C2sSlaSnapshot = snapshot
+        };
+
+        var bookmarks = C2sRoundTripComment.FormatBookmarks(meta);
+
+        Assert.Equal(2, bookmarks.Count);
+        Assert.Equal("#meta c2sjudge 1 2 3 4 5 15", bookmarks[0]);
+        Assert.Equal("#meta c2ssla " + snapshot, bookmarks[1]);
+    }
+
+    [Fact]
+    public async Task MgxcWriter_PreservesUserBookmarksAndUserMetaComment()
+    {
+        var chart = new PenguinTools.Chart.Models.umgr.Chart();
+        chart.Meta.Comment = "#meta date 20260813\nChart notes";
+        chart.Meta.C2sJudgeTap = 1;
+        chart.Meta.C2sJudgeHld = 2;
+        chart.Meta.C2sJudgeSld = 3;
+        chart.Meta.C2sJudgeAir = 4;
+        chart.Meta.C2sJudgeFlk = 5;
+        chart.Meta.C2sJudgeAll = 15;
+
+        chart.Events.AppendChild(new PenguinTools.Chart.Models.umgr.BookmarkEvent
+        {
+            Id = "95B9B99580D6425BBEEF17C820542F6C",
+            Tick = 1920,
+            Tag = "BOOKMARK AT BAR 2",
+            Rgb = "FF00AA"
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "user-bookmarks.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var meta = parsed.Value!.Meta;
+            Assert.Contains("#meta date 20260813", meta.Comment);
+            Assert.Contains("Chart notes", meta.Comment);
+            Assert.DoesNotContain("#meta c2sjudge", meta.Comment);
+            Assert.Equal(1, meta.C2sJudgeTap);
+            Assert.Equal(15, meta.C2sJudgeAll);
+
+            var bookmark = Assert.Single(
+                parsed.Value.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BookmarkEvent>());
+            Assert.Equal("BOOKMARK AT BAR 2", bookmark.Tag);
+            Assert.Equal(1920, bookmark.Tick.Original);
+            Assert.Equal("FF00AA", bookmark.Rgb);
+            Assert.Equal("95B9B99580D6425BBEEF17C820542F6C", bookmark.Id);
         }
         finally
         {
@@ -2773,6 +2859,110 @@ public sealed class C2sReverseConversionTests
             }
 
             Assert.True(sawAirBeforeHold);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_PairsUnresolvedAirHoldWithCarrier()
+    {
+        var source = new C2sChart();
+        source.Meta.MainBpm = 120m;
+        source.Notes.Add(new AirHold
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 3,
+            Color = Color.DEF,
+            Joint = Joint.D
+        });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+
+        var airHold = Assert.Single(
+            converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+        Assert.NotNull(airHold.PairNote);
+        Assert.Equal(480, airHold.Tick.Original);
+        Assert.Equal(4, airHold.Lane);
+        Assert.Equal(3, airHold.Width);
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "unresolved-air-hold.mgxc");
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Single(parsed.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_DoesNotOverflowBookmarksOnDenseTilCharts()
+    {
+        var source = new C2sChart();
+        source.Meta.MainBpm = 120m;
+
+        for (var i = 0; i < 4000; i++)
+        {
+            source.Notes.Add(new Tap
+            {
+                Tick = i * 48,
+                Lane = i % 16,
+                Width = 1,
+                Timeline = 1
+            });
+        }
+
+        source.Notes.Add(new Sla
+        {
+            Tick = 0,
+            Timeline = 1,
+            Lane = 0,
+            Width = 16,
+            Length = 4000 * 48
+        });
+
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.NotNull(converted.Value!.Meta.C2sSlaEditKey);
+
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "dense-til.mgxc");
+        try
+        {
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+            Assert.True(File.Exists(path));
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(path, TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Equal(converted.Value.Meta.C2sSlaEditKey, parsed.Value!.Meta.C2sSlaEditKey);
+            Assert.Equal(converted.Value.Meta.C2sSlaSnapshot, parsed.Value.Meta.C2sSlaSnapshot);
+            Assert.DoesNotContain("#meta c2s", parsed.Value.Meta.Comment);
         }
         finally
         {

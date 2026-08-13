@@ -22,6 +22,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         ProcessNote();
         ProcessTil();
         ProcessCommand();
+        ProcessRoundTripBookmarks();
     }
 
     public static string GetSortName(string? s)
@@ -435,15 +436,6 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             case "date":
                 MetaDateHandler(value);
                 break;
-            case C2sRoundTripComment.JudgeTag:
-            case C2sRoundTripComment.JudgeProxyTag:
-            case C2sRoundTripComment.MeterTag:
-            case C2sRoundTripComment.SlpTag:
-            case C2sRoundTripComment.SlaTag:
-            case C2sRoundTripComment.SlpEditTag:
-            case C2sRoundTripComment.SlaEditTag:
-                C2sRoundTripComment.TryHandle(chart.Meta, name, value);
-                break;
             default:
                 diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Unknown_tag, name))
                 {
@@ -490,6 +482,23 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                     Target = parts
                 });
         }
+    }
+
+    private void ProcessRoundTripBookmarks()
+    {
+        var bookmarks = chart.Events.Children.OfType<umgr.BookmarkEvent>().ToArray();
+        var lines = new List<string>();
+
+        foreach (var bookmark in bookmarks)
+        {
+            if (!C2sRoundTripComment.IsRoundTripLine(bookmark.Tag))
+                continue;
+
+            lines.Add(bookmark.Tag);
+            chart.Events.RemoveChild(bookmark);
+        }
+
+        C2sRoundTripComment.Absorb(chart.Meta, lines);
     }
 
     private static bool ParseBool(string str)

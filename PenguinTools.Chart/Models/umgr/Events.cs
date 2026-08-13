@@ -28,7 +28,9 @@ public class NoteSpeedEvent : SpeedEventBase;
 
 public class BookmarkEvent : Event
 {
+    public string Id { get; set; } = string.Empty;
     public string Tag { get; set; } = string.Empty;
+    public string Rgb { get; set; } = "FFFFFF";
 }
 
 public class BreakingMarker : Event;

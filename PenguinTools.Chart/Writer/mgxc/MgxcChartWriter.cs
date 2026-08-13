@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser.mgxc;
@@ -121,7 +122,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteStringField(bw, "ltyp", "");
         WriteStringField(bw, "lurl", "");
         WriteIntField(bw, "xver", 1);
-        WriteStringField(bw, "cmmt", C2sRoundTripComment.Apply(m));
+        WriteStringField(bw, "cmmt", C2sRoundTripComment.Strip(m.Comment));
         WriteIntField(bw, "CTCK", 0);
         WriteStringField(bw, "LXFN", "");
         WriteDoubleField(bw, "HSCL", 10);
@@ -132,6 +133,21 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private void WriteEvents(BinaryWriter bw)
     {
+        foreach (var tag in C2sRoundTripComment.FormatBookmarks(_chart.Meta))
+            WriteBookmark(bw, 0, tag, "FFFFFF");
+
+        foreach (var bookmark in _chart.Events.Children.OfType<umgr.BookmarkEvent>()
+                     .Where(bookmark => !C2sRoundTripComment.IsRoundTripLine(bookmark.Tag))
+                     .OrderBy(bookmark => bookmark.Tick.Original))
+        {
+            WriteBookmark(
+                bw,
+                bookmark.Tick.Original,
+                bookmark.Tag,
+                string.IsNullOrWhiteSpace(bookmark.Rgb) ? "FFFFFF" : bookmark.Rgb,
+                bookmark.Id);
+        }
+
         var beats = _chart.Events.Children.OfType<umgr.BeatEvent>()
             .Where(x => x.Numerator > 0 && x.Denominator > 0)
             .OrderBy(x => x.Bar).ToArray();
@@ -580,6 +596,33 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         if (level <= 0) return "";
         var whole = (int)decimal.Truncate(level);
         return level - whole >= 0.5m ? $"{whole}+" : whole.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static void WriteBookmark(
+        BinaryWriter bw,
+        int tick,
+        string tag,
+        string rgb,
+        string? id = null)
+    {
+        bw.Write(Encoding.ASCII.GetBytes("bmrk"));
+        WriteWideField(
+            bw,
+            string.IsNullOrWhiteSpace(id)
+                ? Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(tag)))
+                : id);
+        WriteIntFieldValue(bw, tick);
+        WriteWideField(bw, tag);
+        WriteWideField(bw, rgb);
+        bw.Write(0);
+    }
+
+    private static void WriteWideField(BinaryWriter bw, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value ?? "");
+        bw.Write(4);
+        bw.Write(bytes.Length);
+        bw.Write(bytes);
     }
 
     private static void WriteStringField(BinaryWriter bw, string name, string value)

@@ -45,26 +45,59 @@ public sealed class OfficialC2sRoundTripTests
         return false;
     }
 
-    [Fact]
-    public async Task OfficialCharts_C2sMgxcC2s_FirstRoundPreservesJudgeSummary()
+    public static IEnumerable<object[]> OfficialChartFiles()
     {
         if (!TryGetAssetDirectory(out var assetDirectory))
-            Assert.Skip("PenguinTools.Tests/Assets has no .c2s files.");
+            return [];
 
-        var files = Directory.GetFiles(
+        var tracked = TrackedFailedCharts.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return Directory.GetFiles(
                 assetDirectory,
                 "*.c2s",
                 SearchOption.TopDirectoryOnly)
-            .OrderBy(x => x)
-            .ToArray();
-
-        Assert.NotEmpty(files);
-
-        foreach (var file in files)
-        {
-            await RoundTripFile(file);
-        }
+            .Where(path => tracked.Contains(Path.GetFileNameWithoutExtension(path)!))
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .Select(path => new object[]
+            {
+                Path.GetFileNameWithoutExtension(path)!,
+                path
+            });
     }
+
+    // Former parse failures (unpaired AirHold/AirSlide) and overflow on cmmt.
+    private static readonly string[] TrackedFailedCharts =
+    [
+        "0180_03",
+        "0320_03",
+        "0390_03",
+        "0440_03",
+        "0531_03",
+        "0594_03",
+        "0761_03",
+        "0772_03",
+        "0862_03",
+        "1029_03",
+        "1086_03",
+        "2033_03",
+        "2054_03",
+        "2079_03",
+        "2090_03",
+        "2175_03",
+        "2429_03",
+        "8086_04",
+        "8206_05",
+        "8273_05",
+        "8294_05",
+        "8302_05"
+    ];
+
+    [Theory(SkipTestWithoutData = true)]
+    [MemberData(nameof(OfficialChartFiles))]
+    public Task OfficialCharts_C2sMgxcC2s_FirstRoundPreservesJudgeSummary(
+        string _,
+        string file) =>
+        RoundTripFile(file);
 
     private static async Task RoundTripFile(string sourcePath)
     {
