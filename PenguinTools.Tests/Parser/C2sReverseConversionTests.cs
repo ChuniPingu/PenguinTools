@@ -2785,6 +2785,82 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public void SlpSnapshot_IsPreservedWhenSpeedScaleChangesOnly()
+    {
+        var source = new C2sChart();
+        source.Events.Add(new Slp
+        {
+            Tick = 0,
+            Timeline = 0,
+            Length = 480,
+            Speed = 0.750000m
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.NotNull(converted.Value!.Meta.C2sSlpSnapshot);
+        Assert.NotNull(converted.Value.Meta.C2sSlpEditKey);
+
+        var speed = Assert.Single(
+            converted.Value.Events.Children
+                .OfType<PenguinTools.Chart.Models.umgr.ScrollSpeedEvent>(),
+            x => x.Tick.Original == 0 &&
+                 x.Timeline == 0);
+
+        speed.Speed = 0.75m;
+
+        var roundTrip = new C2SChartConverter(
+            new C2SConvertRequest(converted.Value)).Convert();
+
+        Assert.True(roundTrip.Succeeded, roundTrip.ToString());
+        Assert.NotNull(roundTrip.Value!.Meta.C2sSlpSnapshot);
+        Assert.NotNull(roundTrip.Value.Meta.C2sSlpEditKey);
+
+        var slp = Assert.Single(
+            roundTrip.Value.Events.OfType<Slp>());
+
+        Assert.Equal(0.75m, slp.Speed);
+        Assert.Equal(480, slp.Length.Original);
+    }
+
+    [Fact]
+    public void SlpSnapshot_IsDroppedWhenSpeedValueChanges()
+    {
+        var source = new C2sChart();
+        source.Events.Add(new Slp
+        {
+            Tick = 0,
+            Timeline = 0,
+            Length = 480,
+            Speed = 0.750000m
+        });
+
+        var converted = new UgcChartConverter(
+            new UgcConvertRequest(source)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.NotNull(converted.Value!.Meta.C2sSlpSnapshot);
+        Assert.NotNull(converted.Value.Meta.C2sSlpEditKey);
+
+        var speed = Assert.Single(
+            converted.Value.Events.Children
+                .OfType<PenguinTools.Chart.Models.umgr.ScrollSpeedEvent>(),
+            x => x.Tick.Original == 0 &&
+                 x.Timeline == 0);
+
+        speed.Speed = 0.751m;
+
+        var roundTrip = new C2SChartConverter(
+            new C2SConvertRequest(converted.Value)).Convert();
+
+        Assert.True(roundTrip.Succeeded, roundTrip.ToString());
+        Assert.Null(roundTrip.Value!.Meta.C2sSlpSnapshot);
+        Assert.Null(roundTrip.Value.Meta.C2sSlpEditKey);
+    }
+
+    [Fact]
     public async Task MgxcWriter_EmitsAirBeforeAirHold()
     {
         var source = new C2sChart();

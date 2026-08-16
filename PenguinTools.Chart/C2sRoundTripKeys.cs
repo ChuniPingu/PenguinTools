@@ -51,7 +51,9 @@ internal static class C2sRoundTripKeys
                 .ThenBy(x => x.Tick.Original)
                 .Select(x =>
                     $"{x.Tick.Original},{x.Timeline}," +
-                    x.Speed.ToString(CultureInfo.InvariantCulture)));
+                    x.Speed.ToString(
+                        "0.############################",
+                        CultureInfo.InvariantCulture)));
     }
 
     private static IEnumerable<umgr.Note> Flatten(IEnumerable<umgr.Note> notes)
