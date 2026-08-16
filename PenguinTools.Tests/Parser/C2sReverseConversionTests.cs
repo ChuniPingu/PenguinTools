@@ -2915,6 +2915,160 @@ public sealed class C2sReverseConversionTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void C2sRoundTrip_PreservesAirCountAcrossSharedParentActions(
+        int airCount)
+    {
+        var source = new C2sChart();
+
+        var tap = new Tap
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3
+        };
+        source.Notes.Add(tap);
+
+        source.Notes.Add(new AirHold
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 3,
+            Color = Color.DEF,
+            Joint = Joint.D,
+            Parent = tap
+        });
+
+        source.Notes.Add(new AirHold
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            EndTick = 1440,
+            EndLane = 4,
+            EndWidth = 3,
+            Color = Color.DEF,
+            Joint = Joint.D,
+            Parent = tap
+        });
+
+        for (var i = 0; i < airCount; i++)
+        {
+            source.Notes.Add(new Air
+            {
+                Tick = 480,
+                Lane = 4,
+                Width = 3,
+                Direction = i == 0
+                    ? AirDirection.IR
+                    : AirDirection.DW,
+                Color = Color.DEF,
+                Parent = tap
+            });
+        }
+
+        var converted =
+            new UgcChartConverter(
+                new UgcConvertRequest(source))
+                .Convert();
+
+        Assert.True(
+            converted.Succeeded,
+            converted.ToString());
+
+        var roundTrip =
+            new C2SChartConverter(
+                new C2SConvertRequest(converted.Value!))
+                .Convert();
+
+        Assert.True(
+            roundTrip.Succeeded,
+            roundTrip.ToString());
+
+        Assert.Equal(
+            airCount,
+            roundTrip.Value!.Notes.OfType<Air>().Count());
+    }
+
+    [Fact]
+    public void C2sRoundTrip_DoesNotDuplicateSingleAirAcrossMixedSharedParentActions()
+    {
+        var source = new C2sChart();
+
+        var tap = new Tap
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3
+        };
+        source.Notes.Add(tap);
+
+        source.Notes.Add(new AirHold
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 3,
+            Color = Color.DEF,
+            Joint = Joint.D,
+            Parent = tap
+        });
+
+        source.Notes.Add(new AirSlide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Height = 4,
+            EndTick = 1440,
+            EndLane = 8,
+            EndWidth = 3,
+            EndHeight = 8,
+            Color = Color.DEF,
+            Joint = Joint.D,
+            Parent = tap
+        });
+
+        source.Notes.Add(new Air
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Direction = AirDirection.IR,
+            Color = Color.DEF,
+            Parent = tap
+        });
+
+        var converted =
+            new UgcChartConverter(
+                new UgcConvertRequest(source))
+                .Convert();
+
+        Assert.True(
+            converted.Succeeded,
+            converted.ToString());
+
+        var roundTrip =
+            new C2SChartConverter(
+                new C2SConvertRequest(converted.Value!))
+                .Convert();
+
+        Assert.True(
+            roundTrip.Succeeded,
+            roundTrip.ToString());
+
+        Assert.Single(
+            roundTrip.Value!.Notes.OfType<Air>());
+    }
+
     [Fact]
     public async Task MgxcWriter_DoesNotOverflowBookmarksOnDenseTilCharts()
     {

@@ -13,7 +13,7 @@ public sealed class UgcChartConverter
     private readonly c2s.Chart _source;
     private readonly umgr.Chart _target = new();
     private readonly Dictionary<c2s.Note, umgr.PositiveNote> _positiveNotes = [];
-    private readonly Dictionary<c2s.Note, List<umgr.NegativeNote>> _airActionsByParent = [];
+    private readonly Dictionary<c2s.Note, Queue<umgr.NegativeNote>> _airActionsByParent = [];
 
     private readonly bool _debugTil;
 
@@ -291,24 +291,22 @@ public sealed class UgcChartConverter
         if (source.Parent is null)
             return;
 
-        if (_airActionsByParent.TryGetValue(source.Parent, out var actions))
+        if (_airActionsByParent.TryGetValue(source.Parent, out var actions) &&
+            actions.TryDequeue(out var action))
         {
-            foreach (var action in actions)
+            switch (action)
             {
-                switch (action)
-                {
-                    case umgr.AirHold hold:
-                        hold.Direction = source.Direction;
-                        hold.Color = source.Color;
-                        hold.HasAirArrow = true;
-                        break;
+                case umgr.AirHold hold:
+                    hold.Direction = source.Direction;
+                    hold.Color = source.Color;
+                    hold.HasAirArrow = true;
+                    break;
 
-                    case umgr.AirSlide slide:
-                        slide.Direction = source.Direction;
-                        slide.Color = source.Color;
-                        slide.HasAirArrow = true;
-                        break;
-                }
+                case umgr.AirSlide slide:
+                    slide.Direction = source.Direction;
+                    slide.Color = source.Color;
+                    slide.HasAirArrow = true;
+                    break;
             }
 
             return;
@@ -572,7 +570,7 @@ public sealed class UgcChartConverter
             _airActionsByParent[parent] = actions;
         }
 
-        actions.Add(action);
+        actions.Enqueue(action);
     }
 
     private readonly record struct OpenSlide(
