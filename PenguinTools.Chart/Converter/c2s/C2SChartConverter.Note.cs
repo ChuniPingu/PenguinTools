@@ -148,11 +148,15 @@ public partial class C2SChartConverter
             case umgr.Tap tap:
                 CreatePositiveNote<umgr.Tap, c2s.Tap>(tap);
                 break;
+            case umgr.ExTap { Role: umgr.ExTapRole.AirActionCarrier }:
+                break;
+            // UMIGURI marks EX holds/slides with a covering ExTap. Consume that
+            // ExTap into HXD/SXD unless it also owns an AIR action.
             case umgr.ExTap
             {
                 Role: umgr.ExTapRole.SharedLongCarrier
-                    or umgr.ExTapRole.HoldOnlyCarrier
-                    or umgr.ExTapRole.AirActionCarrier
+                    or umgr.ExTapRole.HoldOnlyCarrier,
+                PairNote: null
             }:
                 break;
             case umgr.ExTap exTap:
