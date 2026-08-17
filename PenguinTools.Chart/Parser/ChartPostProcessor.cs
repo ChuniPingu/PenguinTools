@@ -5,6 +5,7 @@ using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Metadata;
 
 namespace PenguinTools.Chart.Parser;
 
@@ -21,6 +22,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         ProcessNote();
         ProcessTil();
         ProcessCommand();
+        ProcessRoundTripBookmarks();
     }
 
     public static string GetSortName(string? s)
@@ -71,6 +73,19 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
         foreach (var exTap in chart.Notes.Children.OfType<umgr.ExTap>())
         {
+            noteGroup.TryGetValue(exTap.Tick, out var notesAtTick);
+
+            var coversLongNote = notesAtTick?.Any(note =>
+                exTap.Lane <= note.Lane &&
+                exTap.Lane + exTap.Width >= note.Lane + note.Width) == true;
+
+            if (exTap.Role == umgr.ExTapRole.Auto)
+            {
+                exTap.Role = coversLongNote
+                    ? umgr.ExTapRole.SharedLongCarrier
+                    : umgr.ExTapRole.Explicit;
+            }
+
             if (!exEffects.TryGetValue(exTap.Tick, out var effectSet))
             {
                 effectSet = [];
@@ -79,11 +94,18 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
             effectSet.Add(exTap.Effect);
 
-            if (!noteGroup.TryGetValue(exTap.Tick, out var notesAtTick)) continue;
+            if (exTap.Role == umgr.ExTapRole.Explicit || notesAtTick is null)
+                continue;
 
             foreach (var note in notesAtTick)
             {
-                var covering = exTap.Lane <= note.Lane && exTap.Lane + exTap.Width >= note.Lane + note.Width;
+                if (exTap.Role == umgr.ExTapRole.HoldOnlyCarrier && note is not umgr.Hold)
+                    continue;
+
+                var covering =
+                    exTap.Lane <= note.Lane &&
+                    exTap.Lane + exTap.Width >= note.Lane + note.Width;
+
                 if (!covering) continue;
 
                 note.Effect = exTap.Effect;
@@ -460,6 +482,23 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                     Target = parts
                 });
         }
+    }
+
+    private void ProcessRoundTripBookmarks()
+    {
+        var bookmarks = chart.Events.Children.OfType<umgr.BookmarkEvent>().ToArray();
+        var lines = new List<string>();
+
+        foreach (var bookmark in bookmarks)
+        {
+            if (!C2sRoundTripComment.IsRoundTripLine(bookmark.Tag))
+                continue;
+
+            lines.Add(bookmark.Tag);
+            chart.Events.RemoveChild(bookmark);
+        }
+
+        C2sRoundTripComment.Absorb(chart.Meta, lines);
     }
 
     private static bool ParseBool(string str)

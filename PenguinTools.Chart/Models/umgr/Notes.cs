@@ -6,10 +6,34 @@
 namespace PenguinTools.Chart.Models.umgr;
 
 public class Tap : PositiveNote;
+public enum ExTapRole
+{
+    Auto,
+    Explicit,
+    SharedLongCarrier,
+    HoldOnlyCarrier,
+    AirActionCarrier
+}
+
+public enum AirActionCarrierParent
+{
+    None = 0,
+    Tap = 1,
+    ExTap = 2,
+    Flick = 3,
+    Damage = 4,
+    Hold = 5,
+    Slide = 6
+}
 
 public class ExTap : PositiveNote
 {
     public ExEffect Effect { get; set; } = ExEffect.UP;
+    public ExTapRole Role { get; set; } = ExTapRole.Auto;
+    public AirActionCarrierParent AirActionParent { get; set; } =
+        AirActionCarrierParent.None;
+    public Joint AirActionParentJoint { get; set; } = Joint.D;
+    public bool AirActionParentIsEx { get; set; }
 }
 
 public class Flick : PositiveNote;
@@ -138,6 +162,7 @@ public class AirSlide : NegativeNote
 {
     public Color Color { get; set; }
     public AirDirection Direction { get; set; } = AirDirection.IR;
+    public bool HasAirArrow { get; set; } = true;
     public decimal Height { get; set; }
 
     public override int Lane
@@ -193,6 +218,7 @@ public class AirHold : NegativeNote
 {
     public Color Color { get; set; }
     public AirDirection Direction { get; set; } = AirDirection.IR;
+    public bool HasAirArrow { get; set; } = true;
 
     public override int Lane
     {

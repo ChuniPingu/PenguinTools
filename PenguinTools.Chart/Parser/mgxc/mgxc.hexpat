@@ -54,7 +54,7 @@ struct Event {
     }
 
     if (name == "bmrk") {
-        WideField hash;
+        WideField id;
         Field tick;
         WideField tag;
         WideField rgb;

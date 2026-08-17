@@ -56,6 +56,7 @@ public partial class C2SChartWriter
         sb.AppendLine("PROGJUDGE_BPM\t240.000");
         sb.AppendLine("PROGJUDGE_AER\t  0.999");
         sb.AppendLine("TUTORIAL\t0");
+        AppendJudgeSummary(sb);
         sb.AppendLine();
 
         AppendFormattedEvents(sb);
@@ -67,15 +68,137 @@ public partial class C2SChartWriter
         return OperationResult.Success().WithDiagnostics(Diagnostic);
     }
 
+    private void AppendJudgeSummary(StringBuilder sb)
+    {
+        if (!Chart.Meta.TryGetC2sJudgeSummary(
+                out _,
+                out var hld,
+                out var sld,
+                out var air,
+                out _,
+                out _))
+            return;
+
+        var tap = C2SJudgeSummaryCalculator.CalculateTap(Chart);
+        var flk = C2SJudgeSummaryCalculator.CalculateFlick(Chart);
+
+        if (Chart.Meta.C2sJudgeHldProxyBaseline is int hldProxyBaseline &&
+            hldProxyBaseline >= 0)
+        {
+            var currentHldProxy =
+                C2SJudgeSummaryCalculator.CalculateHoldProxy(Chart);
+
+            var adjustedHld =
+                (long)hld +
+                currentHldProxy -
+                hldProxyBaseline;
+
+            if (adjustedHld >= 0 &&
+                adjustedHld <= int.MaxValue)
+            {
+                hld = (int)adjustedHld;
+            }
+        }
+
+        if (Chart.Meta.C2sJudgeSldProxyBaseline is int sldProxyBaseline &&
+            sldProxyBaseline >= 0)
+        {
+            var currentSldProxy =
+                C2SJudgeSummaryCalculator.CalculateSlideProxy(Chart);
+
+            var adjustedSld =
+                (long)sld +
+                currentSldProxy -
+                sldProxyBaseline;
+
+            if (adjustedSld >= 0 &&
+                adjustedSld <= int.MaxValue)
+            {
+                sld = (int)adjustedSld;
+            }
+        }
+
+        if (Chart.Meta.C2sJudgeAirProxyBaseline is int airProxyBaseline &&
+            airProxyBaseline >= 0)
+        {
+            var currentAirProxy =
+                C2SJudgeSummaryCalculator.CalculateAirProxy(Chart);
+
+            var adjustedAir =
+                (long)air +
+                currentAirProxy -
+                airProxyBaseline;
+
+            if (adjustedAir >= 0 &&
+                adjustedAir <= int.MaxValue)
+            {
+                air = (int)adjustedAir;
+            }
+        }
+
+        var all = tap + hld + sld + air + flk;
+
+        sb.AppendLine($"T_JUDGE_TAP\t{tap}");
+        sb.AppendLine($"T_JUDGE_HLD\t{hld}");
+        sb.AppendLine($"T_JUDGE_SLD\t{sld}");
+        sb.AppendLine($"T_JUDGE_AIR\t{air}");
+        sb.AppendLine($"T_JUDGE_FLK\t{flk}");
+        sb.AppendLine($"T_JUDGE_ALL\t{all}");
+    }
+
     private void AppendFormattedEvents(StringBuilder sb)
     {
         foreach (var e in Chart.Events) sb.AppendLine(Format(e));
     }
 
+    private IEnumerable<c2s.Note> OrderedNotesForWrite()
+    {
+        var notes = Chart.Notes
+            .OrderBy(x => x.Tick.Original)
+            .ToList();
+
+        var positions = notes
+            .Select((note, index) => new { note, index })
+            .ToDictionary(x => x.note, x => x.index);
+
+        var groups = notes
+            .OfType<c2s.AirSlide>()
+            .Where(x => x.Parent is c2s.AirSlide)
+            .GroupBy(x => (
+                Tick: x.Tick.Original,
+                x.Lane,
+                x.Width,
+                Height: x.Height.Result,
+                ParentId: x.Parent!.Id))
+            .Where(x => x.Count() > 1)
+            .OrderBy(x => x.Key.Tick)
+            .ToArray();
+
+        foreach (var group in groups)
+        {
+            var slots = group
+                .Select(x => positions[x])
+                .OrderBy(x => x)
+                .ToArray();
+
+            var ordered = group
+                .OrderBy(x => positions[x.Parent!])
+                .ToArray();
+
+            for (var i = 0; i < slots.Length; i++)
+            {
+                notes[slots[i]] = ordered[i];
+                positions[ordered[i]] = slots[i];
+            }
+        }
+
+        return notes;
+    }
+
     private bool AppendFormattedNotes(StringBuilder sb)
     {
         var hasError = false;
-        foreach (var n in Chart.Notes)
+        foreach (var n in OrderedNotesForWrite())
         {
             if (TryFormat(n, out var line, out var error) && error is null)
             {
