@@ -55,7 +55,7 @@ public class ChartFileDiscoveryFormatsTests
     {
         var document = new OptionDocument();
 
-        Assert.Equal(ReleaseTag.DefaultId, document.SelectedReleaseTagId);
+        Assert.Equal(ReleaseTag.CustomDefaultId, document.SelectedReleaseTagId);
         Assert.False(document.CustomReleaseTagXml);
         Assert.Equal(ReleaseTag.CustomDefaultId, document.CustomReleaseTagId);
         Assert.Equal(ReleaseTag.CustomDefaultTitleName, document.CustomReleaseTagTitleName);

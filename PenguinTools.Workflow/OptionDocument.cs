@@ -34,7 +34,7 @@ public sealed class OptionDocument
 
     public bool CustomReleaseTagXml { get; set; }
 
-    public int SelectedReleaseTagId { get; set; } = ReleaseTag.DefaultId;
+    public int SelectedReleaseTagId { get; set; } = ReleaseTag.CustomDefaultId;
 
     public int CustomReleaseTagId { get; set; } = ReleaseTag.CustomDefaultId;
 
