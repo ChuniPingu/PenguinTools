@@ -14,8 +14,10 @@ public static class C2sRoundTripComment
     private const string MeterTag = "c2smeter";
     private const string SlpTag = "c2sslp";
     private const string SlaTag = "c2ssla";
+    private const string AirTag = "c2sair";
     private const string SlpEditTag = "c2sslpedit";
     private const string SlaEditTag = "c2sslaedit";
+    private const string AirEditTag = "c2sairedit";
 
     private const string NullProxyToken = "x";
     private const string MetaPrefix = "#meta ";
@@ -27,8 +29,10 @@ public static class C2sRoundTripComment
         MeterTag,
         SlpTag,
         SlaTag,
+        AirTag,
         SlpEditTag,
-        SlaEditTag
+        SlaEditTag,
+        AirEditTag
     ];
 
     public static bool IsRoundTripLine(string line) =>
@@ -61,8 +65,10 @@ public static class C2sRoundTripComment
 
         AppendBookmark(bookmarks, SlpEditTag, meta.C2sSlpEditKey);
         AppendBookmark(bookmarks, SlaEditTag, meta.C2sSlaEditKey);
+        AppendBookmark(bookmarks, AirEditTag, meta.C2sAirEditKey);
         AppendBookmark(bookmarks, SlpTag, meta.C2sSlpSnapshot);
         AppendBookmark(bookmarks, SlaTag, meta.C2sSlaSnapshot);
+        AppendBookmark(bookmarks, AirTag, meta.C2sAirSnapshot);
 
         return bookmarks;
     }
@@ -123,11 +129,17 @@ public static class C2sRoundTripComment
             case SlaTag:
                 meta.C2sSlaSnapshot = JoinArgs(args);
                 break;
+            case AirTag:
+                meta.C2sAirSnapshot = JoinArgs(args);
+                break;
             case SlpEditTag:
                 meta.C2sSlpEditKey = JoinArgs(args);
                 break;
             case SlaEditTag:
                 meta.C2sSlaEditKey = JoinArgs(args);
+                break;
+            case AirEditTag:
+                meta.C2sAirEditKey = JoinArgs(args);
                 break;
         }
     }

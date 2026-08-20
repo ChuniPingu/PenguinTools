@@ -124,6 +124,102 @@ public partial class C2SChartConverter
         return true;
     }
 
+    private bool RestoreAirSnapshot()
+    {
+        var snapshot = Mgxc.Meta.C2sAirSnapshot;
+
+        if (snapshot is null)
+            return false;
+
+        if (Mgxc.Meta.C2sAirEditKey is { } editKey &&
+            editKey != C2sRoundTripKeys.FormatAirEditKey(Mgxc))
+        {
+            Mgxc.Meta.C2sAirSnapshot = null;
+            Mgxc.Meta.C2sAirEditKey = null;
+            return false;
+        }
+
+        var restored = new List<c2s.Air>();
+
+        if (snapshot.Length != 0)
+        {
+            foreach (var entry in snapshot.Split(
+                         ';',
+                         StringSplitOptions.RemoveEmptyEntries))
+            {
+                var fields = entry.Split(',');
+
+                if (fields.Length != 7 ||
+                    !int.TryParse(fields[0], out var tick) ||
+                    !int.TryParse(fields[1], out var timeline) ||
+                    !int.TryParse(fields[2], out var lane) ||
+                    !int.TryParse(fields[3], out var width) ||
+                    !Enum.TryParse<AirDirection>(fields[4], out var direction) ||
+                    !Enum.TryParse<Color>(fields[5], out var color))
+                {
+                    return false;
+                }
+
+                var parent = CreateAirSnapshotParent(fields[6]);
+
+                if (parent is null)
+                    return false;
+
+                restored.Add(new c2s.Air
+                {
+                    Tick = tick,
+                    Timeline = timeline,
+                    Lane = lane,
+                    Width = width,
+                    Direction = direction,
+                    Color = color,
+                    Parent = parent
+                });
+            }
+        }
+
+        Notes.RemoveAll(x => x is c2s.Air);
+        Notes.AddRange(restored);
+
+        return true;
+    }
+
+    private static c2s.Note? CreateAirSnapshotParent(string id) =>
+        id switch
+        {
+            "TAP" => new c2s.Tap(),
+            "CHR" => new c2s.ExTap(),
+            "MNE" => new c2s.Damage(),
+            "FLK" => new c2s.Flick(),
+
+            "HLD" => new c2s.Hold(),
+            "HXD" => new c2s.Hold
+            {
+                Effect = ExEffect.UP
+            },
+
+            "SLC" => new c2s.Slide
+            {
+                Joint = Joint.C
+            },
+            "SLD" => new c2s.Slide
+            {
+                Joint = Joint.D
+            },
+            "SXC" => new c2s.Slide
+            {
+                Joint = Joint.C,
+                Effect = ExEffect.UP
+            },
+            "SXD" => new c2s.Slide
+            {
+                Joint = Joint.D,
+                Effect = ExEffect.UP
+            },
+
+            _ => null
+        };
+
     private void RestoreMeterDefSnapshot()
     {
         if (Mgxc.Meta.C2sMeterDefDenominator is { } denominator)
@@ -150,6 +246,7 @@ public partial class C2SChartConverter
                 ConvertNote(note);
             }
             ResolvePairings();
+            RestoreAirSnapshot();
             ConvertEvent(Mgxc);
 
             ValidateOverlappingAirParents();

@@ -3146,6 +3146,190 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public async Task C2sRoundTrip_PreservesAirSnapshotAcrossMgxcSerialization()
+    {
+        var source = new C2sChart();
+
+        var tap = new Tap
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3
+        };
+        source.Notes.Add(tap);
+
+        source.Notes.Add(new AirSlide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Height = 4,
+            EndTick = 1440,
+            EndLane = 8,
+            EndWidth = 3,
+            EndHeight = 8,
+            Color = Color.DEF,
+            Joint = Joint.D,
+            Parent = tap
+        });
+
+        source.Notes.Add(new Air
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Direction = AirDirection.IR,
+            Color = Color.DEF,
+            Parent = tap
+        });
+
+        var converted =
+            new UgcChartConverter(
+                new UgcConvertRequest(source))
+                .Convert();
+
+        Assert.True(
+            converted.Succeeded,
+            converted.ToString());
+
+        Assert.NotNull(converted.Value!.Meta.C2sAirSnapshot);
+        Assert.NotNull(converted.Value.Meta.C2sAirEditKey);
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "air-snapshot-roundtrip.mgxc");
+
+        try
+        {
+            var written =
+                await new MgxcChartWriter(
+                        new MgxcWriteRequest(path, converted.Value))
+                    .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var parsed =
+                await new MgxcParser(
+                        new MgxcParseRequest(path, TestAssets.Load()),
+                        TestMediaTool.Instance)
+                    .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                parsed.Succeeded,
+                parsed.ToString());
+
+            Assert.Equal(
+                converted.Value.Meta.C2sAirSnapshot,
+                parsed.Value!.Meta.C2sAirSnapshot);
+
+            Assert.Equal(
+                converted.Value.Meta.C2sAirEditKey,
+                parsed.Value.Meta.C2sAirEditKey);
+
+            var roundTrip =
+                new C2SChartConverter(
+                    new C2SConvertRequest(parsed.Value))
+                    .Convert();
+
+            Assert.True(
+                roundTrip.Succeeded,
+                roundTrip.ToString());
+
+            var air = Assert.Single(
+                roundTrip.Value!.Notes.OfType<Air>());
+
+            Assert.Equal(480, air.Tick.Original);
+            Assert.Equal(4, air.Lane);
+            Assert.Equal(3, air.Width);
+            Assert.Equal(AirDirection.IR, air.Direction);
+            Assert.Equal(Color.DEF, air.Color);
+            Assert.IsType<Tap>(air.Parent);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void AirSnapshot_IsDroppedWhenAirSlideChanges()
+    {
+        var source = new C2sChart();
+
+        var tap = new Tap
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3
+        };
+        source.Notes.Add(tap);
+
+        source.Notes.Add(new AirSlide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Height = 4,
+            EndTick = 1440,
+            EndLane = 8,
+            EndWidth = 3,
+            EndHeight = 8,
+            Color = Color.DEF,
+            Joint = Joint.D,
+            Parent = tap
+        });
+
+        source.Notes.Add(new Air
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Direction = AirDirection.IR,
+            Color = Color.DEF,
+            Parent = tap
+        });
+
+        var converted =
+            new UgcChartConverter(
+                new UgcConvertRequest(source))
+                .Convert();
+
+        Assert.True(
+            converted.Succeeded,
+            converted.ToString());
+
+        Assert.NotNull(converted.Value!.Meta.C2sAirSnapshot);
+        Assert.NotNull(converted.Value.Meta.C2sAirEditKey);
+
+        var airSlide = Assert.Single(
+            converted.Value.Notes.Children
+                .OfType<PenguinTools.Chart.Models.umgr.AirSlide>());
+
+        airSlide.Height = 5m;
+
+        var roundTrip =
+            new C2SChartConverter(
+                new C2SConvertRequest(converted.Value))
+                .Convert();
+
+        Assert.True(
+            roundTrip.Succeeded,
+            roundTrip.ToString());
+
+        Assert.Null(roundTrip.Value!.Meta.C2sAirSnapshot);
+        Assert.Null(roundTrip.Value.Meta.C2sAirEditKey);
+    }
+
+    [Fact]
     public async Task MgxcWriter_DoesNotOverflowBookmarksOnDenseTilCharts()
     {
         var source = new C2sChart();
