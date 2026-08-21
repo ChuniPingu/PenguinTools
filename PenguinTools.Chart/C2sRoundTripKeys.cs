@@ -99,14 +99,14 @@ internal static class C2sRoundTripKeys
                     umgr.AirSlide airSlide =>
                         $"AS,{airSlide.Tick.Original},{airSlide.Timeline}," +
                         $"{airSlide.Lane},{airSlide.Width}," +
-                        $"{airSlide.Height.ToString(CultureInfo.InvariantCulture)}," +
+                        $"{airSlide.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
                         $"{airSlide.Direction},{airSlide.Color}," +
                         $"{AirParentType(airSlide.PairNote)}",
 
                     umgr.AirSlideJoint joint =>
                         $"ASJ,{joint.Tick.Original},{joint.Timeline}," +
                         $"{joint.Lane},{joint.Width}," +
-                        $"{joint.Height.ToString(CultureInfo.InvariantCulture)}," +
+                        $"{joint.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
                         $"{joint.Joint}",
 
                     umgr.AirHold airHold =>

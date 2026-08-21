@@ -34,7 +34,7 @@ public partial class C2SChartWriter
                 error = null;
                 return true;
             case c2s.Flick flick:
-                line = FormatNote(flick);
+                line = $"{FormatNote(flick)}\tL";
                 error = null;
                 return true;
             case c2s.ExTap exTap:

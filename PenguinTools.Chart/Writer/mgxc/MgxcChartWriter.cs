@@ -440,12 +440,15 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         BinaryWriter bw,
         umgr.AirHold airHold)
     {
-        if (airHold.HasAirArrow)
+        if (airHold.HasAirArrow ||
+            _chart.Meta.C2sAirSnapshot is not null)
+        {
             WriteAirBase(
                 bw,
                 airHold.Direction,
                 airHold.Color,
                 airHold);
+        }
 
         WriteNote(
             bw,
@@ -488,11 +491,15 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         BinaryWriter bw,
         umgr.AirSlide airSlide)
     {
-        WriteAirBase(
-            bw,
-            airSlide.Direction,
-            airSlide.Color,
-            airSlide);
+        if (airSlide.HasAirArrow ||
+            _chart.Meta.C2sAirSnapshot is not null)
+        {
+            WriteAirBase(
+                bw,
+                airSlide.Direction,
+                airSlide.Color,
+                airSlide);
+        }
 
         WriteNote(
             bw,

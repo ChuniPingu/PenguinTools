@@ -2962,8 +2962,12 @@ public sealed class C2sReverseConversionTests
         var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
 
+        Assert.Equal(
+            string.Empty,
+            converted.Value!.Meta.C2sAirSnapshot);
+
         var airHold = Assert.Single(
-            converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+            converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirHold>());
         Assert.NotNull(airHold.PairNote);
         Assert.Equal(480, airHold.Tick.Original);
         Assert.Equal(4, airHold.Lane);
@@ -2983,11 +2987,135 @@ public sealed class C2sReverseConversionTests
                     TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(parsed.Succeeded, parsed.ToString());
-            Assert.Single(parsed.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+
+            var parsedAirHold = Assert.Single(
+                parsed.Value!.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+
+            Assert.True(parsedAirHold.HasAirArrow);
         }
         finally
         {
             Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_PreservesFalseHasAirArrowWithoutC2sSnapshot()
+    {
+        var chart = new PenguinTools.Chart.Models.umgr.Chart();
+        chart.Meta.MainBpm = 120m;
+
+        Assert.Null(chart.Meta.C2sAirSnapshot);
+
+        var holdParent = new PenguinTools.Chart.Models.umgr.Tap
+        {
+            Tick = 0,
+            Lane = 2,
+            Width = 2
+        };
+
+        var airHold = new PenguinTools.Chart.Models.umgr.AirHold
+        {
+            Tick = 0,
+            Direction = AirDirection.IR,
+            Color = Color.DEF,
+            HasAirArrow = false
+        };
+
+        airHold.AppendChild(
+            new PenguinTools.Chart.Models.umgr.AirHoldJoint
+            {
+                Tick = 480,
+                Joint = Joint.D
+            });
+
+        holdParent.MakePair(airHold);
+
+        chart.Notes.AppendChild(holdParent);
+        chart.Notes.AppendChild(airHold);
+
+        var slideParent = new PenguinTools.Chart.Models.umgr.Tap
+        {
+            Tick = 960,
+            Lane = 4,
+            Width = 3
+        };
+
+        var airSlide = new PenguinTools.Chart.Models.umgr.AirSlide
+        {
+            Tick = 960,
+            Direction = AirDirection.IR,
+            Color = Color.DEF,
+            Height = 4m,
+            HasAirArrow = false
+        };
+
+        airSlide.AppendChild(
+            new PenguinTools.Chart.Models.umgr.AirSlideJoint
+            {
+                Tick = 1440,
+                Lane = 4,
+                Width = 3,
+                Height = 4m,
+                Joint = Joint.D
+            });
+
+        slideParent.MakePair(airSlide);
+
+        chart.Notes.AppendChild(slideParent);
+        chart.Notes.AppendChild(airSlide);
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "no-air-arrow.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(
+                        path,
+                        chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(
+                        path,
+                        TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                parsed.Succeeded,
+                parsed.ToString());
+
+            var parsedAirHold = Assert.Single(
+                parsed.Value!.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+
+            var parsedAirSlide = Assert.Single(
+                parsed.Value.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.AirSlide>());
+
+            Assert.False(parsedAirHold.HasAirArrow);
+            Assert.False(parsedAirSlide.HasAirArrow);
+        }
+        finally
+        {
+            Directory.Delete(
+                directory,
+                true);
         }
     }
 
@@ -3253,6 +3381,90 @@ public sealed class C2sReverseConversionTests
             Assert.Equal(AirDirection.IR, air.Direction);
             Assert.Equal(Color.DEF, air.Color);
             Assert.IsType<Tap>(air.Parent);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task AirHold_WithDuplicateSlideParents_UsesUniqueTerminalSlide()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "duplicate-slide-airhold.c2s");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                """
+                VERSION     1.14.00        1.14.00
+                RESOLUTION  384
+                SLD         67      56      3       8       88      4       8
+                SLD         67      56      3       8       88      4       8
+                SLD         67      56      3       8       88      4       8
+                SLC         67      144     4       8       240     3       8
+                SLC         67      144     4       8       240     5       8
+                AHD         67      144     4       8       SLD     624
+                """,
+                TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(
+                    new C2SParseRequest(path))
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                parsed.Succeeded,
+                parsed.ToString());
+
+            var converted = new UgcChartConverter(
+                    new UgcConvertRequest(parsed.Value!))
+                .Convert();
+
+            Assert.True(
+                converted.Succeeded,
+                converted.ToString());
+
+            var roots = converted.Value!.Notes.Children;
+
+            Assert.DoesNotContain(
+                roots,
+                note => note is PenguinTools.Chart.Models.umgr.ExTap
+                {
+                    Role: PenguinTools.Chart.Models.umgr.ExTapRole.AirActionCarrier
+                });
+
+            var slides = roots
+                .OfType<PenguinTools.Chart.Models.umgr.Slide>()
+                .ToArray();
+
+            Assert.Equal(3, slides.Length);
+
+            var pairedJoint = Assert.Single(
+                slides.SelectMany(slide =>
+                    slide.Children
+                        .OfType<PenguinTools.Chart.Models.umgr.SlideJoint>()),
+                joint =>
+                    joint.PairNote is PenguinTools.Chart.Models.umgr.AirHold);
+
+            var pairedSlide =
+                Assert.IsType<PenguinTools.Chart.Models.umgr.Slide>(
+                    pairedJoint.Parent);
+
+            Assert.Same(
+                pairedJoint,
+                pairedSlide.LastChild);
+
+            Assert.IsType<PenguinTools.Chart.Models.umgr.AirHold>(
+                pairedJoint.PairNote);
         }
         finally
         {
@@ -3934,6 +4146,50 @@ public sealed class C2sReverseConversionTests
             var note = Assert.Single(parsed.Value!.Notes.OfType<Slide>());
             Assert.False(note.NoLine);
             Assert.Equal(ExEffect.UP, note.Effect);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task Writer_EmitsOfficialFlickTrailingMarker()
+    {
+        var source = new C2sChart { Meta = new Meta { MainBpm = 120m } };
+        source.Events.Add(new Bpm { Tick = 0, Value = 120m });
+        source.Notes.Add(new Flick
+        {
+            Tick = 0,
+            Lane = 3,
+            Width = 5
+        });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(directory, "flick-marker.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(
+                    new C2SWriteRequest(path, source))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(written.Succeeded, written.ToString());
+
+            var lines = await File.ReadAllLinesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            var flick = Assert.Single(
+                lines,
+                line => line.StartsWith("FLK\t", StringComparison.Ordinal));
+
+            Assert.Equal("FLK\t0\t0\t3\t5\tL", flick);
         }
         finally
         {

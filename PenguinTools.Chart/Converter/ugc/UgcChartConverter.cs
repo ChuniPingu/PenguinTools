@@ -559,25 +559,69 @@ public sealed class UgcChartConverter
         EnsureAirActionPaired(source, source.Parent, air);
     }
 
+    private c2s.Note? ResolveAirActionPairParent(c2s.Note? parent)
+    {
+        if (parent is not c2s.Slide slide)
+            return parent;
+
+        if (!_positiveNotes.TryGetValue(slide, out var mappedParent) ||
+            mappedParent is not umgr.SlideJoint mappedJoint ||
+            mappedJoint.Parent is not umgr.Slide mappedSlide ||
+            ReferenceEquals(mappedSlide.LastChild, mappedJoint))
+        {
+            return parent;
+        }
+
+        var terminalMatches = _source.Notes
+            .OfType<c2s.Slide>()
+            .Where(candidate =>
+                !ReferenceEquals(candidate, slide) &&
+                candidate.Id == slide.Id &&
+                candidate.Tick.Original == slide.Tick.Original &&
+                candidate.Timeline == slide.Timeline &&
+                candidate.Lane == slide.Lane &&
+                candidate.Width == slide.Width &&
+                candidate.EndTick.Original == slide.EndTick.Original &&
+                candidate.EndLane == slide.EndLane &&
+                candidate.EndWidth == slide.EndWidth &&
+                candidate.Joint == slide.Joint &&
+                candidate.NoLine == slide.NoLine &&
+                candidate.Effect == slide.Effect)
+            .Where(candidate =>
+                _positiveNotes.TryGetValue(candidate, out var mappedCandidate) &&
+                mappedCandidate is umgr.SlideJoint candidateJoint &&
+                candidateJoint.Parent is umgr.Slide candidateSlide &&
+                ReferenceEquals(candidateSlide.LastChild, candidateJoint))
+            .ToArray();
+
+        return terminalMatches.Length == 1
+            ? terminalMatches[0]
+            : parent;
+    }
+
     private void EnsureAirActionPaired(
         c2s.Note source,
         c2s.Note? parent,
         umgr.NegativeNote action)
     {
+        var pairParent = ResolveAirActionPairParent(parent);
+
         var canUseMappedParent =
-            parent is not null &&
-            _positiveNotes.TryGetValue(parent, out var positiveParent) &&
+            pairParent is not null &&
+            _positiveNotes.TryGetValue(pairParent, out var positiveParent) &&
             (positiveParent is not umgr.SlideJoint slideJoint ||
              slideJoint.Parent is umgr.Slide mappedSlide &&
              ReferenceEquals(mappedSlide.LastChild, slideJoint));
 
-        if (parent is not null && canUseMappedParent)
+        if (pairParent is not null && canUseMappedParent)
         {
-            PairAirAction(parent, action);
+            PairAirAction(pairParent, action);
 
             if (action.PairNote is not null)
             {
-                RegisterAirAction(parent, action);
+                if (parent is not null)
+                    RegisterAirAction(parent, action);
+
                 return;
             }
         }
