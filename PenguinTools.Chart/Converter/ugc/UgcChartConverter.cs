@@ -14,6 +14,7 @@ public sealed class UgcChartConverter
     private readonly umgr.Chart _target = new();
     private readonly Dictionary<c2s.Note, umgr.PositiveNote> _positiveNotes = [];
     private readonly Dictionary<c2s.Note, Queue<umgr.NegativeNote>> _airActionsByParent = [];
+    private readonly HashSet<umgr.NegativeNote> _matchedAirActions = [];
 
     private readonly bool _debugTil;
 
@@ -40,6 +41,12 @@ public sealed class UgcChartConverter
         {
             _target.Meta.C2sSlpSnapshot = C2sRoundTripKeys.FormatSlpSnapshot(
                 _source.Events.OfType<c2s.Slp>());
+        }
+
+        if (_target.Meta.C2sAirSnapshot is null)
+        {
+            _target.Meta.C2sAirSnapshot = C2sRoundTripKeys.FormatAirSnapshot(
+                _source.Notes.OfType<c2s.Air>());
         }
 
         if (_target.Meta.C2sMeterDefDenominator is null)
@@ -109,6 +116,7 @@ public sealed class UgcChartConverter
 
         _target.Meta.C2sSlaEditKey ??= C2sRoundTripKeys.FormatSlaEditKey(_target);
         _target.Meta.C2sSlpEditKey ??= C2sRoundTripKeys.FormatSlpEditKey(_target);
+        _target.Meta.C2sAirEditKey ??= C2sRoundTripKeys.FormatAirEditKey(_target);
 
         return OperationResult<umgr.Chart>.Success(_target);
     }
@@ -283,6 +291,30 @@ public sealed class UgcChartConverter
         Joint = source.Joint
     };
 
+    private bool TryTakeAirAction(
+        c2s.Air source,
+        out umgr.NegativeNote action)
+    {
+        action = null!;
+
+        if (source.Parent is null)
+            return false;
+
+        if (_airActionsByParent.TryGetValue(source.Parent, out var actions))
+        {
+            while (actions.TryDequeue(out var candidate))
+            {
+                if (!_matchedAirActions.Add(candidate))
+                    continue;
+
+                action = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static Joint IntermediateJoint(c2s.Slide segment) =>
         segment.Joint;
 
@@ -291,8 +323,7 @@ public sealed class UgcChartConverter
         if (source.Parent is null)
             return;
 
-        if (_airActionsByParent.TryGetValue(source.Parent, out var actions) &&
-            actions.TryDequeue(out var action))
+        if (TryTakeAirAction(source, out var action))
         {
             switch (action)
             {
@@ -438,6 +469,19 @@ public sealed class UgcChartConverter
         carrier.MakePair(action);
     }
 
+    private void RegisterAirAction(
+        c2s.Note parent,
+        umgr.NegativeNote action)
+    {
+        if (!_airActionsByParent.TryGetValue(parent, out var actions))
+        {
+            actions = [];
+            _airActionsByParent[parent] = actions;
+        }
+
+        actions.Enqueue(action);
+    }
+
     private void ConvertAirSlideChain(
         c2s.AirSlide source,
         IReadOnlyList<c2s.AirSlide> allSegments)
@@ -515,14 +559,77 @@ public sealed class UgcChartConverter
         EnsureAirActionPaired(source, source.Parent, air);
     }
 
+    private c2s.Note? ResolveAirActionPairParent(c2s.Note? parent)
+    {
+        if (parent is not c2s.Slide slide)
+            return parent;
+
+        if (!_positiveNotes.TryGetValue(slide, out var mappedParent) ||
+            mappedParent is not umgr.SlideJoint mappedJoint ||
+            mappedJoint.Parent is not umgr.Slide mappedSlide ||
+            ReferenceEquals(mappedSlide.LastChild, mappedJoint))
+        {
+            return parent;
+        }
+
+        var terminalMatches = _source.Notes
+            .OfType<c2s.Slide>()
+            .Where(candidate =>
+                !ReferenceEquals(candidate, slide) &&
+                candidate.Id == slide.Id &&
+                candidate.Tick.Original == slide.Tick.Original &&
+                candidate.Timeline == slide.Timeline &&
+                candidate.Lane == slide.Lane &&
+                candidate.Width == slide.Width &&
+                candidate.EndTick.Original == slide.EndTick.Original &&
+                candidate.EndLane == slide.EndLane &&
+                candidate.EndWidth == slide.EndWidth &&
+                candidate.Joint == slide.Joint &&
+                candidate.NoLine == slide.NoLine &&
+                candidate.Effect == slide.Effect)
+            .Where(candidate =>
+                _positiveNotes.TryGetValue(candidate, out var mappedCandidate) &&
+                mappedCandidate is umgr.SlideJoint candidateJoint &&
+                candidateJoint.Parent is umgr.Slide candidateSlide &&
+                ReferenceEquals(candidateSlide.LastChild, candidateJoint))
+            .ToArray();
+
+        return terminalMatches.Length == 1
+            ? terminalMatches[0]
+            : parent;
+    }
+
     private void EnsureAirActionPaired(
         c2s.Note source,
         c2s.Note? parent,
         umgr.NegativeNote action)
     {
-        // AirHold/AirSlide inherit tick/lane/width from PairNote, and MGXC
-        // pairing is strictly sequential. Always emit a dedicated ExTap
-        // carrier so the writer can place it immediately before the action.
+        var pairParent = ResolveAirActionPairParent(parent);
+
+        var canUseMappedParent =
+            pairParent is not null &&
+            _positiveNotes.TryGetValue(pairParent, out var positiveParent) &&
+            (positiveParent is not umgr.SlideJoint slideJoint ||
+             slideJoint.Parent is umgr.Slide mappedSlide &&
+             ReferenceEquals(mappedSlide.LastChild, slideJoint));
+
+        if (pairParent is not null && canUseMappedParent)
+        {
+            PairAirAction(pairParent, action);
+
+            if (action.PairNote is not null)
+            {
+                if (parent is not null)
+                    RegisterAirAction(parent, action);
+
+                return;
+            }
+        }
+
+        // A Slide action attached to an intermediate joint cannot be written
+        // directly after that joint because MGXC long-note pairing is
+        // sequential. Keep a dedicated carrier for that case, as well as for
+        // unresolved parents.
         var carrier = new umgr.ExTap
         {
             Tick = source.Tick,
@@ -564,13 +671,7 @@ public sealed class UgcChartConverter
         if (parent is null)
             return;
 
-        if (!_airActionsByParent.TryGetValue(parent, out var actions))
-        {
-            actions = [];
-            _airActionsByParent[parent] = actions;
-        }
-
-        actions.Enqueue(action);
+        RegisterAirAction(parent, action);
     }
 
     private readonly record struct OpenSlide(
