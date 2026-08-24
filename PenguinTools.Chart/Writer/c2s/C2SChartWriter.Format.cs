@@ -77,7 +77,7 @@ public partial class C2SChartWriter
                 error = Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null);
                 return false;
             case c2s.AirHold { Parent: { } parent } airHold:
-                line = $"{FormatNote(airHold)}\t{parent.Id}\t{airHold.Length.Scaled}\t{airHold.Color}";
+                line = $"{FormatNote(airHold)}\t{AirHoldParentId(parent)}\t{airHold.Length.Scaled}\t{airHold.Color}";
                 error = null;
                 return true;
             case c2s.AirCrash airCrash:
@@ -101,6 +101,11 @@ public partial class C2SChartWriter
     {
         return $"{FormatNode(note)}\t{note.Lane}\t{note.Width}";
     }
+
+    // Official charts parent continuation AirHold segments to AHD even when the
+    // previous segment itself is AHX (control / no-action). AHX is never a parent token.
+    private static string AirHoldParentId(c2s.Note parent) =>
+        parent is c2s.AirHold ? "AHD" : parent.Id;
 
     private static string FormatEffect(ExEffect? effect)
     {

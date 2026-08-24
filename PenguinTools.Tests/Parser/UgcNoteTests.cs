@@ -138,6 +138,7 @@ public class UgcNoteTests
         Assert.Equal("AHD", c2sAirHold.Id);
         Assert.Equal(480, c2sAirHold.EndTick.Original);
         Assert.Equal(Joint.D, c2sAirHold.Joint);
+        Assert.IsType<Chart.Models.c2s.Tap>(c2sAirHold.Parent);
     }
 
     [Fact]
