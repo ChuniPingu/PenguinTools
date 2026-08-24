@@ -459,7 +459,12 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         foreach (var line in lines)
         {
             var trimmedLine = line.Trim();
-            if (!trimmedLine.StartsWith('#')) continue;
+
+            if (C2sRoundTripComment.IsRoundTripLine(trimmedLine))
+                continue;
+
+            if (!trimmedLine.StartsWith('#'))
+                continue;
 
             var parts = trimmedLine[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) continue;
@@ -486,8 +491,18 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void ProcessRoundTripBookmarks()
     {
-        var bookmarks = chart.Events.Children.OfType<umgr.BookmarkEvent>().ToArray();
-        var lines = new List<string>();
+        C2sRoundTripComment.AbsorbComment(
+            chart.Meta,
+            chart.Meta.Comment);
+
+        var lines = chart.Meta.Comment
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(C2sRoundTripComment.IsRoundTripLine)
+            .ToList();
+
+        var bookmarks = chart.Events.Children
+            .OfType<umgr.BookmarkEvent>()
+            .ToArray();
 
         foreach (var bookmark in bookmarks)
         {
@@ -499,6 +514,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         }
 
         C2sRoundTripComment.Absorb(chart.Meta, lines);
+        chart.Meta.Comment = C2sRoundTripComment.Strip(chart.Meta.Comment);
     }
 
     private static bool ParseBool(string str)

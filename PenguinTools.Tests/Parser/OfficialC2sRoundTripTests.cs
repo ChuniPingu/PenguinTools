@@ -85,6 +85,7 @@ public sealed class OfficialC2sRoundTripTests
         "2090_03",
         "2175_03",
         "2429_03",
+        "2999_04",
         "8086_04",
         "8206_05",
         "8273_05",
