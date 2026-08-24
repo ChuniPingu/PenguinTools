@@ -14,7 +14,6 @@ public sealed class UgcChartConverter
     private readonly umgr.Chart _target = new();
     private readonly Dictionary<c2s.Note, umgr.PositiveNote> _positiveNotes = [];
     private readonly Dictionary<c2s.Note, Queue<umgr.NegativeNote>> _airActionsByParent = [];
-    private readonly HashSet<umgr.NegativeNote> _matchedAirActions = [];
 
     private readonly bool _debugTil;
 
@@ -104,10 +103,24 @@ public sealed class UgcChartConverter
         ConvertSlides(slides);
         ConvertAirCrashes(airCrashes);
 
-        foreach (var note in notes.OfType<c2s.AirSlide>().Where(x => x.Parent is not c2s.AirSlide))
-            ConvertAirSlideChain(note, notes.OfType<c2s.AirSlide>().ToArray());
-        foreach (var note in notes.OfType<c2s.AirHold>().Where(x => x.Parent is not c2s.AirHold))
-            ConvertAirHoldChain(note, notes.OfType<c2s.AirHold>().ToArray());
+        var airSlides = notes.OfType<c2s.AirSlide>().ToArray();
+        var airHolds = notes.OfType<c2s.AirHold>().ToArray();
+
+        foreach (var note in notes)
+        {
+            switch (note)
+            {
+                case c2s.AirSlide airSlide
+                    when airSlide.Parent is not c2s.AirSlide:
+                    ConvertAirSlideChain(airSlide, airSlides);
+                    break;
+
+                case c2s.AirHold airHold
+                    when airHold.Parent is not c2s.AirHold:
+                    ConvertAirHoldChain(airHold, airHolds);
+                    break;
+            }
+        }
         foreach (var note in notes.OfType<c2s.Air>()) ConvertNote(note);
 
         ApplySlaTimelines();
@@ -300,16 +313,11 @@ public sealed class UgcChartConverter
         if (source.Parent is null)
             return false;
 
-        if (_airActionsByParent.TryGetValue(source.Parent, out var actions))
+        if (_airActionsByParent.TryGetValue(source.Parent, out var actions) &&
+            actions.TryDequeue(out var candidate))
         {
-            while (actions.TryDequeue(out var candidate))
-            {
-                if (!_matchedAirActions.Add(candidate))
-                    continue;
-
-                action = candidate;
-                return true;
-            }
+            action = candidate!;
+            return true;
         }
 
         return false;

@@ -118,11 +118,11 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteStringField(bw, "atls", "");
         WriteStringField(bw, "atst", "");
         WriteStringField(bw, "durl", "");
-        WriteStringField(bw, "lcpy", "");
+        WriteStringField(bw, "lcpy", FormatC2sJudgeCopyright(m));
         WriteStringField(bw, "ltyp", "");
         WriteStringField(bw, "lurl", "");
         WriteIntField(bw, "xver", 1);
-        WriteStringField(bw, "cmmt", C2sRoundTripComment.Strip(m.Comment));
+        WriteStringField(bw, "cmmt", C2sRoundTripComment.FormatComment(m));
         WriteIntField(bw, "CTCK", 0);
         WriteStringField(bw, "LXFN", "");
         WriteDoubleField(bw, "HSCL", 10);
@@ -131,11 +131,29 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         bw.Write((short)0);
     }
 
+    private static string FormatC2sJudgeCopyright(Meta meta)
+    {
+        if (!meta.TryGetC2sJudgeSummary(
+                out var tap,
+                out var hld,
+                out var sld,
+                out var air,
+                out var flk,
+                out var all))
+            return string.Empty;
+
+        return
+            $"GJ2:{tap:X8}{hld:X8}{sld:X8}{air:X8}{flk:X8}{all:X8};" +
+            $"T_JUDGE_TAP={tap};" +
+            $"HLD={hld};" +
+            $"SLD={sld};" +
+            $"AIR={air};" +
+            $"FLK={flk};" +
+            $"ALL={all}";
+    }
+
     private void WriteEvents(BinaryWriter bw)
     {
-        foreach (var tag in C2sRoundTripComment.FormatBookmarks(_chart.Meta))
-            WriteBookmark(bw, 0, tag, "FFFFFF");
-
         foreach (var bookmark in _chart.Events.Children.OfType<umgr.BookmarkEvent>()
                      .Where(bookmark => !C2sRoundTripComment.IsRoundTripLine(bookmark.Tag))
                      .OrderBy(bookmark => bookmark.Tick.Original))

@@ -2344,6 +2344,159 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
+    public async Task MgxcWriter_WritesNeutralJudgeCopyright()
+    {
+        var chart = new PenguinTools.Chart.Models.umgr.Chart
+        {
+            Meta =
+            {
+                Comment = "User comment",
+                C2sJudgeTap = 3000,
+                C2sJudgeHld = 500,
+                C2sJudgeSld = 1000,
+                C2sJudgeAir = 1000,
+                C2sJudgeFlk = 216,
+                C2sJudgeAll = 5716
+            }
+        };
+
+        chart.Events.AppendChild(
+            new PenguinTools.Chart.Models.umgr.BpmEvent
+            {
+                Tick = 0,
+                Bpm = 120m
+            });
+
+        chart.Events.AppendChild(
+            new PenguinTools.Chart.Models.umgr.BeatEvent
+            {
+                Tick = 0,
+                Bar = 0,
+                Numerator = 4,
+                Denominator = 4
+            });
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "neutral-judge-copyright.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var bytes = await File.ReadAllBytesAsync(
+                path,
+                TestContext.Current.CancellationToken);
+
+            var text = System.Text.Encoding.UTF8.GetString(bytes);
+
+            Assert.Contains(
+                "GJ2:00000BB8000001F4000003E8000003E8000000D800001654;",
+                text);
+
+            Assert.Contains(
+                "T_JUDGE_TAP=3000;HLD=500;SLD=1000;AIR=1000;FLK=216;ALL=5716",
+                text);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task MgxcWriter_PacksLargeRoundTripMetadataIntoComment()
+    {
+        var snapshot = new string('a', 40_000);
+
+        var chart = new PenguinTools.Chart.Models.umgr.Chart
+        {
+            Meta =
+            {
+                Comment = "User comment",
+                C2sJudgeTap = 1,
+                C2sJudgeHld = 2,
+                C2sJudgeSld = 3,
+                C2sJudgeAir = 4,
+                C2sJudgeFlk = 5,
+                C2sJudgeAll = 15,
+                C2sSlaSnapshot = snapshot
+            }
+        };
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(
+            directory,
+            "large-roundtrip-metadata.mgxc");
+
+        try
+        {
+            var written = await new MgxcChartWriter(
+                    new MgxcWriteRequest(path, chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                written.Succeeded,
+                written.ToString());
+
+            var parsed = await new MgxcParser(
+                    new MgxcParseRequest(
+                        path,
+                        TestAssets.Load()),
+                    TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                parsed.Succeeded,
+                parsed.ToString());
+
+            Assert.Equal(
+                "User comment",
+                parsed.Value!.Meta.Comment);
+
+            Assert.Equal(
+                snapshot,
+                parsed.Value.Meta.C2sSlaSnapshot);
+
+            Assert.Equal(1, parsed.Value.Meta.C2sJudgeTap);
+            Assert.Equal(2, parsed.Value.Meta.C2sJudgeHld);
+            Assert.Equal(3, parsed.Value.Meta.C2sJudgeSld);
+            Assert.Equal(4, parsed.Value.Meta.C2sJudgeAir);
+            Assert.Equal(5, parsed.Value.Meta.C2sJudgeFlk);
+            Assert.Equal(15, parsed.Value.Meta.C2sJudgeAll);
+
+            Assert.DoesNotContain(
+                parsed.Value.Events.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.BookmarkEvent>(),
+                bookmark =>
+                    C2sRoundTripComment.IsRoundTripLine(bookmark.Tag));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task MgxcJudgeSummary_PreservesCommentAndJudgeSummary()
     {
         var source = new C2sChart();
@@ -4227,6 +4380,64 @@ public sealed class C2sReverseConversionTests
             Assert.EndsWith("\tCYN", ald);
             Assert.DoesNotContain("AxisY", ald);
             Assert.False(ald.EndsWith("\tDEF", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task AirActions_OnSameParent_PreserveSourceAirOrder()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "PenguinToolsTests",
+            Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "air-action-order.c2s");
+
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            await File.WriteAllTextAsync(path, """
+                VERSION	1.13.00	1.13.00
+                RESOLUTION	384
+                TAP	0	0	4	4
+                AHD	0	0	4	4	TAP	96
+                ASD	0	0	4	4	TAP	5.0	96	6	4	5.0	DEF
+                AUL	0	0	4	4	TAP
+                ADR	0	0	4	4	TAP
+                """, TestContext.Current.CancellationToken);
+
+            var parsed = await new C2SParser(
+                new C2SParseRequest(path))
+                .ParseAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var sourceAirs = parsed.Value!.Notes
+                .OfType<Air>()
+                .ToArray();
+
+            Assert.Equal(2, sourceAirs.Length);
+
+            var converted = new UgcChartConverter(
+                new UgcConvertRequest(parsed.Value))
+                .Convert();
+
+            Assert.True(converted.Succeeded, converted.ToString());
+
+            var airHold = Assert.Single(
+                converted.Value!.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.AirHold>());
+
+            var airSlide = Assert.Single(
+                converted.Value.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.AirSlide>());
+
+            Assert.Equal(sourceAirs[0].Direction, airHold.Direction);
+            Assert.Equal(sourceAirs[1].Direction, airSlide.Direction);
         }
         finally
         {
