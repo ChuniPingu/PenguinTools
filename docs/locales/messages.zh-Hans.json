@@ -86,7 +86,7 @@
       "no_sortname_provided": "未提供排序名称。已根据标题自动生成。",
       "note_overlapped_in_different_til": "此音符与其他时间轴上的音符在同一时刻、轨道和宽度重叠。",
       "overlapping_air_parent_slide": "此位置上的 Slide 终点多于 Air，无法唯一确定 Air 的父级。请将重叠的 Slide 终点至少错开一个 tick。",
-      "string_id_not_found": "在“{1}”中未找到 StringID “{0}”。请检查输入，或执行“读取游戏素材”以刷新数据。",
+      "string_id_not_found": "在“{1}”中未找到 StringID “{0}”。请填写素材库中的编号，而不是 [StringID] 这类占位符；也可执行“读取游戏素材”以刷新数据。",
       "unrecognized_meta": "未知属性“{0}”，数据：{1}。",
       "unrecognized_note": "未知音符类型 {0}。"
     },

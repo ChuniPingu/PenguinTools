@@ -86,7 +86,7 @@
       "no_sortname_provided": "No sort name was provided. A sort name has been generated from the title.",
       "note_overlapped_in_different_til": "This note overlaps another note on a different timeline (same tick, lane, and width).",
       "overlapping_air_parent_slide": "More Slide ends than Air notes share this position, so an Air parent cannot be determined uniquely. Separate overlapping Slide ends by at least one tick.",
-      "string_id_not_found": "StringID '{0}' was not found in '{1}'. Check the value, or run Recollect game assets to refresh the database.",
+      "string_id_not_found": "StringID '{0}' was not found in '{1}'. Use a numeric ID from Assets, not a placeholder like [StringID]. You can also run Recollect game assets to refresh the database.",
       "unrecognized_meta": "Unknown property '{0}', data: {1}.",
       "unrecognized_note": "Unknown note type {0}."
     },
