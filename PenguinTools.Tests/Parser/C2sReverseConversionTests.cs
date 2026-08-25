@@ -3145,7 +3145,7 @@ public sealed class C2sReverseConversionTests
                 parsed.Value!.Notes.Children
                     .OfType<PenguinTools.Chart.Models.umgr.AirHold>());
 
-            Assert.True(parsedAirHold.HasAirArrow);
+            Assert.NotNull(parsedAirHold.PairNote);
         }
         finally
         {
@@ -3154,7 +3154,7 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
-    public async Task MgxcWriter_PreservesFalseHasAirArrowWithoutC2sSnapshot()
+    public async Task MgxcWriter_WritesDisplayAirForAirHoldAndAirSlide()
     {
         var chart = new PenguinTools.Chart.Models.umgr.Chart();
         chart.Meta.MainBpm = 120m;
@@ -3171,9 +3171,8 @@ public sealed class C2sReverseConversionTests
         var airHold = new PenguinTools.Chart.Models.umgr.AirHold
         {
             Tick = 0,
-            Direction = AirDirection.IR,
-            Color = Color.DEF,
-            HasAirArrow = false
+            Direction = AirDirection.UL,
+            Color = Color.PNK
         };
 
         airHold.AppendChild(
@@ -3198,10 +3197,9 @@ public sealed class C2sReverseConversionTests
         var airSlide = new PenguinTools.Chart.Models.umgr.AirSlide
         {
             Tick = 960,
-            Direction = AirDirection.IR,
-            Color = Color.DEF,
-            Height = 4m,
-            HasAirArrow = false
+            Direction = AirDirection.UR,
+            Color = Color.PNK,
+            Height = 4m
         };
 
         airSlide.AppendChild(
@@ -3261,8 +3259,13 @@ public sealed class C2sReverseConversionTests
                 parsed.Value.Notes.Children
                     .OfType<PenguinTools.Chart.Models.umgr.AirSlide>());
 
-            Assert.False(parsedAirHold.HasAirArrow);
-            Assert.False(parsedAirSlide.HasAirArrow);
+            Assert.Equal(AirDirection.UL, parsedAirHold.Direction);
+            Assert.Equal(Color.PNK, parsedAirHold.Color);
+            Assert.Equal(AirDirection.UR, parsedAirSlide.Direction);
+            Assert.Equal(Color.PNK, parsedAirSlide.Color);
+            Assert.Empty(
+                parsed.Value.Notes.Children
+                    .OfType<PenguinTools.Chart.Models.umgr.Air>());
         }
         finally
         {
@@ -3270,6 +3273,70 @@ public sealed class C2sReverseConversionTests
                 directory,
                 true);
         }
+    }
+
+    [Fact]
+    public void OverlappingTapAirAndHoldAirSlide_EmitsAirOnlyOnTap()
+    {
+        var chart = new PenguinTools.Chart.Models.umgr.Chart();
+        chart.Meta.MainBpm = 120m;
+
+        var tap = new PenguinTools.Chart.Models.umgr.Tap
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4
+        };
+        var air = new PenguinTools.Chart.Models.umgr.Air
+        {
+            Direction = AirDirection.UL,
+            Color = Color.DEF
+        };
+        tap.MakePair(air);
+
+        var hold = new PenguinTools.Chart.Models.umgr.Hold
+        {
+            Tick = 0,
+            Lane = 4,
+            Width = 4
+        };
+        var tail = new PenguinTools.Chart.Models.umgr.HoldJoint
+        {
+            Tick = 480
+        };
+        hold.AppendChild(tail);
+
+        var airSlide = new PenguinTools.Chart.Models.umgr.AirSlide
+        {
+            Direction = AirDirection.IR,
+            Color = Color.DEF,
+            Height = 80m
+        };
+        airSlide.AppendChild(
+            new PenguinTools.Chart.Models.umgr.AirSlideJoint
+            {
+                Tick = 960,
+                Lane = 4,
+                Width = 4,
+                Height = 80m,
+                Joint = Joint.D
+            });
+        tail.MakePair(airSlide);
+
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(air);
+        chart.Notes.AppendChild(hold);
+        chart.Notes.AppendChild(airSlide);
+
+        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+        Assert.True(convert.Succeeded, convert.ToString());
+
+        var c2sAir = Assert.Single(convert.Value!.Notes.OfType<Air>());
+        Assert.IsType<Tap>(c2sAir.Parent);
+        Assert.Equal(AirDirection.UL, c2sAir.Direction);
+
+        var c2sSlide = Assert.Single(convert.Value.Notes.OfType<AirSlide>());
+        Assert.IsType<Hold>(c2sSlide.Parent);
     }
 
     [Theory]

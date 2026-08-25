@@ -162,7 +162,6 @@ public class AirSlide : NegativeNote
 {
     public Color Color { get; set; }
     public AirDirection Direction { get; set; } = AirDirection.IR;
-    public bool HasAirArrow { get; set; } = true;
     public decimal Height { get; set; }
 
     public override int Lane
@@ -218,7 +217,6 @@ public class AirHold : NegativeNote
 {
     public Color Color { get; set; }
     public AirDirection Direction { get; set; } = AirDirection.IR;
-    public bool HasAirArrow { get; set; } = true;
 
     public override int Lane
     {

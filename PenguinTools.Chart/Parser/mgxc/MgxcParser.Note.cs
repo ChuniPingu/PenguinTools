@@ -252,10 +252,7 @@ public partial class MgxcParser
                 umgr.NegativeNote exNote;
                 if (type == NoteType.AirHold)
                 {
-                    var hold = new umgr.AirHold
-                    {
-                        HasAirArrow = false
-                    };
+                    var hold = new umgr.AirHold();
 
                     if (_lastNote is umgr.Air oldLastNote)
                     {
@@ -263,7 +260,6 @@ public partial class MgxcParser
                         _lastNote = oldLastNote.PairNote;
                         hold.Color = oldLastNote.Color;
                         hold.Direction = oldLastNote.Direction;
-                        hold.HasAirArrow = true;
                     }
 
                     exNote = hold;
@@ -272,8 +268,7 @@ public partial class MgxcParser
                 {
                     var slide = new umgr.AirSlide
                     {
-                        Height = height,
-                        HasAirArrow = false
+                        Height = height
                     };
 
                     if (_lastNote is umgr.Air oldLastNote)
@@ -282,7 +277,6 @@ public partial class MgxcParser
                         _lastNote = oldLastNote.PairNote;
                         slide.Color = oldLastNote.Color;
                         slide.Direction = oldLastNote.Direction;
-                        slide.HasAirArrow = true;
                     }
 
                     exNote = slide;

@@ -10,7 +10,6 @@ public partial class C2SChartConverter
 {
     private readonly Dictionary<umgr.NegativeNote, c2s.IPairable> _negativePairRoots = [];
     private readonly Dictionary<umgr.PositiveNote, c2s.Note> _positivePairTargets = [];
-    private readonly List<(umgr.NegativeNote Action, c2s.Air Arrow)> _airArrows = [];
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
         where TSource : umgr.Note where T : c2s.Note, new()
@@ -114,28 +113,6 @@ public partial class C2SChartConverter
                 root.Parent = parent;
             }
         }
-
-        foreach (var (action, arrow) in _airArrows)
-        {
-            if (action.PairNote is null)
-                continue;
-
-            if (!_positivePairTargets.ContainsKey(action.PairNote) &&
-                action.PairNote is umgr.ExTap
-                {
-                    Role: umgr.ExTapRole.AirActionCarrier
-                } carrier)
-            {
-                RegisterAirActionCarrier(carrier);
-            }
-
-            if (_positivePairTargets.TryGetValue(
-                    action.PairNote,
-                    out var parent))
-            {
-                arrow.Parent = parent;
-            }
-        }
     }
 
     private void ConvertNote(umgr.Note e)
@@ -216,13 +193,13 @@ public partial class C2SChartConverter
         }
     }
 
+    // C2S AirSlide already includes its arrow. A sibling AIR is only emitted
+    // from a real umgr.Air (including an overlapping note that owns AIR).
     private void ProcessAirSlide(umgr.AirSlide airSlide)
     {
         if (airSlide.PairNote?.PairNote != airSlide)
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airSlide.Tick.Original,
                 airSlide);
-        if (airSlide.HasAirArrow)
-            EmitAirArrow(airSlide);
 
         var joints = airSlide.Children.OfType<umgr.AirSlideJoint>().Prepend(airSlide.AsChild()).ToArray();
         c2s.AirSlide? firstSegment = null;
@@ -256,9 +233,6 @@ public partial class C2SChartConverter
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airHold.Tick.Original,
                 airHold);
 
-        if (airHold.HasAirArrow)
-            EmitAirArrow(airHold);
-
         var joints = airHold.Children.OfType<umgr.AirHoldJoint>().Prepend(airHold.AsChild()).ToArray();
         c2s.AirHold? firstSegment = null;
         c2s.Note? previousSegment = null;
@@ -281,20 +255,6 @@ public partial class C2SChartConverter
         }
 
         if (firstSegment != null) RegisterNegativePairRoot(airHold, firstSegment);
-    }
-
-    private void EmitAirArrow(umgr.AirSlide airSlide) => EmitAirArrow(airSlide, airSlide.Direction, airSlide.Color);
-
-    private void EmitAirArrow(umgr.AirHold airHold) => EmitAirArrow(airHold, airHold.Direction, airHold.Color);
-
-    private void EmitAirArrow(umgr.NegativeNote action, AirDirection direction, Color color)
-    {
-        var note = CreateNote<umgr.NegativeNote, c2s.Air>(action, x =>
-        {
-            x.Direction = direction;
-            x.Color = color;
-        });
-        _airArrows.Add((action, note));
     }
 
     private void ProcessAir(umgr.Air airNote)

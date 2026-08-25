@@ -134,7 +134,8 @@ public class UgcNoteTests
         var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
 
         Assert.True(convert.Succeeded, convert.ToString());
-        var c2sAirHold = Assert.Single(convert.Value!.Notes.OfType<Chart.Models.c2s.AirHold>());
+        Assert.Empty(convert.Value!.Notes.OfType<Chart.Models.c2s.Air>());
+        var c2sAirHold = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.AirHold>());
         Assert.Equal("AHD", c2sAirHold.Id);
         Assert.Equal(480, c2sAirHold.EndTick.Original);
         Assert.Equal(Joint.D, c2sAirHold.Joint);
@@ -166,30 +167,22 @@ public class UgcNoteTests
     }
 
     [Fact]
-    public async Task AirSlide_DirectionAndColorSurviveC2sConversion()
+    public async Task AirSlide_DoesNotEmitSiblingAirOnC2sConversion()
     {
-        var chart = await Parse("#0'0:t14\n#0'0:S140AI\n#480:s24ZZ\n");
+        var chart = await Parse("#0'0:t14\n#0'0:S140AN\n#480:s24ZZ\n");
 
         var airSlide = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
         airSlide.Direction = AirDirection.UL;
         airSlide.Color = Color.RED;
 
-        var convert = new C2SChartConverter(
-            new C2SConvertRequest(chart)).Convert();
+        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
 
         Assert.True(convert.Succeeded, convert.ToString());
-
-        var air = Assert.Single(
-            convert.Value!.Notes.OfType<Chart.Models.c2s.Air>());
-
+        Assert.Empty(convert.Value!.Notes.OfType<Chart.Models.c2s.Air>());
         var convertedAirSlide = Assert.Single(
             convert.Value.Notes.OfType<Chart.Models.c2s.AirSlide>());
-
-        Assert.Equal(AirDirection.UL, air.Direction);
-        Assert.Equal(Color.RED, air.Color);
-
-        Assert.NotNull(air.Parent);
-        Assert.Same(convertedAirSlide.Parent, air.Parent);
+        Assert.IsType<Chart.Models.c2s.Tap>(convertedAirSlide.Parent);
+        Assert.Equal(Color.RED, convertedAirSlide.Color);
     }
 
     [Fact]

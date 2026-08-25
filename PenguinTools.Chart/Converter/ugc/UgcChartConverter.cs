@@ -338,13 +338,11 @@ public sealed class UgcChartConverter
                 case umgr.AirHold hold:
                     hold.Direction = source.Direction;
                     hold.Color = source.Color;
-                    hold.HasAirArrow = true;
                     break;
 
                 case umgr.AirSlide slide:
                     slide.Direction = source.Direction;
                     slide.Color = source.Color;
-                    slide.HasAirArrow = true;
                     break;
             }
 
@@ -360,13 +358,11 @@ public sealed class UgcChartConverter
             case umgr.AirHold hold:
                 hold.Direction = source.Direction;
                 hold.Color = source.Color;
-                hold.HasAirArrow = true;
                 return;
 
             case umgr.AirSlide slide:
                 slide.Direction = source.Direction;
                 slide.Color = source.Color;
-                slide.HasAirArrow = true;
                 return;
         }
 
@@ -497,8 +493,7 @@ public sealed class UgcChartConverter
         var air = new umgr.AirSlide
         {
             Height = source.Height.Original,
-            Color = source.Color,
-            HasAirArrow = false
+            Color = source.Color
         };
 
         Copy(source, air);
@@ -537,8 +532,7 @@ public sealed class UgcChartConverter
     {
         var air = new umgr.AirHold
         {
-            Color = source.Color,
-            HasAirArrow = false
+            Color = source.Color
         };
         Copy(source, air);
 
