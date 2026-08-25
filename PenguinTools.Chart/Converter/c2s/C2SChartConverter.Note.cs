@@ -49,35 +49,14 @@ public partial class C2SChartConverter
         _negativePairRoots[source] = target;
     }
 
-    // Slide AIR/AHD parents are written as SLD/SXD even when the attach-point
-    // segment is SLC/SXC. Hold parents keep HLD/HXD so EX holds match official charts.
+    // C2S AIR parent tokens are generic HLD/SLD even when the attach point is
+    // an EX or control segment. Keep one dummy shape so pairing and writing agree.
     private static c2s.Note CreateGenericAirParent(c2s.Note target) => target switch
     {
-        c2s.Hold hold => CopyAirParentShape(new c2s.Hold { Effect = hold.Effect }, hold),
-        c2s.Slide slide => CopyAirParentShape(
-            new c2s.Slide { Joint = Joint.D, Effect = slide.Effect },
-            slide),
+        c2s.Hold => new c2s.Hold(),
+        c2s.Slide => new c2s.Slide { Joint = Joint.D },
         _ => target
     };
-
-    private static T CopyAirParentShape<T>(T destination, c2s.Note source)
-        where T : c2s.Note
-    {
-        destination.Tick = source.Tick;
-        destination.Timeline = source.Timeline;
-        destination.Lane = source.Lane;
-        destination.Width = source.Width;
-
-        if (destination is c2s.LongNote destinationLong &&
-            source is c2s.LongNote sourceLong)
-        {
-            destinationLong.EndTick = sourceLong.EndTick;
-            destinationLong.EndLane = sourceLong.EndLane;
-            destinationLong.EndWidth = sourceLong.EndWidth;
-        }
-
-        return destination;
-    }
 
     private void RegisterAirActionCarrier(
         umgr.ExTap carrier)
@@ -100,17 +79,10 @@ public partial class C2SChartConverter
                 new c2s.Damage(),
 
             umgr.AirActionCarrierParent.Hold =>
-                CreateGenericAirParent(new c2s.Hold
-                {
-                    Effect = carrier.AirActionParentIsEx ? carrier.Effect : null
-                }),
+                CreateGenericAirParent(new c2s.Hold()),
 
             umgr.AirActionCarrierParent.Slide =>
-                CreateGenericAirParent(new c2s.Slide
-                {
-                    Joint = Joint.D,
-                    Effect = carrier.AirActionParentIsEx ? carrier.Effect : null
-                }),
+                CreateGenericAirParent(new c2s.Slide()),
 
             _ => null
         };
