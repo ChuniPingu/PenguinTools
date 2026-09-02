@@ -115,6 +115,30 @@ public partial class C2SChartConverter
         }
     }
 
+    private bool ShouldConsumeExLongCarrier(umgr.ExTap exTap)
+    {
+        if (exTap.PairNote is not null)
+            return false;
+
+        return exTap.Role switch
+        {
+            umgr.ExTapRole.HoldOnlyCarrier =>
+                HasExactLongHead(exTap, note => note is umgr.Hold),
+            umgr.ExTapRole.SharedLongCarrier =>
+                HasExactLongHead(exTap, _ => true),
+            _ => false
+        };
+    }
+
+    private bool HasExactLongHead(umgr.ExTap exTap, Func<umgr.ExTapableNote, bool> eligible) =>
+        Mgxc.Notes.Children
+            .OfType<umgr.ExTapableNote>()
+            .Any(note =>
+                eligible(note) &&
+                note.Tick == exTap.Tick &&
+                note.Lane == exTap.Lane &&
+                note.Width == exTap.Width);
+
     private void ConvertNote(umgr.Note e)
     {
         switch (e)
@@ -127,14 +151,11 @@ public partial class C2SChartConverter
                 break;
             case umgr.ExTap { Role: umgr.ExTapRole.AirActionCarrier }:
                 break;
-            // UMIGURI marks EX holds/slides with a covering ExTap. Consume that
-            // ExTap into HXD/SXD unless it also owns an AIR action.
-            case umgr.ExTap
-            {
-                Role: umgr.ExTapRole.SharedLongCarrier
-                    or umgr.ExTapRole.HoldOnlyCarrier,
-                PairNote: null
-            }:
+            // UMIGURI paints EX longs with a covering ExTap. Consume that ExTap
+            // only when it sits on the same tick/lane/width as a long-note head
+            // and does not also own an AIR action. A strictly larger covering
+            // ExTap stays as CHR while still converting the covered heads.
+            case umgr.ExTap exTap when ShouldConsumeExLongCarrier(exTap):
                 break;
             case umgr.ExTap exTap:
                 CreatePositiveNote<umgr.ExTap, c2s.ExTap>(

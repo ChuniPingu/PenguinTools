@@ -253,5 +253,83 @@ public class UgcNoteTests
         Assert.Empty(convert.Value!.Notes.OfType<Chart.Models.c2s.ExTap>());
         var c2sHold = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.Hold>());
         Assert.Equal("HXD", c2sHold.Id);
+        Assert.Equal(hold.Lane, c2sHold.Lane);
+        Assert.Equal(hold.Width, c2sHold.Width);
+    }
+
+    [Fact]
+    public async Task ExTapLargerThanHoldStart_KeepsChrAndPaintsHoldEx()
+    {
+        var chart = await Parse("#0'0:h44\n#480:s\n#0'0:x08U\n");
+
+        var exTap = Assert.Single(chart.Notes.Children.OfType<ExTap>());
+        var hold = Assert.Single(chart.Notes.Children.OfType<Hold>());
+
+        Assert.Equal(0, exTap.Lane);
+        Assert.Equal(8, exTap.Width);
+        Assert.Equal(4, hold.Lane);
+        Assert.Equal(4, hold.Width);
+        Assert.Equal(ExTapRole.SharedLongCarrier, exTap.Role);
+        Assert.Null(exTap.PairNote);
+        Assert.Equal(ExEffect.UP, hold.Effect);
+
+        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(convert.Succeeded, convert.ToString());
+        var c2sExTap = Assert.Single(convert.Value!.Notes.OfType<Chart.Models.c2s.ExTap>());
+        var c2sHold = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.Hold>());
+
+        Assert.Equal("CHR", c2sExTap.Id);
+        Assert.Equal(0, c2sExTap.Lane);
+        Assert.Equal(8, c2sExTap.Width);
+        Assert.Equal("HXD", c2sHold.Id);
+        Assert.Equal(4, c2sHold.Lane);
+        Assert.Equal(4, c2sHold.Width);
+    }
+
+    [Fact]
+    public async Task ExTapLargerThanSlideStart_KeepsChrAndPaintsSlideEx()
+    {
+        var chart = await Parse("#0'0:s44\n#480:s44\n#0'0:x08U\n");
+
+        var exTap = Assert.Single(chart.Notes.Children.OfType<ExTap>());
+        var slide = Assert.Single(chart.Notes.Children.OfType<Slide>());
+
+        Assert.Equal(ExTapRole.SharedLongCarrier, exTap.Role);
+        Assert.Equal(ExEffect.UP, slide.Effect);
+
+        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(convert.Succeeded, convert.ToString());
+        var c2sExTap = Assert.Single(convert.Value!.Notes.OfType<Chart.Models.c2s.ExTap>());
+        var c2sSlide = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.Slide>());
+
+        Assert.Equal("CHR", c2sExTap.Id);
+        Assert.Equal(0, c2sExTap.Lane);
+        Assert.Equal(8, c2sExTap.Width);
+        Assert.Equal("SXD", c2sSlide.Id);
+        Assert.Equal(4, c2sSlide.Lane);
+        Assert.Equal(4, c2sSlide.Width);
+    }
+
+    [Fact]
+    public async Task ExTapCoveringTwoHolds_ExactMatchIsConsumedAndPaintsBothEx()
+    {
+        var chart = await Parse("#0'0:h08\n#480:s\n#0'0:h44\n#480:s\n#0'0:x08U\n");
+
+        var exTap = Assert.Single(chart.Notes.Children.OfType<ExTap>());
+        var holds = chart.Notes.Children.OfType<Hold>().ToArray();
+
+        Assert.Equal(2, holds.Length);
+        Assert.Equal(ExTapRole.SharedLongCarrier, exTap.Role);
+        Assert.All(holds, hold => Assert.Equal(ExEffect.UP, hold.Effect));
+
+        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(convert.Succeeded, convert.ToString());
+        Assert.Empty(convert.Value!.Notes.OfType<Chart.Models.c2s.ExTap>());
+        var c2sHolds = convert.Value.Notes.OfType<Chart.Models.c2s.Hold>().ToArray();
+        Assert.Equal(2, c2sHolds.Length);
+        Assert.All(c2sHolds, hold => Assert.Equal("HXD", hold.Id));
     }
 }
