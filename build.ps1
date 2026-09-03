@@ -1,5 +1,18 @@
 $ErrorActionPreference = 'Stop'
 
+$nativeBuilds = @(
+    'External/mua/scripts/build.ps1',
+    'External/ffmpeg/scripts/build.ps1'
+)
+
+foreach ($nativeBuild in $nativeBuilds) {
+    Write-Host "Building $nativeBuild..."
+    & (Join-Path $PSScriptRoot $nativeBuild)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Native build failed: $nativeBuild"
+    }
+}
+
 $publishTargets = @(
     @{
         Project = 'PenguinTools.CRI/PenguinTools.CRI.csproj'

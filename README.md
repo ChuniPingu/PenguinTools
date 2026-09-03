@@ -10,7 +10,6 @@ An all-in-one toolbox for converting custom assets for **CHUNITHM** (charts, mus
 - .NET 10 SDK
 - Rust 1.97
 - Visual Studio 2022 C++ tools
-- LLVM/clang
 - vcpkg
 
 ### 1. Getting the code
@@ -28,16 +27,21 @@ If you already cloned without them:
 git submodule update --init --recursive
 ```
 
-### 2. `mua`
+### 2. Native media tools
 
-Build the Rust media tools from the [`mua`](External/mua) submodule:
+Build the Rust image tool from the [`mua`](External/mua) submodule:
 
 ```powershell
 cd External/mua
 .\scripts\build.ps1
 ```
 
-This produces a publish folder at `External/mua/target/release/mua/` containing the three executables and legal notices.
+Then build the minimal standalone FFmpeg executable used for audio conversion:
+
+```powershell
+cd ../ffmpeg
+.\scripts\build.ps1
+```
 
 ### 3. PenguinTools
 

@@ -10,6 +10,53 @@ namespace PenguinTools.Tests.Infrastructure;
 public sealed class MuaMediaToolTests
 {
     [Fact]
+    public void CalculateGainDb_UsesGameTarget_WhenItFitsPeakCeiling()
+    {
+        var stats = new FfmpegLoudnessStats(-6.21, 2.11, 8.3);
+
+        var gain = MuaMediaTool.CalculateGainDb(stats);
+
+        Assert.InRange(gain, -2.291, -2.289);
+    }
+
+    [Fact]
+    public void CalculateGainDb_LimitsGain_WhenPeakCeilingWouldBeExceeded()
+    {
+        var stats = new FfmpegLoudnessStats(-12.0, -0.1, 4.0);
+
+        var gain = MuaMediaTool.CalculateGainDb(stats);
+
+        Assert.InRange(gain, 0.099, 0.101);
+    }
+
+    [Fact]
+    public void TryReadLoudnessStats_AcceptsFfmpegStringNumbers()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"penguintools-loudness-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(path, """
+                                    {
+                                      "input_i": "-8.50",
+                                      "input_tp": "0.86",
+                                      "input_lra": "4.15"
+                                    }
+                                    """);
+
+            var success = MuaMediaTool.TryReadLoudnessStats(path, out var stats, out var error);
+
+            Assert.True(success, error);
+            Assert.Equal(-8.5, stats.InputIntegratedLufs);
+            Assert.Equal(0.86, stats.InputTruePeakDbtp);
+            Assert.Equal(4.15, stats.InputLoudnessRangeLu);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task CheckAudioValidAsync_ReturnsFailure_WhenExecutableIsMissing()
     {
         var workDir = Path.Combine(Path.GetTempPath(), "penguintools-mua-tests", Guid.NewGuid().ToString("N"));
@@ -36,7 +83,7 @@ public sealed class MuaMediaToolTests
     public void ThrowIfFailed_UsesProvidedMessageKey()
     {
         var result = new ProcessCommandResult(
-            new ProcessStartInfo { FileName = "mua_wav.exe" },
+            new ProcessStartInfo { FileName = "ffmpeg.exe" },
             (int)InterExitCode.Failure,
             string.Empty,
             "native decoder error");

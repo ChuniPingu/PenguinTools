@@ -13,7 +13,7 @@ public sealed class ApplicationDiagnosticsTests
     public void FromException_PreservesDiagnosticExceptionMessageKey()
     {
         var commandResult = new ProcessCommandResult(
-            new ProcessStartInfo { FileName = "mua_wav.exe" },
+            new ProcessStartInfo { FileName = "ffmpeg.exe" },
             (int)InterExitCode.Failure,
             string.Empty,
             "native decoder error");

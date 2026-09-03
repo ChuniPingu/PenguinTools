@@ -35,6 +35,6 @@ MIT License. Copyright (c) Alex Barney.
 
 # [FFmpeg](https://ffmpeg.org/)
 
-FFmpeg is used by `mua_wav` via a custom LGPL vcpkg overlay. Redistribution obligations are documented in
-`External/mua/legal/NOTICE.md`, `External/mua/legal/FFMPEG-SOURCE-OFFER.md`, and the FFmpeg copyright notice copied
-during `scripts/build.ps1`.
+FFmpeg is distributed as a standalone executable built from a custom LGPL vcpkg overlay. Redistribution obligations
+are documented in `External/ffmpeg/legal/NOTICE.md`, `External/ffmpeg/legal/FFMPEG-SOURCE-OFFER.md`, and the FFmpeg
+copyright notice copied during `External/ffmpeg/scripts/build.ps1`.

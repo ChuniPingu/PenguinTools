@@ -7,3 +7,6 @@
 [submodule "External/vgaudio"]
 	path = External/vgaudio
 	url = https://github.com/Foahh/vgaudio.git
+[submodule "External/ffmpeg"]
+	path = External/ffmpeg
+	url = https://github.com/ChuniPingu/ffmpeg-build.git
