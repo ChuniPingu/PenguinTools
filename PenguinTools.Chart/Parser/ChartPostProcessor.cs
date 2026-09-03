@@ -13,6 +13,7 @@ using umgr = Models.umgr;
 
 internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSink diag, AssetManager assets)
 {
+    private bool _hasMetaBackground;
     private readonly Dictionary<int, List<umgr.Note>> _noteGroups = [];
     private readonly Dictionary<int, List<umgr.ScrollSpeedEvent>> _tilGroups = [];
 
@@ -370,6 +371,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void MetaStageHandler(string[] args)
     {
+        if (_hasMetaBackground) return;
         MetaEntryHandler("stage", args, Setter, AssetType.StageNames);
 
         void Setter(Entry entry)
@@ -377,6 +379,32 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             chart.Meta.Stage = entry;
             chart.Meta.IsCustomStage = false;
         }
+    }
+
+    private void MetaBackgroundHandler(string[] args)
+    {
+        if (!HasSingleArgument("bg", args)) return;
+        chart.Meta.BgiFilePath = args[0];
+        chart.Meta.IsCustomStage = !string.IsNullOrWhiteSpace(args[0]);
+        _hasMetaBackground = true;
+    }
+
+    private void MetaBackgroundOffsetHandler(string[] args)
+    {
+        if (!HasSingleArgument("bg_offset", args)) return;
+        if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
+            throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
+        chart.Meta.BackgroundOffset = offset;
+    }
+
+    private bool HasSingleArgument(string name, string[] args)
+    {
+        if (args.Length == 1) return true;
+        diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Argument_count_min_one, name))
+        {
+            Target = args
+        });
+        return false;
     }
 
     private void MetaFieldLineHandler(string[] args)
@@ -424,6 +452,12 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
         switch (name)
         {
+            case "bg":
+                MetaBackgroundHandler(value);
+                break;
+            case "bg_offset":
+                MetaBackgroundOffsetHandler(value);
+                break;
             case "stage":
                 MetaStageHandler(value);
                 break;
@@ -472,7 +506,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             if (!trimmedLine.StartsWith('#'))
                 continue;
 
-            var parts = trimmedLine[1..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var parts = TokenizeCommand(trimmedLine[1..]);
             if (parts.Length == 0) continue;
 
             var tagName = parts[0];
@@ -493,6 +527,15 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                     Target = parts
                 });
         }
+    }
+
+    private static string[] TokenizeCommand(string command)
+    {
+        return CommandTokenRegex().Matches(command)
+            .Select(match => match.Value.Length >= 2 && match.Value[0] == '"' && match.Value[^1] == '"'
+                ? match.Value[1..^1]
+                : match.Value)
+            .ToArray();
     }
 
     private void ProcessRoundTripBookmarks()
@@ -540,4 +583,7 @@ internal sealed partial class ChartPostProcessor
 
     [GeneratedRegex(@"[^\p{L}\p{N}_]")]
     private static partial Regex SpecialCharacterRegex();
+
+    [GeneratedRegex("[^\\s\"]+|\"[^\"]*\"")]
+    private static partial Regex CommandTokenRegex();
 }

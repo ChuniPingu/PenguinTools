@@ -19,6 +19,7 @@ public class StageConverter
         StageId = request.StageId;
         OutFolder = request.OutFolder;
         NoteFieldLane = request.NoteFieldLane;
+        BackgroundOffset = request.BackgroundOffset;
     }
 
     private IMediaTool MediaTool { get; }
@@ -29,6 +30,7 @@ public class StageConverter
     private int? StageId { get; }
     private string OutFolder { get; }
     private Entry NoteFieldLane { get; }
+    private int BackgroundOffset { get; }
 
     public async Task<OperationResult<Entry>> BuildAsync(CancellationToken ct = default)
     {
@@ -42,7 +44,7 @@ public class StageConverter
 
         var nfPath = Path.Combine(outputDir, xml.NotesFieldFile);
         var stPath = Path.Combine(outputDir, xml.BaseFile);
-        await MediaTool.ConvertStageAsync(BackgroundPath, stPath, nfPath, EffectPaths, ct);
+        await MediaTool.ConvertStageAsync(BackgroundPath, stPath, nfPath, EffectPaths, BackgroundOffset, ct);
 
         return OperationResult<Entry>.Success(xml.Name).WithDiagnostics(Diagnostic);
     }

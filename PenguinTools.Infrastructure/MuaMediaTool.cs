@@ -106,6 +106,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     }
 
     public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+        int backgroundOffset,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bg);
@@ -117,7 +118,8 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             "stage",
             "-b", bg,
             "-d", stDst,
-            "-n", nfDst
+            "-n", nfDst,
+            "--background-offset", backgroundOffset.ToString(CultureInfo.InvariantCulture)
         };
 
         for (var i = 0; fxPaths is not null && i < fxPaths.Length && i < 4; i++)

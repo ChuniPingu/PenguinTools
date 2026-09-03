@@ -503,6 +503,7 @@ public sealed class OptionExporterCacheTests
         }
 
         public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+            int backgroundOffset,
             CancellationToken ct = default)
         {
             StageConversions++;

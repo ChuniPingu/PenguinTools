@@ -29,7 +29,7 @@ internal sealed class TestMediaTool : IMediaTool
         return Task.CompletedTask;
     }
 
-    public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+    public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths, int backgroundOffset,
         CancellationToken ct = default)
     {
         return Task.CompletedTask;

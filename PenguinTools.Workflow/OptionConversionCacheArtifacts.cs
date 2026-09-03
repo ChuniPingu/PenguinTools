@@ -117,8 +117,9 @@ internal static class OptionConversionCacheArtifacts
         return new Dictionary<string, string?>
         {
             ["kind"] = "stage",
-            ["recipeVersion"] = "2",
+            ["recipeVersion"] = "3",
             ["stageId"] = book.StageId?.ToString(),
+            ["backgroundOffset"] = OptionConversionCacheValidator.FormatInvariant(book.BookMeta.BackgroundOffset),
             ["notesFieldLine.id"] = book.NotesFieldLine.Id.ToString(),
             ["notesFieldLine.str"] = book.NotesFieldLine.Str,
             ["notesFieldLine.data"] = book.NotesFieldLine.Data,

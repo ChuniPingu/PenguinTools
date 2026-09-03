@@ -6,4 +6,5 @@ public sealed record StageBuildRequest(
     string?[]? EffectPaths,
     int? StageId,
     string OutFolder,
-    Entry NoteFieldLane);
+    Entry NoteFieldLane,
+    int BackgroundOffset = Meta.DefaultBackgroundOffset);

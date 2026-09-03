@@ -43,7 +43,8 @@ public static class MusicExporter
             overrides.EffectPaths,
             overrides.StageId ?? meta.StageId,
             output,
-            noteFieldLane);
+            noteFieldLane,
+            meta.BackgroundOffset);
 
         return await new StageConverter(request, ctx.MediaTool).BuildAsync(cancellationToken);
     }

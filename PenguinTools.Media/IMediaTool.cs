@@ -11,7 +11,7 @@ public interface IMediaTool
 
     Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default);
 
-    Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+    Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths, int backgroundOffset,
         CancellationToken ct = default);
 
     Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default);

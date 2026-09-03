@@ -108,7 +108,8 @@ public static class OptionExporter
                 [],
                 book.StageId,
                 outputPaths.StageFolder,
-                book.NotesFieldLine),
+                book.NotesFieldLine,
+                book.BookMeta.BackgroundOffset),
             ctx.MediaTool);
         var builtStage = await stageConverter.BuildAsync(ct);
         diagnostics.Report(builtStage.Diagnostics);

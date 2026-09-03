@@ -73,6 +73,7 @@ public class MgxcRegressionTests
         }
 
         public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+            int backgroundOffset,
             CancellationToken ct = default)
         {
             return Task.CompletedTask;
