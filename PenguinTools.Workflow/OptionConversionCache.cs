@@ -6,7 +6,7 @@ namespace PenguinTools.Workflow;
 
 public sealed class OptionConversionCache
 {
-    public const int AudioCurrentVersion = 3;
+    public const int AudioCurrentVersion = 4;
     public const int ImageCurrentVersion = 3;
 
     public OptionConversionCachePartition Audio { get; set; } = CreatePartition(AudioCurrentVersion);
