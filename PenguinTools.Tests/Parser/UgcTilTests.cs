@@ -12,22 +12,27 @@ public class UgcTilTests
     private const string Header =
         "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n";
 
-    private static async Task<Chart.Models.umgr.Chart> Parse(string body)
+    private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(string body)
     {
         var ct = TestContext.Current.CancellationToken;
         var tmp = Path.GetTempFileName() + ".ugc";
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {
-            var r =
-                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
-            Assert.True(r.Succeeded, r.ToString());
-            return r.Value!;
+            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(ct);
         }
         finally
         {
             File.Delete(tmp);
         }
+    }
+
+    private static async Task<Chart.Models.umgr.Chart> Parse(string body)
+    {
+        var r = await ParseResult(body);
+        Assert.True(r.Succeeded, r.ToString());
+        return r.Value!;
     }
 
     [Fact]
@@ -138,6 +143,44 @@ public class UgcTilTests
     }
 
     [Fact]
+    public async Task Til_OverlapAtLongNoteTail_Warns()
+    {
+        // The hold tail is on TIL 2, so it receives an SLA that covers the main-TIL tap.
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t0\n#0'0:h04\n@USETIL\t2\n#480:s\n" +
+            "@USETIL\t0\n#0'480:t12\n";
+
+        var r = await ParseResult(body);
+
+        Assert.True(r.Succeeded, r.ToString());
+        var overlap = Assert.Single(r.Diagnostics.Diagnostics,
+            d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
+        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "HoldJoint", Timeline: 2 });
+        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "Tap", Timeline: 0 });
+    }
+
+    [Fact]
+    public async Task Til_OverlapCoveringLongNoteTail_Warns()
+    {
+        // The TIL-2 tap's SLA covers a main-TIL hold tail.
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t0\n#0'0:h12\n#480:s\n" +
+            "@USETIL\t2\n#0'480:t04\n";
+
+        var r = await ParseResult(body);
+
+        Assert.True(r.Succeeded, r.ToString());
+        var overlap = Assert.Single(r.Diagnostics.Diagnostics,
+            d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
+        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "Tap", Timeline: 2 });
+        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "HoldJoint", Timeline: 0 });
+    }
+
+    [Fact]
     public async Task Til_PartialLaneOverlap_DoesNotWarn()
     {
         // Partial overlap only — neither note fully contains the other.
@@ -208,5 +251,36 @@ public class UgcTilTests
         {
             File.Delete(tmp);
         }
+    }
+
+    [Fact]
+    public async Task Til_OverlapBeforeFirstTimelineEvent_DoesNotWarn()
+    {
+        // TIL 2 has no active speed at tick 0, so no SLA is emitted for its note.
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'960\t2\n" +
+            "@USETIL\t2\n#0'0:t04\n@USETIL\t0\n#0'0:t12\n";
+
+        var r = await ParseResult(body);
+
+        Assert.True(r.Succeeded, r.ToString());
+        Assert.DoesNotContain(r.Diagnostics.Diagnostics,
+            d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+    }
+
+    [Fact]
+    public async Task Til_TransparentAirCrashJointWithoutSla_DoesNotWarn()
+    {
+        // Transparent AirCrash control joints are intentionally not assigned SLA.
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t0\n#0'0:C040AZ,$\n@USETIL\t2\n#480:c04ZZ\n" +
+            "@USETIL\t0\n#0'480:t12\n";
+
+        var r = await ParseResult(body);
+
+        Assert.True(r.Succeeded, r.ToString());
+        Assert.DoesNotContain(r.Diagnostics.Diagnostics,
+            d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
     }
 }

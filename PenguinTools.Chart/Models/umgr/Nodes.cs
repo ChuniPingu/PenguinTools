@@ -170,14 +170,19 @@ public class Note : TimeNode<Note>
 
     public bool IsViolate(Note other)
     {
+        return IsViolate(other, Timeline != 0, other.Timeline != 0);
+    }
+
+    public bool IsViolate(Note other, bool hasSoflanArea, bool otherHasSoflanArea)
+    {
         if (ReferenceEquals(this, other) || Tick.Original != other.Tick.Original || Timeline == other.Timeline)
             return false;
 
         static bool Contains(Note outer, Note inner) =>
             outer.Lane <= inner.Lane && outer.Lane + outer.Width >= inner.Lane + inner.Width;
 
-        return (Timeline != 0 && Contains(this, other)) ||
-               (other.Timeline != 0 && Contains(other, this));
+        return (hasSoflanArea && Contains(this, other)) ||
+               (otherHasSoflanArea && Contains(other, this));
     }
 
     public override void Sort()

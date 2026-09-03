@@ -130,9 +130,9 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         GroupNoteByTimeline(chart.Notes);
         MoveMainTimeline(chart.Meta.MainTil);
         ClearEmptyGroups();
-        PlaceSoflanArea();
+        var slaSources = PlaceSoflanArea();
         FinalizeEvent();
-        FindNoteViolations();
+        FindNoteViolations(slaSources);
 
         _tilGroups.Clear();
         _noteGroups.Clear();
@@ -158,10 +158,11 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             chart.Events.AppendChild(e);
     }
 
-    private void PlaceSoflanArea()
+    private HashSet<umgr.Note> PlaceSoflanArea()
     {
         foreach (var tils in _tilGroups.Values.ToArray()) tils.Sort((a, b) => a.Tick.CompareTo(b.Tick));
         var slaSet = new HashSet<(int Tick, int Timeline, int Lane, int Width)>();
+        var slaSources = new HashSet<umgr.Note>();
         foreach (var (id, notes) in _noteGroups)
         {
             if (id == 0) continue;
@@ -195,10 +196,13 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 };
 
                 slaSet.Add((note.Tick.Original, id, note.Lane, note.Width));
+                slaSources.Add(note);
                 head.AppendChild(tail);
                 chart.Notes.AppendChild(head);
             }
         }
+
+        return slaSources;
     }
 
     private void GroupEventByTimeline(umgr.Event events)
@@ -283,10 +287,10 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         _noteGroups[bId] = aNotes;
     }
 
-    private void FindNoteViolations()
+    private void FindNoteViolations(IReadOnlySet<umgr.Note> slaSources)
     {
-        var notes = chart.Notes.Children
-            .Where(n => n is not umgr.SoflanArea and not umgr.SoflanAreaJoint)
+        var notes = _noteGroups.Values
+            .SelectMany(n => n)
             .GroupBy(n => n.Tick.Original)
             .Where(g => g.Count() > 1);
 
@@ -296,11 +300,13 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             for (var i = 0; i < notesInGroup.Length; i++)
             for (var j = i + 1; j < notesInGroup.Length; j++)
             {
-                if (!notesInGroup[i].IsViolate(notesInGroup[j])) continue;
+                var left = notesInGroup[i];
+                var right = notesInGroup[j];
+                if (!left.IsViolate(right, slaSources.Contains(left), slaSources.Contains(right))) continue;
                 diag.Report(new TimedDiagnostic(Severity.Warning,
-                    Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), notesInGroup[i].Tick.Original)
+                    Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), left.Tick.Original)
                 {
-                    Target = NotePairDiagnosticTarget.From(notesInGroup[i], notesInGroup[j], diag.TimeCalculator)
+                    Target = NotePairDiagnosticTarget.From(left, right, diag.TimeCalculator)
                 });
             }
         }
