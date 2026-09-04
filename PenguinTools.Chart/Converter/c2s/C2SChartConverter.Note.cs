@@ -118,19 +118,30 @@ public partial class C2SChartConverter
         }
     }
 
+    // Exact bare carriers paint the long head and are omitted from C2S.
+    // Margrete only consumes the first such ExTap per cell; later duplicates
+    // stay as CHR (one extra TAP). Track cells already consumed this convert.
+    private readonly HashSet<(int Tick, int Lane, int Width)> _consumedExLongCarrierCells = [];
+
     private bool ShouldConsumeExLongCarrier(umgr.ExTap exTap)
     {
         if (exTap.PairNote is not null)
             return false;
 
-        return exTap.Role switch
+        var eligible = exTap.Role switch
         {
             umgr.ExTapRole.HoldOnlyCarrier =>
-                HasExactLongHead(exTap, note => note is umgr.Hold),
+                (Func<umgr.ExTapableNote, bool>)(note => note is umgr.Hold),
             umgr.ExTapRole.SharedLongCarrier =>
-                HasExactLongHead(exTap, _ => true),
-            _ => false
+                _ => true,
+            _ => null
         };
+
+        if (eligible is null || !HasExactLongHead(exTap, eligible))
+            return false;
+
+        return _consumedExLongCarrierCells.Add(
+            (exTap.Tick.Original, exTap.Lane, exTap.Width));
     }
 
     private bool HasExactLongHead(umgr.ExTap exTap, Func<umgr.ExTapableNote, bool> eligible) =>
@@ -154,10 +165,10 @@ public partial class C2SChartConverter
                 break;
             case umgr.ExTap { Role: umgr.ExTapRole.AirActionCarrier }:
                 break;
-            // UMIGURI paints EX longs with a covering ExTap. Consume that ExTap
-            // only when it sits on the same tick/lane/width as a long-note head
-            // and does not also own an AIR action. A strictly larger covering
-            // ExTap stays as CHR while still converting the covered heads.
+            // UMIGURI paints EX longs with a covering ExTap. Consume only the
+            // first exact bare carrier per (tick, lane, width); later duplicates
+            // stay as CHR. A strictly larger covering ExTap also stays as CHR
+            // while still converting the covered heads.
             case umgr.ExTap exTap when ShouldConsumeExLongCarrier(exTap):
                 break;
             case umgr.ExTap exTap:
