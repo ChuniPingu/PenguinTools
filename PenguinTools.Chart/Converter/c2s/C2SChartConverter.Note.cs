@@ -10,6 +10,7 @@ public partial class C2SChartConverter
 {
     private readonly Dictionary<umgr.NegativeNote, c2s.IPairable> _negativePairRoots = [];
     private readonly Dictionary<umgr.PositiveNote, c2s.Note> _positivePairTargets = [];
+    private readonly Dictionary<umgr.PositiveNote, c2s.Note> _positivePairRealTargets = [];
     private readonly Dictionary<c2s.Slide, C2sSlideSegmentSource> _slideSegmentSources = [];
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
@@ -39,6 +40,7 @@ public partial class C2SChartConverter
 
     private void RegisterPositivePairTarget(umgr.PositiveNote source, c2s.Note target)
     {
+        _positivePairRealTargets[source] = target;
         _positivePairTargets[source] = CreateGenericAirParent(target);
     }
 

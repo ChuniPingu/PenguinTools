@@ -153,8 +153,13 @@ public partial class C2SChartWriter
 
     private IEnumerable<c2s.Note> OrderedNotesForWrite()
     {
+        // Sort by rounded C2S tick, then stable list index. Same-Round order is
+        // the slide/Air FIFO schedule produced by the converter.
         var notes = Chart.Notes
-            .OrderBy(x => x.Tick.Original)
+            .Select((note, index) => (note, index))
+            .OrderBy(x => x.note.Tick.Round)
+            .ThenBy(x => x.index)
+            .Select(x => x.note)
             .ToList();
 
         var positions = notes

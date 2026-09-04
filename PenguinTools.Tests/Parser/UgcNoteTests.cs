@@ -1,8 +1,11 @@
 using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.umgr;
+using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.ugc;
+using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using Xunit;
@@ -29,6 +32,37 @@ public class UgcNoteTests
         finally
         {
             File.Delete(tmp);
+        }
+    }
+
+    private static async Task<Chart.Models.umgr.Chart> RoundTripThroughC2s(
+        Chart.Models.umgr.Chart chart)
+    {
+        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+        Assert.True(convert.Succeeded, convert.ToString());
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"penguin-tools-fifo-{Guid.NewGuid():N}.c2s");
+
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, convert.Value!))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded, written.ToString());
+
+            var parsed = await new C2SParser(new C2SParseRequest(path))
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+
+            var toUmgr = new UgcChartConverter(new UgcConvertRequest(parsed.Value!)).Convert();
+            Assert.True(toUmgr.Succeeded, toUmgr.ToString());
+            return toUmgr.Value!;
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
         }
     }
 
@@ -131,6 +165,189 @@ public class UgcNoteTests
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
                           MsgKeys.Mg_Ambiguous_c2s_slide_path);
+
+        var roundTripped = await RoundTripThroughC2s(chart);
+        var slides = roundTripped.Notes.Children.OfType<Slide>().ToArray();
+        Assert.Equal(2, slides.Length);
+        Assert.Contains(slides, s => s.Children.Count == 2);
+        Assert.Contains(slides, s => s.Children.Count == 1);
+    }
+
+    [Fact]
+    public async Task SlideFifoScheduler_WritesContinuationBeforeNewRootAtSharedEndpoint()
+    {
+        // Short root is declared before the long path whose continuation shares
+        // the same Original tick. Without FIFO, C2S joins them into one path.
+        var chart = await Parse("""
+            #0'960:s0G
+            #1920:s72
+            #0'0:s0G
+            #960:c0G
+            #1920:s72
+            """);
+
+        var result = new C2SChartConverter(
+            new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.DoesNotContain(
+            result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key ==
+                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+
+        var atJunction = result.Value!.Notes
+            .OfType<Chart.Models.c2s.Slide>()
+            .Where(s => s.Tick.Round == 960 && s.Lane == 0 && s.Width == 16)
+            .ToArray();
+        Assert.Equal(2, atJunction.Length);
+        // Continuation of the long path ends at lane 7; the short root also ends there.
+        // First written segment at the junction must be the continuation (not IsRoot).
+        Assert.Equal(1920, atJunction[0].EndTick.Original);
+        Assert.Equal(7, atJunction[0].EndLane);
+        Assert.Equal(2, atJunction[0].EndWidth);
+
+        var roundTripped = await RoundTripThroughC2s(chart);
+        var slides = roundTripped.Notes.Children.OfType<Slide>().ToArray();
+        Assert.Equal(2, slides.Length);
+        Assert.Contains(slides, s => s.Children.Count == 2);
+        Assert.Contains(slides, s => s.Children.Count == 1);
+    }
+
+    [Fact]
+    public async Task SlideFifoScheduler_KeepsPathsWhenALaterSlideArrivesFirstAtAJunction()
+    {
+        var chart = await Parse("""
+            #0'0:s08
+            #480:c26
+            #960:s04
+            #0'0:s04
+            #480:c26
+            #960:s48
+            """);
+
+        var result = new C2SChartConverter(
+            new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.DoesNotContain(
+            result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key ==
+                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+
+        var roundTripped = await RoundTripThroughC2s(chart);
+        var slides = roundTripped.Notes.Children.OfType<Slide>().ToArray();
+        Assert.Equal(2, slides.Length);
+
+        var wideStart = Assert.Single(slides, s => s.Width == 8);
+        var narrowStart = Assert.Single(slides, s => s.Width == 4);
+        Assert.Equal(0, Assert.IsType<SlideJoint>(wideStart.Children[^1]).Lane);
+        Assert.Equal(4, Assert.IsType<SlideJoint>(wideStart.Children[^1]).Width);
+        Assert.Equal(4, Assert.IsType<SlideJoint>(narrowStart.Children[^1]).Lane);
+        Assert.Equal(8, Assert.IsType<SlideJoint>(narrowStart.Children[^1]).Width);
+    }
+
+    [Fact]
+    public void AirFifoScheduler_BindsToIntendedParentWhenLastSegmentsShareStartRound()
+    {
+        var chart = new Chart.Models.umgr.Chart();
+
+        var decoy = new Slide { Tick = 0, Lane = 2, Width = 4 };
+        var decoyEnd = new SlideJoint
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            Joint = Joint.D
+        };
+        decoy.AppendChild(decoyEnd);
+
+        var intended = new Slide { Tick = 0, Lane = 0, Width = 4 };
+        var intendedEnd = new SlideJoint
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            Joint = Joint.D
+        };
+        intended.AppendChild(intendedEnd);
+
+        var air = new Air
+        {
+            Direction = AirDirection.IR,
+            Color = Color.DEF
+        };
+        intendedEnd.MakePair(air);
+
+        // Declare the decoy first so insertion order alone would bind Air to it.
+        chart.Notes.AppendChild(decoy);
+        chart.Notes.AppendChild(intended);
+        chart.Notes.AppendChild(air);
+
+        var result = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.DoesNotContain(
+            result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key ==
+                          MsgKeys.Mg_Overlapping_air_parent_slide);
+
+        var c2sAir = Assert.Single(result.Value!.Notes.OfType<Chart.Models.c2s.Air>());
+        var lastSegments = result.Value.Notes
+            .OfType<Chart.Models.c2s.Slide>()
+            .Where(s => s.EndTick.Original == 480 && s.EndLane == 4 && s.EndWidth == 4)
+            .ToArray();
+        Assert.Equal(2, lastSegments.Length);
+
+        // Intended parent (starts at lane 0) must be first among same-start-Round ends.
+        Assert.Equal(0, lastSegments[0].Lane);
+        Assert.Equal(2, lastSegments[1].Lane);
+        Assert.Equal("SLD", c2sAir.Parent!.Id);
+    }
+
+    [Fact]
+    public void AirFifoScheduler_WarnsWhenIntendedParentStartsLater()
+    {
+        var chart = new Chart.Models.umgr.Chart();
+
+        var earlier = new Slide { Tick = 0, Lane = 0, Width = 4 };
+        var earlierEnd = new SlideJoint
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            Joint = Joint.D
+        };
+        earlier.AppendChild(earlierEnd);
+
+        var later = new Slide { Tick = 240, Lane = 2, Width = 4 };
+        var laterEnd = new SlideJoint
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            Joint = Joint.D
+        };
+        later.AppendChild(laterEnd);
+
+        var air = new Air
+        {
+            Direction = AirDirection.IR,
+            Color = Color.DEF
+        };
+        laterEnd.MakePair(air);
+
+        chart.Notes.AppendChild(earlier);
+        chart.Notes.AppendChild(later);
+        chart.Notes.AppendChild(air);
+
+        var result = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.Contains(
+            result.Diagnostics.Diagnostics,
+            diagnostic =>
+                diagnostic.Message.Key == MsgKeys.Mg_Overlapping_air_parent_slide &&
+                diagnostic.Severity == Severity.Warning);
     }
 
     [Fact]

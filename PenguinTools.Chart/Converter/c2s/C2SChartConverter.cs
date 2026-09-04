@@ -250,6 +250,8 @@ public partial class C2SChartConverter
             RestoreAirSnapshot();
             ConvertEvent(Mgxc);
 
+            ScheduleC2sSlidePaths();
+            ScheduleC2sAirParents();
             ValidateOverlappingAirParents();
             ValidateAmbiguousC2sSlidePaths();
             ValidateLongNoteLengths();
@@ -268,22 +270,296 @@ public partial class C2SChartConverter
         }
     }
 
+    private void ScheduleC2sSlidePaths()
+    {
+        var originalIndex = Notes
+            .Select((note, index) => (note, index))
+            .ToDictionary(x => x.note, x => x.index);
+
+        var slides = Notes.OfType<c2s.Slide>().ToList();
+        if (slides.Count == 0)
+            return;
+
+        var pendingByKey = slides
+            .GroupBy(s => new C2sSlidePosition(s.Tick.Round, s.Lane, s.Width))
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(s => originalIndex[s]).ToList());
+
+        var active = new Dictionary<C2sSlidePosition, Queue<umgr.Slide>>();
+        var scheduled = new List<c2s.Slide>(slides.Count);
+
+        foreach (var round in pendingByKey.Keys.Select(k => k.Tick).Distinct().OrderBy(t => t))
+        {
+            var keys = pendingByKey.Keys
+                .Where(k => k.Tick == round)
+                .OrderBy(k => k.Lane)
+                .ThenBy(k => k.Width);
+
+            foreach (var key in keys)
+            {
+                var pending = pendingByKey[key];
+
+                while (pending.Count > 0)
+                {
+                    active.TryGetValue(key, out var queue);
+                    queue ??= new Queue<umgr.Slide>();
+
+                    c2s.Slide? pick = null;
+                    if (queue.Count > 0)
+                    {
+                        var expected = queue.Peek();
+                        pick = pending.FirstOrDefault(s =>
+                            ReferenceEquals(_slideSegmentSources[s].SourceSlide, expected));
+                    }
+
+                    if (pick is null)
+                    {
+                        pick = pending.FirstOrDefault(s => _slideSegmentSources[s].IsRoot)
+                               ?? pending[0];
+                    }
+
+                    pending.Remove(pick);
+                    scheduled.Add(pick);
+
+                    var source = _slideSegmentSources[pick];
+
+                    if (queue.Count > 0)
+                    {
+                        queue.Dequeue();
+                        if (queue.Count == 0)
+                            active.Remove(key);
+                    }
+
+                    var end = new C2sSlidePosition(
+                        pick.EndTick.Round,
+                        pick.EndLane,
+                        pick.EndWidth);
+
+                    if (!active.TryGetValue(end, out var endQueue))
+                    {
+                        endQueue = new Queue<umgr.Slide>();
+                        active[end] = endQueue;
+                    }
+
+                    endQueue.Enqueue(source.SourceSlide);
+                }
+            }
+        }
+
+        RebuildNotesWithScheduledSlides(scheduled, originalIndex);
+    }
+
+    private void RebuildNotesWithScheduledSlides(
+        List<c2s.Slide> scheduled,
+        Dictionary<c2s.Note, int> originalIndex)
+    {
+        var others = Notes.Where(n => n is not c2s.Slide).ToList();
+        var rounds = Notes
+            .Select(n => n.Tick.Round)
+            .Distinct()
+            .OrderBy(r => r);
+
+        var rebuilt = new List<c2s.Note>(Notes.Count);
+        foreach (var round in rounds)
+        {
+            rebuilt.AddRange(scheduled.Where(s => s.Tick.Round == round));
+            rebuilt.AddRange(
+                others
+                    .Where(n => n.Tick.Round == round)
+                    .OrderBy(n => originalIndex[n]));
+        }
+
+        Notes.Clear();
+        Notes.AddRange(rebuilt);
+    }
+
+    private Dictionary<c2s.IPairable, c2s.Note> BuildIntendedAirParents()
+    {
+        var intended = new Dictionary<c2s.IPairable, c2s.Note>();
+        foreach (var (source, root) in _negativePairRoots)
+        {
+            if (source.PairNote is null)
+                continue;
+
+            if (_positivePairRealTargets.TryGetValue(source.PairNote, out var real))
+                intended[root] = real;
+        }
+
+        return intended;
+    }
+
+    private void ScheduleC2sAirParents()
+    {
+        var intended = BuildIntendedAirParents();
+        if (intended.Count == 0)
+            return;
+
+        var airs = Notes
+            .OfType<c2s.IPairable>()
+            .Where(p => p.Parent is c2s.Slide)
+            .Cast<c2s.Note>()
+            .ToList();
+
+        if (airs.Count == 0)
+            return;
+
+        foreach (var group in airs.GroupBy(a => (Round: a.Tick.Round, a.Lane, a.Width)))
+        {
+            var cellAirs = group.ToList();
+            var cell = group.Key;
+
+            var lastSegments = Notes
+                .OfType<c2s.Slide>()
+                .Where(s =>
+                    s.EndTick.Round == cell.Round &&
+                    s.EndLane == cell.Lane &&
+                    s.EndWidth == cell.Width &&
+                    _slideSegmentSources.TryGetValue(s, out var src) &&
+                    _positivePairRealTargets.ContainsKey(src.EndJoint))
+                .ToList();
+
+            var intendedParents = cellAirs
+                .Select(a => intended.GetValueOrDefault((c2s.IPairable)a))
+                .OfType<c2s.Slide>()
+                .Distinct()
+                .ToList();
+
+            foreach (var startRoundGroup in lastSegments.GroupBy(s => s.Tick.Round))
+            {
+                var tied = startRoundGroup.ToList();
+                if (tied.Count <= 1)
+                    continue;
+
+                var positions = Notes
+                    .Select((note, index) => (note, index))
+                    .ToDictionary(x => x.note, x => x.index);
+
+                var desired = tied
+                    .OrderBy(s =>
+                    {
+                        var idx = intendedParents.IndexOf(s);
+                        return idx < 0 ? int.MaxValue : idx;
+                    })
+                    .ThenBy(s => positions[s])
+                    .ToList();
+
+                // Same start (lane, width) order belongs to the slide FIFO.
+                foreach (var startKey in tied.GroupBy(s => (s.Lane, s.Width)))
+                {
+                    var scheduledOrder = startKey.OrderBy(s => positions[s]).ToList();
+                    var desiredOrder = desired
+                        .Where(s => s.Lane == startKey.Key.Lane && s.Width == startKey.Key.Width)
+                        .ToList();
+
+                    if (!scheduledOrder.SequenceEqual(desiredOrder))
+                    {
+                        desired = tied.OrderBy(s => positions[s]).ToList();
+                        break;
+                    }
+                }
+
+                ApplyNoteOrder(desired);
+            }
+
+            var noteIndex = Notes
+                .Select((note, index) => (note, index))
+                .ToDictionary(x => x.note, x => x.index);
+
+            var orderedAirs = cellAirs
+                .OrderBy(a =>
+                {
+                    if (intended.TryGetValue((c2s.IPairable)a, out var parent))
+                        return noteIndex.GetValueOrDefault(parent, int.MaxValue);
+                    return int.MaxValue;
+                })
+                .ThenBy(a => noteIndex[a])
+                .ToList();
+
+            ApplyNoteOrder(orderedAirs);
+        }
+    }
+
+    private void ApplyNoteOrder(IReadOnlyList<c2s.Note> desiredOrder)
+    {
+        if (desiredOrder.Count <= 1)
+            return;
+
+        var slots = desiredOrder
+            .Select(n => Notes.IndexOf(n))
+            .OrderBy(i => i)
+            .ToArray();
+
+        for (var i = 0; i < slots.Length; i++)
+            Notes[slots[i]] = desiredOrder[i];
+    }
+
     private void ValidateOverlappingAirParents()
     {
-        var allSlides = Notes.OfType<c2s.Slide>();
-        var allAirs = Notes.OfType<c2s.IPairable>().Where(p => p.Parent is c2s.Slide).Cast<c2s.Note>();
+        var intended = BuildIntendedAirParents();
+        var used = new HashSet<c2s.Note>();
+        var warned = new HashSet<(int Tick, int Lane, int Width)>();
 
-        var airsLookup = allAirs.GroupBy(a => (a.Tick, a.Lane, a.Width)).ToDictionary(g => g.Key, g => g.Count());
-        var slidesLookup = allSlides.GroupBy(s => (s.EndTick, s.EndLane, s.EndWidth))
-            .ToDictionary(g => g.Key, g => g.Count());
+        var pairables = Notes
+            .Select((note, index) => (note, index))
+            .Where(x => x.note is c2s.IPairable { Parent: c2s.Slide })
+            .OrderBy(x => x.note.Tick.Round)
+            .ThenBy(x => x.index)
+            .Select(x => (c2s.IPairable)x.note);
 
-        foreach (var (pos, airsCount) in airsLookup)
+        foreach (var pairable in pairables)
         {
-            var slidesCount = slidesLookup.GetValueOrDefault(pos, 0);
-            if (airsCount >= slidesCount) continue;
-            Diagnostic.Report(new TimedDiagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Overlapping_air_parent_slide),
-                pos.Tick.Original));
+            var note = (c2s.Note)pairable;
+            var bound = FindSlidePairParent(note, used);
+            if (bound is null)
+                continue;
+
+            used.Add(bound);
+
+            if (!intended.TryGetValue(pairable, out var expected) ||
+                ReferenceEquals(bound, expected))
+                continue;
+
+            var cell = (note.Tick.Original, note.Lane, note.Width);
+            if (!warned.Add(cell))
+                continue;
+
+            Diagnostic.Report(new TimedDiagnostic(
+                Severity.Warning,
+                Msg.Key(MsgKeys.Mg_Overlapping_air_parent_slide),
+                note.Tick.Original));
         }
+    }
+
+    private c2s.Note? FindSlidePairParent(c2s.Note note, HashSet<c2s.Note> used)
+    {
+        return Notes
+            .Where(candidate => candidate is c2s.Slide)
+            .Where(candidate => IsSlideAttachPoint(candidate, note))
+            .OrderBy(candidate => used.Contains(candidate))
+            .ThenBy(candidate => SlidePairDistance(candidate, note))
+            .FirstOrDefault();
+    }
+
+    private static bool IsSlideAttachPoint(c2s.Note candidate, c2s.Note note)
+    {
+        if (candidate is c2s.LongNote longNote &&
+            longNote.EndTick.Original == note.Tick.Original &&
+            longNote.EndLane == note.Lane &&
+            longNote.EndWidth == note.Width)
+            return true;
+
+        return candidate.Tick.Original == note.Tick.Original &&
+               candidate.Lane == note.Lane &&
+               candidate.Width == note.Width;
+    }
+
+    private static int SlidePairDistance(c2s.Note candidate, c2s.Note note)
+    {
+        if (candidate is c2s.LongNote longNote)
+            return Math.Abs(longNote.EndTick.Original - note.Tick.Original);
+
+        return Math.Abs(candidate.Tick.Original - note.Tick.Original);
     }
 
     private void ValidateAmbiguousC2sSlidePaths()
@@ -291,12 +567,13 @@ public partial class C2SChartConverter
         // Replay the endpoint-based FIFO linking that C2S readers use. Times
         // are rounded here because distinct UMIGURI ticks can serialize to the
         // same 1/384 C2S tick and become ambiguous only after conversion.
+        // Order matches the writer: Round, then scheduled list index.
         var active = new Dictionary<C2sSlidePosition, Queue<OpenC2sSlidePath>>();
 
         foreach (var segment in Notes
                      .OfType<c2s.Slide>()
                      .Select((slide, index) => new { Slide = slide, SourceOrder = index })
-                     .OrderBy(x => x.Slide.Tick.Original)
+                     .OrderBy(x => x.Slide.Tick.Round)
                      .ThenBy(x => x.SourceOrder))
         {
             var note = segment.Slide;
