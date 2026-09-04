@@ -1,4 +1,5 @@
 using PenguinTools.Chart.Diagnostics;
+using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Core;
@@ -34,6 +35,9 @@ public class UgcTilTests
         Assert.True(r.Succeeded, r.ToString());
         return r.Value!;
     }
+
+    private static SoflanArea[] GetSoflanAreas(Chart.Models.umgr.Chart chart) =>
+        chart.Notes.Children.OfType<SoflanArea>().ToArray();
 
     [Fact]
     public async Task Til_Definition_CreatesScrollSpeedEvent()
@@ -254,9 +258,9 @@ public class UgcTilTests
     }
 
     [Fact]
-    public async Task Til_OverlapBeforeFirstTimelineEvent_DoesNotWarn()
+    public async Task Til_OverlapBeforeFirstTimelineEvent_UsesImplicitSpeedAndWarns()
     {
-        // TIL 2 has no active speed at tick 0, so no SLA is emitted for its note.
+        // TIL 2 implicitly runs at speed 1 before its first explicit speed point.
         const string body =
             "@TIL\t0\t0'0\t1\n@TIL\t2\t0'960\t2\n" +
             "@USETIL\t2\n#0'0:t04\n@USETIL\t0\n#0'0:t12\n";
@@ -264,8 +268,21 @@ public class UgcTilTests
         var r = await ParseResult(body);
 
         Assert.True(r.Succeeded, r.ToString());
-        Assert.DoesNotContain(r.Diagnostics.Diagnostics,
+        Assert.Single(r.Diagnostics.Diagnostics,
             d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        Assert.Contains(GetSoflanAreas(r.Value!), area =>
+            area is { Tick.Original: 0, Timeline: 2, Lane: 0, Width: 4 });
+    }
+
+    [Fact]
+    public async Task Til_WithoutExplicitSpeedEvent_UsesImplicitSpeed()
+    {
+        const string body = "@USETIL\t2\n#0'0:t12\n";
+
+        var chart = await Parse(body);
+
+        Assert.Contains(GetSoflanAreas(chart), area =>
+            area is { Tick.Original: 0, Timeline: 2, Lane: 1, Width: 2 });
     }
 
     [Fact]
@@ -282,5 +299,68 @@ public class UgcTilTests
         Assert.True(r.Succeeded, r.ToString());
         Assert.DoesNotContain(r.Diagnostics.Diagnostics,
             d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+    }
+
+    [Fact]
+    public async Task Til_SameLaneNotesGrowIntoOneSla()
+    {
+        const string body =
+            "@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t2\n#0'0:t12\n#1'0:t12\n";
+
+        var chart = await Parse(body);
+
+        var area = Assert.Single(GetSoflanAreas(chart));
+        Assert.Equal(2, area.Timeline);
+        Assert.Equal(1, area.Lane);
+        Assert.Equal(2, area.Width);
+        Assert.Equal(0, area.Tick.Original);
+        Assert.Equal(ChartResolution.UmiguriTick + ChartResolution.SingleTick,
+            Assert.IsType<SoflanAreaJoint>(area.LastChild).Tick.Original);
+    }
+
+    [Fact]
+    public async Task Til_SameTickNotesMergeAcrossEmptyLanes()
+    {
+        const string body =
+            "@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t2\n#0'0:t01\n#0'0:t31\n";
+
+        var chart = await Parse(body);
+
+        var area = Assert.Single(GetSoflanAreas(chart));
+        Assert.Equal(0, area.Lane);
+        Assert.Equal(4, area.Width);
+    }
+
+    [Fact]
+    public async Task Til_ForeignNoteInsideBoundingRectanglePreventsMerge()
+    {
+        const string body =
+            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
+            "@USETIL\t2\n#0'0:t01\n#1'0:t31\n" +
+            "@USETIL\t0\n#0'480:t11\n";
+
+        var chart = await Parse(body);
+
+        var areas = GetSoflanAreas(chart);
+        Assert.Equal(2, areas.Length);
+        Assert.All(areas, area => Assert.Equal(1, area.Width));
+    }
+
+    [Fact]
+    public async Task Til_OptimizationDoesNotChangeDifferentTilOverlapWarning()
+    {
+        const string body =
+            "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t04\n#1'0:t04\n" +
+            "@USETIL\t3\n#0'0:t12\n";
+
+        var result = await ParseResult(body);
+
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.Single(result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        Assert.True(GetSoflanAreas(result.Value!).Length < 3);
     }
 }

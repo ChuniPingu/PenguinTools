@@ -164,10 +164,10 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         foreach (var tils in _tilGroups.Values.ToArray()) tils.Sort((a, b) => a.Tick.CompareTo(b.Tick));
         var slaSet = new HashSet<(int Tick, int Timeline, int Lane, int Width)>();
         var slaSources = new HashSet<umgr.Note>();
+        var legacyAreas = new List<SlaPlacement>();
         foreach (var (id, notes) in _noteGroups)
         {
             if (id == 0) continue;
-            var events = _tilGroups[id];
             foreach (var note in notes)
             {
                 note.Timeline = id;
@@ -178,29 +178,33 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                         Parent: umgr.AirCrash { Color: Color.NON }, Density.Original: 0x7FFFFFFF or 0
                     }) continue;
 
-                // find the speed that is just before the note
-                var prevTil = events.Where(p => p.Tick.Original <= note.Tick.Original).OrderByDescending(p => p.Tick)
-                    .FirstOrDefault();
-                if (prevTil?.Speed is null) continue;
                 if (slaSet.Contains((note.Tick.Original, id, note.Lane, note.Width))) continue;
-
-                var head = new umgr.SoflanArea
-                {
-                    Tick = note.Tick,
-                    Timeline = id,
-                    Lane = note.Lane,
-                    Width = note.Width
-                };
-                var tail = new umgr.SoflanAreaJoint
-                {
-                    Tick = note.Tick.Original + ChartResolution.SingleTick
-                };
 
                 slaSet.Add((note.Tick.Original, id, note.Lane, note.Width));
                 slaSources.Add(note);
-                head.AppendChild(tail);
-                chart.Notes.AppendChild(head);
+                legacyAreas.Add(new SlaPlacement(
+                    note.Tick.Round,
+                    id,
+                    note.Lane,
+                    note.Width,
+                    ChartResolution.SingleTick));
             }
+        }
+
+        var allNotes = _noteGroups.Values.SelectMany(x => x).ToArray();
+        foreach (var area in SlaPlacementOptimizer.Optimize(allNotes, legacyAreas))
+        {
+            var head = new umgr.SoflanArea
+            {
+                Tick = area.Tick,
+                Timeline = area.Timeline,
+                Lane = area.Lane,
+                Width = area.Width
+            };
+            var tail = new umgr.SoflanAreaJoint { Tick = area.EndTick };
+
+            head.AppendChild(tail);
+            chart.Notes.AppendChild(head);
         }
 
         return slaSources;
