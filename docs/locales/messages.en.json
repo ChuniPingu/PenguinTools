@@ -83,6 +83,7 @@
       "meta_argument_count_min_one": "Command '{0}' has an invalid number of arguments.",
       "meta_first_argument_must_int": "The first argument must be a valid integer.",
       "meta_invalid_date": "Invalid date format. Expected 'YYYYMMDD'.",
+      "meta_ignored": "This chart was skipped because of `#meta ignore`.",
       "meta_unknown_tag": "Unknown tag '{0}'.",
       "no_sortname_provided": "No sort name was provided. A sort name has been generated from the title.",
       "note_overlapped_in_different_til": "This note overlaps another note on a different timeline (same tick, lane, and width).",

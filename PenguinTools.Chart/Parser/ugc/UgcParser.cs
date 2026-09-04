@@ -34,7 +34,7 @@ public partial class UgcParser
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
@@ -46,6 +46,9 @@ public partial class UgcParser
         {
             Ugc.Meta.FilePath = Path;
             var lines = await ReadLinesAsync(Path, ct);
+
+            if (TryGetIgnoreLine(lines, out var ignoreLine))
+                return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
 
             foreach (var line in lines)
             {
@@ -254,6 +257,24 @@ public partial class UgcParser
                 Target = ex
             });
         }
+    }
+
+    private static bool TryGetIgnoreLine(SourceLine[] lines, out int lineNumber)
+    {
+        lineNumber = 0;
+        foreach (var line in lines)
+        {
+            if (!line.Text.StartsWith('@')) continue;
+            var tokens = line.Text.Split('\t');
+            if (tokens.Length == 0) continue;
+            if (!tokens[0].TrimStart('@').Equals("CMT", StringComparison.OrdinalIgnoreCase)) continue;
+            var comment = tokens.Length >= 2 ? tokens[1] : string.Empty;
+            if (!ChartMetaCommands.IsIgnored(comment)) continue;
+            lineNumber = line.Number;
+            return true;
+        }
+
+        return false;
     }
 
     private readonly record struct SourceLine(int Number, string Text);

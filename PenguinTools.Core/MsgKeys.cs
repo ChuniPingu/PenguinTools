@@ -73,6 +73,7 @@ public static class MsgKeys
     public const string Mg_Meta_Argument_count_min_one = "diag.mg.meta_argument_count_min_one";
     public const string Mg_Meta_First_argument_must_int = "diag.mg.meta_first_argument_must_int";
     public const string Mg_Meta_Invalid_date = "diag.mg.meta_invalid_date";
+    public const string Mg_Meta_Ignored = "diag.mg.meta_ignored";
     public const string Mg_Meta_Unknown_tag = "diag.mg.meta_unknown_tag";
     public const string Mg_No_sortname_provided = "diag.mg.no_sortname_provided";
     public const string Mg_Note_overlapped_in_different_TIL = "diag.mg.note_overlapped_in_different_til";

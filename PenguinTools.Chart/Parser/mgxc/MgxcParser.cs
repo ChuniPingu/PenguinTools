@@ -26,7 +26,7 @@ public partial class MgxcParser
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
@@ -74,6 +74,12 @@ public partial class MgxcParser
             br.ReadInt32(); // unknown
 
             br.ReadBlock(HeaderMeta, ParseMeta);
+
+            if (ChartMetaCommands.IsIgnored(Mgxc.Meta.Comment))
+            {
+                await Task.WhenAll(Tasks);
+                return ChartMetaCommands.SkipParse(Diagnostic, Path);
+            }
 
             br.ReadBlock(HeaderEvnt, ParseEvent);
 

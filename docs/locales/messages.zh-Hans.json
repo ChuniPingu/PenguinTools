@@ -83,6 +83,7 @@
       "meta_argument_count_min_one": "命令“{0}”的参数数量无效。",
       "meta_first_argument_must_int": "第一个参数必须是有效的整数。",
       "meta_invalid_date": "日期格式无效。应为“YYYYMMDD”。",
+      "meta_ignored": "因 `#meta ignore`，已跳过解析该谱面。",
       "meta_unknown_tag": "未知标记“{0}”。",
       "no_sortname_provided": "未提供排序名称。已根据标题自动生成。",
       "note_overlapped_in_different_til": "此音符与其他时间轴上的音符在同一时刻、轨道和宽度重叠。",

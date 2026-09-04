@@ -18,6 +18,11 @@ public class DiagnosticCollector : IDiagnosticSink
         _diagnostics.Add(item.WithTimeCalculator(TimeCalculator));
     }
 
+    public void Clear()
+    {
+        _diagnostics.Clear();
+    }
+
     /// <summary>
     /// Applies <see cref="TimeCalculator"/> to diagnostics that were reported before it was available.
     /// </summary>

@@ -1,5 +1,6 @@
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Chart.Parser;
+using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using Xunit;
@@ -51,6 +52,18 @@ public sealed class ChartPostProcessorMetaTests
         new ChartPostProcessor(chart, new DiagnosticCollector(), TestAssets.Load()).Run();
 
         Assert.Equal(240, chart.Meta.BackgroundOffset);
+    }
+
+    [Fact]
+    public void IgnoreMeta_IsAKnownTag()
+    {
+        var diagnostics = new DiagnosticCollector();
+        var chart = CreateChart("#meta ignore false");
+
+        new ChartPostProcessor(chart, diagnostics, TestAssets.Load()).Run();
+
+        Assert.DoesNotContain(diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Meta_Unknown_tag);
+        Assert.DoesNotContain(diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Meta_Ignored);
     }
 
     private static UmgrChart CreateChart(string comment)

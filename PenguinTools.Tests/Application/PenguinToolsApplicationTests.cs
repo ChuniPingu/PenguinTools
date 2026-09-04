@@ -81,6 +81,52 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
+    public async Task OptionScan_SkipsChart_WhenMetaIgnoreIsSet()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var ignoredPath = Path.Combine(directory, "skipped.ugc");
+        var keptPath = Path.Combine(directory, "kept.ugc");
+        var ct = TestContext.Current.CancellationToken;
+        await File.WriteAllTextAsync(
+            ignoredPath,
+            "@VER\t7\n@TICKS\t960\n@TITLE\tSkipped\n@DIFF\t3\n@SONGID\t5097\n" +
+            "@CMT\t#meta ignore\n@UNKNOWN\tfoo\n#bad\n",
+            ct);
+        await File.WriteAllTextAsync(
+            keptPath,
+            "@VER\t8\n@TICKS\t480\n@TITLE\tKept\n@DESIGN\tDesigner\n@DIFF\t2\n" +
+            "@SONGID\t5097\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n",
+            ct);
+        using var application = PenguinToolsApplication.CreateDefault();
+        try
+        {
+            var result = await application.ScanOptionAsync(
+                new OptionScanRequest(directory, [ChartFormat.Ugc]),
+                cancellationToken: ct);
+
+            Assert.True(result.Succeeded);
+            Assert.NotNull(result.Value);
+            var book = Assert.Single(result.Value!.Books);
+            var chart = Assert.Single(book.Charts);
+            Assert.Equal("Expert", chart.Difficulty);
+            Assert.Equal(keptPath, chart.FilePath);
+            Assert.Contains(result.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Meta_Ignored);
+            Assert.DoesNotContain(result.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Error_Invalid_Header);
+            Assert.DoesNotContain(result.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Unrecognized_meta);
+            Assert.DoesNotContain(result.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_Unrecognized_note);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task OptionScan_UsesConfigChartFileDiscovery_WhenRequestOmitsIt()
     {
         using var application = PenguinToolsApplication.CreateDefault();

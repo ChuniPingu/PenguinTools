@@ -480,6 +480,8 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             case "date":
                 MetaDateHandler(value);
                 break;
+            case "ignore":
+                break;
             default:
                 diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Unknown_tag, name))
                 {
@@ -510,7 +512,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             if (!trimmedLine.StartsWith('#'))
                 continue;
 
-            var parts = TokenizeCommand(trimmedLine[1..]);
+            var parts = ChartMetaCommands.Tokenize(trimmedLine[1..]);
             if (parts.Length == 0) continue;
 
             var tagName = parts[0];
@@ -531,15 +533,6 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                     Target = parts
                 });
         }
-    }
-
-    private static string[] TokenizeCommand(string command)
-    {
-        return CommandTokenRegex().Matches(command)
-            .Select(match => match.Value.Length >= 2 && match.Value[0] == '"' && match.Value[^1] == '"'
-                ? match.Value[1..^1]
-                : match.Value)
-            .ToArray();
     }
 
     private void ProcessRoundTripBookmarks()
@@ -583,7 +576,4 @@ internal sealed partial class ChartPostProcessor
 
     [GeneratedRegex(@"[^\p{L}\p{N}_]")]
     private static partial Regex SpecialCharacterRegex();
-
-    [GeneratedRegex("[^\\s\"]+|\"[^\"]*\"")]
-    private static partial Regex CommandTokenRegex();
 }

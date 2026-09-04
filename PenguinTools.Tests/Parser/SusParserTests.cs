@@ -187,4 +187,41 @@ public class SusParserTests
         Assert.Equal(airHold.Lane, child.Lane);
         Assert.Equal(airHold.Width, child.Width);
     }
+
+    [Fact]
+    public async Task Meta_Ignore_SkipsParse_AndSuppressesOtherDiagnostics()
+    {
+        const string sus =
+            "#TITLE \"Ignored\"\n" +
+            "#meta ignore\n" +
+            "#BPM01: 120\n" +
+            "#00008: 01\n" +
+            "#00010: 11\n" +
+            "#00053: 11\n";
+
+        var result = await Parse(sus);
+        Assert.False(result.Succeeded);
+        Assert.Null(result.Value);
+        var diagnostic = Assert.Single(result.Diagnostics.Diagnostics);
+        Assert.Equal(Severity.Information, diagnostic.Severity);
+        Assert.Equal(MsgKeys.Mg_Meta_Ignored, diagnostic.Message.Key);
+        Assert.DoesNotContain(
+            result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key == MsgKeys.Sus_Air_note_ignored);
+    }
+
+    [Fact]
+    public async Task Meta_Ignore_InCommentHeader_SkipsParse()
+    {
+        const string sus =
+            "#COMMENT \"#meta ignore\"\n" +
+            "#BPM01: 120\n" +
+            "#00008: 01\n" +
+            "#00010: 14\n";
+
+        var result = await Parse(sus);
+        Assert.False(result.Succeeded);
+        var diagnostic = Assert.Single(result.Diagnostics.Diagnostics);
+        Assert.Equal(MsgKeys.Mg_Meta_Ignored, diagnostic.Message.Key);
+    }
 }

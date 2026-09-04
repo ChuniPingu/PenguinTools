@@ -1,5 +1,6 @@
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using Xunit;
 
@@ -97,5 +98,58 @@ public class UgcMetaTests
         Assert.True(r.Succeeded, r.ToString());
         Assert.Equal("自制譜", r.Value!.Meta.Genre!.Str);
         Assert.Equal(new DateTime(2026, 4, 20), r.Value.Meta.ReleaseDate);
+    }
+
+    [Fact]
+    public async Task Meta_Ignore_SkipsParse_AndSuppressesOtherDiagnostics()
+    {
+        const string ugc =
+            "@VER\t7\n" +
+            "@TICKS\t960\n" +
+            "@TITLE\tIgnored Chart\n" +
+            "@UNKNOWN\tfoo\n" +
+            "@CMT\t#meta ignore\n" +
+            "@BPM\t0'0\t120.0\n" +
+            "#bad\n";
+
+        var r = await Parse(ugc);
+        Assert.False(r.Succeeded);
+        Assert.Null(r.Value);
+        var diagnostic = Assert.Single(r.Diagnostics.Diagnostics);
+        Assert.Equal(Severity.Information, diagnostic.Severity);
+        Assert.Equal(MsgKeys.Mg_Meta_Ignored, diagnostic.Message.Key);
+        Assert.Equal(5, diagnostic.Line);
+    }
+
+    [Fact]
+    public async Task Meta_IgnoreTrue_SkipsParse()
+    {
+        const string ugc =
+            "@VER\t8\n" +
+            "@TICKS\t480\n" +
+            "@CMT\t#meta main true\\n#meta ignore true\n" +
+            "@BPM\t0'0\t120.0\n" +
+            "@BEAT\t0\t4\t4\n";
+
+        var r = await Parse(ugc);
+        Assert.False(r.Succeeded);
+        var diagnostic = Assert.Single(r.Diagnostics.Diagnostics);
+        Assert.Equal(MsgKeys.Mg_Meta_Ignored, diagnostic.Message.Key);
+    }
+
+    [Fact]
+    public async Task Meta_IgnoreFalse_DoesNotSkipParse()
+    {
+        const string ugc =
+            "@VER\t8\n" +
+            "@TICKS\t480\n" +
+            "@CMT\t#meta ignore false\n" +
+            "@BPM\t0'0\t120.0\n" +
+            "@BEAT\t0\t4\t4\n";
+
+        var r = await Parse(ugc);
+        Assert.True(r.Succeeded, r.ToString());
+        Assert.DoesNotContain(r.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Meta_Ignored);
+        Assert.DoesNotContain(r.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Meta_Unknown_tag);
     }
 }
