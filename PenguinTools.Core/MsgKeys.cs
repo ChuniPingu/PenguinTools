@@ -63,6 +63,7 @@ public static class MsgKeys
     public const string Error_Unhandled = "diag.error.unhandled";
     public const string Hint_Preview_start_clamped = "diag.hint.preview_start_clamped";
     public const string Hint_Preview_stop_clamped = "diag.hint.preview_stop_clamped";
+    public const string Mg_Ambiguous_c2s_slide_path = "diag.mg.ambiguous_c2s_slide_path";
     public const string Mg_Concurrent_ex_effects = "diag.mg.concurrent_ex_effects";
     public const string Mg_Head_BPM_not_found = "diag.mg.head_bpm_not_found";
     public const string Mg_Head_Time_Signature_event_not_found = "diag.mg.head_time_signature_event_not_found";

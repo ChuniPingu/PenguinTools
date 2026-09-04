@@ -1,7 +1,10 @@
 using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Chart.Parser.ugc;
+using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
 using Xunit;
 
 namespace PenguinTools.Tests.Parser;
@@ -82,6 +85,52 @@ public class UgcNoteTests
         var e = Assert.IsType<SlideJoint>(slide.Children[1]);
         Assert.Equal(Joint.C, c.Joint);
         Assert.Equal(Joint.D, e.Joint);
+    }
+
+    [Fact]
+    public async Task SlideStartAtOtherSlideEndAfterRounding_ReportsAmbiguousC2sPath()
+    {
+        var chart = await Parse("""
+            #0'0:s0G
+            #480:s0G
+            #0'482:s0G
+            #5>s72
+            """);
+
+        var result = new C2SChartConverter(
+            new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+
+        var information = Assert.Single(
+            result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key ==
+                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+
+        Assert.Equal(Severity.Information, information.Severity);
+        Assert.Equal(480, information.Time);
+        Assert.IsType<NotePairDiagnosticTarget>(information.Target);
+    }
+
+    [Fact]
+    public async Task CompatibleContinuationBeforeCollidingRoot_DoesNotWarnAboutC2sPath()
+    {
+        var chart = await Parse("""
+            #0'0:s0G
+            #480:c0G
+            #960:s72
+            #0'480:s0G
+            #5>s72
+            """);
+
+        var result = new C2SChartConverter(
+            new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.DoesNotContain(
+            result.Diagnostics.Diagnostics,
+            diagnostic => diagnostic.Message.Key ==
+                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
     }
 
     [Fact]

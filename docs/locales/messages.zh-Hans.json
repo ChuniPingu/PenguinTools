@@ -73,6 +73,7 @@
       "preview_stop_clamped": "预览结束时间（{0} 秒）超过最大值（{1} 秒），已自动限制以防溢出。"
     },
     "mg": {
+      "ambiguous_c2s_slide_path": "一个 Slide 的起点与另一个 Slide 片段的终点位于相同的 C2S 位置（轨道 {0}，宽度 {1}）",
       "concurrent_ex_effects": "同一时刻存在多个不同的 EX 效果：{0}。游戏只会显示其中一个。",
       "head_bpm_not_found": "在 tick 0 处未找到 BPM 变化。",
       "head_time_signature_event_not_found": "在小节 0 处未找到拍号。将默认使用 4/4 拍。",

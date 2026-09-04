@@ -73,6 +73,7 @@
       "preview_stop_clamped": "Preview stop time ({0} s) exceeds the maximum ({1} s) and has been clamped to prevent overflow."
     },
     "mg": {
+      "ambiguous_c2s_slide_path": "A Slide starts where another Slide segment ends at the same C2S position (lane {0}, width {1}).",
       "concurrent_ex_effects": "Different EX effects overlap at the same tick: {0}. The game will display only one of them.",
       "head_bpm_not_found": "No BPM change was found at tick 0.",
       "head_time_signature_event_not_found": "No time signature was found at bar 0. Defaulting to 4/4.",

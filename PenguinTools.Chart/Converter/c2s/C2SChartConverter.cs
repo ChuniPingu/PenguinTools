@@ -1,4 +1,5 @@
-﻿using PenguinTools.Chart.Models;
+﻿using PenguinTools.Chart.Diagnostics;
+using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Chart.Converter.c2s;
@@ -250,6 +251,7 @@ public partial class C2SChartConverter
             ConvertEvent(Mgxc);
 
             ValidateOverlappingAirParents();
+            ValidateAmbiguousC2sSlidePaths();
             ValidateLongNoteLengths();
             ApplyBgmBarOffset();
             RestoreSlpSnapshot();
@@ -281,6 +283,74 @@ public partial class C2SChartConverter
             if (airsCount >= slidesCount) continue;
             Diagnostic.Report(new TimedDiagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Overlapping_air_parent_slide),
                 pos.Tick.Original));
+        }
+    }
+
+    private void ValidateAmbiguousC2sSlidePaths()
+    {
+        // Replay the endpoint-based FIFO linking that C2S readers use. Times
+        // are rounded here because distinct UMIGURI ticks can serialize to the
+        // same 1/384 C2S tick and become ambiguous only after conversion.
+        var active = new Dictionary<C2sSlidePosition, Queue<OpenC2sSlidePath>>();
+
+        foreach (var segment in Notes
+                     .OfType<c2s.Slide>()
+                     .Select((slide, index) => new { Slide = slide, SourceOrder = index })
+                     .OrderBy(x => x.Slide.Tick.Original)
+                     .ThenBy(x => x.SourceOrder))
+        {
+            var note = segment.Slide;
+            var source = _slideSegmentSources[note];
+            var start = new C2sSlidePosition(
+                note.Tick.Round,
+                note.Lane,
+                note.Width);
+
+            OpenC2sSlidePath? open = null;
+            if (active.TryGetValue(start, out var queue) && queue.Count > 0)
+            {
+                open = queue.Dequeue();
+                if (queue.Count == 0)
+                    active.Remove(start);
+            }
+
+            if (source.IsRoot &&
+                open is not null &&
+                !ReferenceEquals(open.SourceSlide, source.SourceSlide))
+            {
+                var message = Msg.Create(
+                    MsgKeys.Mg_Ambiguous_c2s_slide_path,
+                    start.Lane,
+                    start.Width);
+
+                Diagnostic.Report(new TimedDiagnostic(
+                    Severity.Information,
+                    message,
+                    start.Tick)
+                {
+                    Target = NotePairDiagnosticTarget.From(
+                            source.SourceSlide,
+                            open.EndJoint)
+                        .WithTime(
+                            Diagnostic.TimeCalculator!,
+                            start.Tick)
+                });
+            }
+
+            var end = new C2sSlidePosition(
+                note.EndTick.Round,
+                note.EndLane,
+                note.EndWidth);
+
+            if (!active.TryGetValue(end, out var endQueue))
+            {
+                endQueue = new Queue<OpenC2sSlidePath>();
+                active[end] = endQueue;
+            }
+
+            endQueue.Enqueue(new OpenC2sSlidePath(
+                open?.SourceSlide ?? source.SourceSlide,
+                source.EndJoint));
         }
     }
 
@@ -361,4 +431,18 @@ public partial class C2SChartConverter
 
         return !hasError;
     }
+
+    private readonly record struct C2sSlidePosition(
+        int Tick,
+        int Lane,
+        int Width);
+
+    private sealed record C2sSlideSegmentSource(
+        umgr.Slide SourceSlide,
+        umgr.SlideJoint EndJoint,
+        bool IsRoot);
+
+    private sealed record OpenC2sSlidePath(
+        umgr.Slide SourceSlide,
+        umgr.SlideJoint EndJoint);
 }

@@ -10,6 +10,7 @@ public partial class C2SChartConverter
 {
     private readonly Dictionary<umgr.NegativeNote, c2s.IPairable> _negativePairRoots = [];
     private readonly Dictionary<umgr.PositiveNote, c2s.Note> _positivePairTargets = [];
+    private readonly Dictionary<c2s.Slide, C2sSlideSegmentSource> _slideSegmentSources = [];
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
         where TSource : umgr.Note where T : c2s.Note, new()
@@ -308,6 +309,10 @@ public partial class C2SChartConverter
                 x.NoLine = curr.NoLine;
                 x.Effect = slide.Effect;
             });
+            _slideSegmentSources[note] = new C2sSlideSegmentSource(
+                slide,
+                next,
+                i == 0);
             // pair the last joint with air
             if (i == joints.Length - 2)
                 RegisterPositivePairTarget(next, note);
