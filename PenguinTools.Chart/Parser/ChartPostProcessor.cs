@@ -544,10 +544,6 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void ProcessRoundTripBookmarks()
     {
-        C2sRoundTripComment.AbsorbComment(
-            chart.Meta,
-            chart.Meta.Comment);
-
         var lines = chart.Meta.Comment
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Where(C2sRoundTripComment.IsRoundTripLine)

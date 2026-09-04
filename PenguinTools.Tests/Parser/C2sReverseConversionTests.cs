@@ -8,6 +8,7 @@ using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core;
+using System.Text;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
 
@@ -2418,7 +2419,7 @@ public sealed class C2sReverseConversionTests
     }
 
     [Fact]
-    public async Task MgxcWriter_PacksLargeRoundTripMetadataIntoComment()
+    public async Task MgxcWriter_StoresLargeRoundTripMetadataInBookmarks()
     {
         var snapshot = new string('a', 40_000);
 
@@ -2457,6 +2458,13 @@ public sealed class C2sReverseConversionTests
             Assert.True(
                 written.Succeeded,
                 written.ToString());
+
+            var rawMgxc = Encoding.UTF8.GetString(
+                await File.ReadAllBytesAsync(
+                    path,
+                    TestContext.Current.CancellationToken));
+
+            Assert.Contains("#meta c2ssla " + snapshot, rawMgxc);
 
             var parsed = await new MgxcParser(
                     new MgxcParseRequest(

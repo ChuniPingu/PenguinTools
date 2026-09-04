@@ -1,12 +1,9 @@
 using System.Globalization;
-using System.IO.Compression;
-using System.Text;
 
 namespace PenguinTools.Core.Metadata;
 
 /// <summary>
-/// Persists converter-owned C2S round-trip state as packed metadata in the MGXC
-/// comment field while retaining support for legacy <c>#meta</c> lines and
+/// Persists converter-owned C2S round-trip state as <c>#meta</c> lines in MGXC
 /// bookmarks. User-controlled comment content remains in
 /// <see cref="Meta.Comment"/>.
 /// </summary>
@@ -25,7 +22,6 @@ public static class C2sRoundTripComment
     private const string NullProxyToken = "x";
     private const string MetaPrefix = "#meta ";
 
-    private const string PackedPrefix = "PTC2RT1:";
     private static readonly HashSet<string> TagNames =
     [
         JudgeTag,
@@ -92,87 +88,6 @@ public static class C2sRoundTripComment
         }
     }
 
-    public static string FormatComment(Meta meta)
-    {
-        ArgumentNullException.ThrowIfNull(meta);
-
-        var userComment = Strip(meta.Comment);
-        var roundTripLines = FormatBookmarks(meta);
-
-        if (roundTripLines.Count == 0)
-            return userComment;
-
-        var payload = string.Join('\n', roundTripLines);
-        var sourceBytes = Encoding.UTF8.GetBytes(payload);
-
-        using var output = new MemoryStream();
-
-        using (var gzip = new GZipStream(
-                   output,
-                   CompressionLevel.SmallestSize,
-                   leaveOpen: true))
-        {
-            gzip.Write(sourceBytes);
-        }
-
-        var packed = PackedPrefix + Convert.ToBase64String(output.ToArray());
-
-        return string.IsNullOrWhiteSpace(userComment)
-            ? packed
-            : userComment + "\n" + packed;
-    }
-
-    public static void AbsorbComment(Meta meta, string comment)
-    {
-        ArgumentNullException.ThrowIfNull(meta);
-
-        if (string.IsNullOrWhiteSpace(comment))
-            return;
-
-        var lines = comment.Split(
-            ["\r\n", "\n", "\r"],
-            StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-
-            if (!trimmed.StartsWith(PackedPrefix, StringComparison.Ordinal))
-                continue;
-
-            var encoded = trimmed[PackedPrefix.Length..];
-
-            try
-            {
-                var compressed = Convert.FromBase64String(encoded);
-
-                using var input = new MemoryStream(compressed);
-                using var gzip = new GZipStream(
-                    input,
-                    CompressionMode.Decompress);
-                using var reader = new StreamReader(
-                    gzip,
-                    Encoding.UTF8);
-
-                var payload = reader.ReadToEnd();
-
-                Absorb(
-                    meta,
-                    payload.Split(
-                        ["\r\n", "\n", "\r"],
-                        StringSplitOptions.RemoveEmptyEntries));
-            }
-            catch (FormatException)
-            {
-                // Ignore malformed converter-owned metadata.
-            }
-            catch (InvalidDataException)
-            {
-                // Ignore malformed converter-owned metadata.
-            }
-        }
-    }
-
     public static string Strip(string comment)
     {
         if (string.IsNullOrEmpty(comment))
@@ -185,8 +100,7 @@ public static class C2sRoundTripComment
         {
             var trimmed = line.Trim();
 
-            if (IsRoundTripLine(trimmed) ||
-                trimmed.StartsWith(PackedPrefix, StringComparison.Ordinal))
+            if (IsRoundTripLine(trimmed))
             {
                 continue;
             }
