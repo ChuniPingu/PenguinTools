@@ -160,19 +160,20 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             if (request.BatchSize == 0 || request.BatchSize < -1)
                 return ApplicationDiagnostics.Failure<OptionScanResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
 
-            var (configPath, configDocument, config, configDiagnostics) =
-                await LoadScanConfigAsync(input, cancellationToken);
+            var (configPath, configDocument, configDiagnostics) =
+                await OptionConfiguration.LoadForScanAsync(input, cancellationToken);
+            var config = configDocument is null ? null : CreateScanConfig(configDocument);
 
             if (request.SaveConfig)
             {
                 var savePath = Path.Combine(input, "options.json");
                 var document = configDocument ?? (File.Exists(savePath)
-                    ? await LoadOptionDocumentAsync(savePath, cancellationToken)
+                    ? await OptionConfiguration.LoadAsync(savePath, cancellationToken)
                     : new OptionDocument());
                 if (request.ChartFileDiscovery is not null)
                     document.ChartFileDiscovery = [.. request.ChartFileDiscovery.Select(ToWorkflow)];
                 document.BatchSize = request.BatchSize;
-                await SaveOptionDocumentAsync(savePath, document, cancellationToken);
+                await OptionConfiguration.SaveAsync(savePath, document, cancellationToken);
                 configPath = savePath;
                 configDocument = document;
                 config = CreateScanConfig(document);
@@ -215,10 +216,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 return ApplicationDiagnostics.Failure<OptionBuildResult>(
                     Msg.Key(MsgKeys.App_Config_path_conflict));
 
-            var configPath = ResolveConfigPath(request, input);
+            var configPath = OptionConfiguration.ResolveLoadPath(request, input);
             var loadedConfig = configPath is not null;
             var document = loadedConfig
-                ? await LoadOptionDocumentAsync(configPath!, cancellationToken)
+                ? await OptionConfiguration.LoadAsync(configPath!, cancellationToken)
                 : new OptionDocument { OptionName = string.Empty };
             ApplyOverrides(document, request.Overrides);
             if (string.IsNullOrWhiteSpace(document.OptionName) || document.OptionName.Length != 4)
@@ -252,8 +253,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             string? savedConfigPath = null;
             if (request.SaveConfig)
             {
-                savedConfigPath = ResolveSaveConfigPath(request, input, configPath);
-                await SaveOptionDocumentAsync(savedConfigPath, document, cancellationToken);
+                savedConfigPath = OptionConfiguration.ResolveSavePath(request, input, configPath);
+                await OptionConfiguration.SaveAsync(savedConfigPath, document, cancellationToken);
             }
 
             var artifacts = Directory.Exists(bundleRoot)
@@ -636,27 +637,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             batchSize, workingDirectory, diagnostics, cancellationToken, progress: progress);
     }
 
-    private static async Task<(string? ConfigPath, OptionDocument? Document, OptionScanConfig? Config,
-            DiagnosticSnapshot Diagnostics)>
-        LoadScanConfigAsync(string input, CancellationToken cancellationToken)
-    {
-        var candidate = Path.Combine(input, "options.json");
-        if (!File.Exists(candidate)) return (null, null, null, DiagnosticSnapshot.Empty);
-
-        try
-        {
-            var document = await LoadOptionDocumentAsync(candidate, cancellationToken);
-            return (candidate, document, CreateScanConfig(document), DiagnosticSnapshot.Empty);
-        }
-        catch (Exception ex)
-        {
-            var collector = new DiagnosticCollector();
-            collector.Report(new PathDiagnostic(Severity.Warning,
-                Msg.Create(MsgKeys.Warn_Config_invalid, ex.Message), candidate));
-            return (candidate, null, null, DiagnosticSnapshot.Create(collector));
-        }
-    }
-
     private static OptionScanConfig CreateScanConfig(OptionDocument document)
     {
         return new OptionScanConfig(
@@ -756,38 +736,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
         return string.Equals(Normalize(root, chartPath), Normalize(root, diagnosticPath),
             StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? ResolveConfigPath(OptionBuildRequest request, string input)
-    {
-        if (request.SkipConfig) return null;
-        if (!string.IsNullOrWhiteSpace(request.ConfigPath)) return FullPath(request.ConfigPath);
-        var candidate = Path.Combine(input, "options.json");
-        return File.Exists(candidate) ? candidate : null;
-    }
-
-    private static string ResolveSaveConfigPath(OptionBuildRequest request, string input, string? loadedConfigPath)
-    {
-        if (!string.IsNullOrWhiteSpace(request.ConfigPath)) return FullPath(request.ConfigPath);
-        if (loadedConfigPath is not null) return loadedConfigPath;
-        return Path.Combine(input, "options.json");
-    }
-
-    private static async Task<OptionDocument> LoadOptionDocumentAsync(string path, CancellationToken cancellationToken)
-    {
-        if (!File.Exists(path)) throw new FileNotFoundException("Option configuration file was not found.", path);
-        await using var stream = File.OpenRead(path);
-        return await JsonSerializer.DeserializeAsync(stream, ApplicationJsonContext.Default.OptionDocument,
-                   cancellationToken)
-               ?? throw new JsonException("Option configuration file was empty.");
-    }
-
-    private static Task SaveOptionDocumentAsync(string path, OptionDocument document,
-        CancellationToken cancellationToken)
-    {
-        return AtomicFile.WriteAsync(path,
-            (stream, ct) => JsonSerializer.SerializeAsync(stream, document,
-                ApplicationJsonContext.Default.OptionDocument, ct), cancellationToken);
     }
 
     private static void ApplyOverrides(OptionDocument document, OptionBuildOverrides? value)
