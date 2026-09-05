@@ -22,10 +22,8 @@ public static class ChartScanner
         string workingDirectory,
         IDiagnosticSink diagnostics,
         CancellationToken ct,
-        ChartScannerMessages? messages = null,
         IProgress<ProgressReport>? progress = null)
     {
-        messages ??= ChartScannerMessages.Default;
         var processContext = new OptionExportProcessContext(diagnostics, ct, batchSize, workingDirectory, progress);
         var booksById = new ConcurrentDictionary<int, BookAccumulator>();
 
@@ -43,12 +41,11 @@ public static class ChartScanner
                     assets,
                     mediaTool,
                     processContext,
-                    messages,
                     i > 0,
                     ct));
         }
 
-        var snapshots = FinalizeBooks(booksById, diagnostics, messages, ct);
+        var snapshots = FinalizeBooks(booksById, diagnostics, ct);
         return OperationResult<IReadOnlyList<OptionBook>>.Success(snapshots)
             .WithDiagnostics(batch.Merge(DiagnosticSnapshot.Create(diagnostics)));
     }
@@ -60,7 +57,6 @@ public static class ChartScanner
         AssetManager assets,
         IMediaTool mediaTool,
         OptionExportProcessContext processContext,
-        ChartScannerMessages messages,
         bool skipIfDifficultyFilled,
         CancellationToken ct)
     {
@@ -68,7 +64,7 @@ public static class ChartScanner
         return await OptionExportBatch.BatchAsync(
             chartPaths,
             (filePath, innerDiagnostics) => LoadChartAsync(filePath, assets, mediaTool, booksById, innerDiagnostics,
-                messages, skipIfDifficultyFilled, ct),
+                skipIfDifficultyFilled, ct),
             filePath => filePath,
             processContext,
             true);
@@ -80,7 +76,6 @@ public static class ChartScanner
         IMediaTool mediaTool,
         ConcurrentDictionary<int, BookAccumulator> booksById,
         IDiagnosticSink diagnostics,
-        ChartScannerMessages messages,
         bool skipIfDifficultyFilled,
         CancellationToken ct)
     {
@@ -117,7 +112,7 @@ public static class ChartScanner
         }
 
         var meta = chart.Meta;
-        var id = meta.Id ?? throw new DiagnosticException(messages.MissingSongId);
+        var id = meta.Id ?? throw new DiagnosticException(MsgKeys.Error_File_ignored_due_to_id_missing);
         var item = new OptionDifficulty(chart);
         var book = booksById.GetOrAdd(id, _ => new BookAccumulator());
 
@@ -137,7 +132,6 @@ public static class ChartScanner
     private static IReadOnlyList<OptionBook> FinalizeBooks(
         ConcurrentDictionary<int, BookAccumulator> booksById,
         IDiagnosticSink diagnostics,
-        ChartScannerMessages messages,
         CancellationToken ct)
     {
         var list = new List<OptionBook>();
@@ -192,19 +186,4 @@ public static class ChartScanner
         public readonly object Gate = new();
         public readonly Dictionary<Difficulty, OptionDifficulty> Items = new();
     }
-}
-
-public sealed record ChartScannerMessages(
-    string MissingSongId,
-    string DuplicateSongIdAndDifficulty,
-    string WorldsEndMustBeUnique,
-    string MoreThanOneMainChart,
-    string NoMainChart)
-{
-    public static ChartScannerMessages Default { get; } = new(
-        MsgKeys.Error_File_ignored_due_to_id_missing,
-        MsgKeys.Warn_Duplicate_id_and_difficulty,
-        MsgKeys.Warn_We_chart_must_be_unique_id,
-        MsgKeys.Warn_More_than_one_chart_marked_main,
-        MsgKeys.Warn_No_chart_marked_main);
 }

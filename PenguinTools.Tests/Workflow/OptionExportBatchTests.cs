@@ -17,7 +17,7 @@ public sealed class OptionExportBatchTests
         var context = new OptionExportProcessContext(new DiagnosticCollector(), cancellation.Token, 1,
             Path.GetTempPath());
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OptionExportBatch.ProcessItemsAsync(
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OptionExportBatch.BatchAsync(
             new[] { "one.ugc", "two.ugc" },
             (_, _) =>
             {
@@ -37,7 +37,7 @@ public sealed class OptionExportBatchTests
         var context = new OptionExportProcessContext(new DiagnosticCollector(), cancellation.Token, 1,
             Path.GetTempPath());
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OptionExportBatch.ProcessItemsAsync(
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OptionExportBatch.BatchAsync(
             new[] { "one.ugc", "two.ugc" },
             (_, _) =>
             {
@@ -59,7 +59,7 @@ public sealed class OptionExportBatchTests
         var context = new OptionExportProcessContext(new DiagnosticCollector(),
             TestContext.Current.CancellationToken, 2, Path.GetTempPath());
 
-        var result = await OptionExportBatch.ProcessItemsAsync(
+        var result = await OptionExportBatch.BatchAsync(
             new[] { "one.ugc", "two.ugc" },
             (item, _) =>
             {

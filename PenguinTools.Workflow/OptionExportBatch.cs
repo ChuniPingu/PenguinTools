@@ -20,7 +20,7 @@ public static class OptionExportBatch
         };
     }
 
-    public static async Task<DiagnosticSnapshot> ProcessItemsAsync<T>(
+    public static async Task<DiagnosticSnapshot> BatchAsync<T>(
         IEnumerable<T> items,
         Func<T, IDiagnosticSink, Task> action,
         Func<T, string> getItemPath,
@@ -80,16 +80,5 @@ public static class OptionExportBatch
         var copied = sink.Diagnostics.Select(diag =>
             string.IsNullOrWhiteSpace(diag.Path) ? diag.WithPathFallback(relativePath) : diag);
         return DiagnosticSnapshot.Create(copied);
-    }
-
-    public static Task<DiagnosticSnapshot> BatchAsync<T>(
-        IEnumerable<T> items,
-        Func<T, IDiagnosticSink, Task> action,
-        Func<T, string> getItemPath,
-        OptionExportProcessContext context,
-        bool parallel = false,
-        Func<T, string?>? getLabel = null)
-    {
-        return ProcessItemsAsync(items, action, getItemPath, context, parallel, getLabel);
     }
 }
