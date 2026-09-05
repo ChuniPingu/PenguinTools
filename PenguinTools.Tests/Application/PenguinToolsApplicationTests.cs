@@ -362,7 +362,7 @@ public sealed class PenguinToolsApplicationTests
     {
         using var application = PenguinToolsApplication.CreateDefault();
         var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
-        if (!File.Exists(input)) return;
+        Assert.SkipWhen(!File.Exists(input), $"Optional chart sample is missing: {input}");
 
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -552,7 +552,7 @@ public sealed class PenguinToolsApplicationTests
         var reports = new List<ProgressReport>();
         var progress = new InlineProgress(reports.Add);
         var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
-        if (!File.Exists(input)) return;
+        Assert.SkipWhen(!File.Exists(input), $"Optional chart sample is missing: {input}");
 
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);

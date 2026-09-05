@@ -11,11 +11,11 @@ public class UgcC2sEndToEndTests
     /// <summary>
     ///     Converts and writes both charts, then compares output from the start through the line before the first
     ///     <c>SLP</c> (scroll) row.
-    ///     Full first-100-line identity is still sensitive to TIL-derived <c>SLP</c> ordering on some charts.
+    ///     TIL-derived <c>SLP</c> ordering is outside the scope of this prefix comparison.
     /// </summary>
     [Theory(SkipTestWithoutData = true)]
     [MemberData(nameof(FinishedChartSampleCases.MasterPairs), MemberType = typeof(FinishedChartSampleCases))]
-    public async Task UgcProducedC2s_MatchesMgxcProducedC2s_FirstHundredLines(string name, string ugcPath,
+    public async Task UgcProducedC2s_MatchesMgxcProducedC2s_BeforeFirstScrollRow(string name, string ugcPath,
         string mgxcPath)
     {
         var assets = TestAssets.Load();
@@ -61,6 +61,7 @@ public class UgcC2sEndToEndTests
             var ugcLines = LinesBeforeFirstSlp(ugcOut);
             var mgxcLines = LinesBeforeFirstSlp(mgxcOut);
 
+            Assert.NotEmpty(mgxcLines);
             Assert.Equal(mgxcLines, ugcLines);
         }
         finally

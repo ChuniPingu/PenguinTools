@@ -43,11 +43,18 @@ public class ChartFileDiscoveryFormatsTests
     }
 
     [Fact]
-    public void OptionDocument_GeneratesOptionIdByDefault()
+    public void OptionDocument_GeneratesDistinctStableIds()
     {
         var document = new OptionDocument();
+        var id = document.OptionId;
 
-        Assert.False(string.IsNullOrWhiteSpace(document.OptionId));
+        Assert.False(string.IsNullOrWhiteSpace(id));
+        Assert.Equal(id, document.OptionId);
+        Assert.NotEqual(id, new OptionDocument().OptionId);
+
+        var json = JsonSerializer.Serialize(document, OptionDocumentJson.Default);
+        var restored = JsonSerializer.Deserialize<OptionDocument>(json, OptionDocumentJson.Default);
+        Assert.Equal(id, Assert.IsType<OptionDocument>(restored).OptionId);
     }
 
     [Fact]
