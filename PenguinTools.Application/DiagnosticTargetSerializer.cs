@@ -2,6 +2,7 @@ using System.Text.Json;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Media;
 using PenguinTools.Workflow;
 
 namespace PenguinTools.Application;
@@ -13,6 +14,10 @@ public static class DiagnosticTargetSerializer
         return target switch
         {
             null => null,
+            ProcessCommandResult command => JsonSerializer.SerializeToElement(
+                new CommandDiagnosticTarget(command.Command, (int)command.ExitCode,
+                    command.StandardOutput, command.StandardError),
+                DiagnosticTargetJsonContext.Default.CommandDiagnosticTarget),
             NotePairDiagnosticTarget pair => JsonSerializer.SerializeToElement(
                 EnrichPair(pair, diagnostic),
                 DiagnosticTargetJsonContext.Default.NotePairDiagnosticTarget),
@@ -38,3 +43,5 @@ public static class DiagnosticTargetSerializer
         return pair.WithTime(calculator, tick);
     }
 }
+
+internal sealed record CommandDiagnosticTarget(string Command, int ExitCode, string StandardOutput, string StandardError);

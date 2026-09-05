@@ -23,5 +23,10 @@ public sealed class ApplicationDiagnosticsTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(MsgKeys.Error_Invalid_audio, result.Diagnostics.Diagnostics.Single().Message.Key);
+
+        var target = DiagnosticTargetSerializer.ToJsonElement(result.Diagnostics.Diagnostics.Single().Target);
+        Assert.True(target.HasValue);
+        Assert.Equal("native decoder error", target.Value.GetProperty("standardError").GetString());
+        Assert.Contains("ffmpeg.exe", target.Value.GetProperty("command").GetString());
     }
 }

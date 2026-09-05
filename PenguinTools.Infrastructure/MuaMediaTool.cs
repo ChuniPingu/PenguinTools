@@ -356,10 +356,11 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     private static async Task<ProcessCommandResult> RunAsync(string executablePath, IEnumerable<string> args,
         CancellationToken ct = default, string? workingDirectory = null)
     {
-        var argumentList = args as IList<string> ?? [.. args];
-        var startInfo = CreateStartInfo(executablePath, argumentList, workingDirectory);
+        ct.ThrowIfCancellationRequested();
+        var startInfo = CreateStartInfo(executablePath, args, workingDirectory);
         if (!File.Exists(executablePath))
-            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, string.Empty);
+            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty,
+                $"Executable was not found: {executablePath}");
 
         using var proc = new Process();
         proc.StartInfo = startInfo;
@@ -368,9 +369,9 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         {
             proc.Start();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, string.Empty);
+            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, ex.Message);
         }
 
         var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
@@ -385,7 +386,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             await proc.WaitForExitAsync(CancellationToken.None);
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (!proc.HasExited)
             {
@@ -400,7 +401,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
                 }
             }
 
-            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, string.Empty);
+            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure,
+                stdoutTask.IsCompletedSuccessfully ? stdoutTask.Result : string.Empty,
+                string.Join(Environment.NewLine,
+                    stderrTask.IsCompletedSuccessfully ? stderrTask.Result : string.Empty, ex.Message));
         }
 
         return new ProcessCommandResult(startInfo, proc.ExitCode, await stdoutTask, await stderrTask);

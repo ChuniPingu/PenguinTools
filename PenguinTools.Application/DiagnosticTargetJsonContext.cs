@@ -19,4 +19,5 @@ namespace PenguinTools.Application;
 [JsonSerializable(typeof(AirDirection))]
 [JsonSerializable(typeof(Color))]
 [JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(CommandDiagnosticTarget))]
 internal partial class DiagnosticTargetJsonContext : JsonSerializerContext;

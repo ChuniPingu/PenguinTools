@@ -71,12 +71,24 @@ public sealed class MuaMediaToolTests
 
             Assert.True(result.IsFailure);
             Assert.Equal(InterExitCode.Failure, result.ExitCode);
-            Assert.Equal(string.Empty, result.StandardError);
+            Assert.Contains("ffmpeg", result.StandardError, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(workDir, result.StandardError);
         }
         finally
         {
             Directory.Delete(workDir, true);
         }
+    }
+
+    [Fact]
+    public async Task CheckAudioValidAsync_PropagatesCancellationBeforeStartingTool()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var tool = new MuaMediaTool(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            tool.CheckAudioValidAsync("input.wav", cancellation.Token));
     }
 
     [Fact]
