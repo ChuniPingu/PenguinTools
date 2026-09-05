@@ -12,7 +12,7 @@ public sealed class OptionDocument
 
     public string OptionId
     {
-        get => string.IsNullOrWhiteSpace(field) ? field = CreateOptionId() : field;
+        get;
         set => field = string.IsNullOrWhiteSpace(value) ? CreateOptionId() : value.Trim();
     } = CreateOptionId();
 
@@ -40,7 +40,7 @@ public sealed class OptionDocument
 
     public string CustomReleaseTagTitleName
     {
-        get => string.IsNullOrWhiteSpace(field) ? ReleaseTag.CustomDefaultTitleName : field;
+        get;
         set => field = string.IsNullOrWhiteSpace(value)
             ? ReleaseTag.CustomDefaultTitleName
             : value.Trim();
@@ -54,7 +54,7 @@ public sealed class OptionDocument
 
     public string CustomGenreName
     {
-        get => string.IsNullOrWhiteSpace(field) ? GenreDefaults.CustomDefaultName : field;
+        get;
         set => field = string.IsNullOrWhiteSpace(value)
             ? GenreDefaults.CustomDefaultName
             : value.Trim();
