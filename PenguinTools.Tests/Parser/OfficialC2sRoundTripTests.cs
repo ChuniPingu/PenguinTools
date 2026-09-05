@@ -95,7 +95,7 @@ public sealed class OfficialC2sRoundTripTests
 
     [Theory(SkipTestWithoutData = true)]
     [MemberData(nameof(OfficialChartFiles))]
-    public Task OfficialCharts_C2sMgxcC2s_FirstRoundPreservesJudgeSummary(
+    public Task OfficialCharts_KeepMetadataAndRemainParseableAcrossThreeRoundTrips(
         string _,
         string file) =>
         RoundTripFile(file);
@@ -287,7 +287,7 @@ public sealed class OfficialC2sRoundTripTests
                 var roundTripMetaSnapshot =
                     MetaSnapshot(roundTrip.Value!);
 
-                WarnUnless(
+                Assert.True(
                     sourceMetaSnapshot == roundTripMetaSnapshot,
                     $"{name}: round {round} meta changed" +
                     Environment.NewLine +
@@ -304,7 +304,7 @@ public sealed class OfficialC2sRoundTripTests
                         out var roundTripFlk,
                         out var roundTripAll);
 
-                WarnUnless(
+                Assert.True(
                     hasRoundTripSummary,
                     $"{name}: round {round} T_JUDGE summary disappeared.");
 
