@@ -185,7 +185,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                                        ?? [ChartFormat.Mgxc, ChartFormat.Ugc, ChartFormat.Sus];
             var discovery = applicationDiscovery.Select(ToWorkflow).ToArray();
             var workingDirectory = FullPath(request.WorkingDirectory ?? input);
-            var scanned = await ScanSnapshotsAsync(input, discovery, request.BatchSize, workingDirectory,
+            var scanned = await ScanBooksAsync(input, discovery, request.BatchSize, workingDirectory,
                 progress, cancellationToken);
             if (scanned.Value is null)
                 return OperationResult<OptionScanResult>.Failure().WithDiagnostics(scanned.Diagnostics);
@@ -231,7 +231,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 return ApplicationDiagnostics.Failure<OptionBuildResult>(
                     Msg.Key(MsgKeys.App_No_export_actions_enabled));
 
-            var scanned = await ScanSnapshotsAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
+            var scanned = await ScanBooksAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
                 progress, cancellationToken);
             if (!scanned.Succeeded || scanned.Value is null)
                 return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(scanned.Diagnostics);
@@ -628,7 +628,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         };
     }
 
-    private Task<OperationResult<IReadOnlyList<OptionBookSnapshot>>> ScanSnapshotsAsync(
+    private Task<OperationResult<IReadOnlyList<OptionBook>>> ScanBooksAsync(
         string input, IReadOnlyList<ChartFileFormat> discovery, int batchSize, string workingDirectory,
         IProgress<ProgressReport>? progress, CancellationToken cancellationToken)
     {
@@ -667,7 +667,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         string input,
         IReadOnlyList<ChartFormat> discovery,
         int batchSize,
-        IReadOnlyList<OptionBookSnapshot> snapshots,
+        IReadOnlyList<OptionBook> snapshots,
         DiagnosticSnapshot diagnostics,
         string? configPath = null,
         OptionScanConfig? config = null)
@@ -691,9 +691,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     ApplicationEntry.From(meta.Stage),
                     matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray());
             }).ToArray();
-            var main = book.Difficulties.Values.FirstOrDefault(x => x.Meta.IsMain)?.Difficulty.ToString() ??
-                       book.Difficulties.Values.OrderByDescending(x => x.Difficulty).FirstOrDefault()?.Difficulty
-                           .ToString();
+            var main = book.MainDifficulty.ToString();
             var mainMeta = book.BookMeta;
             return new OptionScanBook(mainMeta.Id, book.Title, mainMeta.Artist, main, mainMeta.SortName,
                 ApplicationEntry.From(mainMeta.Genre), mainMeta.UnlockEventId,
@@ -812,8 +810,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             meta.MainTil);
     }
 
-    private static IReadOnlyList<OptionBookSnapshot> ApplyMainDifficultyOverrides(
-        IReadOnlyList<OptionBookSnapshot> snapshots,
+    private static IReadOnlyList<OptionBook> ApplyMainDifficultyOverrides(
+        IReadOnlyList<OptionBook> snapshots,
         IReadOnlyList<OptionMainDifficultyOverride>? overrides)
     {
         if (overrides is null or { Count: 0 }) return snapshots;
@@ -825,8 +823,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         return snapshots.Select(book => ApplyMainDifficultyOverride(book, lookup)).ToArray();
     }
 
-    private static OptionBookSnapshot ApplyMainDifficultyOverride(
-        OptionBookSnapshot book,
+    private static OptionBook ApplyMainDifficultyOverride(
+        OptionBook book,
         IReadOnlyDictionary<int, string> overrides)
     {
         if (book.BookMeta.Id is not { } songId || !overrides.TryGetValue(songId, out var requested)) return book;
@@ -838,13 +836,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (!book.Difficulties.TryGetValue(targetDifficulty, out var mainItem))
             mainItem = book.Difficulties.Values.OrderByDescending(x => x.Difficulty).First();
 
-        return new OptionBookSnapshot(
-            mainItem.Meta,
-            mainItem.Meta.IsCustomStage,
-            mainItem.Meta.StageId,
-            mainItem.Meta.NotesFieldLine,
-            mainItem.Meta.Stage,
-            mainItem.Meta.Title,
+        return new OptionBook(
+            mainItem.Difficulty,
             book.Difficulties);
     }
 

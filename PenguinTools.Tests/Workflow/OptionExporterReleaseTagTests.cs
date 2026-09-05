@@ -45,16 +45,11 @@ public sealed class OptionExporterReleaseTagTests
             Difficulty = Difficulty.Master,
             FilePath = Path.Combine(workPath, "chart.ugc")
         };
-        var book = new OptionBookSnapshot(
-            meta,
-            false,
-            null,
-            meta.NotesFieldLine,
-            meta.Stage,
-            meta.Title,
-            new Dictionary<Difficulty, OptionDifficultySnapshot>
+        var book = new OptionBook(
+            meta.Difficulty,
+            new Dictionary<Difficulty, OptionDifficulty>
             {
-                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+                [Difficulty.Master] = new(new UmgrChart { Meta = meta })
             });
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
@@ -115,16 +110,11 @@ public sealed class OptionExporterReleaseTagTests
             Difficulty = Difficulty.Master,
             FilePath = Path.Combine(workPath, "chart.ugc")
         };
-        var book = new OptionBookSnapshot(
-            meta,
-            false,
-            null,
-            meta.NotesFieldLine,
-            meta.Stage,
-            meta.Title,
-            new Dictionary<Difficulty, OptionDifficultySnapshot>
+        var book = new OptionBook(
+            meta.Difficulty,
+            new Dictionary<Difficulty, OptionDifficulty>
             {
-                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+                [Difficulty.Master] = new(new UmgrChart { Meta = meta })
             });
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
@@ -190,16 +180,11 @@ public sealed class OptionExporterReleaseTagTests
             Difficulty = Difficulty.Master,
             FilePath = Path.Combine(workPath, "chart.ugc")
         };
-        var book = new OptionBookSnapshot(
-            meta,
-            false,
-            null,
-            meta.NotesFieldLine,
-            meta.Stage,
-            meta.Title,
-            new Dictionary<Difficulty, OptionDifficultySnapshot>
+        var book = new OptionBook(
+            meta.Difficulty,
+            new Dictionary<Difficulty, OptionDifficulty>
             {
-                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+                [Difficulty.Master] = new(new UmgrChart { Meta = meta })
             });
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
@@ -260,16 +245,11 @@ public sealed class OptionExporterReleaseTagTests
             Difficulty = Difficulty.Master,
             FilePath = Path.Combine(workPath, "chart.ugc")
         };
-        var book = new OptionBookSnapshot(
-            meta,
-            false,
-            null,
-            meta.NotesFieldLine,
-            meta.Stage,
-            meta.Title,
-            new Dictionary<Difficulty, OptionDifficultySnapshot>
+        var book = new OptionBook(
+            meta.Difficulty,
+            new Dictionary<Difficulty, OptionDifficulty>
             {
-                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+                [Difficulty.Master] = new(new UmgrChart { Meta = meta })
             });
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
@@ -332,16 +312,11 @@ public sealed class OptionExporterReleaseTagTests
             Difficulty = Difficulty.Master,
             FilePath = Path.Combine(workPath, "chart.ugc")
         };
-        var book = new OptionBookSnapshot(
-            meta,
-            false,
-            null,
-            meta.NotesFieldLine,
-            meta.Stage,
-            meta.Title,
-            new Dictionary<Difficulty, OptionDifficultySnapshot>
+        var book = new OptionBook(
+            meta.Difficulty,
+            new Dictionary<Difficulty, OptionDifficulty>
             {
-                [Difficulty.Master] = new(Difficulty.Master, 4321, new UmgrChart(), meta)
+                [Difficulty.Master] = new(new UmgrChart { Meta = meta })
             });
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(

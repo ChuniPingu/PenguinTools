@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core.Asset;
@@ -15,7 +15,7 @@ public static class OptionExporter
         MusicExportContext ctx,
         OptionExportSettings settings,
         ExportOutputPaths outputPaths,
-        IEnumerable<OptionBookSnapshot> books,
+        IEnumerable<OptionBook> books,
         string diagnosticsWorkingDirectory,
         CancellationToken ct,
         IProgress<ProgressReport>? progress = null)
@@ -46,7 +46,7 @@ public static class OptionExporter
 
     private static async Task ConvertBookAsync(
         MusicExportContext ctx,
-        OptionBookSnapshot book,
+        OptionBook book,
         OptionExportSettings settings,
         ExportOutputPaths outputPaths,
         ReleaseTag releaseTag,
@@ -77,7 +77,7 @@ public static class OptionExporter
 
     private static async Task<Entry?> BuildStageAsync(
         MusicExportContext ctx,
-        OptionBookSnapshot book,
+        OptionBook book,
         OptionExportSettings settings,
         ExportOutputPaths outputPaths,
         IDiagnosticSink diagnostics,
@@ -128,7 +128,7 @@ public static class OptionExporter
     }
 
     private static async Task<(MusicXml Xml, string ChartFolder)> CreateMusicXmlAsync(
-        OptionBookSnapshot book,
+        OptionBook book,
         Entry stage,
         ReleaseTag releaseTag,
         Entry genre,
@@ -146,7 +146,7 @@ public static class OptionExporter
         return (xml, chartFolder);
     }
 
-    private static void TrackEventEntry(OptionBookSnapshot book, Difficulty difficulty, int songId,
+    private static void TrackEventEntry(OptionBook book, Difficulty difficulty, int songId,
         ConcurrentBag<Entry> weEntries, ConcurrentBag<Entry> ultEntries)
     {
         if (difficulty == Difficulty.WorldsEnd)
@@ -155,7 +155,7 @@ public static class OptionExporter
     }
 
     private static async Task ConvertChartsAsync(
-        OptionBookSnapshot book,
+        OptionBook book,
         MusicXml xml,
         string chartFolder,
         string workingDirectory,
@@ -199,7 +199,7 @@ public static class OptionExporter
     }
 
     private static async Task ConvertJacketAsync(
-        OptionBookSnapshot book,
+        OptionBook book,
         MusicXml xml,
         string chartFolder,
         OptionExportSettings settings,
@@ -248,7 +248,7 @@ public static class OptionExporter
     }
 
     private static async Task ConvertAudioAsync(
-        OptionBookSnapshot book,
+        OptionBook book,
         string cueFileFolder,
         OptionExportSettings settings,
         MusicExportContext ctx,
@@ -343,7 +343,7 @@ public static class OptionExporter
     }
 
     private static Entry ResolveBookGenre(
-        OptionBookSnapshot book,
+        OptionBook book,
         OptionExportSettings settings,
         Entry optionGenre)
     {

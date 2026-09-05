@@ -487,18 +487,15 @@ public sealed class OptionExporterCacheTests
         };
     }
 
-    private static OptionBookSnapshot CreateBook(Meta meta, bool isCustomStage)
+    private static OptionBook CreateBook(Meta meta, bool isCustomStage)
     {
-        return new OptionBookSnapshot(
-            meta,
-            isCustomStage,
-            54321,
-            meta.NotesFieldLine,
-            meta.Stage,
-            meta.Title,
-            new Dictionary<Difficulty, OptionDifficultySnapshot>
+        meta.IsCustomStage = isCustomStage;
+        meta.StageId = 54321;
+        return new OptionBook(
+            meta.Difficulty,
+            new Dictionary<Difficulty, OptionDifficulty>
             {
-                [Difficulty.Master] = new(Difficulty.Master, meta.Id, new UmgrChart(), meta)
+                [Difficulty.Master] = new(new UmgrChart { Meta = meta })
             });
     }
 

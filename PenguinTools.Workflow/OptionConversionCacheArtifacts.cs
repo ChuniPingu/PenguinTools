@@ -12,7 +12,7 @@ internal sealed record OptionCachedConversion(
 internal static class OptionConversionCacheArtifacts
 {
     public static Task<OptionCachedConversion> CreateStageAsync(
-        OptionBookSnapshot book,
+        OptionBook book,
         string stageOutputFolder,
         CancellationToken ct)
     {
@@ -112,7 +112,7 @@ internal static class OptionConversionCacheArtifacts
         return new OptionCachedConversion(key, state, outputs);
     }
 
-    private static Dictionary<string, string?> CreateStageRecipe(OptionBookSnapshot book)
+    private static Dictionary<string, string?> CreateStageRecipe(OptionBook book)
     {
         return new Dictionary<string, string?>
         {

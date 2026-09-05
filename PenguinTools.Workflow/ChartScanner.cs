@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.sus;
 using PenguinTools.Chart.Parser.ugc;
@@ -13,7 +13,7 @@ using umgr = Chart.Models.umgr;
 
 public static class ChartScanner
 {
-    public static async Task<OperationResult<IReadOnlyList<OptionBookSnapshot>>> ScanDirectoryAsync(
+    public static async Task<OperationResult<IReadOnlyList<OptionBook>>> ScanDirectoryAsync(
         AssetManager assets,
         IMediaTool mediaTool,
         string directory,
@@ -48,8 +48,8 @@ public static class ChartScanner
                     ct));
         }
 
-        var snapshots = FinalizeAndBuildSnapshots(booksById, diagnostics, messages, ct);
-        return OperationResult<IReadOnlyList<OptionBookSnapshot>>.Success(snapshots)
+        var snapshots = FinalizeBooks(booksById, diagnostics, messages, ct);
+        return OperationResult<IReadOnlyList<OptionBook>>.Success(snapshots)
             .WithDiagnostics(batch.Merge(DiagnosticSnapshot.Create(diagnostics)));
     }
 
@@ -118,7 +118,7 @@ public static class ChartScanner
 
         var meta = chart.Meta;
         var id = meta.Id ?? throw new DiagnosticException(messages.MissingSongId);
-        var item = new OptionDifficultySnapshot(meta.Difficulty, meta.Id, chart, meta);
+        var item = new OptionDifficulty(chart);
         var book = booksById.GetOrAdd(id, _ => new BookAccumulator());
 
         lock (book.Gate)
@@ -134,13 +134,13 @@ public static class ChartScanner
         }
     }
 
-    private static IReadOnlyList<OptionBookSnapshot> FinalizeAndBuildSnapshots(
+    private static IReadOnlyList<OptionBook> FinalizeBooks(
         ConcurrentDictionary<int, BookAccumulator> booksById,
         IDiagnosticSink diagnostics,
         ChartScannerMessages messages,
         CancellationToken ct)
     {
-        var list = new List<OptionBookSnapshot>();
+        var list = new List<OptionBook>();
 
         // All scan batches have completed; accumulators are no longer being modified.
         foreach (var book in booksById.Values)
@@ -174,20 +174,15 @@ public static class ChartScanner
 
             var dict = book.Items.ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            list.Add(new OptionBookSnapshot(
-                mainItem.Meta,
-                mainItem.Meta.IsCustomStage,
-                mainItem.Meta.StageId,
-                mainItem.Meta.NotesFieldLine,
-                mainItem.Meta.Stage,
-                mainItem.Meta.Title,
+            list.Add(new OptionBook(
+                mainItem.Difficulty,
                 dict));
         }
 
         return list;
     }
 
-    private static ChartDiagnosticTarget[] CreateDiagnosticTargets(IEnumerable<OptionDifficultySnapshot> items)
+    private static ChartDiagnosticTarget[] CreateDiagnosticTargets(IEnumerable<OptionDifficulty> items)
     {
         return items.Select(item => ChartDiagnosticTarget.FromMeta(item.Meta)).ToArray();
     }
@@ -195,7 +190,7 @@ public static class ChartScanner
     private sealed class BookAccumulator
     {
         public readonly object Gate = new();
-        public readonly Dictionary<Difficulty, OptionDifficultySnapshot> Items = new();
+        public readonly Dictionary<Difficulty, OptionDifficulty> Items = new();
     }
 }
 
