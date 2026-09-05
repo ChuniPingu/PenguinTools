@@ -46,7 +46,7 @@ public static class OptionExportBatch
             foreach (var item in itemList)
                 await ProcessItemAsync(item, main.CancellationToken);
 
-        return diagnostics.Aggregate(DiagnosticSnapshot.Empty, (current, snapshot) => current.Merge(snapshot));
+        return DiagnosticSnapshot.Create(diagnostics.SelectMany(snapshot => snapshot.Diagnostics));
 
         async ValueTask ProcessItemAsync(T item, CancellationToken ct)
         {
