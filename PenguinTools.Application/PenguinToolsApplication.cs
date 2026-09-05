@@ -142,7 +142,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
             var scanned = await ScanBooksAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
                 progress, cancellationToken);
-            if (!scanned.Succeeded || scanned.Value is null)
+            if (!scanned.Succeeded)
                 return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(scanned.Diagnostics);
             if (scanned.Value.Count == 0)
                 return ApplicationDiagnostics.Failure<OptionBuildResult>(
@@ -191,8 +191,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var audio = ToWorkflow(request.Audio);
             var stage = ToWorkflow(request.Stage);
             var parsed = await _charts.ParseChartAsync(input, cancellationToken);
-            if (!parsed.Succeeded || parsed.Value is not { } chart)
+            if (!parsed.Succeeded)
                 return OperationResult<MusicBuildResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+            var chart = parsed.Value;
 
             ChartMetadata.ApplyMusicBuildOverrides(chart.Meta, request.Overrides);
 
@@ -213,8 +214,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputPath);
             var parsed = await _charts.ParseChartAsync(input, cancellationToken);
-            if (!parsed.Succeeded || parsed.Value is not { } chart)
+            if (!parsed.Succeeded)
                 return OperationResult<JacketConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+            var chart = parsed.Value;
             var source = OptionalFullPath(request.JacketInputPath) ?? chart.Meta.FullJacketFilePath;
             EnsureParentDirectory(output);
             var converted =
@@ -255,8 +257,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputDirectory);
             var parsed = await _charts.ParseChartAsync(input, cancellationToken);
-            if (!parsed.Succeeded || parsed.Value is not { } chart)
+            if (!parsed.Succeeded)
                 return OperationResult<AudioConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+            var chart = parsed.Value;
             var converted = await MusicExporter.ConvertAudioAsync(CreateExportContext(), chart.Meta, output,
                 ToWorkflow(request.Overrides), cancellationToken);
             var xml = new CueFileXml(chart.Meta.Id ?? 0);
@@ -315,8 +318,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var output = FullPath(request.OutputDirectory);
             var overrides = ToWorkflow(request.Overrides);
             var parsed = await _charts.ParseChartAsync(input, cancellationToken);
-            if (!parsed.Succeeded || parsed.Value is not { } chart)
+            if (!parsed.Succeeded)
                 return OperationResult<StageBuildResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+            var chart = parsed.Value;
             var built = await MusicExporter.BuildStageAsync(CreateExportContext(), chart.Meta, output, overrides,
                 cancellationToken);
             var stageId = overrides.StageId ?? chart.Meta.StageId;

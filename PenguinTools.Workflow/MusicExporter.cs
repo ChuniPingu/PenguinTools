@@ -1,4 +1,4 @@
-﻿using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -90,7 +90,7 @@ public static class MusicExporter
         {
             var builtStage = await BuildStageAsync(ctx, meta, output, stageOverrides, cancellationToken);
             diagnostics = diagnostics.Merge(builtStage.Diagnostics);
-            if (!builtStage.Succeeded || builtStage.Value is null)
+            if (!builtStage.Succeeded)
                 return OperationResult.Failure().WithDiagnostics(diagnostics);
 
             stage = builtStage.Value;
@@ -120,7 +120,7 @@ public static class MusicExporter
 
         var convertedChart = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         diagnostics = diagnostics.Merge(convertedChart.Diagnostics);
-        if (!convertedChart.Succeeded || convertedChart.Value is null)
+        if (!convertedChart.Succeeded)
             return OperationResult.Failure().WithDiagnostics(diagnostics);
 
         var writtenChart =

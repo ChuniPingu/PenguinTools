@@ -87,24 +87,24 @@ public static class ChartScanner
         {
             var r = await new UgcParser(new UgcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
-            if (!r.Succeeded || r.Value is not { } ugcChart) return;
-            chart = ugcChart;
+            if (!r.Succeeded) return;
+            chart = r.Value;
         }
         else if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Mgxc),
                      StringComparison.OrdinalIgnoreCase))
         {
             var r = await new MgxcParser(new MgxcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
-            if (!r.Succeeded || r.Value is not { } mgxcChart) return;
-            chart = mgxcChart;
+            if (!r.Succeeded) return;
+            chart = r.Value;
         }
         else if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Sus),
                      StringComparison.OrdinalIgnoreCase))
         {
             var r = await new SusParser(new SusParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
-            if (!r.Succeeded || r.Value is not { } susChart) return;
-            chart = susChart;
+            if (!r.Succeeded) return;
+            chart = r.Value;
         }
         else
         {

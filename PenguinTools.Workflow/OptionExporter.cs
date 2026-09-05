@@ -114,7 +114,9 @@ public static class OptionExporter
             ctx.MediaTool);
         var builtStage = await stageConverter.BuildAsync(ct);
         diagnostics.Report(builtStage.Diagnostics);
-        if (!builtStage.Succeeded || builtStage.Value is not { } stageEntry) return null;
+        if (!builtStage.Succeeded)
+            return null;
+        var stageEntry = builtStage.Value;
 
         await OptionConversionCacheValidator.StoreAsync(
             settings.ConversionCache,
@@ -181,7 +183,7 @@ public static class OptionExporter
 
             var convertedChart = new C2SChartConverter(new C2SConvertRequest(item.Chart)).Convert();
             chartDiagnostics.Report(convertedChart.Diagnostics);
-            if (!convertedChart.Succeeded || convertedChart.Value is null)
+            if (!convertedChart.Succeeded)
             {
                 FlushChartDiagnostics();
                 return;

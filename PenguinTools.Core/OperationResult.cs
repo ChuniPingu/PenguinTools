@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Core;
@@ -29,12 +30,24 @@ public readonly record struct OperationResult(bool Succeeded)
     }
 }
 
-public readonly record struct OperationResult<T>(bool Succeeded, T? Value)
+public readonly record struct OperationResult<T>
 {
+    private OperationResult(bool succeeded, T? value)
+    {
+        Succeeded = succeeded;
+        Value = value;
+    }
+
+    [MemberNotNullWhen(true, nameof(Value))]
+    public bool Succeeded { get; }
+
+    public T? Value { get; }
+
     public DiagnosticSnapshot Diagnostics { get; init; } = DiagnosticSnapshot.Empty;
 
     public static OperationResult<T> Success(T value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         return new OperationResult<T>(true, value);
     }
 

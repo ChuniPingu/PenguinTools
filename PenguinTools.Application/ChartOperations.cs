@@ -53,8 +53,9 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         if (sourceFormat == ChartFormat.C2s)
         {
             var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
-            if (!parsedC2s.Succeeded || parsedC2s.Value is not { } c2s)
+            if (!parsedC2s.Succeeded)
                 return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsedC2s.Diagnostics);
+            var c2s = parsedC2s.Value;
             ChartMetadata.ApplyChartOverrides(c2s.Meta, request.Overrides);
             progress?.Report(new ProgressReport(
                 Item: Path.GetFileName(input),
@@ -62,7 +63,7 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
                 Completed: 0,
                 Total: 1));
             var convertedUmgr = new UgcChartConverter(new UgcConvertRequest(c2s, request.Overrides?.DebugTil ?? false)).Convert();
-            if (!convertedUmgr.Succeeded || convertedUmgr.Value is null)
+            if (!convertedUmgr.Succeeded)
                 return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
                     parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics));
             var writtenReverse = await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value))
@@ -79,8 +80,9 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         }
 
         var parsed = await ParseChartAsync(input, cancellationToken);
-        if (!parsed.Succeeded || parsed.Value is not { } chart)
+        if (!parsed.Succeeded)
             return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+        var chart = parsed.Value;
 
         ChartMetadata.ApplyChartOverrides(chart.Meta, request.Overrides);
         progress?.Report(new ProgressReport(
@@ -90,7 +92,7 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
             Total: 1));
 
         var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
-        if (!converted.Succeeded || converted.Value is null)
+        if (!converted.Succeeded)
             return OperationResult<ChartConvertResult>.Failure()
                 .WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));
 
@@ -124,7 +126,7 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         if (extension.Equals(".c2s", StringComparison.OrdinalIgnoreCase))
         {
             var parsed = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
-            if (!parsed.Succeeded || parsed.Value is null)
+            if (!parsed.Succeeded)
                 return OperationResult<UmgrChart>.Failure().WithDiagnostics(parsed.Diagnostics);
             var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
             return converted.WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));

@@ -101,7 +101,7 @@ public sealed partial class PenguinToolsApplication
                     var chartPath = ResolveRelative(xmlDirectory, row.Element("file")?.Element("path")?.Value)
                                     ?? throw new InvalidDataException("Enabled fumen has no file path.");
                     var parsed = await new C2SParser(new C2SParseRequest(chartPath)).ParseAsync(cancellationToken);
-                    if (!parsed.Succeeded || parsed.Value is null)
+                    if (!parsed.Succeeded)
                         return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(parsed.Diagnostics);
                     var chart = parsed.Value;
                     chart.Meta.Id = songId;
@@ -125,7 +125,7 @@ public sealed partial class PenguinToolsApplication
                         chart.Meta.BgmPreviewStop = (cue.PreviewStopMs ?? 0) / 1000m;
                     }
                     var converted = new UgcChartConverter(new UgcConvertRequest(chart, request.DebugTil)).Convert();
-                    if (!converted.Succeeded || converted.Value is null)
+                    if (!converted.Succeeded)
                         return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(converted.Diagnostics);
                     var filename = $"{songId}_{difficultyId}.mgxc";
                     var staged = Path.Combine(stage, filename);
