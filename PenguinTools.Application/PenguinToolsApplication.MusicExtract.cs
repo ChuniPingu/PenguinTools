@@ -1,3 +1,4 @@
+using static PenguinTools.Application.RequestPaths;
 using System.Xml.Linq;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Parser.c2s;
