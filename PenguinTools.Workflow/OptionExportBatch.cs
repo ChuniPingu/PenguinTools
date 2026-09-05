@@ -28,6 +28,7 @@ public static class OptionExportBatch
         bool parallel = false,
         Func<T, string?>? getLabel = null)
     {
+        main.CancellationToken.ThrowIfCancellationRequested();
         var itemList = items as IList<T> ?? [.. items];
         var diagnostics = new ConcurrentBag<DiagnosticSnapshot>();
         var completed = 0;
@@ -49,13 +50,14 @@ public static class OptionExportBatch
 
         async ValueTask ProcessItemAsync(T item, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
             var ld = CreateCollector(main.Diagnostics);
             try
             {
                 await action(item, ld);
                 ct.ThrowIfCancellationRequested();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 ld.Report(ex);
             }
