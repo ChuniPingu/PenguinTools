@@ -360,16 +360,16 @@ public sealed class PenguinToolsApplicationTests
     [Fact]
     public async Task ChartConversion_ReportsProgress()
     {
-        using var application = PenguinToolsApplication.CreateDefault();
-        var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
-        Assert.SkipWhen(!File.Exists(input), $"Optional chart sample is missing: {input}");
 
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        using var store = new TrackingAssetStore(root);
+        using var application = CreateInjectedApplication(root, store);
         var output = Path.Combine(root, "chart.c2s");
         var reports = new List<ProgressReport>();
         try
         {
+            var input = await WriteChartFixtureAsync(root);
             var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output),
                 new InlineProgress(reports.Add), TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded);
@@ -385,13 +385,8 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task JacketConversion_WritesArtifact()
+    public async Task JacketConversion_ReportsArtifactForChart()
     {
-        var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
-        if (!File.Exists(input))
-        {
-            return;
-        }
 
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -400,6 +395,7 @@ public sealed class PenguinToolsApplicationTests
         using var application = CreateInjectedApplication(root, store);
         try
         {
+            var input = await WriteChartFixtureAsync(root);
             var result = await application.ConvertJacketAsync(new JacketConvertRequest(input, output),
                 cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded);
@@ -408,32 +404,6 @@ public sealed class PenguinToolsApplicationTests
         finally
         {
             store.Dispose();
-            Directory.Delete(root, true);
-        }
-    }
-
-    [Fact]
-    public async Task ChartConversion_WritesOutputFile()
-    {
-        using var application = PenguinToolsApplication.CreateDefault();
-        var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
-        if (!File.Exists(input))
-        {
-            return;
-        }
-
-        var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        var output = Path.Combine(root, "chart.c2s");
-        try
-        {
-            var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output),
-                cancellationToken: TestContext.Current.CancellationToken);
-            Assert.True(result.Succeeded);
-            Assert.True(File.Exists(output));
-        }
-        finally
-        {
             Directory.Delete(root, true);
         }
     }
@@ -546,21 +516,24 @@ public sealed class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task Progress_IsForwarded_ForLongRunningOperations()
+    public async Task MusicBuild_ForwardsProgressAndWritesChart()
     {
-        using var application = PenguinToolsApplication.CreateDefault();
         var reports = new List<ProgressReport>();
         var progress = new InlineProgress(reports.Add);
-        var input = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
-        Assert.SkipWhen(!File.Exists(input), $"Optional chart sample is missing: {input}");
 
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        using var store = new TrackingAssetStore(root);
+        using var application = CreateInjectedApplication(root, store);
         var output = Path.Combine(root, "music");
         try
         {
-            await application.BuildMusicAsync(new MusicBuildRequest(input, output), progress,
+            var input = await WriteChartFixtureAsync(root);
+            var result = await application.BuildMusicAsync(new MusicBuildRequest(input, output), progress,
                 TestContext.Current.CancellationToken);
+            Assert.True(result.Succeeded);
+            Assert.False(result.Diagnostics.HasError);
+            Assert.NotEmpty(Directory.EnumerateFiles(output, "*.c2s", SearchOption.AllDirectories));
             Assert.NotEmpty(reports);
             Assert.All(reports, report => Assert.NotNull(report.Item));
         }
@@ -584,6 +557,18 @@ public sealed class PenguinToolsApplicationTests
         Directory.Delete(root, true);
     }
 
+    private static async Task<string> WriteChartFixtureAsync(string root)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var input = Path.Combine(root, "chart.ugc");
+        await File.WriteAllTextAsync(Path.Combine(root, "audio.wav"), "fake audio", ct);
+        await File.WriteAllTextAsync(Path.Combine(root, "jacket.png"), "fake image", ct);
+        await File.WriteAllTextAsync(input,
+            "@VER\t8\n@TICKS\t480\n@TITLE\tTest\n@DESIGN\tDesigner\n@DIFF\t3\n" +
+            "@SONGID\t1000\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n" +
+            "@BGM\taudio.wav\n@JACKET\tjacket.png\n", ct);
+        return input;
+    }
     private static PenguinToolsApplication CreateInjectedApplication(string root, IAssetStore store)
     {
         var paths = new TestPaths(root);
