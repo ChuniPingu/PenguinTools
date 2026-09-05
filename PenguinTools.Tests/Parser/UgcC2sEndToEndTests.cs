@@ -28,8 +28,8 @@ public class UgcC2sEndToEndTests
         Assert.True(ugcParse.Succeeded, $"UGC parse failed for {name}: {ugcParse}");
         Assert.True(mgxcParse.Succeeded, $"MGXC parse failed for {name}: {mgxcParse}");
 
-        var ugcOut = Path.GetTempFileName() + ".c2s";
-        var mgxcOut = Path.GetTempFileName() + ".c2s";
+        var ugcOut = TestTempPaths.Create(".c2s");
+        var mgxcOut = TestTempPaths.Create(".c2s");
         try
         {
             var ugcConvert = new C2SChartConverter(new C2SConvertRequest(ugcParse.Value!)).Convert();

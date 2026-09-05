@@ -16,7 +16,7 @@ public class UgcTilTests
     private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(string body)
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {
@@ -47,7 +47,7 @@ public class UgcTilTests
             "@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n" +
             "@TIL\t3\t0'240\t10000.0\n";
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, ugc, ct);
         try
         {
@@ -97,7 +97,7 @@ public class UgcTilTests
             "@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n" +
             "@MAINTIL\t2\n";
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, ugc, ct);
         try
         {
@@ -122,7 +122,7 @@ public class UgcTilTests
             "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n@USETIL\t3\n#0'0:t12\n";
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {
@@ -192,7 +192,7 @@ public class UgcTilTests
             "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n@USETIL\t3\n#0'0:t24\n";
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {
@@ -216,7 +216,7 @@ public class UgcTilTests
             "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
             "@USETIL\t0\n#0'0:t04\n@USETIL\t2\n#0'0:t12\n";
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {
@@ -240,7 +240,7 @@ public class UgcTilTests
             "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
             "@USETIL\t0\n#0'0:t12\n@USETIL\t2\n#0'0:t04\n";
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {

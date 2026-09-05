@@ -12,7 +12,7 @@ public class SusParserTests
     private static async Task<OperationResult<Chart.Models.umgr.Chart>> Parse(string sus)
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".sus";
+        var tmp = TestTempPaths.Create(".sus");
         await File.WriteAllTextAsync(tmp, sus, ct);
         try
         {

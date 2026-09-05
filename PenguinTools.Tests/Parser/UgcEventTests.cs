@@ -9,7 +9,7 @@ public class UgcEventTests
     private static async Task<Chart.Models.umgr.Chart> Parse(string ugc)
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, ugc, ct);
         try
         {

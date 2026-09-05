@@ -9,7 +9,7 @@ public class UgcSkeletonTests
     public async Task EmptyUgc_ReturnsEmptyChart()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         try
         {
             await File.WriteAllTextAsync(tmp, "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n\n", ct);

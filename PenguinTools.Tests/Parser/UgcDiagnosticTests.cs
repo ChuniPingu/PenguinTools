@@ -10,7 +10,7 @@ public class UgcDiagnosticTests
     public async Task InvalidHeader_DiagnosticIncludesFileAndLine()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         try
         {
             await File.WriteAllTextAsync(tmp, "@VER\t7\n@TICKS\t480\n@BPM\t0'0\t120.0\n", ct);
@@ -35,7 +35,7 @@ public class UgcDiagnosticTests
     public async Task MalformedNote_DiagnosticKeepsOriginalSourceLine()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         try
         {
             await File.WriteAllTextAsync(

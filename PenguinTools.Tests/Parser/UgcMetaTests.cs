@@ -11,7 +11,7 @@ public class UgcMetaTests
     private static async Task<OperationResult<Chart.Models.umgr.Chart>> Parse(string ugc)
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, ugc, ct);
         try
         {

@@ -13,7 +13,7 @@ public class MgxcDiagnosticTests
     public async Task InvalidHeader_DiagnosticIncludesFileAndOffset()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".mgxc";
+        var tmp = TestTempPaths.Create(".mgxc");
         try
         {
             await File.WriteAllBytesAsync(tmp, "NOPE"u8.ToArray(), ct);
@@ -38,8 +38,8 @@ public class MgxcDiagnosticTests
     public async Task Meta_Ignore_SkipsParse_AndSuppressesOtherDiagnostics()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmpUgc = Path.GetTempFileName() + ".ugc";
-        var tmpMgxc = Path.GetTempFileName() + ".mgxc";
+        var tmpUgc = TestTempPaths.Create(".ugc");
+        var tmpMgxc = TestTempPaths.Create(".mgxc");
         try
         {
             await File.WriteAllTextAsync(

@@ -20,7 +20,7 @@ public class UgcNoteTests
     private static async Task<Chart.Models.umgr.Chart> Parse(string body)
     {
         var ct = TestContext.Current.CancellationToken;
-        var tmp = Path.GetTempFileName() + ".ugc";
+        var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, Header + body, ct);
         try
         {
