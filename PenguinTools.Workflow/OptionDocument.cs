@@ -80,25 +80,25 @@ public sealed class OptionDocument
         ConversionCache ??= new OptionConversionCache();
 
         return new OptionExportSettings(
-            ConvertChart,
-            ConvertJacket,
-            ConvertAudio,
-            ConvertBackground,
-            CustomReleaseTagXml,
-            SelectedReleaseTagId,
-            CustomReleaseTagId,
-            CustomReleaseTagTitleName,
-            CustomGenre,
-            SelectedGenreId,
-            CustomGenreId,
-            CustomGenreName,
-            OverrideChartGenre,
-            GenerateEventXml,
-            UltimaEventId,
-            WeEventId,
-            BatchSize,
-            ConversionCache,
-            HcaEncryptionKey);
+            ConvertChart: ConvertChart,
+            ConvertJacket: ConvertJacket,
+            ConvertAudio: ConvertAudio,
+            ConvertBackground: ConvertBackground,
+            CustomReleaseTagXml: CustomReleaseTagXml,
+            SelectedReleaseTagId: SelectedReleaseTagId,
+            CustomReleaseTagId: CustomReleaseTagId,
+            CustomReleaseTagTitleName: CustomReleaseTagTitleName,
+            CustomGenre: CustomGenre,
+            SelectedGenreId: SelectedGenreId,
+            CustomGenreId: CustomGenreId,
+            CustomGenreName: CustomGenreName,
+            OverrideChartGenre: OverrideChartGenre,
+            GenerateEventXml: GenerateEventXml,
+            UltimaEventId: UltimaEventId,
+            WeEventId: WeEventId,
+            BatchSize: BatchSize,
+            ConversionCache: ConversionCache,
+            HcaEncryptionKey: HcaEncryptionKey);
     }
 
     private static string CreateOptionId()
