@@ -17,6 +17,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\PenguinTools.Application\PenguinTools.Application.csproj"/>
         <ProjectReference Include="..\PenguinTools.CLI\PenguinTools.CLI.csproj"/>
         <ProjectReference Include="..\PenguinTools.CRI\PenguinTools.CRI.csproj"/>
