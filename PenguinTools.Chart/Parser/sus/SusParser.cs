@@ -860,31 +860,7 @@ public sealed class SusParser
     private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,
         Action onFailure)
     {
-        Tasks.Add(HandleValidationAsync(validationTask, path, messageKey, onFailure));
-    }
-
-    private async Task HandleValidationAsync(Task<ProcessCommandResult> validationTask, string path, string messageKey,
-        Action onFailure)
-    {
-        try
-        {
-            var result = await validationTask;
-            if (result.IsSuccess) return;
-
-            onFailure();
-            Diagnostic.Report(new PathDiagnostic(Severity.Warning, Msg.Key(messageKey), path)
-            {
-                Target = result
-            });
-        }
-        catch (Exception ex)
-        {
-            onFailure();
-            Diagnostic.Report(new PathDiagnostic(Severity.Warning, Msg.Key(messageKey), path)
-            {
-                Target = ex
-            });
-        }
+        Tasks.Add(MediaValidation.ReportAsync(validationTask, path, messageKey, onFailure, Diagnostic));
     }
 
     private void ReportIgnoredMeta(int lineNumber, string name, string value)
