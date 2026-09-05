@@ -3,6 +3,7 @@ using System.Text.Json;
 using PenguinTools.Assets;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core.Xml;
 using PenguinTools.Infrastructure;
@@ -44,8 +45,8 @@ public sealed class OptionExporterCacheTests
 
         try
         {
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
 
             Assert.Equal(1, mediaTool.JacketConversions);
         }
@@ -85,9 +86,9 @@ public sealed class OptionExporterCacheTests
 
         try
         {
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
             await File.WriteAllTextAsync(jacketOutputPath, "edited output", ct);
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
 
             Assert.Equal(2, mediaTool.JacketConversions);
         }
@@ -127,10 +128,10 @@ public sealed class OptionExporterCacheTests
 
         try
         {
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
             Assert.NotNull(cache.GetEntry("jacket:music4321"));
 
-            await OptionExporter.ExportAsync(context, ignoreCacheSettings, outputPaths, [book], workPath, ct);
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, ignoreCacheSettings, outputPaths, [book], workPath, ct));
 
             Assert.Equal(2, mediaTool.JacketConversions);
             Assert.NotNull(cache.GetEntry("jacket:music4321"));
@@ -170,8 +171,8 @@ public sealed class OptionExporterCacheTests
 
         try
         {
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
-            await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
+            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
 
             Assert.Equal(1, mediaTool.StageConversions);
         }
@@ -405,6 +406,11 @@ public sealed class OptionExporterCacheTests
         Assert.Equal("456", entry.Outputs["jacketDds"]);
     }
 
+    private static void AssertExportSucceeded(OperationResult result)
+    {
+        Assert.True(result.Succeeded);
+        Assert.DoesNotContain(result.Diagnostics.Diagnostics, diagnostic => diagnostic.Severity == Severity.Error);
+    }
     private static OptionExportSettings CreateSettings(
         bool convertJacket,
         bool convertBackground,
