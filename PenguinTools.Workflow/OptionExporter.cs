@@ -39,8 +39,9 @@ public static class OptionExporter
 
         await GenerateAuxiliaryFilesAsync(settings, outputPaths, weEntries, ultEntries, releaseTag, ct);
 
-        return OperationResult.Success()
-            .WithDiagnostics(batchDiagnostics.Merge(DiagnosticSnapshot.Create(diagnostics)));
+        var snapshot = batchDiagnostics.Merge(DiagnosticSnapshot.Create(diagnostics));
+        return (snapshot.HasError ? OperationResult.Failure() : OperationResult.Success())
+            .WithDiagnostics(snapshot);
     }
 
     private static async Task ConvertBookAsync(

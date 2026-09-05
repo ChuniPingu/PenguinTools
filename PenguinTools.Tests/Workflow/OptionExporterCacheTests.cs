@@ -17,6 +17,40 @@ namespace PenguinTools.Tests.Workflow;
 public sealed class OptionExporterCacheTests
 {
     [Fact]
+    public async Task ExportAsync_FailedJacketDoesNotSucceedOrPopulateCache()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workPath);
+        try
+        {
+            var chartPath = Path.Combine(workPath, "chart.ugc");
+            var jacketPath = Path.Combine(workPath, "jacket.png");
+            await File.WriteAllTextAsync(chartPath, "chart", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(jacketPath, "jacket", TestContext.Current.CancellationToken);
+            var cache = new OptionConversionCache();
+            var mediaTool = new CountingMediaTool { JacketFailure = new IOException("jacket conversion failed") };
+            using var assetStore = new DummyAssetStore(workPath);
+            var context = new MusicExportContext(TestAssets.Load(), mediaTool, assetStore,
+                new DummyInfrastructureAssetProvider(workPath));
+            var book = CreateBook(CreateMeta(workPath, chartPath) with { JacketFilePath = jacketPath }, false);
+
+            var result = await OptionExporter.ExportAsync(context, CreateSettings(true, false, cache),
+                ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX")), [book], workPath,
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.Succeeded);
+            Assert.True(result.Diagnostics.HasError);
+            Assert.Contains(result.Diagnostics.Diagnostics, diagnostic =>
+                diagnostic.RelatedException == mediaTool.JacketFailure);
+            Assert.Null(cache.GetEntry("jacket:music4321"));
+        }
+        finally
+        {
+            Directory.Delete(workPath, true);
+        }
+    }
+
+    [Fact]
     public async Task ExportAsync_SkipsJacket_WhenCachedInputsAndOutputsMatch()
     {
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -484,6 +518,7 @@ public sealed class OptionExporterCacheTests
     {
         public int JacketConversions { get; private set; }
         public int StageConversions { get; private set; }
+        public Exception? JacketFailure { get; init; }
 
         public Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
             CancellationToken ct = default)
@@ -504,6 +539,7 @@ public sealed class OptionExporterCacheTests
         public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
         {
             JacketConversions++;
+            if (JacketFailure is not null) throw JacketFailure;
             Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
             await File.WriteAllTextAsync(dst, await File.ReadAllTextAsync(src, ct), ct);
         }
