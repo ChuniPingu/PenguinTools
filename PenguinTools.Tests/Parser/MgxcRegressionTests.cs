@@ -40,7 +40,7 @@ public class MgxcRegressionTests
 
         await using var assetsStream = File.OpenRead(assetsPath);
         var assets = new AssetManager(assetsStream);
-        var parser = new MgxcParser(new MgxcParseRequest(masterMgxcPath, assets), new NullMediaTool());
+        var parser = new MgxcParser(new MgxcParseRequest(masterMgxcPath, assets), TestMediaTool.Instance);
 
         var result = await parser.ParseAsync(TestContext.Current.CancellationToken);
 
@@ -49,58 +49,4 @@ public class MgxcRegressionTests
         Assert.NotEmpty(result.Value!.Notes.Children);
     }
 
-    private sealed class NullMediaTool : IMediaTool
-    {
-        public Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
-            CancellationToken ct = default)
-        {
-            return Task.FromResult(Ok());
-        }
-
-        public Task<ProcessCommandResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
-        {
-            return Task.FromResult(Ok());
-        }
-
-        public Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
-        {
-            return Task.FromResult(Ok());
-        }
-
-        public Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
-            int backgroundOffset,
-            CancellationToken ct = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task ConvertCriAsync(
-            string wav,
-            string acb,
-            string awb,
-            string name,
-            long previewStartMs,
-            long previewStopMs,
-            ulong hcaKey,
-            CancellationToken ct = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        private static ProcessCommandResult Ok()
-        {
-            return new ProcessCommandResult(new ProcessStartInfo { FileName = "null" }, (int)InterExitCode.Success, "",
-                "");
-        }
-    }
 }
