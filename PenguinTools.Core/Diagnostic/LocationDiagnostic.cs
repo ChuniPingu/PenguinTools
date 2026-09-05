@@ -1,6 +1,6 @@
 namespace PenguinTools.Core.Diagnostic;
 
-public sealed record LocationDiagnostic(
+public record LocationDiagnostic(
     Severity Severity,
     MessageDescriptor Message,
     int LineValue,
@@ -27,11 +27,6 @@ public sealed record LocationDiagnostic(
 
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return new LocationDiagnostic(Severity, Message, LineValue, path)
-        {
-            Target = Target,
-            RelatedException = RelatedException,
-            TimeCalculator = TimeCalculator
-        };
+        return this with { PathValue = path };
     }
 }

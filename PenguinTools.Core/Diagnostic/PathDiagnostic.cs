@@ -1,6 +1,6 @@
 namespace PenguinTools.Core.Diagnostic;
 
-public sealed record PathDiagnostic(Severity Severity, MessageDescriptor Message, string PathValue)
+public record PathDiagnostic(Severity Severity, MessageDescriptor Message, string PathValue)
     : Diagnostic(Severity, Message)
 {
     public override string? Path => PathValue;
