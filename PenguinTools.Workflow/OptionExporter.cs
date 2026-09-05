@@ -57,18 +57,18 @@ public static class OptionExporter
         CancellationToken ct)
     {
         var stage = await BuildStageAsync(ctx, book, settings, outputPaths, diagnostics, ct) ?? book.Stage;
-        string? chartFolder = null;
-        MusicXml? xml = null;
         var genre = ResolveBookGenre(book, settings, optionGenre);
 
         if (settings.ConvertChart || settings.ConvertJacket)
-            (xml, chartFolder) = await CreateMusicXmlAsync(book, stage, releaseTag, genre, outputPaths.MusicFolder);
+        {
+            var (xml, chartFolder) = await CreateMusicXmlAsync(book, stage, releaseTag, genre, outputPaths.MusicFolder);
 
-        if (settings.ConvertChart && xml is not null && chartFolder is not null)
-            await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, weEntries, ultEntries, ct);
+            if (settings.ConvertChart)
+                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, weEntries, ultEntries, ct);
 
-        if (settings.ConvertJacket && xml is not null && chartFolder is not null)
-            await ConvertJacketAsync(book, xml, chartFolder, settings, ctx, diagnostics, ct);
+            if (settings.ConvertJacket)
+                await ConvertJacketAsync(book, xml, chartFolder, settings, ctx, diagnostics, ct);
+        }
 
         if (settings.ConvertAudio)
             await ConvertAudioAsync(book, outputPaths.CueFileFolder, settings, ctx, diagnostics, ct);

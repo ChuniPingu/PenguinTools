@@ -142,30 +142,20 @@ public static class ChartScanner
     {
         var list = new List<OptionBookSnapshot>();
 
-        foreach (var (id, book) in booksById.ToArray())
+        // All scan batches have completed; accumulators are no longer being modified.
+        foreach (var book in booksById.Values)
         {
             ct.ThrowIfCancellationRequested();
-            OptionDifficultySnapshot[] items;
-            lock (book.Gate)
-            {
-                items = book.Items.Values.ToArray();
-            }
+            var items = book.Items.Values.ToArray();
 
-            if (items.Length == 0)
-            {
-                booksById.TryRemove(id, out _);
-                continue;
-            }
+            if (items.Length == 0) continue;
 
-            lock (book.Gate)
-            {
-                if (book.Items.ContainsKey(Difficulty.WorldsEnd) && book.Items.Count != 1)
-                    diagnostics.Report(
-                        new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_We_chart_must_be_unique_id))
-                        {
-                            Target = CreateDiagnosticTargets(items)
-                        });
-            }
+            if (book.Items.ContainsKey(Difficulty.WorldsEnd) && items.Length != 1)
+                diagnostics.Report(
+                    new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_We_chart_must_be_unique_id))
+                    {
+                        Target = CreateDiagnosticTargets(items)
+                    });
 
             var mainItems = items.Where(i => i.Meta.IsMain).ToArray();
             if (mainItems.Length > 1)
@@ -180,18 +170,9 @@ public static class ChartScanner
                     Target = CreateDiagnosticTargets(items)
                 });
 
-            var mainItem = mainItems.FirstOrDefault() ?? items.OrderByDescending(i => i.Difficulty).FirstOrDefault();
-            if (mainItem is null)
-            {
-                booksById.TryRemove(id, out _);
-                continue;
-            }
+            var mainItem = mainItems.FirstOrDefault() ?? items.OrderByDescending(i => i.Difficulty).First();
 
-            IReadOnlyDictionary<Difficulty, OptionDifficultySnapshot> dict;
-            lock (book.Gate)
-            {
-                dict = book.Items.ToDictionary(kv => kv.Key, kv => kv.Value);
-            }
+            var dict = book.Items.ToDictionary(kv => kv.Key, kv => kv.Value);
 
             list.Add(new OptionBookSnapshot(
                 mainItem.Meta,
