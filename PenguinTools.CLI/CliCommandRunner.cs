@@ -7,7 +7,7 @@ namespace PenguinTools.CLI;
 
 internal static class CliCommandRunner
 {
-    internal static async Task<int> RunAsync<T>(
+    internal static Task<int> RunAsync<T>(
         string operation,
         Func<IPenguinToolsApplication, CancellationToken, Task<OperationResult<T>>> action,
         Func<T, MessageDescriptor?> successMessage,
@@ -15,23 +15,8 @@ internal static class CliCommandRunner
         CancellationToken cancellationToken,
         ParseResult? parseResult = null)
     {
-        try
-        {
-            using var application = PenguinToolsApplication.CreateDefault(
-                GlobalCliOptions.CreateApplicationOptions(parseResult ?? EmptyParseResult()));
-            var result = await action(application, cancellationToken);
-            return WriteResult(operation, result, successMessage, typeInfo);
-        }
-        catch (OperationCanceledException)
-        {
-            CliOutput.WriteFailure(operation, Msg.Key(MsgKeys.Cli_Msg_operation_cancelled), CliExitCodes.Cancelled);
-            return CliExitCodes.Cancelled;
-        }
-        catch (Exception ex)
-        {
-            CliOutput.WriteFailure(operation, ResolveFailureMessage(ex), CliExitCodes.Failure);
-            return CliExitCodes.Failure;
-        }
+        return RunWithProgressAsync(operation, (application, _, ct) => action(application, ct),
+            successMessage, typeInfo, cancellationToken, suppressProgress: true, parseResult: parseResult);
     }
 
     internal static async Task<int> RunWithProgressAsync<T>(
