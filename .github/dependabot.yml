@@ -5,12 +5,7 @@ updates:
     schedule:
       interval: "weekly"
 
-  - package-ecosystem: "n"
-    directory: "u"
-    schedule:
-      interval: "weekly"
-
-  - package-ecosystem: "/"
-    directory: ""
+  - package-ecosystem: "nuget"
+    directory: "/"
     schedule:
       interval: "weekly"
