@@ -4,3 +4,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+
+  - package-ecosystem: "n"
+    directory: "u"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "/"
+    directory: ""
+    schedule:
+      interval: "weekly"
