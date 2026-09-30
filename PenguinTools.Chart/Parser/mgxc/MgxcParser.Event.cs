@@ -4,8 +4,10 @@ using umgr = Models.umgr;
 
 public partial class MgxcParser
 {
+    private bool _lastEventWasExtras;
     private void ParseEvent(BinaryReader br)
     {
+        _lastEventWasExtras = false;
         var name = br.ReadUtf8String(4);
         umgr.Event? e = null;
 
@@ -76,7 +78,19 @@ public partial class MgxcParser
             ThrowAtPosition(msg, br.BaseStream.Position, Mgxc);
         }
 
-        Mgxc.Events.AppendChild(e);
+        if (e is umgr.BookmarkEvent bookmark && ChartExtras.IsExtrasBookmark(bookmark.Tag))
+        {
+            _lastEventWasExtras = true;
+            var clickEnabled = Mgxc.Extras.ClickEnabled;
+            var tutorial = Mgxc.Extras.Tutorial;
+            var sourceSnapshot = Mgxc.Extras.SourceSnapshot;
+            Mgxc.Extras = ChartExtras.FromBookmark(bookmark.Tag);
+            Mgxc.Extras.ClickEnabled = clickEnabled;
+            Mgxc.Extras.Tutorial = tutorial;
+            if (Mgxc.Extras.SourceSnapshot.Length == 0)
+                Mgxc.Extras.SourceSnapshot = sourceSnapshot;
+        }
+        else Mgxc.Events.AppendChild(e);
 
         br.ReadInt32(); // 00 00 00 00
     }

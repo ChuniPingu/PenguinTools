@@ -42,3 +42,8 @@ public class Dcm : SpeedEventBase
 {
     public override string Id => "DCM";
 }
+
+public class Stop : SpeedEventBase
+{
+    public override string Id => "STP";
+}

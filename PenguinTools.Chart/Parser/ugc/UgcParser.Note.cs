@@ -1,4 +1,4 @@
-﻿using PenguinTools.Chart.Models;
+using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Chart.Parser.ugc;
@@ -9,7 +9,8 @@ public partial class UgcParser
 {
     private void DispatchBodyLine(string line)
     {
-        if (!line.StartsWith('#')) return;
+        if (!line.StartsWith('#'))
+            return;
         var rest = line.AsSpan(1);
         var parentIdx = rest.IndexOf(':');
         if (parentIdx < 0)
@@ -61,6 +62,7 @@ public partial class UgcParser
     {
         if (payload is ['c'])
         {
+            Ugc.Extras.ClickTicks.Add(absTick);
             _lastNote = null;
             return;
         }
@@ -72,9 +74,9 @@ public partial class UgcParser
         }
 
         var typeChar = payload[0];
-        var x = UgcPayload.Base36(payload[1]);
-        var w = UgcPayload.Base36(payload[2]);
-        if (x < 0 || w < 0)
+        var x = UgcPayload.Lane(payload[1]);
+        var w = UgcPayload.Lane(payload[2]);
+        if (w <= 0)
         {
             WarnMalformed(payload);
             return;
@@ -94,12 +96,15 @@ public partial class UgcParser
             {
                 Direction = UgcPayload.AirDirectionCode(extras.AsSpan(0, 2)),
                 Color = UgcPayload.AirColorChar(extras[2]),
-                Timeline = _currentTimeline
+                Timeline = _currentTimeline,
+                Tick = absTick,
+                Lane = x,
+                Width = w
             };
 
             Ugc.Notes.AppendChild(air);
 
-            var pairPositive = FindPairPositive(absTick);
+            var pairPositive = FindPairPositive(absTick, x, w);
             if (pairPositive != null)
                 pairPositive.MakePair(air);
             else
@@ -109,13 +114,16 @@ public partial class UgcParser
             return;
         }
 
-        if (typeChar == 'H')
+        if (typeChar == 'H' && extras.Length < 3)
         {
             var color = ParseAirHoldColor(extras);
             var airHold = new umgr.AirHold
             {
                 Color = color,
-                Timeline = _currentTimeline
+                Timeline = _currentTimeline,
+                Tick = absTick,
+                Lane = x,
+                Width = w
             };
             Ugc.Notes.AppendChild(airHold);
 
@@ -127,7 +135,7 @@ public partial class UgcParser
                 _lastNote = oldAir.PairNote;
             }
 
-            var pairPositive = FindPairPositive(absTick);
+            var pairPositive = FindPairPositive(absTick, x, w);
             if (pairPositive != null)
                 pairPositive.MakePair(airHold);
 
@@ -136,7 +144,7 @@ public partial class UgcParser
             return;
         }
 
-        if (typeChar == 'S')
+        if (typeChar is 'S' or 'H')
         {
             if (extras.Length < 3)
             {
@@ -145,17 +153,15 @@ public partial class UgcParser
             }
 
             var height = UgcPayload.Height36(extras.AsSpan(0, 2));
-            if (height < 0)
-            {
-                WarnMalformed(payload);
-                return;
-            }
 
             var airSlide = new umgr.AirSlide
             {
                 Height = height,
                 Color = UgcPayload.AirColorChar(extras[2]),
-                Timeline = _currentTimeline
+                Timeline = _currentTimeline,
+                Tick = absTick,
+                Lane = x,
+                Width = w
             };
             Ugc.Notes.AppendChild(airSlide);
 
@@ -167,7 +173,7 @@ public partial class UgcParser
                 _lastNote = oldAir.PairNote;
             }
 
-            var pairPositive = FindPairPositive(absTick);
+            var pairPositive = FindPairPositive(absTick, x, w);
             if (pairPositive != null)
                 pairPositive.MakePair(airSlide);
 
@@ -185,17 +191,13 @@ public partial class UgcParser
             }
 
             var height = UgcPayload.Height36(extras.AsSpan(0, 2));
-            if (height < 0)
-            {
-                WarnMalformed(payload);
-                return;
-            }
 
             var crash = new umgr.AirCrash
             {
                 Color = UgcPayload.CrushColorChar(extras[2]),
                 Height = height,
-                Density = UgcPayload.AirCrashInterval(suffix),
+                Density = suffix == "$" ? int.MaxValue : ScaleTick(UgcPayload.AirCrashInterval(suffix)),
+                Attr = extras.Length > 3 && extras[3] == 'Y' ? AirLadderAttr.AxisY : extras.Length > 3 && extras[3] == 'Z' ? AirLadderAttr.AxisZ : AirLadderAttr.DEF,
                 Tick = absTick,
                 Lane = x,
                 Width = w,
@@ -233,18 +235,20 @@ public partial class UgcParser
     }
 
     // Last PositiveNote at absTick when _lastNote is a non-positive long parent (Hold/Slide).
-    private umgr.PositiveNote? FindPairPositive(int absTick)
+    private umgr.PositiveNote? FindPairPositive(int absTick, int lane, int width)
     {
-        if (_lastNote is umgr.PositiveNote lastP && lastP.Tick.Original == absTick)
+        if (_lastNote is umgr.PositiveNote lastP && lastP.Tick.Original == absTick && lastP.Lane == lane && lastP.Width == width)
             return lastP;
 
-        return Ugc.Notes.Children.OfType<umgr.PositiveNote>().LastOrDefault(p => p.Tick.Original == absTick);
+        return Ugc.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).OfType<umgr.PositiveNote>().LastOrDefault(p => p.Tick.Original == absTick && p.Lane == lane && p.Width == width);
     }
 
     private static umgr.ExTap MakeExTap(string extras)
     {
         var exNote = new umgr.ExTap
         {
+            Role = extras.Contains('!') ? umgr.ExTapRole.Explicit :
+                extras.Contains('~') ? umgr.ExTapRole.SharedLongCarrier : umgr.ExTapRole.Auto,
             Effect = extras.Length >= 1 ? UgcPayload.ExEffectChar(extras[0]) : ExEffect.UP
         };
         return exNote;
@@ -269,6 +273,18 @@ public partial class UgcParser
 
     private void HandleChildPayload(int offsetTick, string payload)
     {
+        offsetTick = ScaleTick(offsetTick);
+        if (_lastParentNote is umgr.Slide slide && payload.Length > 0)
+        {
+            var noLine = payload[0] is 'n' or 'N' or 'V';
+            var previous = slide.Children.OfType<umgr.SlideJoint>().LastOrDefault();
+            if (previous is null)
+                slide.NoLine = noLine;
+            else
+                previous.NoLine = noLine;
+            if (noLine)
+                payload = (payload[0] == 'n' ? "s" : "c") + payload[1..];
+        }
         if (_lastParentNote is null)
         {
             WarnMalformed(payload);
@@ -337,9 +353,9 @@ public partial class UgcParser
         }
 
         var typeChar = payload[0];
-        var x = UgcPayload.Base36(payload[1]);
-        var w = UgcPayload.Base36(payload[2]);
-        if (x < 0 || w < 0)
+        var x = UgcPayload.Lane(payload[1]);
+        var w = UgcPayload.Lane(payload[2]);
+        if (w <= 0)
         {
             WarnMalformed(payload);
             return;
@@ -367,18 +383,13 @@ public partial class UgcParser
                 }
                 else if (_lastParentNote is umgr.AirSlide)
                 {
-                    if (payload.Length < 5)
+                    if (payload.Length is not (3 or >= 5))
                     {
                         WarnMalformed(payload);
                         return;
                     }
 
-                    var height = UgcPayload.Height36(payload.AsSpan(3, 2));
-                    if (height < 0)
-                    {
-                        WarnMalformed(payload);
-                        return;
-                    }
+                    var height = payload.Length == 3 ? ((umgr.AirSlide)_lastParentNote).Height : UgcPayload.Height36(payload.AsSpan(3, 2));
 
                     child = new umgr.AirSlideJoint
                     {
@@ -395,11 +406,6 @@ public partial class UgcParser
                     }
 
                     var height = UgcPayload.Height36(payload.AsSpan(3, 2));
-                    if (height < 0)
-                    {
-                        WarnMalformed(payload);
-                        return;
-                    }
 
                     child = new umgr.AirCrashJoint { Height = height };
                 }
@@ -407,7 +413,8 @@ public partial class UgcParser
                 break;
         }
 
-        if (child is null) return;
+        if (child is null)
+            return;
 
         child.Tick = absTick;
         child.Lane = x;

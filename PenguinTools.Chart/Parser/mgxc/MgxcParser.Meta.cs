@@ -5,6 +5,8 @@ namespace PenguinTools.Chart.Parser.mgxc;
 
 public partial class MgxcParser
 {
+    private string _privateMetadata = "";
+    private string _copyright = "";
     private void ParseMeta(BinaryReader br)
     {
         var name = br.ReadUtf8String(4);
@@ -143,7 +145,7 @@ public partial class MgxcParser
         }
         else if (name == "ttrl")
         {
-            // TUTORIAL
+            Mgxc.Extras.Tutorial = Convert.ToBoolean(data);
         }
         else if (name == "sofs")
         {
@@ -151,7 +153,7 @@ public partial class MgxcParser
         }
         else if (name == "uclk")
         {
-            // USECLICK
+            Mgxc.Extras.ClickEnabled = Convert.ToBoolean(data);
         }
         else if (name == "xlng")
         {
@@ -175,7 +177,12 @@ public partial class MgxcParser
         }
         else if (name == "lcpy")
         {
-            // COPYRIGHT
+            _copyright = (string)data;
+            Mgxc.Extras.ReadCopyright(_copyright);
+        }
+        else if (name == "ptmd")
+        {
+            _privateMetadata += (string)data;
         }
         else if (name == "ltyp")
         {

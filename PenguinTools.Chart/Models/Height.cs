@@ -7,7 +7,7 @@ namespace PenguinTools.Chart.Models;
 
 public readonly record struct Height(decimal Original) : IComparable<Height>
 {
-    public decimal Result => Math.Round(Math.Max(0m, Original / 10m * 0.5m + 1m), 1);
+    public decimal Result => Original / 20m + 1m;
 
     public int CompareTo(Height other)
     {

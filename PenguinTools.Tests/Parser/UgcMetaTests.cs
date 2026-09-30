@@ -63,9 +63,9 @@ public class UgcMetaTests
     }
 
     [Fact]
-    public async Task Meta_WrongTicks_Fails()
+    public async Task Meta_NonpositiveTicks_Fails()
     {
-        const string ugc = "@VER\t8\n@TICKS\t960\n@BPM\t0'0\t120.0\n";
+        const string ugc = "@VER\t8\n@TICKS\t0\n@BPM\t0'0\t120.0\n";
         var r = await Parse(ugc);
         Assert.False(r.Succeeded);
     }

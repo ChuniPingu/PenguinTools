@@ -13,6 +13,11 @@ public sealed class OfficialC2sRoundTripTests
 {
     private static bool TryGetAssetDirectory(out string directory)
     {
+        if (Directory.Exists(ChartTestPaths.AssetsDirectory))
+        {
+            directory = ChartTestPaths.AssetsDirectory;
+            return true;
+        }
         var cursor = AppContext.BaseDirectory;
 
         while (cursor is not null)
@@ -270,14 +275,14 @@ public sealed class OfficialC2sRoundTripTests
                     roundTrip.Succeeded,
                     $"{name}: round {round} output C2S parse failed: {roundTrip}");
 
-                WarnSnapshotDrift(
+                AssertSnapshotEqual(
                     sourceNoteSnapshot,
                     NoteSnapshot(roundTrip.Value!),
                     name,
                     round,
                     "note");
 
-                WarnSnapshotDrift(
+                AssertSnapshotEqual(
                     sourceEventSnapshot,
                     EventSnapshot(roundTrip.Value!),
                     name,
@@ -308,27 +313,27 @@ public sealed class OfficialC2sRoundTripTests
                     hasRoundTripSummary,
                     $"{name}: round {round} T_JUDGE summary disappeared.");
 
-                WarnUnless(
+                AssertUnchanged(
                     sourceTap == roundTripTap,
                     $"{name}: round {round} TAP changed {sourceTap} -> {roundTripTap}");
 
-                WarnUnless(
+                AssertUnchanged(
                     sourceHld == roundTripHld,
                     $"{name}: round {round} HLD changed {sourceHld} -> {roundTripHld}");
 
-                WarnUnless(
+                AssertUnchanged(
                     sourceSld == roundTripSld,
                     $"{name}: round {round} SLD changed {sourceSld} -> {roundTripSld}");
 
-                WarnUnless(
+                AssertUnchanged(
                     sourceAir == roundTripAir,
                     $"{name}: round {round} AIR changed {sourceAir} -> {roundTripAir}");
 
-                WarnUnless(
+                AssertUnchanged(
                     sourceFlk == roundTripFlk,
                     $"{name}: round {round} FLK changed {sourceFlk} -> {roundTripFlk}");
 
-                WarnUnless(
+                AssertUnchanged(
                     sourceAll == roundTripAll,
                     $"{name}: round {round} ALL changed {sourceAll} -> {roundTripAll}");
 
@@ -343,54 +348,10 @@ public sealed class OfficialC2sRoundTripTests
         }
     }
 
-    private static void WarnUnless(bool condition, string message)
-    {
-        if (!condition)
-            TestContext.Current.AddWarning(message);
-    }
+    private static void AssertUnchanged(bool condition, string message) => Assert.True(condition, message);
 
-    private static void WarnSnapshotDrift(
-        string[] expected,
-        string[] actual,
-        string name,
-        int round,
-        string kind)
-    {
-        if (expected.Length != actual.Length)
-        {
-            TestContext.Current.AddWarning(
-                $"{name}: round {round} {kind} count changed " +
-                $"{expected.Length} -> {actual.Length}");
-        }
-
-        var limit = Math.Min(expected.Length, actual.Length);
-        var mismatches = 0;
-        string? first = null;
-
-        for (var i = 0; i < limit; i++)
-        {
-            if (expected[i] == actual[i])
-                continue;
-
-            mismatches++;
-            first ??=
-                $"{name}: round {round} {kind} mismatch at index {i}" +
-                Environment.NewLine +
-                $"Expected: {expected[i]}" +
-                Environment.NewLine +
-                $"Actual:   {actual[i]}";
-        }
-
-        if (first is null)
-            return;
-
-        TestContext.Current.AddWarning(
-            mismatches == 1
-                ? first
-                : first + Environment.NewLine +
-                  $"({mismatches} {kind} mismatches)");
-    }
-
+    private static void AssertSnapshotEqual(string[] expected, string[] actual, string name, int round, string kind) =>
+        Assert.True(expected.SequenceEqual(actual), $"{name}: round {round} {kind} records changed.");
     private static string MetaSnapshot(c2s.Chart chart)
     {
         var meta = chart.Meta;
@@ -496,9 +457,12 @@ public sealed class OfficialC2sRoundTripTests
         };
     }
 
-    private static string ParentKey(c2s.Note? note) =>
-        note is null
-            ? "null"
-            : $"{note.Id}@{note.Tick.Original}:{note.Timeline}:" +
-              $"{note.Lane}:{note.Width}";
+    // C2S encodes a parent type and attach position, not a unique root ID.
+    // Compare that serialized identity; root allocation is tested separately.
+    private static string ParentKey(c2s.Note? note) => note switch
+    {
+        null => "null",
+        c2s.LongNote n => $"{n.Id}@{n.EndTick.Original}:{n.EndLane}:{n.EndWidth}",
+        _ => $"{note.Id}@{note.Tick.Original}:{note.Lane}:{note.Width}"
+    };
 }

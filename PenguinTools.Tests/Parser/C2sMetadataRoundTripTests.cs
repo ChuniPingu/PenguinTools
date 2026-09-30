@@ -96,10 +96,11 @@ public sealed class C2sMetadataRoundTripTests
 
             var header = (await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken))
                 .Take(12).ToArray();
-            Assert.Equal("VERSION\t1.14.00\t1.14.00", header[0]);
-            Assert.Equal("MUSIC\t2999", header[1]);
-            Assert.Equal("DIFFICULT\t03", header[3]);
-            Assert.Equal("LEVEL\t15.6", header[4]);
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", header[0]);
+            Assert.Equal("MUSIC\t0", header[1]);
+            Assert.Equal("SEQUENCEID\t0", header[2]);
+            Assert.Equal("DIFFICULT\t0", header[3]);
+            Assert.Equal("LEVEL\t0.0", header[4]);
             Assert.Equal("CREATOR\tMemoir", header[5]);
             Assert.Equal("BPM_DEF\t193.000\t193.000\t240.000\t120.625", header[6]);
         }
@@ -155,7 +156,9 @@ public sealed class C2sMetadataRoundTripTests
                     path,
                     TestContext.Current.CancellationToken));
 
-            Assert.Contains("#meta c2ssla " + snapshot, rawMgxc);
+            Assert.DoesNotContain("#meta c2ssla ", rawMgxc);
+            Assert.Contains("PT_EXTRAS_V2:", rawMgxc);
+            Assert.DoesNotContain("ptmd", rawMgxc);
 
             var parsed = await new MgxcParser(
                     new MgxcParseRequest(

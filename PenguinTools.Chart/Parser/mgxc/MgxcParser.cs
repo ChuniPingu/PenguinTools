@@ -74,6 +74,14 @@ public partial class MgxcParser
             br.ReadInt32(); // unknown
 
             br.ReadBlock(HeaderMeta, ParseMeta);
+            if (_privateMetadata.Length > 0)
+            {
+                var clickEnabled = Mgxc.Extras.ClickEnabled;
+                var tutorial = Mgxc.Extras.Tutorial;
+                Mgxc.Extras = ChartExtras.FromCopyright(_copyright + _privateMetadata);
+                Mgxc.Extras.ClickEnabled = clickEnabled;
+                Mgxc.Extras.Tutorial = tutorial;
+            }
 
             if (ChartMetaCommands.IsIgnored(Mgxc.Meta.Comment))
             {
@@ -81,14 +89,39 @@ public partial class MgxcParser
                 return ChartMetaCommands.SkipParse(Diagnostic, Path);
             }
 
-            br.ReadBlock(HeaderEvnt, ParseEvent);
+            using var payload = new MemoryStream();
+            void Capture(BinaryReader reader, Action<BinaryReader> parse, bool isEvent)
+            {
+                var start = reader.BaseStream.Position;
+                parse(reader);
+                var end = reader.BaseStream.Position;
+                if (isEvent && _lastEventWasExtras) return;
+                reader.BaseStream.Position = start;
+                payload.Write(reader.ReadBytes(checked((int)(end - start))));
+            }
+            br.ReadBlock(HeaderEvnt, reader => Capture(reader, ParseEvent, true));
+            PenguinTools.Core.Metadata.C2sRoundTripComment.Absorb(Mgxc.Meta, Mgxc.Extras.RoundTripBookmarks);
 
             Diagnostic.TimeCalculator = Mgxc.GetCalculator();
 
-            br.ReadBlock(HeaderDat2, ParseNote);
+            br.ReadBlock(HeaderDat2, reader => Capture(reader, ParseNote, false));
+            Mgxc.Extras.BinarySnapshotValid = Mgxc.Extras.BinaryContentKey ==
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload.ToArray()));
+            if (!Mgxc.Extras.BinarySnapshotValid) Mgxc.Extras.HasSpeedSnapshot = false;
 
+            if (Mgxc.Extras.BinarySnapshotValid)
+                foreach (var crash in Mgxc.Notes.Children.OfType<umgr.AirCrash>())
+                    if (Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash)))
+                        crash.Attr = Models.AirLadderAttr.Trace;
+
+            Mgxc.Extras.CheckEventView(Mgxc);
             var post = new ChartPostProcessor(Mgxc, Diagnostic, Assets);
             post.Run();
+            if (Mgxc.Extras.BinarySnapshotValid) Mgxc.Extras.RestoreAppearance(Mgxc);
+            Mgxc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Mgxc);
+            Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
+            Mgxc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Mgxc);
+            Mgxc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Mgxc);
             ProcessMeta();
 
             await Task.WhenAll(Tasks);

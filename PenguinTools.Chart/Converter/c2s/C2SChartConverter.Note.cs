@@ -320,7 +320,7 @@ public partial class C2SChartConverter
                 x.EndLane = next.Lane;
                 x.EndWidth = next.Width;
                 x.NoLine = curr.NoLine;
-                x.Effect = slide.Effect;
+                x.Effect = curr.HasEffectOverride ? curr.SegmentEffect : slide.Effect;
             });
             _slideSegmentSources[note] = new C2sSlideSegmentSource(
                 slide,

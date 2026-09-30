@@ -6,6 +6,16 @@ internal static class UgcPayload
 {
     private const int TransparentCrashDensity = 0x7FFFFFFF;
 
+    public static int Lane(char c)
+    {
+        if (c is >= '\uE000' and <= '\uE0FF') return -(c - 0xE000 + 1);
+        if (c is >= '\uE100' and <= '\uE1FF') return 36 + c - 0xE100;
+        if (c is >= '\uE200' and <= '\uE8FF') return -(257 + c - 0xE200);
+        if (c is >= '\uE900' and <= '\uF8FF') return 292 + c - 0xE900;
+        var value = Base36(c);
+        return value >= 0 ? value : throw new FormatException("Invalid UGC coordinate.");
+    }
+
     public static int Base36(char c)
     {
         if (c is >= '0' and <= '9') return c - '0';
@@ -21,10 +31,10 @@ internal static class UgcPayload
             'U' => ExEffect.UP,
             'D' => ExEffect.DW,
             'C' => ExEffect.CE,
-            'L' => ExEffect.RS,
-            'R' => ExEffect.LS,
-            'A' => ExEffect.RC,
-            'W' => ExEffect.LC,
+            'L' => ExEffect.LS,
+            'R' => ExEffect.RS,
+            'A' => ExEffect.LC,
+            'W' => ExEffect.RC,
             'I' => ExEffect.BS,
             _ => ExEffect.UP // caller should have validated; default for safety
         };
@@ -46,8 +56,7 @@ internal static class UgcPayload
 
     public static decimal Height36(ReadOnlySpan<char> chars)
     {
-        var raw = Base36(chars);
-        return raw < 0 ? -1 : raw;
+        return chars.Length == 2 ? Lane(chars[0]) * 36 + Base36(chars[1]) : Base36(chars);
     }
 
     public static AirDirection AirDirectionCode(ReadOnlySpan<char> code)
@@ -109,9 +118,10 @@ internal static class UgcPayload
             '7' => Color.CYN,
             '8' => Color.DGR,
             '9' => Color.BLU,
-            'A' => Color.VLT,
+            'A' => Color.PPL,
             'Y' => Color.PPL,
-            'B' => Color.PNK,
+            'B' => Color.VLT,
+            'E' => Color.PNK,
             'C' => Color.GRY,
             'D' => Color.BLK,
             'Z' => Color.NON,

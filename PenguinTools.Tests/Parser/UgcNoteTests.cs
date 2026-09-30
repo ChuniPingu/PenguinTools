@@ -390,19 +390,20 @@ public class UgcNoteTests
     }
 
     [Fact]
-    public async Task AirHold_IgnoresOptionalHeightAndConvertsToC2s()
+    public async Task LegacyAirSlide_HWithHeight_PreservesHeightAndConvertsToC2s()
     {
         var chart = await Parse("#0'0:t04\n#0'0:H0428N\n#480:s0428\n");
-        var airHold = Assert.Single(chart.Notes.Children.OfType<AirHold>());
+        var airHold = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
         Assert.Equal(Color.DEF, airHold.Color);
-        Assert.Single(airHold.Children.OfType<AirHoldJoint>());
+        Assert.Single(airHold.Children.OfType<AirSlideJoint>());
+        Assert.Equal(80m, airHold.Height);
 
         var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
 
         Assert.True(convert.Succeeded, convert.ToString());
         Assert.Empty(convert.Value!.Notes.OfType<Chart.Models.c2s.Air>());
-        var c2sAirHold = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.AirHold>());
-        Assert.Equal("AHD", c2sAirHold.Id);
+        var c2sAirHold = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.AirSlide>());
+        Assert.Equal("ASD", c2sAirHold.Id);
         Assert.Equal(480, c2sAirHold.EndTick.Original);
         Assert.Equal(Joint.D, c2sAirHold.Joint);
     }

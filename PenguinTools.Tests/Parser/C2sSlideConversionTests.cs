@@ -112,7 +112,7 @@ public sealed class C2sSlideConversionTests
     }
 
     [Fact]
-    public async Task LaterSxd_MarksWholeSlideEx_AndPreservesNoLine()
+    public async Task LaterSxd_PreservesSegmentEffectAndNoLine()
     {
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -150,7 +150,7 @@ public sealed class C2sSlideConversionTests
             var slide = Assert.Single(
                 converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Slide>());
 
-            Assert.Equal(ExEffect.UP, slide.Effect);
+            Assert.Null(slide.Effect);
             Assert.False(slide.NoLine);
 
             var joints = slide.Children
@@ -159,6 +159,8 @@ public sealed class C2sSlideConversionTests
 
             Assert.Equal(2, joints.Length);
             Assert.True(joints[0].NoLine);
+            Assert.True(joints[0].HasEffectOverride);
+            Assert.Equal(ExEffect.UP, joints[0].SegmentEffect);
         }
         finally
         {

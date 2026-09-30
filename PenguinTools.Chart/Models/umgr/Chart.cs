@@ -4,6 +4,7 @@ namespace PenguinTools.Chart.Models.umgr;
 
 public class Chart
 {
+    public ChartExtras Extras { get; set; } = new();
     public Meta Meta { get; set; } = new();
     public Note Notes { get; set; } = new();
     public Event Events { get; set; } = new();

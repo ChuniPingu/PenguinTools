@@ -30,10 +30,10 @@ public class PayloadTests
     [InlineData('U', ExEffect.UP)]
     [InlineData('D', ExEffect.DW)]
     [InlineData('C', ExEffect.CE)]
-    [InlineData('L', ExEffect.RS)]
-    [InlineData('R', ExEffect.LS)]
-    [InlineData('A', ExEffect.RC)]
-    [InlineData('W', ExEffect.LC)]
+    [InlineData('L', ExEffect.LS)]
+    [InlineData('R', ExEffect.RS)]
+    [InlineData('A', ExEffect.LC)]
+    [InlineData('W', ExEffect.RC)]
     [InlineData('I', ExEffect.BS)] // in-out burst
     public void ExEffectChar_MapsToExpectedEffect(char c, ExEffect expected)
     {

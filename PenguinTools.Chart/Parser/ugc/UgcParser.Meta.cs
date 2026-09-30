@@ -50,12 +50,24 @@ public partial class UgcParser
                 break;
 
             case "FLAG": HandleFlag(args); break;
-            case "CLKCNT": break;
+            case "CLKCNT":
+                if (!int.TryParse(Str(args), out var count) || count < 0)
+                    ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, Str(args), "nonnegative CLKCNT"));
+                Ugc.Extras.ClickCount = count;
+                break;
             case "CMT": Ugc.Meta.Comment = Str(args); break;
 
             case "ATINFO":
             case "DLURL":
+                break;
             case "COPYRIGHT":
+                if (Str(args).Contains("PT_C2S_", StringComparison.Ordinal)) Ugc.Extras = ChartExtras.FromCopyright(Str(args));
+                else Ugc.Extras.ReadCopyright(Str(args));
+                C2sRoundTripComment.Absorb(Ugc.Meta, Ugc.Extras.RoundTripBookmarks);
+                break;
+            case "C2S_BOUNDS":
+            case "C2S_BASECOUNT":
+                break;
             case "LICENSE": break;
 
             case "BPM": HandleBpm(args); break;
@@ -79,6 +91,7 @@ public partial class UgcParser
             case "USETIL": break;
 
             default:
+                if (name.StartsWith("T_JUDGE_", StringComparison.Ordinal)) break;
                 ReportAtCurrentLine(Severity.Warning,
                     Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, Str(args)));
                 break;
@@ -111,9 +124,8 @@ public partial class UgcParser
 
     private void HandleTicks(string[] args)
     {
-        if (args.Length < 1) return;
-        if (!int.TryParse(args[0], out var t) || t != 480)
-            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "TICKS=480"));
+        if (args.Length < 1 || !int.TryParse(args[0], out _sourceTicks) || _sourceTicks <= 0)
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, Str(args), "positive TICKS"));
     }
 
     private void HandleGenre(string[] args)
@@ -229,11 +241,12 @@ public partial class UgcParser
         switch (key)
         {
             case "SOFFSET": Ugc.Meta.BgmEnableBarOffset = boolVal; break;
-            case "CLICK":
+            case "CLICK": Ugc.Extras.ClickEnabled = boolVal; break;
+            case "TUTORIAL": Ugc.Extras.Tutorial = boolVal; break;
+            case "DIFFTTL": Ugc.Extras.Tutorial = boolVal; break;
             case "EXLONG":
             case "BGMWCMP":
             case "HIPRECISION":
-            case "DIFFTTL":
                 break;
             default:
                 Log("FLAG:" + key, args);

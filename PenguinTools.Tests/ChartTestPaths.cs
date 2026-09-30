@@ -9,5 +9,7 @@ internal static class ChartTestPaths
     ///     <c>PenguinTools.Tests/Assets</c> — paired <c>.ugc</c> / <c>.mgxc</c> samples live here.
     /// </summary>
     public static string AssetsDirectory =>
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Assets"));
+        Environment.GetEnvironmentVariable("PENGUINTOOLS_TEST_CHARTS") is { Length: > 0 } directory
+            ? Path.GetFullPath(directory)
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Assets"));
 }

@@ -17,7 +17,7 @@ namespace PenguinTools.Tests.Parser;
 public sealed class C2sFormatCompatibilityTests
 {
     [Fact]
-    public async Task ZeroNumeratorMet_IsSkippedAndMgxcStillWrites()
+    public async Task ZeroNumeratorMet_IsPreservedAndMgxcStillWrites()
     {
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         var path = Path.Combine(directory, "zero-met.c2s");
@@ -35,14 +35,14 @@ public sealed class C2sFormatCompatibilityTests
 
         var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(TestContext.Current.CancellationToken);
         Assert.True(parsed.Succeeded, parsed.ToString());
-        Assert.DoesNotContain(parsed.Value!.Events.OfType<Met>(), met => met.Numerator <= 0 || met.Denominator <= 0);
-        Assert.Contains(parsed.Diagnostics.Diagnostics,
+        Assert.Contains(parsed.Value!.Events.OfType<Met>(), met => met.Numerator == 0 && met.Denominator == 4);
+        Assert.DoesNotContain(parsed.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key == MsgKeys.C2s_Invalid_field);
 
         var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
-        Assert.DoesNotContain(converted.Value!.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BeatEvent>(),
-            beat => beat.Numerator <= 0 || beat.Denominator <= 0);
+        Assert.Contains(converted.Value!.Events.Children.OfType<PenguinTools.Chart.Models.umgr.BeatEvent>(),
+            beat => beat.Numerator == 0 && beat.Denominator == 4);
 
         var outPath = Path.Combine(directory, "zero-met.mgxc");
         var written = await new MgxcChartWriter(new MgxcWriteRequest(outPath, converted.Value))
@@ -339,7 +339,7 @@ public sealed class C2sFormatCompatibilityTests
         }
     }
     [Fact]
-    public async Task Writer_KeepsV114_WhenAldAttrIsDefault()
+    public async Task Writer_UsesV115_WhenAldAttrIsDefault()
     {
         var source = new C2sChart { Meta = new Meta { MainBpm = 120m } };
         source.Events.Add(new Bpm { Tick = 0, Value = 120m });
@@ -354,17 +354,16 @@ public sealed class C2sFormatCompatibilityTests
         var path = Path.Combine(directory, "ald-v114.c2s");
         try
         {
-            Assert.False(C2SChartWriter.NeedsV115(source));
             var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
                 .WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded, written.ToString());
 
             var lines = await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken);
-            Assert.Equal("VERSION\t1.14.00\t1.14.00", lines[0]);
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", lines[0]);
             var ald = Assert.Single(lines, l => l.StartsWith("ALD\t", StringComparison.Ordinal));
-            Assert.EndsWith("\tCYN", ald);
+            Assert.EndsWith("\tCYN\tDEF", ald);
             Assert.DoesNotContain("AxisY", ald);
-            Assert.False(ald.EndsWith("\tDEF", StringComparison.Ordinal));
+            Assert.EndsWith("\tDEF", ald);
         }
         finally
         {
@@ -398,7 +397,6 @@ public sealed class C2sFormatCompatibilityTests
         var path = Path.Combine(directory, "noline-v115.c2s");
         try
         {
-            Assert.True(C2SChartWriter.NeedsV115(source));
             var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
                 .WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded, written.ToString());
@@ -417,7 +415,7 @@ public sealed class C2sFormatCompatibilityTests
     }
 
     [Fact]
-    public async Task Writer_OmitsSlideLinkMarker_OnV114()
+    public async Task Writer_EmitsSlideLinkMarker_OnV115()
     {
         var source = new C2sChart { Meta = new Meta { MainBpm = 120m } };
         source.Events.Add(new Bpm { Tick = 0, Value = 120m });
@@ -432,15 +430,14 @@ public sealed class C2sFormatCompatibilityTests
         var path = Path.Combine(directory, "slide-v114.c2s");
         try
         {
-            Assert.False(C2SChartWriter.NeedsV115(source));
             var written = await new C2SChartWriter(new C2SWriteRequest(path, source))
                 .WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded, written.ToString());
 
             var lines = await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken);
-            Assert.Equal("VERSION\t1.14.00\t1.14.00", lines[0]);
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", lines[0]);
             var slide = Assert.Single(lines, l => l.StartsWith("SXD\t", StringComparison.Ordinal) || l.StartsWith("SLD\t", StringComparison.Ordinal));
-            Assert.DoesNotContain("\tSLD\t", slide);
+            Assert.Contains("\tSLD", slide);
             Assert.DoesNotContain("\tNCL", slide);
             Assert.EndsWith("\tUP", slide);
 
@@ -525,11 +522,11 @@ public sealed class C2sFormatCompatibilityTests
                 .WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded, written.ToString());
             var lines = await File.ReadAllLinesAsync(outPath, TestContext.Current.CancellationToken);
-            Assert.Equal("VERSION\t1.14.00\t1.14.00", lines[0]);
+            Assert.Equal("VERSION\t1.15.00\t1.15.00", lines[0]);
             var ald = Assert.Single(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal));
-            Assert.EndsWith("\tCYN", ald);
+            Assert.EndsWith("\tCYN\tDEF", ald);
             Assert.DoesNotContain("AxisY", ald);
-            Assert.False(ald.EndsWith("\tDEF", StringComparison.Ordinal));
+            Assert.EndsWith("\tDEF", ald);
         }
         finally
         {

@@ -30,14 +30,11 @@ public class MgxcRegressionTests
     public async Task ParseKnownSample_StillProducesChart()
     {
         var masterMgxcPath = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
+        if (!File.Exists(masterMgxcPath) && Directory.Exists(ChartTestPaths.AssetsDirectory))
+            masterMgxcPath = Directory.EnumerateFiles(ChartTestPaths.AssetsDirectory, "*.mgxc").FirstOrDefault() ?? masterMgxcPath;
         Assert.SkipWhen(!File.Exists(masterMgxcPath), $"Optional chart sample is missing: {masterMgxcPath}");
 
-        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var assetsPath = Path.Combine(repoRoot, "assets.json");
-        Assert.True(File.Exists(assetsPath), $"Required asset dictionary is missing: {assetsPath}");
-
-        await using var assetsStream = File.OpenRead(assetsPath);
-        var assets = new AssetManager(assetsStream);
+        var assets = TestAssets.Load();
         var parser = new MgxcParser(new MgxcParseRequest(masterMgxcPath, assets), TestMediaTool.Instance);
 
         var result = await parser.ParseAsync(TestContext.Current.CancellationToken);
