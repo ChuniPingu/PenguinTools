@@ -1,4 +1,4 @@
-﻿/*
+/*
    This code is modified from https://github.com/paralleltree/Ched
    Original Author: paralleltree
 */
@@ -54,8 +54,8 @@ public class TimeCalculator : ITickFormatter
         var measureLength = GetMeasureLength(ts);
 
         var delta = tick - ts.Tick;
-        var barsSince = delta / measureLength;
-        var remainder = delta % measureLength;
+        var barsSince = measureLength > 0 ? delta / measureLength : 0;
+        var remainder = measureLength > 0 ? delta % measureLength : delta;
 
         var beatTick = (double)_barTick / ts.Denominator;
         var beatIndex = (int)(remainder / beatTick);

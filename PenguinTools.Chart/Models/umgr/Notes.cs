@@ -68,6 +68,8 @@ public class Slide : ExTapableNote
 
 public class SlideJoint : PositiveNote
 {
+    public bool HasEffectOverride { get; set; }
+    public ExEffect? SegmentEffect { get; set; }
     public Joint Joint { get; set; } = Joint.D;
 
     /// <summary>

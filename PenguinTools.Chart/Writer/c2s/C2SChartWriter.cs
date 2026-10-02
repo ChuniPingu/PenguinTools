@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Security.Cryptography;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
@@ -24,48 +25,87 @@ public partial class C2SChartWriter
     private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
     private string OutPath { get; }
     private c2s.Chart Chart { get; }
-    private bool EmitV115 { get; set; }
+    private int Resolution { get; set; } = 384;
 
     public async Task<OperationResult> WriteAsync(CancellationToken ct = default)
     {
-        var sb = new StringBuilder();
-        EmitV115 = NeedsV115(Chart);
-        var version = EmitV115 ? "1.15.00" : "1.14.00";
-        var musicId = Chart.Meta.Id
-                      ?? (int.TryParse(Chart.Meta.MgxcId, NumberStyles.Integer, CultureInfo.InvariantCulture,
-                          out var parsedId)
-                          ? parsedId
-                          : 0);
-        var bpms = Chart.Events.OfType<c2s.Bpm>().Select(x => x.Value).ToArray();
-        var mainBpm = Chart.Meta.MainBpm > 0 ? Chart.Meta.MainBpm
-            : Chart.Meta.BgmInitialBpm > 0 ? Chart.Meta.BgmInitialBpm
-            : bpms.FirstOrDefault(120m);
-        var maxBpm = bpms.Length > 0 ? bpms.Max() : mainBpm;
-        var minBpm = bpms.Length > 0 ? bpms.Min() : mainBpm;
+        var previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            Resolution = Chart.Extras.SerializationResolution(Chart);
+            var sb = new StringBuilder();
+            var version = "1.15.00";
+            var bpms = Chart.Events.OfType<c2s.Bpm>().Select(x => x.Value).ToArray();
+            var mainBpm = Chart.Meta.MainBpm > 0 ? Chart.Meta.MainBpm
+                : Chart.Meta.BgmInitialBpm > 0 ? Chart.Meta.BgmInitialBpm
+                : bpms.FirstOrDefault(120m);
+            var maxBpm = bpms.Length > 0 ? bpms.Max() : mainBpm;
+            var minBpm = bpms.Length > 0 ? bpms.Min() : mainBpm;
 
-        sb.AppendLine($"VERSION\t{version}\t{version}");
-        sb.AppendLine($"MUSIC\t{musicId}");
-        sb.AppendLine("SEQUENCEID\t0");
-        sb.AppendLine($"DIFFICULT\t{DifficultyValue(Chart.Meta.Difficulty):00}");
-        sb.AppendLine($"LEVEL\t{FormatLevel(Chart.Meta.Level)}");
-        sb.AppendLine($"CREATOR\t{Chart.Meta.Designer}");
-        sb.AppendLine($"BPM_DEF\t{mainBpm:F3}\t{mainBpm:F3}\t{maxBpm:F3}\t{minBpm:F3}");
-        sb.AppendLine($"MET_DEF\t{Chart.Meta.BgmInitialDenominator}\t{Chart.Meta.BgmInitialNumerator}");
-        sb.AppendLine("RESOLUTION\t384");
-        sb.AppendLine("CLK_DEF\t384");
-        sb.AppendLine("PROGJUDGE_BPM\t240.000");
-        sb.AppendLine("PROGJUDGE_AER\t  0.999");
-        sb.AppendLine("TUTORIAL\t0");
-        AppendJudgeSummary(sb);
-        sb.AppendLine();
+            sb.AppendLine($"VERSION\t{version}\t{version}");
+            // Song selection and difficulty are supplied by the game's XML.
+            sb.AppendLine("MUSIC\t0");
+            sb.AppendLine("SEQUENCEID\t0");
+            sb.AppendLine("DIFFICULT\t0");
+            sb.AppendLine("LEVEL\t0.0");
+            sb.AppendLine($"CREATOR\t{Chart.Meta.Designer}");
+            sb.AppendLine($"BPM_DEF\t{(bpms.FirstOrDefault(mainBpm)):F3}\t{mainBpm:F3}\t{maxBpm:F3}\t{minBpm:F3}");
+            sb.AppendLine($"MET_DEF\t{Chart.Meta.BgmInitialDenominator}\t{Chart.Meta.BgmInitialNumerator}");
+            sb.AppendLine($"RESOLUTION\t{Resolution}");
+            var clock = Chart.Extras.ClockTicks(Chart) * Resolution / 1920;
+            sb.AppendLine($"CLK_DEF\t{clock}");
+            sb.AppendLine(Chart.Extras.Headers.GetValueOrDefault("PROGJUDGE_BPM", "PROGJUDGE_BPM\t240.000"));
+            sb.AppendLine(Chart.Extras.Headers.GetValueOrDefault("PROGJUDGE_AER", "PROGJUDGE_AER\t  0.999"));
+            sb.AppendLine($"TUTORIAL\t{(Chart.Extras.Tutorial ? 1 : 0)}");
+            foreach (var (tag, value) in Chart.Extras.Headers)
+                if (tag is not ("CLK_DEF" or "SEQUENCEID" or "PROGJUDGE_BPM" or "PROGJUDGE_AER" or "TUTORIAL" or "VERSION" or "MUSIC" or "DIFFICULT" or "LEVEL" or "CREATOR" or "BPM_DEF" or "MET_DEF"))
+                    sb.AppendLine(value);
+            sb.AppendLine();
 
-        AppendFormattedEvents(sb);
-        sb.AppendLine();
-        if (!AppendFormattedNotes(sb))
-            return OperationResult.Failure().WithDiagnostics(Diagnostic);
+            AppendFormattedEvents(sb);
+            sb.AppendLine();
+            if (!AppendFormattedNotes(sb))
+                return OperationResult.Failure().WithDiagnostics(Diagnostic);
 
-        await File.WriteAllTextAsync(OutPath, sb.ToString(), ct);
-        return OperationResult.Success().WithDiagnostics(Diagnostic);
+            var text = sb.ToString();
+            if (Chart.Extras.SourceMetaKey == ChartExtras.MetaKey(Chart))
+            {
+                var lines = text.Split('\n');
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var tag = lines[i].Split('\t')[0];
+                    if (tag is "CREATOR" or "BPM_DEF" or "MET_DEF")
+                        if (Chart.Extras.Headers.TryGetValue(tag, out var original))
+                            lines[i] = original;
+                }
+                text = string.Join('\n', lines);
+            }
+            text = Chart.Extras.RestoreSourceOrder(text, Resolution);
+            var unchanged = Chart.Extras.SourceKey == GetContentKey(Chart);
+            if (unchanged && Chart.Extras.SourceStatistics.Count > 0)
+                text += "\n" + string.Join("\n", Chart.Extras.SourceStatistics) + "\n";
+            else if (Chart.Extras.SourceKey is null && Chart.Meta.TryGetC2sJudgeSummary(out _, out _, out _, out _, out _, out _))
+            {
+                var summary = new StringBuilder();
+                AppendJudgeSummary(summary);
+                text += "\n" + summary;
+            }
+            else
+                text += ChartStatistics.Calculate(text);
+            if (Chart.Extras.SourceSnapshot.Length > 0 && (Chart.Extras.SourceKey is null || !Chart.Extras.BinarySnapshotValid))
+            {
+                Chart.Extras.Resolution = Resolution;
+                text = Chart.Extras.FinalizeText(Chart, text);
+            }
+            text = FormatForGame(text);
+            await File.WriteAllTextAsync(OutPath, text, ct);
+            return OperationResult.Success().WithDiagnostics(Diagnostic);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 
     private void AppendJudgeSummary(StringBuilder sb)
@@ -146,9 +186,35 @@ public partial class C2SChartWriter
         sb.AppendLine($"T_JUDGE_ALL\t{all}");
     }
 
+    internal static string GetContentKey(c2s.Chart chart)
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            var writer = new C2SChartWriter(new C2SWriteRequest("snapshot", chart))
+            {
+                Resolution = 1920
+            };
+            var sb = new StringBuilder();
+            writer.AppendFormattedEvents(sb);
+            if (!writer.AppendFormattedNotes(sb))
+                return "invalid";
+            sb.AppendLine(chart.Extras.Headers.GetValueOrDefault("PROGJUDGE_BPM", "PROGJUDGE_BPM\t240.000"));
+            sb.AppendLine($"TUTORIAL\t{(chart.Extras.Tutorial ? 1 : 0)}");
+            var records = sb.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.TrimEnd('\r')).Order(StringComparer.Ordinal);
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', records))));
+        }
+        finally { CultureInfo.CurrentCulture = previousCulture; }
+    }
+
     private void AppendFormattedEvents(StringBuilder sb)
     {
-        foreach (var e in Chart.Events) sb.AppendLine(Format(e));
+        foreach (var e in Chart.Events.OrderBy(e => Array.IndexOf(new[] { "BPM", "MET", "SLP", "SFL", "DCM", "STP" }, e.Id)).ThenBy(e => e.Tick.Original))
+            sb.AppendLine(Format(e));
+        foreach (var tick in Chart.Extras.ClickTicks.Order())
+            sb.AppendLine($"CLK\t{tick / 1920}\t{Scale(tick % 1920)}");
     }
 
     private IEnumerable<c2s.Note> OrderedNotesForWrite()
@@ -158,6 +224,8 @@ public partial class C2SChartWriter
         var notes = Chart.Notes
             .Select((note, index) => (note, index))
             .OrderBy(x => x.note.Tick.Round)
+            .ThenBy(x => x.note.Lane)
+            .ThenBy(x => x.note.Width)
             .ThenBy(x => x.index)
             .Select(x => x.note)
             .ToList();
@@ -221,18 +289,4 @@ public partial class C2SChartWriter
         return !hasError;
     }
 
-    private static string FormatLevel(decimal level) =>
-        level.ToString("0.0", CultureInfo.InvariantCulture);
-
-    // TODO: version switch should be be removed on 2027/01/01
-    internal static bool NeedsV115(c2s.Chart chart) =>
-        chart.Notes.OfType<c2s.AirCrash>().Any(x => x.Attr != AirLadderAttr.DEF) ||
-        chart.Notes.OfType<c2s.Slide>().Any(x => x.NoLine);
-
-    private static int DifficultyValue(Difficulty d) => d switch
-    {
-        Difficulty.WorldsEnd => 4,
-        Difficulty.Ultima => 5,
-        _ => (int)d
-    };
 }

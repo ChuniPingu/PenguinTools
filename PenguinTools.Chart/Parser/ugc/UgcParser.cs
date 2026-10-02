@@ -13,6 +13,15 @@ public partial class UgcParser
     private int? _currentLineNumber;
 
     private int _currentTimeline;
+    private int _sourceTicks = 480;
+
+    private int ScaleTick(int tick)
+    {
+        var scaled = (long)tick * 480;
+        if (scaled % _sourceTicks != 0)
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, tick, "exact 1/1920 tick"));
+        return checked((int)(scaled / _sourceTicks));
+    }
     private umgr.Note? _lastNote;
     private umgr.Note? _lastParentNote;
 
@@ -50,7 +59,10 @@ public partial class UgcParser
             if (TryGetIgnoreLine(lines, out var ignoreLine))
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
 
-            foreach (var line in lines)
+            // Restore extension defaults first; native fields take precedence
+            // even when an editor moves COPYRIGHT to the end of the header.
+            foreach (var line in lines.OrderBy(line =>
+                         line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
             {
                 ct.ThrowIfCancellationRequested();
                 SetCurrentLine(line);
@@ -62,7 +74,10 @@ public partial class UgcParser
             Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
             _currentTimeline = 0;
-            foreach (var line in lines)
+            // Restore extension defaults first; native fields take precedence
+            // even when an editor moves COPYRIGHT to the end of the header.
+            foreach (var line in lines.OrderBy(line =>
+                         line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
             {
                 ct.ThrowIfCancellationRequested();
                 SetCurrentLine(line);
@@ -72,8 +87,16 @@ public partial class UgcParser
 
             ClearCurrentLine();
 
+            Ugc.Extras.CheckEventView(Ugc);
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
             post.Run();
+            Ugc.Extras.BinarySnapshotValid = Ugc.Extras.UgcContentKey == Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', lines.Where(l => !l.Text.StartsWith("@COPYRIGHT", StringComparison.Ordinal)).Select(l => l.Text)))));
+            if (Ugc.Extras.BinarySnapshotValid) Ugc.Extras.RestoreAppearance(Ugc);
+            Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
+            Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Ugc).Split('\n'));
+            Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
+            Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
             ProcessMeta();
 
             await Task.WhenAll(Tasks);

@@ -724,7 +724,7 @@ public sealed class C2sJudgeRoundTripTests
     }
 
     [Fact]
-    public async Task MgxcWriter_WritesNeutralJudgeCopyright()
+    public async Task MgxcWriter_StoresJudgeSummaryInBookmark()
     {
         var chart = new PenguinTools.Chart.Models.umgr.Chart
         {
@@ -783,13 +783,17 @@ public sealed class C2sJudgeRoundTripTests
 
             var text = System.Text.Encoding.UTF8.GetString(bytes);
 
-            Assert.Contains(
-                "GJ2:00000BB8000001F4000003E8000003E8000000D800001654;",
-                text);
-
-            Assert.Contains(
-                "T_JUDGE_TAP=3000;HLD=500;SLD=1000;AIR=1000;FLK=216;ALL=5716",
-                text);
+            Assert.Contains("PT_EXTRAS_V2:", text);
+            Assert.DoesNotContain("GJ2:", text);
+            var parsed = await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()),
+                TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Equal(3000, parsed.Value!.Meta.C2sJudgeTap);
+            Assert.Equal(500, parsed.Value.Meta.C2sJudgeHld);
+            Assert.Equal(1000, parsed.Value.Meta.C2sJudgeSld);
+            Assert.Equal(1000, parsed.Value.Meta.C2sJudgeAir);
+            Assert.Equal(216, parsed.Value.Meta.C2sJudgeFlk);
+            Assert.Equal(5716, parsed.Value.Meta.C2sJudgeAll);
         }
         finally
         {

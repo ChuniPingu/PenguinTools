@@ -1,4 +1,4 @@
-﻿using PenguinTools.Chart.Diagnostics;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
@@ -30,7 +30,8 @@ public partial class C2SChartConverter
         if (snapshot is null)
             return false;
 
-        if (Mgxc.Meta.C2sSlaEditKey is { } editKey &&
+        if (!(Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.SlaModelKey == C2sRoundTripKeys.FormatSlaEditKey(Mgxc)) &&
+            Mgxc.Meta.C2sSlaEditKey is { } editKey &&
             editKey != C2sRoundTripKeys.FormatSlaEditKey(Mgxc))
         {
             Mgxc.Meta.C2sSlaSnapshot = null;
@@ -132,7 +133,8 @@ public partial class C2SChartConverter
         if (snapshot is null)
             return false;
 
-        if (Mgxc.Meta.C2sAirEditKey is { } editKey &&
+        if (!(Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.AirModelKey == C2sRoundTripKeys.FormatAirEditKey(Mgxc)) &&
+            Mgxc.Meta.C2sAirEditKey is { } editKey &&
             editKey != C2sRoundTripKeys.FormatAirEditKey(Mgxc))
         {
             Mgxc.Meta.C2sAirSnapshot = null;
@@ -236,6 +238,12 @@ public partial class C2SChartConverter
         try
         {
             C2s.Meta = Mgxc.Meta;
+            if (Mgxc.Extras.ParsedEventModelKey != C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n')))
+            {
+                Mgxc.Extras.UnchangedEventKinds.Clear();
+                Mgxc.Extras.CheckEventView(Mgxc);
+            }
+            C2s.Extras = Mgxc.Extras;
 
             var restoredSla = RestoreSlaSnapshot();
 
@@ -249,14 +257,40 @@ public partial class C2SChartConverter
             ResolvePairings();
             RestoreAirSnapshot();
             ConvertEvent(Mgxc);
+            if (C2s.Extras.MeterEditKey == ChartExtras.BeatKey(Mgxc))
+            {
+                Events.RemoveAll(e => e is c2s.Met);
+                Events.AddRange(C2s.Extras.Meters.Select(m => new c2s.Met
+                    { Tick = m.Tick, Numerator = m.Numerator, Denominator = m.Denominator }));
+            }
 
             ScheduleC2sSlidePaths();
             ScheduleC2sAirParents();
             ValidateOverlappingAirParents();
             ValidateAmbiguousC2sSlidePaths();
             ValidateLongNoteLengths();
-            ApplyBgmBarOffset();
+            // Audio preroll does not change the chart coordinate origin.
             RestoreSlpSnapshot();
+            if (C2s.Extras.HasSpeedSnapshot && C2s.Extras.BinarySnapshotValid && C2s.Extras.SpeedModelKey == ChartExtras.SpeedKey(Mgxc))
+            {
+                Events.RemoveAll(e => e is c2s.SpeedEventBase);
+                foreach (var saved in C2s.Extras.Speeds)
+                {
+#pragma warning disable CS0612
+                    c2s.SpeedEventBase restored = saved.Tag switch
+                    {
+                        "SLP" => new c2s.Slp { Timeline = saved.Timeline },
+                        "SFL" => new c2s.Sfl(),
+                        "STP" => new c2s.Stop(),
+                        _ => new c2s.Dcm()
+                    };
+#pragma warning restore CS0612
+                    restored.Tick = saved.Tick;
+                    restored.Length = saved.Length;
+                    restored.Speed = saved.Speed;
+                    Events.Add(restored);
+                }
+            }
             RestoreMeterDefSnapshot();
 
             return ValidatePairings()
@@ -269,6 +303,8 @@ public partial class C2SChartConverter
             return OperationResult<c2s.Chart>.Failure().WithDiagnostics(Diagnostic);
         }
     }
+
+    private readonly Dictionary<umgr.Slide, int> _slideRootOrder = [];
 
     private void ScheduleC2sSlidePaths()
     {
@@ -285,6 +321,14 @@ public partial class C2SChartConverter
         var originalIndex = new Dictionary<c2s.Note, int>(Notes.Count);
         for (var i = 0; i < Notes.Count; i++)
             originalIndex[Notes[i]] = i;
+
+        // Readers follow each root's path in source order. Arrival order at a
+        // shared endpoint can differ when the paths have different segments.
+        foreach (var root in Notes.OfType<c2s.Slide>()
+                     .Where(n => _slideSegmentSources[n].IsRoot)
+                     .OrderBy(n => n.Tick.Round).ThenBy(n => n.Lane).ThenBy(n => n.Width)
+                     .ThenBy(n => originalIndex[n]))
+            _slideRootOrder.TryAdd(_slideSegmentSources[root].SourceSlide, _slideRootOrder.Count);
 
         // One bucket per (Round, lane, width), already in list order.
         var pendingByKey =
@@ -332,6 +376,8 @@ public partial class C2SChartConverter
                 while (pending.Count > 0)
                 {
                     active.TryGetValue(key, out var queue);
+                    if (queue is { Count: > 1 })
+                        active[key] = queue = new Queue<umgr.Slide>(queue.OrderBy(s => _slideRootOrder[s]));
 
                     LinkedListNode<c2s.Slide>? pickNode = null;
                     if (queue is { Count: > 0 } &&
@@ -739,7 +785,7 @@ public partial class C2SChartConverter
 
     private void ValidateAmbiguousC2sSlidePaths()
     {
-        // Replay the endpoint-based FIFO linking that C2S readers use. Times
+        // Replay endpoint linking in root source order. Times
         // are rounded here because distinct UMIGURI ticks can serialize to the
         // same 1/384 C2S tick and become ambiguous only after conversion.
         // Order matches the writer: Round, then scheduled list index.
@@ -761,6 +807,8 @@ public partial class C2SChartConverter
             OpenC2sSlidePath? open = null;
             if (active.TryGetValue(start, out var queue) && queue.Count > 0)
             {
+                if (queue.Count > 1)
+                    active[start] = queue = new Queue<OpenC2sSlidePath>(queue.OrderBy(p => _slideRootOrder[p.SourceSlide]));
                 open = queue.Dequeue();
                 if (queue.Count == 0)
                     active.Remove(start);

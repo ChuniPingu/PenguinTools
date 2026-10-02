@@ -27,6 +27,8 @@ public partial class UgcParser
         if (!int.TryParse(args[0], out var bar)) return;
         if (!int.TryParse(args[1], out var num)) return;
         if (!int.TryParse(args[2], out var den)) return;
+        if (num < 0 || den <= 0)
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, string.Join(",", args), "nonnegative numerator and positive denominator"));
         Ugc.Events.AppendChild(new umgr.BeatEvent { Bar = bar, Numerator = num, Denominator = den });
     }
 
@@ -48,28 +50,8 @@ public partial class UgcParser
                && int.TryParse(s.AsSpan(idx + 1), out tick);
     }
 
-    internal int BarTickToAbsTick(int bar, int tick)
-    {
-        var beats = Ugc.Events.Children.OfType<umgr.BeatEvent>().OrderBy(b => b.Bar).ToList();
-        if (beats.Count == 0)
-        {
-            const int defaultTicksPerBar = ChartResolution.UmiguriTick * DefaultBeatNumerator / DefaultBeatDenominator;
-            return bar * defaultTicksPerBar + tick;
-        }
-
-        umgr.BeatEvent? active = null;
-        foreach (var b in beats)
-            if (b.Bar <= bar) active = b;
-            else break;
-
-        if (active is null)
-        {
-            const int defaultTicksPerBar = ChartResolution.UmiguriTick * DefaultBeatNumerator / DefaultBeatDenominator;
-            return bar * defaultTicksPerBar + tick;
-        }
-
-        var ticksPerBar = ChartResolution.UmiguriTick * active.Numerator / active.Denominator;
-        var barsSince = bar - active.Bar;
-        return active.Tick.Original + barsSince * ticksPerBar + tick;
-    }
+    // UGC body/event positions use a fixed four-quarter axis. BEAT only
+    // controls visual bars, whose cumulative positions are built separately.
+    internal int BarTickToAbsTick(int bar, int tick) =>
+        checked(bar * ChartResolution.UmiguriTick + ScaleTick(tick));
 }

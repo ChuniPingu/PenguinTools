@@ -48,8 +48,10 @@ public sealed class C2SParser
     public async Task<OperationResult<c2sModel.Chart>> ParseAsync(CancellationToken ct = default)
     {
         C2s.Meta.FilePath = Path;
+        C2s.Meta.BgmEnableBarOffset = true;
 
         var lines = await ReadLinesAsync(Path, ct);
+        C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => l.Text));
         foreach (var line in lines)
         {
             ct.ThrowIfCancellationRequested();
@@ -59,7 +61,13 @@ public sealed class C2SParser
         if (string.IsNullOrWhiteSpace(_version))
             Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.C2s_Version_line_not_found), Path));
 
+        C2s.Extras.InferClickCount(C2s);
+        C2s.Extras.Tutorial = C2s.Extras.Headers.GetValueOrDefault("TUTORIAL", "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() == "1";
+        C2s.Extras.CaptureClock(C2s);
+        C2s.Extras.SourceMetaKey = ChartExtras.MetaKey(C2s);
         ResolvePairings();
+        if (!DiagnosticSnapshot.Create(Diagnostic).HasError)
+            C2s.Extras.SourceKey = Writer.c2s.C2SChartWriter.GetContentKey(C2s);
 
         var diagnostics = DiagnosticSnapshot.Create(Diagnostic);
         return diagnostics.HasError
@@ -70,11 +78,22 @@ public sealed class C2SParser
     private void ParseLine(SourceLine line)
     {
         var text = line.Text.Trim();
+        if (text.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal))
+        {
+            var fields = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length != 3 || !int.TryParse(fields[1], out var count) || count < 0 || fields[2] is not ("0" or "1"))
+                ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "metronome extension"), line.Number);
+            else { C2s.Extras.ClickCount = count; C2s.Extras.ClickEnabled = fields[2] == "1"; }
+            return;
+        }
         if (text.Length == 0 || text.StartsWith("//", StringComparison.Ordinal)) return;
 
         var tokens = Tokenize(text);
         if (tokens.Length == 0) return;
 
+        if (tokens[0].StartsWith("T_", StringComparison.Ordinal)) C2s.Extras.SourceStatistics.Add(text);
+        if (tokens[0] is "VERSION" or "MUSIC" or "DIFFICULT" or "LEVEL" or "CREATOR" or "BPM_DEF" or "MET_DEF")
+            C2s.Extras.Headers[tokens[0]] = text;
         switch (tokens[0].ToUpperInvariant())
         {
             case "VERSION":
@@ -143,6 +162,7 @@ public sealed class C2SParser
                 break;
             case "AHD":
             case "AHX":
+            case "ASX":
                 ParseAirHold(tokens, line.Number);
                 break;
             case "T_JUDGE_TAP":
@@ -158,13 +178,22 @@ public sealed class C2SParser
             case "PROGJUDGE_BPM":
             case "PROGJUDGE_AER":
             case "TUTORIAL":
+                C2s.Extras.Headers[tokens[0]] = text;
+                if (tokens[0] == "CLK_DEF" && !C2s.Extras.ClickCount.HasValue && tokens.Length > 1)
+                    C2s.Extras.ClickEnabled = tokens[1] != "0";
+                break;
             case "CLK":
+                if (TryGetInt(tokens, 1, line.Number, "CLK measure", out var bar) &&
+                    TryGetInt(tokens, 2, line.Number, "CLK offset", out var offset))
+                    C2s.Extras.ClickTicks.Add(ScalePosition(bar, offset).Original);
                 break;
             default:
                 if (tokens[0].Length == 3)
                     ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
                         line.Number);
-                // Skip unknown meta properties (e.g. T_* chart statistics).
+                if (tokens[0].Length > 3 && !tokens[0].StartsWith("T_", StringComparison.Ordinal))
+                    C2s.Extras.Headers[tokens[0]] = text;
+                // Unknown metadata is carried through without changing modeled fields.
                 break;
         }
     }
@@ -249,7 +278,7 @@ public sealed class C2SParser
         if (tokens.Length < 2) return;
         if (!decimal.TryParse(tokens[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var bpm)) return;
 
-        C2s.Meta.MainBpm = bpm;
+        C2s.Meta.MainBpm = tokens.Length > 2 && decimal.TryParse(tokens[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var mainBpm) ? mainBpm : bpm;
         C2s.Meta.BgmInitialBpm = bpm;
     }
 
@@ -272,6 +301,7 @@ public sealed class C2SParser
         }
 
         _resolution = resolution;
+        C2s.Extras.SourceResolution = resolution;
     }
 
     private void ParseBpm(string[] tokens, int lineNumber)
@@ -294,13 +324,18 @@ public sealed class C2SParser
             !TryGetInt(tokens, 4, lineNumber, "MET numerator", out var numerator))
             return;
 
-        if (numerator <= 0 || denominator <= 0)
+        if (numerator < 0 || denominator < 0)
         {
             ReportAtLine(Severity.Warning,
-                Msg.Create(MsgKeys.C2s_Invalid_field, numerator <= 0 ? "MET numerator" : "MET denominator"),
+                Msg.Create(MsgKeys.C2s_Invalid_field, numerator < 0 ? "MET numerator" : "MET denominator"),
                 lineNumber);
             return;
         }
+
+        // Some existing charts use a terminal MET with denominator zero.
+        // Preserve its record; it is not used to construct the editor's bar axis.
+        if (denominator == 0)
+            ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Invalid_field, "MET denominator"), lineNumber);
 
         C2s.Events.Add(new c2sModel.Met
         {
@@ -345,7 +380,7 @@ public sealed class C2SParser
             return;
 
 #pragma warning disable CS0612
-        C2s.Events.Add(new c2sModel.Sfl
+        C2s.Events.Add(new c2sModel.Stop
         {
             Tick = tick,
             Length = ScaleLength(length),

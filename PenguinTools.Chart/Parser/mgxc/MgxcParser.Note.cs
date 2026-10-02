@@ -392,6 +392,7 @@ public partial class MgxcParser
         }
         else if (type == NoteType.Click)
         {
+            Mgxc.Extras.ClickTicks.Add(tick);
             return;
         }
         else if (type == NoteType.Last)

@@ -43,9 +43,9 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         var sourceFormat = GetChartFormat(input);
         var targetFormat = GetChartFormat(output);
         var supported = sourceFormat == ChartFormat.C2s
-            ? targetFormat == ChartFormat.Mgxc
+            ? targetFormat is ChartFormat.Mgxc or ChartFormat.Ugc
             : sourceFormat is ChartFormat.Mgxc or ChartFormat.Ugc or ChartFormat.Sus &&
-              targetFormat == ChartFormat.C2s;
+              targetFormat is ChartFormat.C2s or ChartFormat.Mgxc or ChartFormat.Ugc;
         if (!supported)
             return ApplicationDiagnostics.Failure<ChartConvertResult>(
                 Msg.Create(MsgKeys.Error_Chart_conversion_unsupported, $"{sourceFormat} -> {targetFormat}"));
@@ -66,15 +66,17 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
             if (!convertedUmgr.Succeeded)
                 return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
                     parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics));
-            var writtenReverse = await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value))
-                .WriteAsync(cancellationToken);
+            EnsureParentDirectory(output);
+            var writtenReverse = targetFormat == ChartFormat.Ugc
+                ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, convertedUmgr.Value).WriteAsync(cancellationToken)
+                : await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value)).WriteAsync(cancellationToken);
             progress?.Report(new ProgressReport(
                 Item: Path.GetFileName(input),
                 Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
                 Completed: 1,
                 Total: 1));
             var reverseValue = new ChartConvertResult(input, output, sourceFormat, targetFormat,
-                ChartMetadata.CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart.mgxc", output)]);
+                ChartMetadata.CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart." + targetFormat.ToString().ToLowerInvariant(), output)]);
             return ApplicationDiagnostics.Merge(reverseValue,
                 parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics), writtenReverse);
         }
@@ -85,6 +87,17 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         var chart = parsed.Value;
 
         ChartMetadata.ApplyChartOverrides(chart.Meta, request.Overrides);
+        if (targetFormat is ChartFormat.Ugc or ChartFormat.Mgxc)
+        {
+            EnsureParentDirectory(output);
+            var writtenEditor = targetFormat == ChartFormat.Ugc
+                ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, chart).WriteAsync(cancellationToken)
+                : await new MgxcChartWriter(new MgxcWriteRequest(output, chart)).WriteAsync(cancellationToken);
+            var editorResult = new ChartConvertResult(input, output, sourceFormat, targetFormat,
+                ChartMetadata.CreateChartSummary(chart.Meta), [new ApplicationArtifact("chart." + targetFormat.ToString().ToLowerInvariant(), output)]);
+            progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 1, Total: 1));
+            return ApplicationDiagnostics.Merge(editorResult, parsed.Diagnostics, writtenEditor);
+        }
         progress?.Report(new ProgressReport(
             Item: Path.GetFileName(input),
             Label: string.IsNullOrWhiteSpace(chart.Meta.Title) ? null : chart.Meta.Title,

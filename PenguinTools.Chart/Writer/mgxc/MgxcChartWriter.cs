@@ -51,13 +51,37 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private void WriteFile(BinaryWriter bw)
     {
+        if (_chart.Extras.AirModelKey is { } airKey && airKey != C2sRoundTripKeys.FormatAirEditKey(_chart))
+        {
+            _chart.Meta.C2sAirSnapshot = null;
+            _chart.Meta.C2sAirEditKey = null;
+        }
+        if (_chart.Extras.SlaModelKey is { } slaKey && slaKey != C2sRoundTripKeys.FormatSlaEditKey(_chart))
+        {
+            _chart.Meta.C2sSlaSnapshot = null;
+            _chart.Meta.C2sSlaEditKey = null;
+        }
+        if (_chart.Extras.SpeedModelKey != ChartExtras.SpeedKey(_chart))
+            _chart.Extras.HasSpeedSnapshot = false;
+        _chart.Extras.CaptureSlideEffects(_chart);
+        _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(_chart.Meta).ToList();
+        _chart.Extras.TraceCrashes = _chart.Notes.Children.OfType<umgr.AirCrash>()
+            .Where(c => c.Attr == AirLadderAttr.Trace).Select(ChartExtras.CrashKey).ToList();
+        using (var payload = new MemoryStream())
+        {
+            using var contentWriter = new BinaryWriter(payload, Encoding.UTF8, leaveOpen: true);
+            WriteEvents(contentWriter, includeExtras: false);
+            WriteNotes(contentWriter);
+            contentWriter.Flush();
+            _chart.Extras.BinaryContentKey = Convert.ToHexString(SHA256.HashData(payload.ToArray()));
+        }
         bw.Write(Encoding.ASCII.GetBytes("MGXC"));
         var sizePos = bw.BaseStream.Position;
         bw.Write(0);
         bw.Write(Version);
 
         WriteBlock(bw, "meta", WriteMeta);
-        WriteBlock(bw, "evnt", WriteEvents);
+        WriteBlock(bw, "evnt", writer => WriteEvents(writer));
         WriteBlock(bw, "dat2", WriteNotes);
 
         var end = bw.BaseStream.Position;
@@ -110,15 +134,15 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteStringField(bw, "flsc", "");
         WriteIntField(bw, "mtil", m.MainTil);
         WriteDoubleField(bw, "mbpm", (double)m.MainBpm);
-        WriteIntField(bw, "ttrl", 0);
+        WriteIntField(bw, "ttrl", _chart.Extras.Tutorial ? 1 : 0);
         WriteIntField(bw, "sofs", m.BgmEnableBarOffset ? 1 : 0);
-        WriteIntField(bw, "uclk", 1);
+        WriteIntField(bw, "uclk", _chart.Extras.ClickEnabled ? 1 : 0);
         WriteIntField(bw, "xlng", 1);
         WriteIntField(bw, "bgmw", 0);
         WriteStringField(bw, "atls", "");
         WriteStringField(bw, "atst", "");
         WriteStringField(bw, "durl", "");
-        WriteStringField(bw, "lcpy", FormatC2sJudgeCopyright(m));
+        WriteStringField(bw, "lcpy", "");
         WriteStringField(bw, "ltyp", "");
         WriteStringField(bw, "lurl", "");
         WriteIntField(bw, "xver", 1);
@@ -131,32 +155,10 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         bw.Write((short)0);
     }
 
-    private static string FormatC2sJudgeCopyright(Meta meta)
+    private void WriteEvents(BinaryWriter bw, bool includeExtras = true)
     {
-        if (!meta.TryGetC2sJudgeSummary(
-                out var tap,
-                out var hld,
-                out var sld,
-                out var air,
-                out var flk,
-                out var all))
-            return string.Empty;
-
-        return
-            $"GJ2:{tap:X8}{hld:X8}{sld:X8}{air:X8}{flk:X8}{all:X8};" +
-            $"T_JUDGE_TAP={tap};" +
-            $"HLD={hld};" +
-            $"SLD={sld};" +
-            $"AIR={air};" +
-            $"FLK={flk};" +
-            $"ALL={all}";
-    }
-
-    private void WriteEvents(BinaryWriter bw)
-    {
-        foreach (var tag in C2sRoundTripComment.FormatBookmarks(_chart.Meta))
-            WriteBookmark(bw, 0, tag, "FFFFFF");
-
+        if (includeExtras)
+            WriteBookmark(bw, 0, _chart.Extras.ToBookmark(), "FFFFFF");
         foreach (var bookmark in _chart.Events.Children.OfType<umgr.BookmarkEvent>()
                      .Where(bookmark => !C2sRoundTripComment.IsRoundTripLine(bookmark.Tag))
                      .OrderBy(bookmark => bookmark.Tick.Original))
@@ -170,7 +172,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         }
 
         var beats = _chart.Events.Children.OfType<umgr.BeatEvent>()
-            .Where(x => x.Numerator > 0 && x.Denominator > 0)
+            .Where(x => x.Numerator >= 0 && x.Denominator > 0)
             .OrderBy(x => x.Bar).ToArray();
         if (beats.Length == 0)
             beats = [new umgr.BeatEvent { Bar = 0, Tick = 0, Numerator = 4, Denominator = 4 }];
@@ -214,6 +216,9 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private void WriteNotes(BinaryWriter bw)
     {
+        _chart.Extras.AirAppearances.Clear();
+        foreach (var tick in _chart.Extras.ClickTicks)
+            WriteNote(bw, NoteType.Click, LongAttr.None, Direction.None, ExAttr.None, 0, 0, 0, 0, tick, 0);
         var effectCarrierPlans = BuildGeneratedEffectCarrierPlans();
         var writtenEffectCarriers = new HashSet<EffectCarrierKey>();
 
@@ -461,6 +466,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         BinaryWriter bw,
         umgr.AirHold airHold)
     {
+        _chart.Extras.AirAppearances.Add(new AirAppearance(ChartExtras.AirKey(airHold), airHold.Color, airHold.Direction));
         WriteAirBase(
             bw,
             airHold.Direction,
@@ -508,6 +514,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         BinaryWriter bw,
         umgr.AirSlide airSlide)
     {
+        _chart.Extras.AirAppearances.Add(new AirAppearance(ChartExtras.AirKey(airSlide), airSlide.Color, airSlide.Direction));
         WriteAirBase(
             bw,
             airSlide.Direction,
@@ -822,7 +829,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         Air = 0x07,
         AirHold = 0x08,
         AirSlide = 0x09,
-        AirCrush = 0x0A
+        AirCrush = 0x0A,
+        Click = 0x0B
     }
 
     private enum LongAttr : sbyte
