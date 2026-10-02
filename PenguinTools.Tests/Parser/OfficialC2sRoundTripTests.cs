@@ -139,7 +139,9 @@ public sealed class OfficialC2sRoundTripTests
 
             var sourceNoteSnapshot = NoteSnapshot(original.Value!);
             var sourceEventSnapshot = EventSnapshot(original.Value!);
-            var sourceMetaSnapshot = MetaSnapshot(original.Value!);
+            // The game reads song selection, difficulty, and level from XML;
+            // C2S output intentionally resets those fields to zero.
+            var sourceMetaSnapshot = MetaSnapshot(original.Value!, normalizeGameSelection: true);
 
             var currentC2sPath = sourcePath;
 
@@ -352,7 +354,7 @@ public sealed class OfficialC2sRoundTripTests
 
     private static void AssertSnapshotEqual(string[] expected, string[] actual, string name, int round, string kind) =>
         Assert.True(expected.SequenceEqual(actual), $"{name}: round {round} {kind} records changed.");
-    private static string MetaSnapshot(c2s.Chart chart)
+    private static string MetaSnapshot(c2s.Chart chart, bool normalizeGameSelection = false)
     {
         var meta = chart.Meta;
 
@@ -368,9 +370,9 @@ public sealed class OfficialC2sRoundTripTests
 
         return string.Join(
             "|",
-            musicId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            meta.Difficulty.ToString(),
-            meta.Level.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            (normalizeGameSelection ? 0 : musicId).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            (normalizeGameSelection ? PenguinTools.Core.Metadata.Difficulty.Basic : meta.Difficulty).ToString(),
+            (normalizeGameSelection ? 0.0m : meta.Level).ToString(System.Globalization.CultureInfo.InvariantCulture),
             meta.Designer,
             meta.MainBpm.ToString(System.Globalization.CultureInfo.InvariantCulture),
             meta.BgmInitialDenominator.ToString(System.Globalization.CultureInfo.InvariantCulture),
