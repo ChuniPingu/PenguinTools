@@ -51,13 +51,7 @@ internal sealed class TestMediaTool : IMediaTool
     }
 
     public Task ConvertCriAsync(
-        string wav,
-        string acb,
-        string awb,
-        string name,
-        long previewStartMs,
-        long previewStopMs,
-        ulong hcaKey,
+        CriConvertRequest request,
         CancellationToken ct = default)
     {
         return Task.CompletedTask;

@@ -9,6 +9,9 @@ using umgr = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Workflow;
 
+public sealed record MusicExportOverrides(
+    string? JacketInput, AudioRequestOverrides Audio, StageRequestOverrides Stage);
+
 public static class MusicExporter
 {
     public static Entry CreateNoteFieldEntry(Entry current, int? id, string? name, string? data)
@@ -70,12 +73,11 @@ public static class MusicExporter
         MusicExportContext ctx,
         umgr.Chart chart,
         string output,
-        string? jacketInput,
-        AudioRequestOverrides audioOverrides,
-        StageRequestOverrides stageOverrides,
+        MusicExportOverrides overrides,
         CancellationToken cancellationToken,
         IProgress<ProgressReport>? progress = null)
     {
+        var (jacketInput, audioOverrides, stageOverrides) = overrides;
         cancellationToken.ThrowIfCancellationRequested();
 
         var diagnostics = DiagnosticSnapshot.Empty;

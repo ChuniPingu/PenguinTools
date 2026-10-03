@@ -4,7 +4,7 @@ using PenguinTools.Core.Asset;
 namespace PenguinTools.Core.Xml;
 
 [XmlRoot("CueFileData")]
-public class CueFileXml : XmlElement<CueFileXml>
+public class CueFileXml : XmlElement
 {
     internal CueFileXml()
     {

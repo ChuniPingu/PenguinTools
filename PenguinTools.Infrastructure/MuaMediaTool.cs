@@ -177,15 +177,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     }
 
     public async Task ConvertCriAsync(
-        string wav,
-        string acb,
-        string awb,
-        string name,
-        long previewStartMs,
-        long previewStopMs,
-        ulong hcaKey,
+        CriConvertRequest request,
         CancellationToken ct = default)
     {
+        var (wav, acb, awb, name, previewStartMs, previewStopMs, hcaKey) = request;
         ArgumentException.ThrowIfNullOrWhiteSpace(wav);
         ArgumentException.ThrowIfNullOrWhiteSpace(acb);
         ArgumentException.ThrowIfNullOrWhiteSpace(awb);

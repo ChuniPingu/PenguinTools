@@ -116,15 +116,19 @@ public class AssetDictionary()
     public void MergeWith(params AssetDictionary[] databases)
     {
         foreach (var db in databases)
-        foreach (var (assetType, sourceSet) in db._database)
-            _database[assetType].UnionWith(sourceSet);
+        {
+            foreach (var (assetType, sourceSet) in db._database)
+                _database[assetType].UnionWith(sourceSet);
+        }
     }
 
     public void SubtractWith(params AssetDictionary[] databases)
     {
         foreach (var db in databases)
-        foreach (var (assetType, sourceSet) in db._database)
-            _database[assetType].ExceptWith(sourceSet);
+        {
+            foreach (var (assetType, sourceSet) in db._database)
+                _database[assetType].ExceptWith(sourceSet);
+        }
     }
 
     public async Task SaveAsync(string path, CancellationToken ct = default)
@@ -138,6 +142,8 @@ public class AssetDictionary()
         foreach (var set in _database.Values) set.Clear();
     }
 
+    private const string MusicXmlFileName = "Music.xml";
+
     #region Collect
 
     public static async Task<Dictionary<AssetType, SortedSet<Entry>>> CollectAsync(string workDir,
@@ -145,10 +151,10 @@ public class AssetDictionary()
     {
         var specs = new (string FileName, AssetType Type)[]
         {
-            ("Music.xml", AssetType.GenreNames),
-            ("Music.xml", AssetType.WeTagNames),
-            ("Music.xml", AssetType.StageNames),
-            ("Music.xml", AssetType.ReleaseTagNames),
+            (MusicXmlFileName, AssetType.GenreNames),
+            (MusicXmlFileName, AssetType.WeTagNames),
+            (MusicXmlFileName, AssetType.StageNames),
+            (MusicXmlFileName, AssetType.ReleaseTagNames),
             ("Stage.xml", AssetType.FieldLines)
         };
         return await CollectManyAsync(workDir, specs, ct);
@@ -275,19 +281,7 @@ public class AssetDictionary()
             var (path, depth) = queue.Dequeue();
             if (depth >= maxDepth) continue;
 
-            IEnumerable<string> children;
-            try
-            {
-                children = Directory.EnumerateDirectories(path, "*", SearchOption.TopDirectoryOnly);
-            }
-            catch (IOException)
-            {
-                continue;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                continue;
-            }
+            var children = GetAccessibleDirectories(path);
 
             foreach (var directory in children)
             {
@@ -299,6 +293,22 @@ public class AssetDictionary()
 
                 if (depth + 1 < maxDepth) queue.Enqueue((directory, depth + 1));
             }
+        }
+    }
+
+    private static string[] GetAccessibleDirectories(string path)
+    {
+        try
+        {
+            return Directory.GetDirectories(path, "*", SearchOption.TopDirectoryOnly);
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
         }
     }
 

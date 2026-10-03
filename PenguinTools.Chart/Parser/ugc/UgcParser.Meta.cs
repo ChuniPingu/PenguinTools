@@ -33,10 +33,7 @@ public partial class UgcParser
             case "RLDATE": HandleReleaseDate(args); break;
 
             case "BGM": HandleBgm(args); break;
-            case "BGMOFS":
-                if (args.Length >= 1 && decimal.TryParse(args[0], CultureInfo.InvariantCulture, out var ofs))
-                    Ugc.Meta.BgmManualOffset = ofs;
-                break;
+            case "BGMOFS": HandleBgmOffset(args); break;
             case "BGMPRV": HandleBgmPreview(args); break;
             case "JACKET": HandleJacket(args); break;
             case "BGIMG": HandleBgImg(args); break;
@@ -44,27 +41,15 @@ public partial class UgcParser
             case "FLDCOL": HandleFldCol(args); break;
             case "FLDIMG": break;
             case "FLDSCENE": break;
-            case "MAINBPM":
-                if (args.Length >= 1 && decimal.TryParse(args[0], CultureInfo.InvariantCulture, out var mbpm))
-                    Ugc.Meta.MainBpm = mbpm;
-                break;
-
+            case "MAINBPM": HandleMainBpm(args); break;
             case "FLAG": HandleFlag(args); break;
-            case "CLKCNT":
-                if (!int.TryParse(Str(args), out var count) || count < 0)
-                    ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, Str(args), "nonnegative CLKCNT"));
-                Ugc.Extras.ClickCount = count;
-                break;
+            case "CLKCNT": HandleClickCount(args); break;
             case "CMT": Ugc.Meta.Comment = Str(args); break;
 
             case "ATINFO":
             case "DLURL":
                 break;
-            case "COPYRIGHT":
-                if (Str(args).Contains("PT_C2S_", StringComparison.Ordinal)) Ugc.Extras = ChartExtras.FromCopyright(Str(args));
-                else Ugc.Extras.ReadCopyright(Str(args));
-                C2sRoundTripComment.Absorb(Ugc.Meta, Ugc.Extras.RoundTripBookmarks);
-                break;
+            case "COPYRIGHT": HandleCopyright(args); break;
             case "C2S_BOUNDS":
             case "C2S_BASECOUNT":
                 break;
@@ -76,26 +61,59 @@ public partial class UgcParser
             case "SPDDEF": break;
             case "SPDFLD": break;
             case "BGSCENE": break;
-            case "WEATTR":
-                if (args.Length <= 0)
-                {
-                    Log("WEATTR", args);
-                    return;
-                }
-
-                var attr = Assets.WeTagNames.FirstOrDefault(x => x.Str == args[0]);
-                if (attr != null) Ugc.Meta.WeTag = attr;
-                break;
+            case "WEATTR": HandleWeAttribute(args); break;
             case "TIL": HandleTil(args); break;
             case "MAINTIL": HandleMainTil(args); break;
             case "USETIL": break;
 
             default:
-                if (name.StartsWith("T_JUDGE_", StringComparison.Ordinal)) break;
-                ReportAtCurrentLine(Severity.Warning,
-                    Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, Str(args)));
+                HandleUnknownHeader(name, args);
                 break;
         }
+    }
+
+    private void HandleBgmOffset(string[] args)
+    {
+        if (args.Length >= 1 && decimal.TryParse(args[0], CultureInfo.InvariantCulture, out var ofs))
+            Ugc.Meta.BgmManualOffset = ofs;
+    }
+
+    private void HandleMainBpm(string[] args)
+    {
+        if (args.Length >= 1 && decimal.TryParse(args[0], CultureInfo.InvariantCulture, out var mbpm))
+            Ugc.Meta.MainBpm = mbpm;
+    }
+
+    private void HandleClickCount(string[] args)
+    {
+        if (!int.TryParse(Str(args), out var count) || count < 0)
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, Str(args), "nonnegative CLKCNT"));
+        Ugc.Extras.ClickCount = count;
+    }
+
+    private void HandleCopyright(string[] args)
+    {
+        if (Str(args).Contains("PT_C2S_", StringComparison.Ordinal)) Ugc.Extras = ChartExtras.FromCopyright(Str(args));
+        else Ugc.Extras.ReadCopyright(Str(args));
+        C2sRoundTripComment.Absorb(Ugc.Meta, Ugc.Extras.RoundTripBookmarks);
+    }
+
+    private void HandleWeAttribute(string[] args)
+    {
+        if (args.Length <= 0)
+        {
+            Log("WEATTR", args);
+            return;
+        }
+
+        var attr = Assets.WeTagNames.FirstOrDefault(x => x.Str == args[0]);
+        if (attr != null) Ugc.Meta.WeTag = attr;
+    }
+
+    private void HandleUnknownHeader(string name, string[] args)
+    {
+        if (name.StartsWith("T_JUDGE_", StringComparison.Ordinal)) return;
+        ReportAtCurrentLine(Severity.Warning, Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, Str(args)));
     }
 
     private static string Str(string[] args)
@@ -176,7 +194,7 @@ public partial class UgcParser
     private void HandleReleaseDate(string[] args)
     {
         if (args.Length < 1) return;
-        if (DateTime.TryParseExact(args[0], "yyyyMMdd", null, DateTimeStyles.None, out var date))
+        if (DateTime.TryParseExact(args[0], "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
             Ugc.Meta.ReleaseDate = date;
     }
 

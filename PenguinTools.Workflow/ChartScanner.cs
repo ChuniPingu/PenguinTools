@@ -18,13 +18,10 @@ public static class ChartScanner
         IMediaTool mediaTool,
         string directory,
         IReadOnlyList<ChartFileFormat>? discovery,
-        int batchSize,
-        string workingDirectory,
-        IDiagnosticSink diagnostics,
-        CancellationToken ct,
-        IProgress<ProgressReport>? progress = null)
+        OptionExportProcessContext processContext)
     {
-        var processContext = new OptionExportProcessContext(diagnostics, ct, batchSize, workingDirectory, progress);
+        var diagnostics = processContext.Diagnostics;
+        var ct = processContext.CancellationToken;
         var booksById = new ConcurrentDictionary<int, BookAccumulator>();
 
         var batch = DiagnosticSnapshot.Empty;
@@ -41,8 +38,7 @@ public static class ChartScanner
                     assets,
                     mediaTool,
                     processContext,
-                    i > 0,
-                    ct));
+                    i > 0));
         }
 
         var snapshots = FinalizeBooks(booksById, diagnostics, ct);
@@ -57,9 +53,9 @@ public static class ChartScanner
         AssetManager assets,
         IMediaTool mediaTool,
         OptionExportProcessContext processContext,
-        bool skipIfDifficultyFilled,
-        CancellationToken ct)
+        bool skipIfDifficultyFilled)
     {
+        var ct = processContext.CancellationToken;
         var chartPaths = Directory.EnumerateFiles(directory, fileGlob, SearchOption.AllDirectories);
         return await OptionExportBatch.BatchAsync(
             chartPaths,
@@ -137,14 +133,14 @@ public static class ChartScanner
         var list = new List<OptionBook>();
 
         // All scan batches have completed; accumulators are no longer being modified.
-        foreach (var book in booksById.Values)
+        foreach (var bookItems in booksById.Values.Select(book => book.Items))
         {
             ct.ThrowIfCancellationRequested();
-            var items = book.Items.Values.ToArray();
+            var items = bookItems.Values.ToArray();
 
             if (items.Length == 0) continue;
 
-            if (book.Items.ContainsKey(Difficulty.WorldsEnd) && items.Length != 1)
+            if (bookItems.ContainsKey(Difficulty.WorldsEnd) && items.Length != 1)
                 diagnostics.Report(
                     new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_We_chart_must_be_unique_id))
                     {
@@ -166,7 +162,7 @@ public static class ChartScanner
 
             var mainItem = mainItems.FirstOrDefault() ?? items.OrderByDescending(i => i.Difficulty).First();
 
-            var dict = book.Items.ToDictionary(kv => kv.Key, kv => kv.Value);
+            var dict = bookItems.ToDictionary(kv => kv.Key, kv => kv.Value);
 
             list.Add(new OptionBook(
                 mainItem.Difficulty,

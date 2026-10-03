@@ -27,9 +27,7 @@ public class CriRoundTripTests
             acbPath,
             awbPath,
             "cueFile000001",
-            previewStartMs: 1234,
-            previewStopMs: 5678,
-            hcaKey: ConvertService.DefaultHcaKey);
+            new CriEncodingOptions(1234, 5678, ConvertService.DefaultHcaKey));
 
         Assert.True(File.Exists(acbPath));
         Assert.True(File.Exists(awbPath));

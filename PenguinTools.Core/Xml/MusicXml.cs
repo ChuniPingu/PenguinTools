@@ -6,7 +6,7 @@ using PenguinTools.Core.Metadata;
 namespace PenguinTools.Core.Xml;
 
 [XmlRoot("MusicData")]
-public class MusicXml : XmlElement<MusicXml>
+public class MusicXml : XmlElement
 {
     private static readonly Dictionary<Difficulty, Entry> DiffMap = new()
     {

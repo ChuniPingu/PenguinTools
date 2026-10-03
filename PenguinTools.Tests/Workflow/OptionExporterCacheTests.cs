@@ -558,13 +558,7 @@ public sealed class OptionExporterCacheTests
         }
 
         public Task ConvertCriAsync(
-            string wav,
-            string acb,
-            string awb,
-            string name,
-            long previewStartMs,
-            long previewStopMs,
-            ulong hcaKey,
+        CriConvertRequest request,
             CancellationToken ct = default)
         {
             return Task.CompletedTask;

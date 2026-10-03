@@ -59,33 +59,7 @@ public partial class UgcParser
             if (TryGetIgnoreLine(lines, out var ignoreLine))
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
 
-            // Restore extension defaults first; native fields take precedence
-            // even when an editor moves COPYRIGHT to the end of the header.
-            foreach (var line in lines.OrderBy(line =>
-                         line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
-            {
-                ct.ThrowIfCancellationRequested();
-                SetCurrentLine(line);
-                if (line.Text.StartsWith('@')) DispatchHeaderLine(line.Text);
-            }
-
-            ClearCurrentLine();
-            BuildBarAxis();
-            Diagnostic.TimeCalculator = Ugc.GetCalculator();
-
-            _currentTimeline = 0;
-            // Restore extension defaults first; native fields take precedence
-            // even when an editor moves COPYRIGHT to the end of the header.
-            foreach (var line in lines.OrderBy(line =>
-                         line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
-            {
-                ct.ThrowIfCancellationRequested();
-                SetCurrentLine(line);
-                if (line.Text.StartsWith("@USETIL", StringComparison.Ordinal)) ApplyUseTil(line.Text);
-                else if (line.Text.StartsWith('#')) DispatchBodyLine(line.Text);
-            }
-
-            ClearCurrentLine();
+            ParseLines(lines, ct);
 
             Ugc.Extras.CheckEventView(Ugc);
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
@@ -111,6 +85,37 @@ public partial class UgcParser
         }
     }
 
+    private void ParseLines(SourceLine[] lines, CancellationToken ct)
+    {
+    // Restore extension defaults first; native fields take precedence
+    // even when an editor moves COPYRIGHT to the end of the header.
+    foreach (var line in lines.OrderBy(line =>
+                 line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+    {
+        ct.ThrowIfCancellationRequested();
+        SetCurrentLine(line);
+        if (line.Text.StartsWith('@')) DispatchHeaderLine(line.Text);
+    }
+
+    ClearCurrentLine();
+    BuildBarAxis();
+    Diagnostic.TimeCalculator = Ugc.GetCalculator();
+
+    _currentTimeline = 0;
+    // Restore extension defaults first; native fields take precedence
+    // even when an editor moves COPYRIGHT to the end of the header.
+    foreach (var line in lines.OrderBy(line =>
+                 line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+    {
+        ct.ThrowIfCancellationRequested();
+        SetCurrentLine(line);
+        if (line.Text.StartsWith("@USETIL", StringComparison.Ordinal)) ApplyUseTil(line.Text);
+        else if (line.Text.StartsWith('#')) DispatchBodyLine(line.Text);
+    }
+
+    ClearCurrentLine();
+    }
+
     private static async Task<SourceLine[]> ReadLinesAsync(string path, CancellationToken ct)
     {
         var bytes = await File.ReadAllBytesAsync(path, ct);
@@ -126,11 +131,11 @@ public partial class UgcParser
 
         using var reader = new StringReader(text);
         var lines = new List<SourceLine>();
-        for (var lineNumber = 1;; lineNumber++)
+        var lineNumber = 1;
+        while (await reader.ReadLineAsync(ct) is { } line)
         {
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null) break;
             lines.Add(new SourceLine(lineNumber, line));
+            lineNumber++;
         }
 
         return [.. lines];
@@ -208,17 +213,14 @@ public partial class UgcParser
             beats.Insert(0, defaultBeat);
         }
 
-        if (beats.Count > 0)
+        beats[0].Tick = 0;
+        var accum = 0;
+        for (var i = 0; i < beats.Count - 1; i++)
         {
-            beats[0].Tick = 0;
-            var accum = 0;
-            for (var i = 0; i < beats.Count - 1; i++)
-            {
-                var curr = beats[i];
-                var next = beats[i + 1];
-                accum += ChartResolution.UmiguriTick * curr.Numerator / curr.Denominator * (next.Bar - curr.Bar);
-                next.Tick = accum;
-            }
+            var curr = beats[i];
+            var next = beats[i + 1];
+            accum += ChartResolution.UmiguriTick * curr.Numerator / curr.Denominator * (next.Bar - curr.Bar);
+            next.Tick = accum;
         }
 
         foreach (var (bar, tick, bpm) in _pendingBpms)

@@ -43,10 +43,10 @@ internal static class Program
                     parseResult.GetValue(acbOption)!.FullName,
                     parseResult.GetValue(awbOption)!.FullName,
                     parseResult.GetValue(nameOption)!,
-                    parseResult.GetValue(previewStartOption),
+                    new CriEncodingOptions(parseResult.GetValue(previewStartOption),
                     parseResult.GetValue(previewStopOption),
                     parseResult.GetValue(hcaKeyConvertOption),
-                    parseResult.GetValue(bitrateOption));
+                    parseResult.GetValue(bitrateOption)));
                 return 0;
             }
             catch (Exception ex)

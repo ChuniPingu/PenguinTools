@@ -83,6 +83,13 @@ public class StageConverter
             }
         }
 
+        var effectsValid = await ValidateEffectsAsync(ct);
+        return !hasError && effectsValid;
+    }
+
+    private async Task<bool> ValidateEffectsAsync(CancellationToken ct)
+    {
+        var hasError = false;
         if (EffectPaths is not null)
             foreach (var p in EffectPaths)
             {

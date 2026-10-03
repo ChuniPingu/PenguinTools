@@ -59,53 +59,56 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         IProgress<ProgressReport>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await GuardAsync(async () =>
+        return await GuardAsync(() => ScanOptionCoreAsync(request, progress, cancellationToken));
+    }
+
+    private async Task<OperationResult<OptionScanResult>> ScanOptionCoreAsync(
+        OptionScanRequest request, IProgress<ProgressReport>? progress, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var input = FullPath(request.InputDirectory);
+        if (!Directory.Exists(input))
+            return ApplicationDiagnostics.Failure<OptionScanResult>(
+                Msg.Key(MsgKeys.App_Input_directory_not_found), input);
+        if (request.BatchSize == 0 || request.BatchSize < -1)
+            return ApplicationDiagnostics.Failure<OptionScanResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
+
+        var (configPath, configDocument, configDiagnostics) =
+            await OptionConfiguration.LoadForScanAsync(input, cancellationToken);
+        var config = configDocument is null ? null : CreateScanConfig(configDocument);
+
+        if (request.SaveConfig)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var input = FullPath(request.InputDirectory);
-            if (!Directory.Exists(input))
-                return ApplicationDiagnostics.Failure<OptionScanResult>(
-                    Msg.Key(MsgKeys.App_Input_directory_not_found), input);
-            if (request.BatchSize == 0 || request.BatchSize < -1)
-                return ApplicationDiagnostics.Failure<OptionScanResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
+            var savePath = Path.Combine(input, "options.json");
+            var document = configDocument ?? (File.Exists(savePath)
+                ? await OptionConfiguration.LoadAsync(savePath, cancellationToken)
+                : new OptionDocument());
+            if (request.ChartFileDiscovery is not null)
+                document.ChartFileDiscovery = [.. request.ChartFileDiscovery.Select(ToWorkflow)];
+            document.BatchSize = request.BatchSize;
+            await OptionConfiguration.SaveAsync(savePath, document, cancellationToken);
+            configPath = savePath;
+            configDocument = document;
+            config = CreateScanConfig(document);
+            configDiagnostics = DiagnosticSnapshot.Empty;
+        }
 
-            var (configPath, configDocument, configDiagnostics) =
-                await OptionConfiguration.LoadForScanAsync(input, cancellationToken);
-            var config = configDocument is null ? null : CreateScanConfig(configDocument);
+        var applicationDiscovery = request.ChartFileDiscovery
+                                   ?? configDocument?.ChartFileDiscovery.Select(FromWorkflow).ToArray()
+                                   ?? [ChartFormat.Mgxc, ChartFormat.Ugc, ChartFormat.Sus];
+        var discovery = applicationDiscovery.Select(ToWorkflow).ToArray();
+        var workingDirectory = FullPath(request.WorkingDirectory ?? input);
+        var scanned = await ScanBooksAsync(input, discovery, request.BatchSize, workingDirectory,
+            progress, cancellationToken);
+        if (scanned.Value is null)
+            return OperationResult<OptionScanResult>.Failure().WithDiagnostics(scanned.Diagnostics);
 
-            if (request.SaveConfig)
-            {
-                var savePath = Path.Combine(input, "options.json");
-                var document = configDocument ?? (File.Exists(savePath)
-                    ? await OptionConfiguration.LoadAsync(savePath, cancellationToken)
-                    : new OptionDocument());
-                if (request.ChartFileDiscovery is not null)
-                    document.ChartFileDiscovery = [.. request.ChartFileDiscovery.Select(ToWorkflow)];
-                document.BatchSize = request.BatchSize;
-                await OptionConfiguration.SaveAsync(savePath, document, cancellationToken);
-                configPath = savePath;
-                configDocument = document;
-                config = CreateScanConfig(document);
-                configDiagnostics = DiagnosticSnapshot.Empty;
-            }
-
-            var applicationDiscovery = request.ChartFileDiscovery
-                                       ?? configDocument?.ChartFileDiscovery.Select(FromWorkflow).ToArray()
-                                       ?? [ChartFormat.Mgxc, ChartFormat.Ugc, ChartFormat.Sus];
-            var discovery = applicationDiscovery.Select(ToWorkflow).ToArray();
-            var workingDirectory = FullPath(request.WorkingDirectory ?? input);
-            var scanned = await ScanBooksAsync(input, discovery, request.BatchSize, workingDirectory,
-                progress, cancellationToken);
-            if (scanned.Value is null)
-                return OperationResult<OptionScanResult>.Failure().WithDiagnostics(scanned.Diagnostics);
-
-            var (value, unmatchedDiagnostics) = CreateScanResult(input, applicationDiscovery, request.BatchSize,
-                scanned.Value, scanned.Diagnostics, configPath, config);
-            return (scanned.Succeeded
-                    ? OperationResult<OptionScanResult>.Success(value)
-                    : OperationResult<OptionScanResult>.Failure())
-                .WithDiagnostics(unmatchedDiagnostics.Merge(configDiagnostics));
-        });
+        var (value, unmatchedDiagnostics) = CreateScanResult(input, applicationDiscovery, request.BatchSize,
+            scanned.Value, scanned.Diagnostics, configPath, config);
+        return (scanned.Succeeded
+                ? OperationResult<OptionScanResult>.Success(value)
+                : OperationResult<OptionScanResult>.Failure())
+            .WithDiagnostics(unmatchedDiagnostics.Merge(configDiagnostics));
     }
 
     public async Task<OperationResult<OptionBuildResult>> BuildOptionAsync(
@@ -113,68 +116,71 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         IProgress<ProgressReport>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await GuardAsync(async () =>
+        return await GuardAsync(() => BuildOptionCoreAsync(request, progress, cancellationToken));
+    }
+
+    private async Task<OperationResult<OptionBuildResult>> BuildOptionCoreAsync(
+        OptionBuildRequest request, IProgress<ProgressReport>? progress, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var input = FullPath(request.InputDirectory);
+        var output = FullPath(request.OutputDirectory);
+        if (!Directory.Exists(input))
+            return ApplicationDiagnostics.Failure<OptionBuildResult>(
+                Msg.Key(MsgKeys.App_Input_directory_not_found), input);
+        if (request.SkipConfig && !string.IsNullOrWhiteSpace(request.ConfigPath))
+            return ApplicationDiagnostics.Failure<OptionBuildResult>(
+                Msg.Key(MsgKeys.App_Config_path_conflict));
+
+        var configPath = OptionConfiguration.ResolveLoadPath(request, input);
+        var loadedConfig = configPath is not null;
+        var document = loadedConfig
+            ? await OptionConfiguration.LoadAsync(configPath!, cancellationToken)
+            : new OptionDocument { OptionName = string.Empty };
+        ApplyOverrides(document, request.Overrides);
+        if (string.IsNullOrWhiteSpace(document.OptionName) || document.OptionName.Length != 4)
+            return ApplicationDiagnostics.Failure<OptionBuildResult>(
+                Msg.Key(MsgKeys.App_Option_name_required));
+        if (document.BatchSize == 0 || document.BatchSize < -1)
+            return ApplicationDiagnostics.Failure<OptionBuildResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
+        if (!document.HasExportableWork())
+            return ApplicationDiagnostics.Failure<OptionBuildResult>(
+                Msg.Key(MsgKeys.App_No_export_actions_enabled));
+
+        var scanned = await ScanBooksAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
+            progress, cancellationToken);
+        if (!scanned.Succeeded)
+            return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(scanned.Diagnostics);
+        if (scanned.Value.Count == 0)
+            return ApplicationDiagnostics.Failure<OptionBuildResult>(
+                Msg.Key(MsgKeys.App_No_charts_to_export));
+
+        var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
+        var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
+        var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
+        var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
+        var exported = await OptionExporter.ExportAsync(
+            CreateExportContext(), exportSettings, outputPaths, snapshots, output,
+            cancellationToken, progress);
+        var diagnostics = scanned.Diagnostics.Merge(exported.Diagnostics);
+        if (!exported.Succeeded)
+            return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(diagnostics);
+
+        string? savedConfigPath = null;
+        if (request.SaveConfig)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var input = FullPath(request.InputDirectory);
-            var output = FullPath(request.OutputDirectory);
-            if (!Directory.Exists(input))
-                return ApplicationDiagnostics.Failure<OptionBuildResult>(
-                    Msg.Key(MsgKeys.App_Input_directory_not_found), input);
-            if (request.SkipConfig && !string.IsNullOrWhiteSpace(request.ConfigPath))
-                return ApplicationDiagnostics.Failure<OptionBuildResult>(
-                    Msg.Key(MsgKeys.App_Config_path_conflict));
+            savedConfigPath = OptionConfiguration.ResolveSavePath(request, input, configPath);
+            await OptionConfiguration.SaveAsync(savedConfigPath, document, cancellationToken);
+        }
 
-            var configPath = OptionConfiguration.ResolveLoadPath(request, input);
-            var loadedConfig = configPath is not null;
-            var document = loadedConfig
-                ? await OptionConfiguration.LoadAsync(configPath!, cancellationToken)
-                : new OptionDocument { OptionName = string.Empty };
-            ApplyOverrides(document, request.Overrides);
-            if (string.IsNullOrWhiteSpace(document.OptionName) || document.OptionName.Length != 4)
-                return ApplicationDiagnostics.Failure<OptionBuildResult>(
-                    Msg.Key(MsgKeys.App_Option_name_required));
-            if (document.BatchSize == 0 || document.BatchSize < -1)
-                return ApplicationDiagnostics.Failure<OptionBuildResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
-            if (!document.HasExportableWork())
-                return ApplicationDiagnostics.Failure<OptionBuildResult>(
-                    Msg.Key(MsgKeys.App_No_export_actions_enabled));
-
-            var scanned = await ScanBooksAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
-                progress, cancellationToken);
-            if (!scanned.Succeeded)
-                return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(scanned.Diagnostics);
-            if (scanned.Value.Count == 0)
-                return ApplicationDiagnostics.Failure<OptionBuildResult>(
-                    Msg.Key(MsgKeys.App_No_charts_to_export));
-
-            var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
-            var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
-            var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
-            var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
-            var exported = await OptionExporter.ExportAsync(
-                CreateExportContext(), exportSettings, outputPaths, snapshots, output,
-                cancellationToken, progress);
-            var diagnostics = scanned.Diagnostics.Merge(exported.Diagnostics);
-            if (!exported.Succeeded)
-                return OperationResult<OptionBuildResult>.Failure().WithDiagnostics(diagnostics);
-
-            string? savedConfigPath = null;
-            if (request.SaveConfig)
-            {
-                savedConfigPath = OptionConfiguration.ResolveSavePath(request, input, configPath);
-                await OptionConfiguration.SaveAsync(savedConfigPath, document, cancellationToken);
-            }
-
-            var artifacts = Directory.Exists(bundleRoot)
-                ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
-                    .OrderBy(x => x, StringComparer.Ordinal)
-                    .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
-                : [];
-            var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
-                scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts);
-            return OperationResult<OptionBuildResult>.Success(value).WithDiagnostics(diagnostics);
-        });
+        var artifacts = Directory.Exists(bundleRoot)
+            ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
+                .OrderBy(x => x, StringComparer.Ordinal)
+                .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
+            : [];
+        var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
+            scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts);
+        return OperationResult<OptionBuildResult>.Success(value).WithDiagnostics(diagnostics);
     }
 
     public async Task<OperationResult<MusicBuildResult>> BuildMusicAsync(
@@ -197,9 +203,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
             ChartMetadata.ApplyMusicBuildOverrides(chart.Meta, request.Overrides);
 
-            var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, jacket, audio, stage,
+            var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, new MusicExportOverrides(jacket, audio, stage),
                 cancellationToken, progress);
-            var value = CreateMusicResult(input, output, chart.Meta, jacket, stage);
+            var value = CreateMusicResult(input, output, chart.Meta, stage);
             return ApplicationDiagnostics.Merge(value, parsed.Diagnostics, exported);
         });
     }
@@ -510,7 +516,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
     {
         var diagnostics = new DiagnosticCollector();
         return ChartScanner.ScanDirectoryAsync(_dependencies.Assets, _dependencies.MediaTool, input, discovery,
-            batchSize, workingDirectory, diagnostics, cancellationToken, progress: progress);
+            new OptionExportProcessContext(diagnostics, cancellationToken, batchSize, workingDirectory, progress));
     }
 
     private static OptionScanConfig CreateScanConfig(OptionDocument document)
@@ -624,6 +630,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (value.ConvertJacket is { } convertJacket) document.ConvertJacket = convertJacket;
         if (value.ConvertBackground is { } convertBackground) document.ConvertBackground = convertBackground;
         if (value.HcaEncryptionKey is { } key) document.HcaEncryptionKey = key;
+        ApplyReleaseOverrides(document, value);
+    }
+
+    private static void ApplyReleaseOverrides(OptionDocument document, OptionBuildOverrides value)
+    {
         if (value.GenerateEventXml is { } eventXml) document.GenerateEventXml = eventXml;
         if (value.CustomReleaseTagXml is { } customReleaseXml) document.CustomReleaseTagXml = customReleaseXml;
         if (value.SelectedReleaseTagId is { } selectedReleaseId) document.SelectedReleaseTagId = selectedReleaseId;
@@ -698,17 +709,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         ]);
     }
 
-    private static ChartFileFormat ToWorkflow(ChartFormat value)
-    {
-        return value switch
-        {
-            ChartFormat.Mgxc => ChartFileFormat.Mgxc,
-            ChartFormat.Ugc => ChartFileFormat.Ugc,
-            ChartFormat.Sus => ChartFileFormat.Sus,
-            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
-        };
-    }
-
     private static ChartFormat FromWorkflow(ChartFileFormat value)
     {
         return value switch
@@ -743,6 +743,17 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         };
     }
 
+    private static ChartFileFormat ToWorkflow(ChartFormat value)
+    {
+        return value switch
+        {
+            ChartFormat.Mgxc => ChartFileFormat.Mgxc,
+            ChartFormat.Ugc => ChartFileFormat.Ugc,
+            ChartFormat.Sus => ChartFileFormat.Sus,
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+        };
+    }
+
     private static AudioRequestOverrides ToWorkflow(AudioOverrides? value)
     {
         return value is null
@@ -760,7 +771,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 value.NoteFieldLaneId, value.NoteFieldLaneName, value.NoteFieldLaneData);
     }
 
-    private static MusicBuildResult CreateMusicResult(string input, string output, Meta meta, string? jacket,
+    private static MusicBuildResult CreateMusicResult(string input, string output, Meta meta,
         StageRequestOverrides stage)
     {
         var artifacts = new List<ApplicationArtifact>();

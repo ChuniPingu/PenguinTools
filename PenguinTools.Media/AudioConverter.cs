@@ -78,13 +78,13 @@ public class AudioConverter
         var awbPath = Path.Combine(outputDir, xml.AwbFile);
 
         await MediaTool.ConvertCriAsync(
-            wavPath,
+            new CriConvertRequest(wavPath,
             acbPath,
             awbPath,
             xml.DataName,
             (long)(pvStart * 1000m),
             (long)(pvStop * 1000m),
-            HcaEncryptionKey,
+            HcaEncryptionKey),
             ct);
 
         return OperationResult.Success().WithDiagnostics(Diagnostic);

@@ -23,12 +23,6 @@ public interface IMediaTool
         => throw new NotSupportedException("CRI extraction is not supported by this media tool.");
 
     Task ConvertCriAsync(
-        string wav,
-        string acb,
-        string awb,
-        string name,
-        long previewStartMs,
-        long previewStopMs,
-        ulong hcaKey,
+        CriConvertRequest request,
         CancellationToken ct = default);
 }
