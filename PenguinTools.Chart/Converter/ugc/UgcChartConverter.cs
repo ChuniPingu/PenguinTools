@@ -61,62 +61,7 @@ public sealed class UgcChartConverter
         _target.Meta = _source.Meta;
         _target.Extras = _source.Extras;
 
-        if (_target.Meta.C2sSlaSnapshot is null)
-        {
-            _target.Meta.C2sSlaSnapshot = C2sRoundTripKeys.FormatSlaSnapshot(
-                _source.Notes.OfType<c2s.Sla>());
-        }
-
-        if (_target.Meta.C2sSlpSnapshot is null &&
-            !_source.Events.Any(x => x.Id == "SFL"))
-        {
-            _target.Meta.C2sSlpSnapshot = C2sRoundTripKeys.FormatSlpSnapshot(
-                _source.Events.OfType<c2s.Slp>());
-        }
-
-        if (_target.Meta.C2sAirSnapshot is null)
-        {
-            _target.Meta.C2sAirSnapshot = C2sRoundTripKeys.FormatAirSnapshot(
-                _source.Notes.OfType<c2s.Air>());
-        }
-
-        if (_target.Meta.C2sMeterDefDenominator is null)
-            _target.Meta.C2sMeterDefDenominator =
-                _source.Meta.BgmInitialDenominator;
-
-        if (_target.Meta.C2sMeterDefNumerator is null)
-            _target.Meta.C2sMeterDefNumerator =
-                _source.Meta.BgmInitialNumerator;
-
-        if (_source.Meta.TryGetC2sJudgeSummary(
-                out _,
-                out _,
-                out _,
-                out _,
-                out _,
-                out _))
-        {
-            if (_source.Meta.C2sJudgeSldProxyBaseline is null)
-            {
-                _source.Meta.C2sJudgeSldProxyBaseline =
-                    C2SJudgeSummaryCalculator.CalculateSlideProxy(
-                        _source);
-            }
-
-            if (_source.Meta.C2sJudgeHldProxyBaseline is null)
-            {
-                _source.Meta.C2sJudgeHldProxyBaseline =
-                    C2SJudgeSummaryCalculator.CalculateHoldProxy(
-                        _source);
-            }
-
-            if (_source.Meta.C2sJudgeAirProxyBaseline is null)
-            {
-                _source.Meta.C2sJudgeAirProxyBaseline =
-                    C2SJudgeSummaryCalculator.CalculateAirProxy(
-                        _source);
-            }
-        }
+        CaptureSourceSnapshots();
 
         ConvertEvents();
         _target.Extras.Meters = _source.Events.OfType<c2s.Met>()
@@ -175,6 +120,72 @@ public sealed class UgcChartConverter
             _target.Extras.SourceSnapshot = C2SRoundTrip.Decode(C2SRoundTrip.Encode(sourceText, ChartExtras.EventView(_target)));
 
         return OperationResult<umgr.Chart>.Success(_target);
+    }
+
+    private void CaptureSourceSnapshots()
+    {
+        if (_target.Meta.C2sSlaSnapshot is null)
+        {
+            _target.Meta.C2sSlaSnapshot = C2sRoundTripKeys.FormatSlaSnapshot(
+                _source.Notes.OfType<c2s.Sla>());
+        }
+
+        if (_target.Meta.C2sSlpSnapshot is null &&
+            !_source.Events.Any(x => x.Id == "SFL"))
+        {
+            _target.Meta.C2sSlpSnapshot = C2sRoundTripKeys.FormatSlpSnapshot(
+                _source.Events.OfType<c2s.Slp>());
+        }
+
+        if (_target.Meta.C2sAirSnapshot is null)
+        {
+            _target.Meta.C2sAirSnapshot = C2sRoundTripKeys.FormatAirSnapshot(
+                _source.Notes.OfType<c2s.Air>());
+        }
+
+        if (_target.Meta.C2sMeterDefDenominator is null)
+            _target.Meta.C2sMeterDefDenominator =
+                _source.Meta.BgmInitialDenominator;
+
+        if (_target.Meta.C2sMeterDefNumerator is null)
+            _target.Meta.C2sMeterDefNumerator =
+                _source.Meta.BgmInitialNumerator;
+
+        CaptureJudgeBaselines();
+    }
+
+    private void CaptureJudgeBaselines()
+    {
+        if (_source.Meta.TryGetC2sJudgeSummary(
+                out _,
+                out _,
+                out _,
+                out _,
+                out _,
+                out _))
+        {
+            if (_source.Meta.C2sJudgeSldProxyBaseline is null)
+            {
+                _source.Meta.C2sJudgeSldProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateSlideProxy(
+                        _source);
+            }
+
+            if (_source.Meta.C2sJudgeHldProxyBaseline is null)
+            {
+                _source.Meta.C2sJudgeHldProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateHoldProxy(
+                        _source);
+            }
+
+            if (_source.Meta.C2sJudgeAirProxyBaseline is null)
+            {
+                _source.Meta.C2sJudgeAirProxyBaseline =
+                    C2SJudgeSummaryCalculator.CalculateAirProxy(
+                        _source);
+            }
+        }
+
     }
 
     private void ConvertEvents()
@@ -310,9 +321,9 @@ public sealed class UgcChartConverter
 
     private bool TryTakeAirAction(
         c2s.Air source,
-        out umgr.NegativeNote action)
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out umgr.NegativeNote? action)
     {
-        action = null!;
+        action = null;
 
         if (source.Parent is null)
             return false;
@@ -320,15 +331,12 @@ public sealed class UgcChartConverter
         if (_airActionsByParent.TryGetValue(source.Parent, out var actions) &&
             actions.TryDequeue(out var candidate))
         {
-            action = candidate!;
+            action = candidate;
             return true;
         }
 
         return false;
     }
-
-    private static Joint IntermediateJoint(c2s.Slide segment) =>
-        segment.Joint;
 
     private void ConvertAir(c2s.Air source)
     {
@@ -682,16 +690,6 @@ public sealed class UgcChartConverter
         RegisterAirAction(parent, action);
     }
 
-    private readonly record struct OpenSlide(
-        umgr.Slide Slide,
-        umgr.SlideJoint LastJoint,
-        c2s.Slide LastSegment);
-
-    private readonly record struct SlidePathKey(
-        int Tick,
-        int Lane,
-        int Width);
-
     private readonly record struct AirCrashPathKey(
         int Tick,
         int Lane,
@@ -726,12 +724,12 @@ public sealed class UgcChartConverter
     {
         var active = new Dictionary<AirCrashPathKey, Queue<umgr.AirCrash>>();
 
-        foreach (var entry in source
+        foreach (var segment in source
                      .Select((segment, index) => (Segment: segment, SourceOrder: index))
                      .OrderBy(x => x.Segment.Tick.Original)
-                     .ThenBy(x => x.SourceOrder))
+                     .ThenBy(x => x.SourceOrder)
+                     .Select(x => x.Segment))
         {
-            var segment = entry.Segment;
             var startKey = AirCrashStartKey(segment);
             umgr.AirCrash crash;
 

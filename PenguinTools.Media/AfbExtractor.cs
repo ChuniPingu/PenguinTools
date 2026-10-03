@@ -17,7 +17,7 @@ public class AfbExtractor
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private string InPath { get; }
     private string OutFolder { get; }
 

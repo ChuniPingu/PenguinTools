@@ -6,6 +6,8 @@ namespace PenguinTools.Tests.Workflow;
 
 public sealed class OptionExportBatchTests
 {
+    private static readonly string[] ChartPaths = ["one.ugc", "two.ugc"];
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -14,11 +16,11 @@ public sealed class OptionExportBatchTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         var calls = 0;
-        var context = new OptionExportProcessContext(new DiagnosticCollector(), cancellation.Token, 1,
-            Path.GetTempPath());
+        var context = new OptionExportProcessContext(new DiagnosticCollector(), 1,
+            Path.GetTempPath(), cancellation.Token);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OptionExportBatch.BatchAsync(
-            new[] { "one.ugc", "two.ugc" },
+            ChartPaths,
             (_, _) =>
             {
                 calls++;
@@ -34,11 +36,11 @@ public sealed class OptionExportBatchTests
     {
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
-        var context = new OptionExportProcessContext(new DiagnosticCollector(), cancellation.Token, 1,
-            Path.GetTempPath());
+        var context = new OptionExportProcessContext(new DiagnosticCollector(), 1,
+            Path.GetTempPath(), cancellation.Token);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => OptionExportBatch.BatchAsync(
-            new[] { "one.ugc", "two.ugc" },
+            ChartPaths,
             (_, _) =>
             {
                 calls++;
@@ -57,10 +59,10 @@ public sealed class OptionExportBatchTests
     {
         var calls = 0;
         var context = new OptionExportProcessContext(new DiagnosticCollector(),
-            TestContext.Current.CancellationToken, 2, Path.GetTempPath());
+            2, Path.GetTempPath(), TestContext.Current.CancellationToken);
 
         var result = await OptionExportBatch.BatchAsync(
-            new[] { "one.ugc", "two.ugc" },
+            ChartPaths,
             (item, _) =>
             {
                 Interlocked.Increment(ref calls);
@@ -69,7 +71,7 @@ public sealed class OptionExportBatchTests
             item => Path.Combine(context.WorkingDirectory, item), context, parallel);
 
         Assert.Equal(2, calls);
-        Assert.Equal(new[] { "one.ugc", "two.ugc" }, result.Diagnostics.Select(d => d.Path).Order().ToArray());
+        Assert.Equal(ChartPaths, result.Diagnostics.Select(d => d.Path).Order().ToArray());
         Assert.All(result.Diagnostics, diagnostic =>
         {
             Assert.Equal(Severity.Error, diagnostic.Severity);

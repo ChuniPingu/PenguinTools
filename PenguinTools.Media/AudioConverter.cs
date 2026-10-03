@@ -21,7 +21,7 @@ public class AudioConverter
 
     private IMediaTool MediaTool { get; }
     private ulong HcaEncryptionKey { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private Meta Meta { get; }
     private string OutFolder { get; }
     private string WorkingAudioPath { get; }

@@ -168,23 +168,6 @@ public partial class UgcParser
         });
     }
 
-    private void ReportAtCurrentLine(Severity severity, MessageDescriptor message, int tick, object? target = null)
-    {
-        if (_currentLineNumber is not { } line)
-        {
-            Diagnostic.Report(new TimedDiagnostic(severity, message, tick)
-            {
-                Target = target
-            });
-            return;
-        }
-
-        Diagnostic.Report(new TimedLocationDiagnostic(severity, message, line, tick, Path)
-        {
-            Target = target
-        });
-    }
-
     private void ThrowAtCurrentLine(MessageDescriptor message, object? target = null, int? tick = null)
     {
         if (_currentLineNumber is not { } line)

@@ -23,7 +23,7 @@ public class StageConverter
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private AssetManager Assets { get; }
     private string BackgroundPath { get; }
     private string?[]? EffectPaths { get; }

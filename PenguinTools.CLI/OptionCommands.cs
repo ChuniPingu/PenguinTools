@@ -61,7 +61,7 @@ internal static class OptionCommands
         return command;
     }
 
-    private static IReadOnlyList<ChartFormat>? ParseDiscovery(ParseResult result, Option<string?> option)
+    private static List<ChartFormat>? ParseDiscovery(ParseResult result, Option<string?> option)
     {
         if (result.GetValue(option) is not { Length: > 0 } text) return null;
         var trimmed = text.Trim().TrimStart('[').TrimEnd(']');
@@ -169,7 +169,7 @@ internal static class OptionCommands
                 ParseMainDifficulties(result.GetValue(MainDifficulties)));
         }
 
-        private static IReadOnlyList<OptionMainDifficultyOverride>? ParseMainDifficulties(string[]? values)
+        private static List<OptionMainDifficultyOverride>? ParseMainDifficulties(string[]? values)
         {
             if (values is not { Length: > 0 }) return null;
 

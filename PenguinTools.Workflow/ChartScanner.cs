@@ -125,7 +125,7 @@ public static class ChartScanner
         }
     }
 
-    private static IReadOnlyList<OptionBook> FinalizeBooks(
+    private static List<OptionBook> FinalizeBooks(
         ConcurrentDictionary<int, BookAccumulator> booksById,
         IDiagnosticSink diagnostics,
         CancellationToken ct)

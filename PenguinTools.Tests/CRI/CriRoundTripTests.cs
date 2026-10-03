@@ -46,9 +46,8 @@ public class CriRoundTripTests
         var decodedDir = Path.Combine(dir.Path, "decoded");
         var manifest = ExtractService.Extract(acbPath, decodedDir, awbPath, ConvertService.DefaultHcaKey);
         Assert.Equal(1, manifest.SchemaVersion);
-        Assert.Single(manifest.Cues);
 
-        var cue = manifest.Cues[0];
+        var cue = Assert.Single(manifest.Cues);
         Assert.Equal(0, cue.CueId);
         Assert.Equal("cueFile000001", cue.Name);
         Assert.Equal((uint)1234, cue.PreviewStartMs);

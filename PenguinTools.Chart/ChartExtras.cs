@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Frozen;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -11,6 +12,11 @@ namespace PenguinTools.Chart;
 /// <summary>Editor extensions that have no equivalent in the basic note models.</summary>
 public sealed partial class ChartExtras
 {
+    [GeneratedRegex(@"(?:^|;)(PT_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)", RegexOptions.None, 1000)]
+    private static partial Regex CopyrightMetadataRegex();
+
+    [GeneratedRegex(@"(?:^|;)MGR_CLKCNT=(\d+)(?:;|$)", RegexOptions.None, 1000)]
+    private static partial Regex ClickCountRegex();
     internal const string BookmarkPrefix = "PT_EXTRAS_V2:";
     private const string LegacyBookmarkPrefix = "PT_EXTRAS_V1:";
     public int? ClickCount { get; set; }
@@ -43,10 +49,10 @@ public sealed partial class ChartExtras
     [JsonIgnore]
     public string? SpeedModelKey { get; set; }
 
-    public static readonly HashSet<string> NoteTags = new(
-        "TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD".Split(' '));
+    public static readonly FrozenSet<string> NoteTags =
+        "TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD".Split(' ').ToFrozenSet();
 
-    public static readonly HashSet<string> EventTags = new("BPM MET SLP SFL DCM STP CLK".Split(' '));
+    public static readonly FrozenSet<string> EventTags = "BPM MET SLP SFL DCM STP CLK".Split(' ').ToFrozenSet();
     [JsonIgnore] public string? InteropSourceText { get; set; }
 
     public string ToCopyright()
@@ -88,7 +94,7 @@ public sealed partial class ChartExtras
 
     public static ChartExtras FromCopyright(string value)
     {
-        var match = Regex.Match(value, @"(?:^|;)(PT_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)");
+        var match = CopyrightMetadataRegex().Match(value);
         var result = match.Success
             ? JsonSerializer.Deserialize(C2SRoundTrip.Decode(match.Groups[1].Value.Replace("PT_C2S_", "MGR_C2S_", StringComparison.Ordinal)), ChartExtrasJsonContext.Default.ChartExtras) ?? new()
             : new ChartExtras();
@@ -100,16 +106,16 @@ public sealed partial class ChartExtras
     internal static string EventView(umgr.Chart chart) => string.Join("\n", chart.Events.Children.Select(e => e switch
     {
         umgr.BeatEvent b => $"BEAT\t{b.Bar}\t{b.Numerator}\t{b.Denominator}",
-        umgr.BpmEvent b => FormattableString.Invariant($"BPM\t{b.Tick.Original}\t{b.Bpm}"),
-        umgr.ScrollSpeedEvent s => FormattableString.Invariant($"TIL\t{s.Timeline}\t{s.Tick.Original}\t{s.Speed}"),
-        umgr.NoteSpeedEvent s => FormattableString.Invariant($"SPDMOD\t{s.Tick.Original}\t{s.Speed}"),
+        umgr.BpmEvent b => string.Create(CultureInfo.InvariantCulture, $"BPM\t{b.Tick.Original}\t{b.Bpm}"),
+        umgr.ScrollSpeedEvent s => string.Create(CultureInfo.InvariantCulture, $"TIL\t{s.Timeline}\t{s.Tick.Original}\t{s.Speed}"),
+        umgr.NoteSpeedEvent s => string.Create(CultureInfo.InvariantCulture, $"SPDMOD\t{s.Tick.Original}\t{s.Speed}"),
         _ => ""
     }).Where(s => s.Length > 0));
 
     public void ReadCopyright(string? value)
     {
         SourceSnapshot = C2SRoundTrip.Decode(value ?? "");
-        var match = Regex.Match(value ?? "", @"(?:^|;)MGR_CLKCNT=(\d+)(?:;|$)");
+        var match = ClickCountRegex().Match(value ?? "");
         if (match.Success)
             ClickCount = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
     }
@@ -210,7 +216,7 @@ public sealed partial class ChartExtras
         chart.Events.OfType<c2s.Met>().OrderBy(e => e.Tick.Original)
             .Select(e => $"{e.Tick.Original},{e.Numerator},{e.Denominator}"));
 
-    internal static string MetaKey(c2s.Chart chart) => FormattableString.Invariant(
+    internal static string MetaKey(c2s.Chart chart) => string.Create(CultureInfo.InvariantCulture,
         $"{chart.Meta.Id}|{chart.Meta.Difficulty}|{chart.Meta.Level:G29}|{chart.Meta.Designer}|{chart.Meta.MainBpm:G29}|{chart.Meta.BgmInitialNumerator}|{chart.Meta.BgmInitialDenominator}");
 
     public string ToBookmark() => BookmarkPrefix + ToCopyright() +
@@ -235,7 +241,7 @@ public sealed partial class ChartExtras
             .Select(e => $"{e.Bar},{e.Numerator},{e.Denominator}"));
 
     internal static string AirKey(umgr.Note note) =>
-        FormattableString.Invariant($"{note.GetType().Name},{note.Tick.Original},{note.Lane},{note.Width},{note.GetLastTick()}");
+        string.Create(CultureInfo.InvariantCulture, $"{note.GetType().Name},{note.Tick.Original},{note.Lane},{note.Width},{note.GetLastTick()}");
 
     internal static string SlideKey(umgr.Slide slide) =>
         $"{slide.Tick.Original},{slide.Lane},{slide.Width},{slide.Effect}:" +
@@ -258,20 +264,7 @@ public sealed partial class ChartExtras
 
     internal void RestoreAppearance(umgr.Chart chart)
     {
-        var holds = HoldEffects.GroupBy(h => h.Key).ToDictionary(g => g.Key, g => new Queue<HoldEffectSnapshot>(g));
-        foreach (var hold in chart.Notes.Children.OfType<umgr.ExTapableNote>())
-            if (holds.TryGetValue(AirKey(hold), out var savedHolds) && savedHolds.TryDequeue(out var saved))
-                hold.Effect = saved.Effect;
-        foreach (var slide in chart.Notes.Children.OfType<umgr.Slide>())
-        {
-            var points = slide.Children.OfType<umgr.SlideJoint>().ToArray();
-            foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
-                if (saved.Index >= 0 && saved.Index < points.Length)
-                {
-                    points[saved.Index].HasEffectOverride = true;
-                    points[saved.Index].SegmentEffect = saved.Effect;
-                }
-        }
+        RestoreGroundEffects(chart);
         var appearances = AirAppearances.GroupBy(a => a.Key)
             .ToDictionary(g => g.Key, g => new Queue<AirAppearance>(g));
         foreach (var note in chart.Notes.Children)
@@ -291,12 +284,30 @@ public sealed partial class ChartExtras
         }
     }
 
+    private void RestoreGroundEffects(umgr.Chart chart)
+    {
+        var holds = HoldEffects.GroupBy(h => h.Key).ToDictionary(g => g.Key, g => new Queue<HoldEffectSnapshot>(g));
+        foreach (var hold in chart.Notes.Children.OfType<umgr.ExTapableNote>())
+            if (holds.TryGetValue(AirKey(hold), out var savedHolds) && savedHolds.TryDequeue(out var saved))
+                hold.Effect = saved.Effect;
+        foreach (var slide in chart.Notes.Children.OfType<umgr.Slide>())
+        {
+            var points = slide.Children.OfType<umgr.SlideJoint>().ToArray();
+            foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
+                if (saved.Index >= 0 && saved.Index < points.Length)
+                {
+                    points[saved.Index].HasEffectOverride = true;
+                    points[saved.Index].SegmentEffect = saved.Effect;
+                }
+        }
+    }
+
     internal static string CrashKey(umgr.AirCrash crash) =>
-        FormattableString.Invariant($"{crash.Tick.Original},{crash.Lane},{crash.Width},{crash.Height},{crash.GetLastTick()}");
+        string.Create(CultureInfo.InvariantCulture, $"{crash.Tick.Original},{crash.Lane},{crash.Width},{crash.Height},{crash.GetLastTick()}");
 
     internal static string SpeedKey(umgr.Chart chart) => string.Join(";",
         chart.Events.Children.OfType<umgr.SpeedEventBase>()
-            .Select(e => FormattableString.Invariant($"{e.GetType().Name},{e.Tick.Original},{(e is umgr.ScrollSpeedEvent s ? s.Timeline : 0)},{e.Speed}"))
+            .Select(e => string.Create(CultureInfo.InvariantCulture, $"{e.GetType().Name},{e.Tick.Original},{(e is umgr.ScrollSpeedEvent s ? s.Timeline : 0)},{e.Speed}"))
             .Order(StringComparer.Ordinal));
 }
 

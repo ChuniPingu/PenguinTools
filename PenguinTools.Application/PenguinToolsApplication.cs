@@ -468,7 +468,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
     public static PenguinToolsApplication CreateDefault(PenguinToolsApplicationOptions? options = null)
     {
-        IAssetStore? assetStore = null;
+        AssetStore? assetStore = null;
         try
         {
             var paths = ApplicationPaths.Create();
@@ -516,7 +516,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
     {
         var diagnostics = new DiagnosticCollector();
         return ChartScanner.ScanDirectoryAsync(_dependencies.Assets, _dependencies.MediaTool, input, discovery,
-            new OptionExportProcessContext(diagnostics, cancellationToken, batchSize, workingDirectory, progress));
+            new OptionExportProcessContext(diagnostics, batchSize, workingDirectory, cancellationToken, progress));
     }
 
     private static OptionScanConfig CreateScanConfig(OptionDocument document)
@@ -671,7 +671,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
     private static OptionBook ApplyMainDifficultyOverride(
         OptionBook book,
-        IReadOnlyDictionary<int, string> overrides)
+        Dictionary<int, string> overrides)
     {
         if (book.BookMeta.Id is not { } songId || !overrides.TryGetValue(songId, out var requested)) return book;
         if (!TryParseDifficultyName(requested, out var targetDifficulty)) return book;

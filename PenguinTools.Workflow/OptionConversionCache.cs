@@ -210,7 +210,7 @@ internal static class OptionConversionCacheValidator
     }
 
     private static bool Matches(
-        IReadOnlyDictionary<string, string> expected,
+        Dictionary<string, string> expected,
         IReadOnlyDictionary<string, string> actual)
     {
         if (expected.Count != actual.Count) return false;

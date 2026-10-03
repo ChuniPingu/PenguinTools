@@ -32,7 +32,8 @@ public class Slp : SpeedEventBase
     public override string Id => "SLP";
 }
 
-[Obsolete]
+// Legacy SFL remains supported for lossless reading and writing of older charts.
+// New charts should use SLP; this model is retained for format compatibility.
 public class Sfl : SpeedEventBase
 {
     public override string Id => "SFL";

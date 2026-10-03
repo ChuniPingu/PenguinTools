@@ -190,27 +190,7 @@ public class Note : TimeNode<Note>
         // In CHUNITHM, notes appear to have layer priority where later ones render on top, covering those beneath.
         // However, in UMIGURI, AirCrash always renders on top regardless of order (but below than AirHold in NEXT).
         // To match UMIGURI's behavior, AirCrash notes are moved to the end of the collection.
-        SortChild((x, y) =>
-        {
-            if (x is not AirCrash && y is not AirCrash) return CompareCommon();
-            if (x is not AirCrash xCrash) return -1;
-            if (y is not AirCrash yCrash) return 1;
-
-            var result = CompareCommon();
-            if (result != 0) return result;
-            return xCrash.Color.CompareTo(yCrash.Color);
-
-            int CompareCommon()
-            {
-                var i = x.Tick.CompareTo(y.Tick);
-                if (i != 0) return i;
-                i = x.Lane.CompareTo(y.Lane);
-                if (i != 0) return i;
-                i = x.Width.CompareTo(y.Width);
-                if (i != 0) return i;
-                return x.Timeline.CompareTo(y.Timeline);
-            }
-        });
+        SortChild(CompareNotes);
 
         // move negative notes after the paired positive notes
         foreach (var child in Children.OfType<NegativeNote>().ToArray())
@@ -221,6 +201,26 @@ public class Note : TimeNode<Note>
             if (pair == null || pair.Parent != this) continue;
             InsertBefore(pair, child);
         }
+    }
+
+    private static int CompareNotes(Note x, Note y)
+    {
+        if (x is not AirCrash && y is not AirCrash) return CompareCommon(x, y);
+        if (x is not AirCrash xCrash) return -1;
+        if (y is not AirCrash yCrash) return 1;
+
+        var result = CompareCommon(x, y);
+        return result != 0 ? result : xCrash.Color.CompareTo(yCrash.Color);
+    }
+
+    private static int CompareCommon(Note x, Note y)
+    {
+        var result = x.Tick.CompareTo(y.Tick);
+        if (result != 0) return result;
+        result = x.Lane.CompareTo(y.Lane);
+        if (result != 0) return result;
+        result = x.Width.CompareTo(y.Width);
+        return result != 0 ? result : x.Timeline.CompareTo(y.Timeline);
     }
 }
 

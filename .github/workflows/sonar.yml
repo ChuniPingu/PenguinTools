@@ -26,6 +26,7 @@ jobs:
     env:
       SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
       SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+      SONAR_BRANCH: ${{ github.event_name != 'pull_request' && github.ref_name || '' }}
     steps:
       - name: Validate Sonar configuration
         env:
@@ -55,17 +56,22 @@ jobs:
       - name: Begin Sonar analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: >-
-          dotnet sonarscanner begin
-          "/k:$env:SONAR_PROJECT_KEY"
-          "/o:$env:SONAR_ORGANIZATION"
-          "/d:sonar.token=$env:SONAR_TOKEN"
-          "/d:sonar.host.url=https://sonarcloud.io"
-          "/d:sonar.scanner.scanAll=true"
-          "/d:sonar.exclusions=External/**,**/bin/**,**/obj/**,**/TestResults/**,artifacts/**"
-          "/d:sonar.coverage.exclusions=**"
-          "/d:sonar.qualitygate.wait=true"
-          "/d:sonar.qualitygate.timeout=600"
+        run: |
+          $analysisArgs = @(
+            "/k:$env:SONAR_PROJECT_KEY"
+            "/o:$env:SONAR_ORGANIZATION"
+            "/d:sonar.token=$env:SONAR_TOKEN"
+            "/d:sonar.host.url=https://sonarcloud.io"
+            "/d:sonar.scanner.scanAll=true"
+            "/d:sonar.exclusions=External/**,**/bin/**,**/obj/**,**/TestResults/**,artifacts/**"
+            "/d:sonar.coverage.exclusions=**"
+            "/d:sonar.qualitygate.wait=true"
+            "/d:sonar.qualitygate.timeout=600"
+          )
+          if ($env:SONAR_BRANCH) {
+            $analysisArgs += "/d:sonar.branch.name=$env:SONAR_BRANCH"
+          }
+          dotnet sonarscanner begin @analysisArgs
       - name: Build for Sonar analysis
         run: dotnet build PenguinTools.slnx -c Release --no-restore --no-incremental --disable-build-servers -p:Platform=x64
       - name: Publish analysis and check quality gate

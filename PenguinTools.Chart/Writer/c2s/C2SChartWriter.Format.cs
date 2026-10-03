@@ -64,15 +64,12 @@ public partial class C2SChartWriter
                 line = $"{FormatNote(air)}\t{ParentId(parent)}\t{air.Color}";
                 error = null;
                 return true;
-            case c2s.AirSlide { Parent: null }:
-                line = string.Empty;
-                error = Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null);
-                return false;
             case c2s.AirSlide { Parent: { } parent } airSlide:
                 line =
                     $"{FormatNote(airSlide)}\t{ParentId(parent)}\t{airSlide.Height.Result}\t{ScaleLength(airSlide)}\t{airSlide.EndLane}\t{airSlide.EndWidth}\t{airSlide.EndHeight.Result}\t{airSlide.Color}";
                 error = null;
                 return true;
+            case c2s.AirSlide { Parent: null }:
             case c2s.AirHold { Parent: null }:
                 line = string.Empty;
                 error = Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null);

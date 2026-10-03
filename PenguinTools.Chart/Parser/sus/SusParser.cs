@@ -353,87 +353,65 @@ public sealed class SusParser
 
         var effectiveMeasure = _measureBase + measure;
         var suffix = header[3..].ToUpperInvariant();
-
         if (suffix == "02")
-        {
-            if (decimal.TryParse(data, CultureInfo.InvariantCulture, out var beats) && beats > 0)
-                _measureLengthDefinitions[effectiveMeasure] = beats;
-            else
-                WarnMalformedLine(lineNumber, $"{header}: {data}");
-
-            return;
-        }
-
-        if (suffix == "08")
-        {
-            var tokens = EnumerateTokens(data).ToArray();
-            for (var i = 0; i < tokens.Length; i++)
-                if (!string.Equals(tokens[i], "00", StringComparison.OrdinalIgnoreCase))
-                    _pendingBpmChanges.Add(new RawTokenPoint(effectiveMeasure, i, tokens.Length, tokens[i],
-                        lineNumber));
-
-            return;
-        }
-
-        if (suffix.Length == 2 && suffix[0] is '1' or '5')
-        {
-            if (!TryParseBase36(suffix[1].ToString(), out var lane))
-            {
-                WarnMalformedLine(lineNumber, $"{header}: {data}");
-                return;
-            }
-
-            AddShortNotePoints(
-                suffix[0] == '1' ? _tapPoints : _directionalPoints,
-                effectiveMeasure,
-                lane,
-                data,
-                lineNumber);
-            return;
-        }
-
-        if (suffix.Length == 3 && suffix[0] is '2' or '3' or '4')
-        {
-            if (!TryParseBase36(suffix[1].ToString(), out var lane) ||
-                !TryParseBase36(suffix[2].ToString(), out var channel))
-            {
-                WarnMalformedLine(lineNumber, $"{header}: {data}");
-                return;
-            }
-
-            var target = suffix[0] switch
-            {
-                '2' => GetOrCreate(_holdPoints, (channel, lane)),
-                '3' => GetOrCreate(_slidePoints, channel),
-                '4' => GetOrCreate(_airHoldPoints, channel),
-                _ => null
-            };
-
-            if (target != null) AddLongNotePoints(target, effectiveMeasure, lane, data, lineNumber);
-            return;
-        }
-
-        ReportIgnoredMeta(lineNumber, header, data);
+            ParseMeasureLength(header, data, lineNumber, effectiveMeasure);
+        else if (suffix == "08")
+            ParseMeasureBpm(data, lineNumber, effectiveMeasure);
+        else if (suffix.Length == 2 && suffix[0] is '1' or '5')
+            ParseShortNoteData(header, suffix, data, lineNumber, effectiveMeasure);
+        else if (suffix.Length == 3 && suffix[0] is '2' or '3' or '4')
+            ParseLongNoteData(header, suffix, data, lineNumber, effectiveMeasure);
+        else
+            ReportIgnoredMeta(lineNumber, header, data);
     }
 
-    private void AddShortNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
+    private void ParseMeasureLength(string header, string data, int lineNumber, int measure)
+    {
+        if (decimal.TryParse(data, CultureInfo.InvariantCulture, out var beats) && beats > 0)
+            _measureLengthDefinitions[measure] = beats;
+        else
+            WarnMalformedLine(lineNumber, $"{header}: {data}");
+    }
+
+    private void ParseMeasureBpm(string data, int lineNumber, int measure)
     {
         var tokens = EnumerateTokens(data).ToArray();
         for (var i = 0; i < tokens.Length; i++)
-        {
-            var token = tokens[i];
-            if (string.Equals(token, "00", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!TryParsePair(token, out var kind, out var width))
-            {
-                WarnMalformedLine(lineNumber, token);
-                continue;
-            }
-
-            target.Add(new RawNotePoint(measure, i, tokens.Length, lane, width, kind, _currentHispeedId, lineNumber));
-        }
+            if (!string.Equals(tokens[i], "00", StringComparison.OrdinalIgnoreCase))
+                _pendingBpmChanges.Add(new RawTokenPoint(measure, i, tokens.Length, tokens[i], lineNumber));
     }
 
-    private void AddLongNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
+    private void ParseShortNoteData(string header, string suffix, string data, int lineNumber, int measure)
+    {
+        if (!TryParseBase36(suffix[1].ToString(), out var lane))
+        {
+            WarnMalformedLine(lineNumber, $"{header}: {data}");
+            return;
+        }
+
+        AddNotePoints(suffix[0] == '1' ? _tapPoints : _directionalPoints, measure, lane, data, lineNumber);
+    }
+
+    private void ParseLongNoteData(string header, string suffix, string data, int lineNumber, int measure)
+    {
+        if (!TryParseBase36(suffix[1].ToString(), out var lane) ||
+            !TryParseBase36(suffix[2].ToString(), out var channel))
+        {
+            WarnMalformedLine(lineNumber, $"{header}: {data}");
+            return;
+        }
+
+        var target = suffix[0] switch
+        {
+            '2' => GetOrCreate(_holdPoints, (channel, lane)),
+            '3' => GetOrCreate(_slidePoints, channel),
+            '4' => GetOrCreate(_airHoldPoints, channel),
+            _ => null
+        };
+        if (target is not null) AddNotePoints(target, measure, lane, data, lineNumber);
+    }
+
+    private void AddNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
     {
         var tokens = EnumerateTokens(data).ToArray();
         for (var i = 0; i < tokens.Length; i++)
@@ -542,13 +520,13 @@ public sealed class SusParser
     private void BuildTilEvents(MeasureTiming timing)
     {
         foreach (var (tilId, definitions) in _tilDefinitions)
-        foreach (var definition in definitions.OrderBy(p => timing.ToSusTick(p.Measure, p.Tick, _susTicksPerBeat)))
-            Sus.Events.AppendChild(new umgr.ScrollSpeedEvent
-            {
-                Timeline = tilId,
-                Tick = timing.ToSusTick(definition.Measure, definition.Tick, _susTicksPerBeat),
-                Speed = definition.Speed
-            });
+            foreach (var definition in definitions.OrderBy(p => timing.ToSusTick(p.Measure, p.Tick, _susTicksPerBeat)))
+                Sus.Events.AppendChild(new umgr.ScrollSpeedEvent
+                {
+                    Timeline = tilId,
+                    Tick = timing.ToSusTick(definition.Measure, definition.Tick, _susTicksPerBeat),
+                    Speed = definition.Speed
+                });
     }
 
     private void BuildTapNotes(MeasureTiming timing)
@@ -632,49 +610,52 @@ public sealed class SusParser
         {
             umgr.Slide? active = null;
             foreach (var point in ResolveLongPoints(points, timing))
-            {
-                switch (point.Kind)
+                BuildSlidePoint(point, ref active);
+        }
+    }
+
+    private void BuildSlidePoint(ResolvedLongPoint point, ref umgr.Slide? active)
+    {
+        switch (point.Kind)
+        {
+            case 1:
+                active = new umgr.Slide
                 {
-                    case 1:
-                        active = new umgr.Slide
-                        {
-                            Tick = point.Tick,
-                            Lane = point.Lane,
-                            Width = point.Width,
-                            Timeline = point.Timeline
-                        };
-                        Sus.Notes.AppendChild(active);
-                        break;
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                        if (active == null)
-                        {
-                            ReportAtLine(Severity.Warning,
-                                Msg.Key(MsgKeys.Sus_Slide_joint_ignored), point.Line,
-                                point.Tick);
-                            break;
-                        }
-
-                        active.AppendChild(new umgr.SlideJoint
-                        {
-                            Tick = point.Tick,
-                            Lane = point.Lane,
-                            Width = point.Width,
-                            Timeline = active.Timeline,
-                            Joint = point.Kind == 4 ? Joint.C : Joint.D
-                        });
-
-                        if (point.Kind == 2) active = null;
-                        break;
-                    default:
-                        ReportAtLine(Severity.Information,
-                            Msg.Create(MsgKeys.Sus_Unsupported_slide_point_type, point.Kind),
-                            point.Line, point.Tick);
-                        break;
+                    Tick = point.Tick,
+                    Lane = point.Lane,
+                    Width = point.Width,
+                    Timeline = point.Timeline
+                };
+                Sus.Notes.AppendChild(active);
+                break;
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+                if (active == null)
+                {
+                    ReportAtLine(Severity.Warning,
+                        Msg.Key(MsgKeys.Sus_Slide_joint_ignored), point.Line,
+                        point.Tick);
+                    break;
                 }
-            }
+
+                active.AppendChild(new umgr.SlideJoint
+                {
+                    Tick = point.Tick,
+                    Lane = point.Lane,
+                    Width = point.Width,
+                    Timeline = active.Timeline,
+                    Joint = point.Kind == 4 ? Joint.C : Joint.D
+                });
+
+                if (point.Kind == 2) active = null;
+                break;
+            default:
+                ReportAtLine(Severity.Information,
+                    Msg.Create(MsgKeys.Sus_Unsupported_slide_point_type, point.Kind),
+                    point.Line, point.Tick);
+                break;
         }
     }
 
@@ -721,72 +702,75 @@ public sealed class SusParser
         {
             umgr.AirHold? active = null;
             foreach (var point in ResolveLongPoints(points, timing))
-            {
-                switch (point.Kind)
-                {
-                    case 1:
-                    {
-                        var pairPositive = FindPairPositive(point.Tick, point.Lane, point.Width);
-                        if (pairPositive == null)
-                        {
-                            ReportAtLine(Severity.Warning,
-                                Msg.Key(MsgKeys.Sus_Air_hold_ignored), point.Line,
-                                point.Tick);
-                            active = null;
-                            break;
-                        }
-
-                        var attachedAir = Sus.Notes.Children.OfType<umgr.Air>()
-                            .LastOrDefault(air =>
-                                air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
-                        active = new umgr.AirHold
-                        {
-                            Tick = point.Tick,
-                            Timeline = point.Timeline
-                        };
-                        if (attachedAir != null)
-                        {
-                            active.Direction = attachedAir.Direction;
-                            active.Color = attachedAir.Color;
-                            Sus.Notes.RemoveChild(attachedAir);
-                        }
-
-                        pairPositive.MakePair(active);
-                        Sus.Notes.AppendChild(active);
-                        break;
-                    }
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                        if (active == null)
-                        {
-                            ReportAtLine(Severity.Warning,
-                                Msg.Key(MsgKeys.Sus_Air_hold_joint_ignored), point.Line,
-                                point.Tick);
-                            break;
-                        }
-
-                        active.AppendChild(new umgr.AirHoldJoint
-                        {
-                            Tick = point.Tick,
-                            Timeline = active.Timeline,
-                            Joint = point.Kind == 4 ? Joint.C : Joint.D
-                        });
-
-                        if (point.Kind == 2) active = null;
-                        break;
-                    default:
-                        ReportAtLine(Severity.Information,
-                            Msg.Create(MsgKeys.Sus_Unsupported_air_hold_point_type, point.Kind),
-                            point.Line, point.Tick);
-                        break;
-                }
-            }
+                BuildAirHoldPoint(point, ref active);
         }
     }
 
-    private IEnumerable<ResolvedLongPoint> ResolveLongPoints(IEnumerable<RawNotePoint> points, MeasureTiming timing)
+    private void BuildAirHoldPoint(ResolvedLongPoint point, ref umgr.AirHold? active)
+    {
+        switch (point.Kind)
+        {
+            case 1:
+                {
+                    var pairPositive = FindPairPositive(point.Tick, point.Lane, point.Width);
+                    if (pairPositive == null)
+                    {
+                        ReportAtLine(Severity.Warning,
+                            Msg.Key(MsgKeys.Sus_Air_hold_ignored), point.Line,
+                            point.Tick);
+                        active = null;
+                        break;
+                    }
+
+                    var attachedAir = Sus.Notes.Children.OfType<umgr.Air>()
+                        .LastOrDefault(air =>
+                            air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
+                    active = new umgr.AirHold
+                    {
+                        Tick = point.Tick,
+                        Timeline = point.Timeline
+                    };
+                    if (attachedAir != null)
+                    {
+                        active.Direction = attachedAir.Direction;
+                        active.Color = attachedAir.Color;
+                        Sus.Notes.RemoveChild(attachedAir);
+                    }
+
+                    pairPositive.MakePair(active);
+                    Sus.Notes.AppendChild(active);
+                    break;
+                }
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+                if (active == null)
+                {
+                    ReportAtLine(Severity.Warning,
+                        Msg.Key(MsgKeys.Sus_Air_hold_joint_ignored), point.Line,
+                        point.Tick);
+                    break;
+                }
+
+                active.AppendChild(new umgr.AirHoldJoint
+                {
+                    Tick = point.Tick,
+                    Timeline = active.Timeline,
+                    Joint = point.Kind == 4 ? Joint.C : Joint.D
+                });
+
+                if (point.Kind == 2) active = null;
+                break;
+            default:
+                ReportAtLine(Severity.Information,
+                    Msg.Create(MsgKeys.Sus_Unsupported_air_hold_point_type, point.Kind),
+                    point.Line, point.Tick);
+                break;
+        }
+    }
+
+    private static IEnumerable<ResolvedLongPoint> ResolveLongPoints(IEnumerable<RawNotePoint> points, MeasureTiming timing)
     {
         return points.Select(point => new ResolvedLongPoint(
                 timing.ToTick(point.Measure, point.Index, point.Count),
@@ -1045,12 +1029,8 @@ public sealed class SusParser
         using var reader = new StringReader(text);
         List<SourceLine> lines = [];
 
-        for (var lineNumber = 1;; lineNumber++)
-        {
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null) break;
-            lines.Add(new SourceLine(lineNumber, line));
-        }
+        while (await reader.ReadLineAsync(ct) is { } line)
+            lines.Add(new SourceLine(lines.Count + 1, line));
 
         return [.. lines];
     }

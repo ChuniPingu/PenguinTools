@@ -341,46 +341,56 @@ public partial class UgcParser
 
         if (payload.Length == 1 && _lastParentNote is umgr.AirHold airHold)
         {
-            if (payload[0] is not ('s' or 'c'))
-            {
-                WarnMalformed(payload);
-                return true;
-            }
-
-            var joint = new umgr.AirHoldJoint
-            {
-                Tick = airHold.Tick.Original + offsetTick,
-                Timeline = _currentTimeline,
-                Joint = payload[0] == 'c' ? Joint.C : Joint.D
-            };
-            airHold.AppendChild(joint);
-            _lastNote = joint;
+            AppendCompactAirHold(offsetTick, payload, airHold);
             return true;
         }
 
         if (payload.Length == 1 && _lastParentNote is umgr.AirSlide airSlide)
         {
-            if (payload[0] is not ('s' or 'c'))
-            {
-                WarnMalformed(payload);
-                return true;
-            }
-
-            var joint = new umgr.AirSlideJoint
-            {
-                Tick = airSlide.Tick.Original + offsetTick,
-                Lane = airSlide.Lane,
-                Width = airSlide.Width,
-                Timeline = _currentTimeline,
-                Height = airSlide.Height,
-                Joint = payload[0] == 'c' ? Joint.C : Joint.D
-            };
-            airSlide.AppendChild(joint);
-            _lastNote = joint;
+            AppendCompactAirSlide(offsetTick, payload, airSlide);
             return true;
         }
 
         return false;
+    }
+
+    private void AppendCompactAirHold(int offsetTick, string payload, umgr.AirHold airHold)
+    {
+        if (payload[0] is not ('s' or 'c'))
+        {
+            WarnMalformed(payload);
+            return;
+        }
+
+        var joint = new umgr.AirHoldJoint
+        {
+            Tick = airHold.Tick.Original + offsetTick,
+            Timeline = _currentTimeline,
+            Joint = payload[0] == 'c' ? Joint.C : Joint.D
+        };
+        airHold.AppendChild(joint);
+        _lastNote = joint;
+    }
+
+    private void AppendCompactAirSlide(int offsetTick, string payload, umgr.AirSlide airSlide)
+    {
+        if (payload[0] is not ('s' or 'c'))
+        {
+            WarnMalformed(payload);
+            return;
+        }
+
+        var joint = new umgr.AirSlideJoint
+        {
+            Tick = airSlide.Tick.Original + offsetTick,
+            Lane = airSlide.Lane,
+            Width = airSlide.Width,
+            Timeline = _currentTimeline,
+            Height = airSlide.Height,
+            Joint = payload[0] == 'c' ? Joint.C : Joint.D
+        };
+        airSlide.AppendChild(joint);
+        _lastNote = joint;
     }
 
     private void HandleChildPayload(int offsetTick, string payload)

@@ -30,12 +30,11 @@ public partial class C2SChartConverter
         return note;
     }
 
-    private T CreatePositiveNote<TSource, T>(TSource source, Action<T>? action = null)
+    private void CreatePositiveNote<TSource, T>(TSource source, Action<T>? action = null)
         where TSource : umgr.PositiveNote where T : c2s.Note, new()
     {
         var note = CreateNote(source, action);
         RegisterPositivePairTarget(source, note);
-        return note;
     }
 
     private void RegisterPositivePairTarget(umgr.PositiveNote source, c2s.Note target)
@@ -312,7 +311,6 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
-            var index = i;
             var note = CreateNote<umgr.SlideJoint, c2s.Slide>(curr, x =>
             {
                 x.Joint = next.Joint;

@@ -22,7 +22,7 @@ public static class OptionExporter
     {
         var diagnostics = OptionExportBatch.CreateCollector();
         var processContext =
-            new OptionExportProcessContext(diagnostics, ct, settings.BatchSize, diagnosticsWorkingDirectory, progress);
+            new OptionExportProcessContext(diagnostics, settings.BatchSize, diagnosticsWorkingDirectory, ct, progress);
         var weEntries = new ConcurrentBag<Entry>();
         var ultEntries = new ConcurrentBag<Entry>();
         var releaseTag = ResolveReleaseTag(ctx.Assets, settings);

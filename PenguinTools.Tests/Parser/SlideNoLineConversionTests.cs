@@ -12,6 +12,9 @@ using umgr = PenguinTools.Chart.Models.umgr;
 
 public sealed class SlideNoLineConversionTests
 {
+    private static readonly bool[] ExpectedNoLineSegments = [true, false, true];
+    private static readonly string[] ExpectedSlideMarkers = ["NCL", "SLD", "NCL"];
+
     [Fact]
     public async Task MixedNoLineSegments_WriteExpectedC2sMarkers()
     {
@@ -30,7 +33,7 @@ public sealed class SlideNoLineConversionTests
         Assert.Equal(3, segments.Length);
 
         Assert.Equal(
-            new[] { true, false, true },
+            ExpectedNoLineSegments,
             segments.Select(x => x.NoLine).ToArray());
 
         var outputPath = Path.Combine(
@@ -48,7 +51,7 @@ public sealed class SlideNoLineConversionTests
             var header = (await File.ReadAllLinesAsync(outputPath, TestContext.Current.CancellationToken))[0];
             Assert.Equal("VERSION\t1.15.00\t1.15.00", header);
             Assert.Equal(
-                new[] { "NCL", "SLD", "NCL" },
+                ExpectedSlideMarkers,
                 await ReadSlideMarkersAsync(outputPath, TestContext.Current.CancellationToken));
         }
         finally
@@ -91,7 +94,7 @@ public sealed class SlideNoLineConversionTests
 
             Assert.Equal(3, parsedSegments.Length);
             Assert.Equal(
-                new[] { true, false, true },
+                ExpectedNoLineSegments,
                 parsedSegments.Select(x => x.NoLine).ToArray());
 
             var toUmgr = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
@@ -117,7 +120,7 @@ public sealed class SlideNoLineConversionTests
             Assert.True(rewritten.Succeeded, rewritten.ToString());
 
             Assert.Equal(
-                new[] { "NCL", "SLD", "NCL" },
+                ExpectedSlideMarkers,
                 await ReadSlideMarkersAsync(rewritePath, TestContext.Current.CancellationToken));
 
             File.Delete(rewritePath);

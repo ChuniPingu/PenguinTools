@@ -50,7 +50,7 @@ public sealed class OfficialC2sRoundTripTests
         return false;
     }
 
-    public static IEnumerable<object[]> OfficialChartFiles()
+    public static IEnumerable<TheoryDataRow<string, string>> OfficialChartFiles()
     {
         if (!TryGetAssetDirectory(out var assetDirectory))
             return [];
@@ -63,11 +63,7 @@ public sealed class OfficialC2sRoundTripTests
                 SearchOption.TopDirectoryOnly)
             .Where(path => tracked.Contains(Path.GetFileNameWithoutExtension(path)!))
             .OrderBy(x => x, StringComparer.Ordinal)
-            .Select(path => new object[]
-            {
-                Path.GetFileNameWithoutExtension(path)!,
-                path
-            });
+            .Select(path => new TheoryDataRow<string, string>(Path.GetFileNameWithoutExtension(path)!, path));
     }
 
     // Former parse failures (unpaired AirHold/AirSlide) and overflow on cmmt.

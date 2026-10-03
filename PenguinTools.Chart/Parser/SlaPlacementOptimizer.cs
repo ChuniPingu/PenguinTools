@@ -82,7 +82,7 @@ internal static class SlaPlacementOptimizer
 
     private static List<SlaCandidate> GenerateCandidates(
         IReadOnlyList<NoteInfo> allNotes,
-        IReadOnlyList<int> effectiveTimelines,
+        int[] effectiveTimelines,
         IReadOnlyList<NoteInfo> targets,
         int timeline)
     {
@@ -95,43 +95,7 @@ internal static class SlaPlacementOptimizer
             {
                 if (right <= left) continue;
 
-                var containedTargets = targets
-                    .Select((note, targetIndex) => (note, targetIndex))
-                    .Where(x => Contains(left, right, x.note))
-                    .ToArray();
-                if (containedTargets.Length == 0) continue;
-
-                var blockerTicks = allNotes
-                    .Where(x => effectiveTimelines[x.Index] < timeline && Contains(left, right, x))
-                    .Select(x => x.Tick)
-                    .Distinct()
-                    .Order()
-                    .ToArray();
-
-                var targetsBySegment = containedTargets
-                    .Where(x => Array.BinarySearch(blockerTicks, x.note.Tick) < 0)
-                    .GroupBy(x => LowerBound(blockerTicks, x.note.Tick));
-
-                foreach (var segment in targetsBySegment)
-                {
-                    var covered = segment.Select(x => x.targetIndex).Distinct().Order().ToArray();
-                    var firstTick = segment.Min(x => x.note.Tick);
-                    var lastTick = segment.Max(x => x.note.Tick);
-                    var endTick = lastTick + ChartResolution.SingleTick;
-
-                    // The next blocked tick normally lies at least one C2S tick after
-                    // the last target. Keep this guard for malformed/off-grid input.
-                    if (blockerTicks.Any(x => x >= firstTick && x < endTick)) continue;
-
-                    var candidate = new SlaCandidate(
-                        new SlaPlacement(firstTick, timeline, left, right - left, endTick - firstTick),
-                        covered);
-                    var key = string.Join(',', covered);
-
-                    if (!candidatesByCoverage.TryGetValue(key, out var existing) ||
-                        CompareGeometry(candidate.Placement, existing.Placement) < 0)
-                        candidatesByCoverage[key] = candidate;
-                }
+                AddCandidatesForBounds(allNotes, effectiveTimelines, targets, timeline, left, right, candidatesByCoverage);
             }
 
         return candidatesByCoverage.Values
@@ -143,15 +107,58 @@ internal static class SlaPlacementOptimizer
             .ToList();
     }
 
-    private static IReadOnlyList<SlaCandidate> SolveByComponent(
+    private static void AddCandidatesForBounds(IReadOnlyList<NoteInfo> allNotes,
+        int[] effectiveTimelines, IReadOnlyList<NoteInfo> targets, int timeline,
+        int left, int right, Dictionary<string, SlaCandidate> candidatesByCoverage)
+    {
+        var containedTargets = targets
+            .Select((note, targetIndex) => (note, targetIndex))
+            .Where(x => Contains(left, right, x.note))
+            .ToArray();
+        if (containedTargets.Length == 0) return;
+
+        var blockerTicks = allNotes
+            .Where(x => effectiveTimelines[x.Index] < timeline && Contains(left, right, x))
+            .Select(x => x.Tick)
+            .Distinct()
+            .Order()
+            .ToArray();
+
+        var targetsBySegment = containedTargets
+            .Where(x => Array.BinarySearch(blockerTicks, x.note.Tick) < 0)
+            .GroupBy(x => LowerBound(blockerTicks, x.note.Tick));
+
+        foreach (var segment in targetsBySegment)
+        {
+            var covered = segment.Select(x => x.targetIndex).Distinct().Order().ToArray();
+            var firstTick = segment.Min(x => x.note.Tick);
+            var lastTick = segment.Max(x => x.note.Tick);
+            var endTick = lastTick + ChartResolution.SingleTick;
+
+            // The next blocked tick normally lies at least one C2S tick after
+            // the last target. Keep this guard for malformed/off-grid input.
+            if (blockerTicks.Any(x => x >= firstTick && x < endTick)) continue;
+
+            var candidate = new SlaCandidate(
+                new SlaPlacement(firstTick, timeline, left, right - left, endTick - firstTick),
+                covered);
+            var key = string.Join(',', covered);
+
+            if (!candidatesByCoverage.TryGetValue(key, out var existing) ||
+                CompareGeometry(candidate.Placement, existing.Placement) < 0)
+                candidatesByCoverage[key] = candidate;
+        }
+    }
+
+    private static List<SlaCandidate> SolveByComponent(
         int targetCount,
         IReadOnlyList<SlaCandidate> candidates)
     {
         var dsu = new DisjointSet(targetCount);
-        foreach (var candidate in candidates)
+        foreach (var targets in candidates.Select(candidate => candidate.Targets))
         {
-            var first = candidate.Targets[0];
-            for (var i = 1; i < candidate.Targets.Length; i++) dsu.Union(first, candidate.Targets[i]);
+            var first = targets[0];
+            for (var i = 1; i < targets.Length; i++) dsu.Union(first, targets[i]);
         }
 
         var targetsByRoot = Enumerable.Range(0, targetCount).GroupBy(dsu.Find);
@@ -168,41 +175,58 @@ internal static class SlaPlacementOptimizer
     }
 
     private static IReadOnlyList<SlaCandidate> SolveComponent(
-        IReadOnlyList<int> componentTargets,
+        int[] componentTargets,
         IReadOnlyList<SlaCandidate> candidates)
     {
-        if (componentTargets.Count <= ExactTargetLimit && candidates.Count <= ExactCandidateLimit)
+        if (componentTargets.Length <= ExactTargetLimit && candidates.Count <= ExactCandidateLimit)
         {
             var targetMap = componentTargets.Select((target, local) => (target, local))
                 .ToDictionary(x => x.target, x => x.local);
             var masks = candidates.Select(candidate => candidate.Targets.Aggregate(0UL,
                 (mask, target) => mask | 1UL << targetMap[target])).ToArray();
-            var exact = SolveExact(masks, componentTargets.Count);
+            var exact = SolveExact(masks, componentTargets.Length);
             return exact.Select(x => candidates[x]).ToArray();
         }
 
         return SolveGreedy(componentTargets, candidates);
     }
 
-    private static IReadOnlyList<int> SolveExact(IReadOnlyList<ulong> masks, int targetCount)
+    private static List<int> SolveExact(ulong[] masks, int targetCount) =>
+        new ExactCoverSearch(masks, targetCount).Solve();
+
+    private sealed class ExactCoverSearch
     {
-        var all = targetCount == 64 ? ulong.MaxValue : (1UL << targetCount) - 1;
-        var candidatesByTarget = new List<int>[targetCount];
-        for (var i = 0; i < targetCount; i++) candidatesByTarget[i] = [];
-        for (var candidate = 0; candidate < masks.Count; candidate++)
-            for (var target = 0; target < targetCount; target++)
-                if ((masks[candidate] & 1UL << target) != 0)
-                    candidatesByTarget[target].Add(candidate);
+        private readonly ulong[] masks;
+        private readonly int targetCount;
+        private readonly ulong all;
+        private readonly List<int>[] candidatesByTarget;
+        private List<int> incumbent;
+        private readonly List<int> current = [];
+        private readonly Dictionary<ulong, int> bestDepthByCovered = [];
+        private int visitedNodes;
 
-        var incumbent = SolveGreedyMasks(masks, all);
-        var current = new List<int>();
-        var bestDepthByCovered = new Dictionary<ulong, int>();
-        var visitedNodes = 0;
+        public ExactCoverSearch(ulong[] masks, int targetCount)
+        {
+            this.masks = masks;
+            this.targetCount = targetCount;
+            all = targetCount == 64 ? ulong.MaxValue : (1UL << targetCount) - 1;
+            candidatesByTarget = new List<int>[targetCount];
+            for (var i = 0; i < targetCount; i++) candidatesByTarget[i] = [];
+            for (var candidate = 0; candidate < masks.Length; candidate++)
+                for (var target = 0; target < targetCount; target++)
+                    if ((masks[candidate] & 1UL << target) != 0)
+                        candidatesByTarget[target].Add(candidate);
 
-        Search(0);
-        return incumbent;
+            incumbent = SolveGreedyMasks(masks, all);
+        }
 
-        void Search(ulong covered)
+        public List<int> Solve()
+        {
+            Search(0);
+            return incumbent;
+        }
+
+        private void Search(ulong covered)
         {
             if (++visitedNodes > ExactSearchNodeLimit) return;
             if (covered == all)
@@ -237,26 +261,25 @@ internal static class SlaPlacementOptimizer
                 if (visitedNodes > ExactSearchNodeLimit) return;
             }
         }
-    }
-
-    private static List<int> SolveGreedyMasks(IReadOnlyList<ulong> masks, ulong all)
-    {
-        var selected = new List<int>();
-        var covered = 0UL;
-        while (covered != all)
+        private static List<int> SolveGreedyMasks(ulong[] masks, ulong all)
         {
-            var best = Enumerable.Range(0, masks.Count)
-                .MaxBy(x => BitOperations.PopCount(masks[x] & ~covered));
-            if ((masks[best] & ~covered) == 0)
-                throw new InvalidOperationException("No SLA candidate covers the remaining notes.");
-            selected.Add(best);
-            covered |= masks[best];
-        }
+            var selected = new List<int>();
+            var covered = 0UL;
+            while (covered != all)
+            {
+                var best = Enumerable.Range(0, masks.Length)
+                    .MaxBy(x => BitOperations.PopCount(masks[x] & ~covered));
+                if ((masks[best] & ~covered) == 0)
+                    throw new InvalidOperationException("No SLA candidate covers the remaining notes.");
+                selected.Add(best);
+                covered |= masks[best];
+            }
 
-        return selected;
+            return selected;
+        }
     }
 
-    private static IReadOnlyList<SlaCandidate> SolveGreedy(
+    private static List<SlaCandidate> SolveGreedy(
         IReadOnlyList<int> targets,
         IReadOnlyList<SlaCandidate> candidates)
     {
@@ -294,10 +317,10 @@ internal static class SlaPlacementOptimizer
         return selected;
     }
 
-    private static int LowerBound(IReadOnlyList<int> values, int value)
+    private static int LowerBound(int[] values, int value)
     {
         var left = 0;
-        var right = values.Count;
+        var right = values.Length;
         while (left < right)
         {
             var middle = left + (right - left) / 2;

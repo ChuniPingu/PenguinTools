@@ -36,7 +36,7 @@ public class SusParserTests
         return await parser.ParseAsync(ct);
     }
 
-    public static IEnumerable<object[]> SampleSusFiles()
+    public static IEnumerable<TheoryDataRow<string, string>> SampleSusFiles()
     {
         var samplesDir = ChartTestPaths.AssetsDirectory;
         if (!Directory.Exists(samplesDir))
@@ -44,7 +44,7 @@ public class SusParserTests
 
         return Directory.EnumerateFiles(samplesDir, "*.sus")
             .OrderBy(Path.GetFileName)
-            .Select(path => new object[] { Path.GetFileName(path)!, path });
+            .Select(path => new TheoryDataRow<string, string>(Path.GetFileName(path)!, path));
     }
 
     [Fact]

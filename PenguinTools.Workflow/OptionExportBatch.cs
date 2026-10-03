@@ -5,9 +5,9 @@ namespace PenguinTools.Workflow;
 
 public sealed record OptionExportProcessContext(
     IDiagnosticSink Diagnostics,
-    CancellationToken CancellationToken,
     int BatchSize,
     string WorkingDirectory,
+    CancellationToken CancellationToken,
     IProgress<ProgressReport>? Progress = null);
 
 public static class OptionExportBatch
