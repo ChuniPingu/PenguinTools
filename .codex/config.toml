@@ -1,0 +1,4 @@
+[mcp_servers.sonarqube_cloud]
+url = "https://api.sonarcloud.io/mcp"
+bearer_token_env_var = "SONARQUBE_USER_TOKEN"
+env_http_headers = { SONARQUBE_ORG = "chunipingu" }
