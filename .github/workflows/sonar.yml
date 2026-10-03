@@ -1,0 +1,74 @@
+name: Sonar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonar:
+    name: Sonar quality gate
+    # Fork and Dependabot pull requests cannot access the analysis secret.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+    steps:
+      - name: Validate Sonar configuration
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          foreach ($name in @('SONAR_PROJECT_KEY', 'SONAR_ORGANIZATION', 'SONAR_TOKEN')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Configure $name in repository Actions settings before running Sonar."
+            }
+          }
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Install SonarScanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
+      - run: dotnet restore PenguinTools.slnx
+      - name: Begin Sonar analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >-
+          dotnet sonarscanner begin
+          "/k:$env:SONAR_PROJECT_KEY"
+          "/o:$env:SONAR_ORGANIZATION"
+          "/d:sonar.token=$env:SONAR_TOKEN"
+          "/d:sonar.host.url=https://sonarcloud.io"
+          "/d:sonar.scanner.scanAll=true"
+          "/d:sonar.exclusions=External/**,**/bin/**,**/obj/**,**/TestResults/**,artifacts/**"
+          "/d:sonar.coverage.exclusions=**"
+          "/d:sonar.qualitygate.wait=true"
+          "/d:sonar.qualitygate.timeout=600"
+      - name: Build for Sonar analysis
+        run: dotnet build PenguinTools.slnx -c Release --no-restore --no-incremental --disable-build-servers -p:Platform=x64
+      - name: Publish analysis and check quality gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end "/d:sonar.token=$env:SONAR_TOKEN"
