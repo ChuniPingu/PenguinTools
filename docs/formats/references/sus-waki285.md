@@ -1,3 +1,9 @@
+# Alternate SUS translation
+
+Source material from [waki285's English translation](https://gist.github.com/waki285/dafa254a9de56ba43d177ae0913d4263). The original text and annotations are retained below, including source typos. Use [the primary SUS reference](../sus.md) for corrected examples.
+
+---
+
 File fetch from https://gist.github.com/waki285/dafa254a9de56ba43d177ae0913d4263
 
 # SUS Format Specification v2.7 (rev2)

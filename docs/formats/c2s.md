@@ -1,6 +1,8 @@
 # C2S note types
 
-| #   | Code                          | Internal name    | Meaning                      |
+Field reference for C2S records. The category IDs and reference names below describe the original format; they are not the current C# class names. Implementation models live in [Models/c2s](../../PenguinTools.Chart/Models/c2s/).
+
+| #   | Code                          | Reference name   | Meaning                      |
 | --- | ----------------------------- | ---------------- | ---------------------------- |
 | 0   | `NON`                         | —                | Empty                        |
 | 1   | `TAP`                         | `TapNote`        | Tap                          |
@@ -16,7 +18,7 @@
 | 11  | `AHD` / `AHX`                 | `AirHoldNote`    | Air Hold (step / control)    |
 | 12  | `ASD` / `ASC`                 | `AirSlideNote`   | Air Slide (step / control)   |
 
-Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that enum; they pair onto a parent note.
+Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that category list; they pair onto a parent note.
 
 ## Universal note schema
 
