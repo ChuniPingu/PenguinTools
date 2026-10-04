@@ -12,7 +12,7 @@ The CLI is a command adapter around application services. Chart and media projec
 | `PenguinTools.Workflow`       | Scan charts and coordinate music/option exports and caches         |
 | `PenguinTools.Infrastructure` | Asset storage, paths, and native tool execution                    |
 | `PenguinTools.Assets`         | Asset build/copy configuration                                     |
-| `PenguinTools.CRI`            | Helper executable for CRI audio operations                         |
+| `PenguinTools.CRI`            | In-process CRI audio conversion and extraction                     |
 | `PenguinTools.Tests`          | Unit tests and optional sample/native integration tests            |
 
 Treat application request/result records and CLI JSON output as interfaces for callers. Preserve message keys and named arguments, diagnostic locations, cancellation, exit codes, and numeric identifier representation when changing them.
@@ -33,6 +33,6 @@ English and Simplified Chinese catalogs are in `docs/locales/`. Keep keys and pl
 
 ## Native dependencies
 
-`External/` contains independent Git submodules for mua, FFmpeg, SonicAudioTools, and VGAudio. The Windows publish pipeline supplies native executables and the CRI helper under the CLI's `assets/` directory.
+`External/` contains independent Git submodules for mua, FFmpeg, SonicAudioTools, and VGAudio. The Windows publish pipeline supplies native executables under the CLI's `assets/` directory. CRI conversion and extraction run through the managed CRI library in the CLI process, return typed results, and propagate cancellation through codec progress callbacks. HCA extraction disables codec console logging to preserve CLI JSON output.
 
 Dependency source changes and submodule reference updates are separate reviewable changes. Build output and proprietary local samples do not belong in source control. See [development](development.md) and [testing](testing.md).

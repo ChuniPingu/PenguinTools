@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
+using PenguinTools.Media;
 using SonicAudioLib.Archives;
 using SonicAudioLib.CriMw;
 using VGAudio.Codecs.CriHca;
@@ -11,14 +11,21 @@ using VGAudio.Formats.Pcm16;
 
 namespace PenguinTools.CRI;
 
-internal static class ExtractService
+public static class ExtractService
 {
-    public static ExtractManifest Extract(
+    static ExtractService()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
+    public static CriExtractResult Extract(
         string sourcePath,
         string outputDirectory,
         string? pairedInputPath,
-        ulong hcaKey)
+        ulong hcaKey,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
 
@@ -52,12 +59,14 @@ internal static class ExtractService
             throw new InvalidOperationException($"unsupported CRI extraction source: {sourcePath}");
         }
 
-        var decoded = DecodeAwb(awbPath, hcaKey);
+        var decoded = DecodeAwb(awbPath, hcaKey, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(outputDirectory);
 
-        var cues = new List<ExtractedCue>(decoded.Count);
+        var cues = new List<CriCue>(decoded.Count);
         for (var index = 0; index < decoded.Count; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var track = decoded[index];
             var stem = SanitizeName(acbName);
             if (string.IsNullOrEmpty(stem))
@@ -69,7 +78,7 @@ internal static class ExtractService
             var wavPath = Path.Combine(outputDirectory, filename);
             File.WriteAllBytes(wavPath, track.WavBytes);
 
-            cues.Add(new ExtractedCue(
+            cues.Add(new CriCue(
                 track.CueId,
                 acbName,
                 wavPath,
@@ -81,12 +90,7 @@ internal static class ExtractService
                 previewStopMs));
         }
 
-        return new ExtractManifest(1, sourcePath, cues);
-    }
-
-    public static string SerializeManifest(ExtractManifest manifest)
-    {
-        return JsonSerializer.Serialize(manifest, CriJsonContext.Default.ExtractManifest);
+        return new CriExtractResult(1, sourcePath, cues);
     }
 
     private static (uint? StartMs, uint? StopMs) ReadPreview(CriTable cueSheet)
@@ -125,7 +129,8 @@ internal static class ExtractService
         }
     }
 
-    private static List<DecodedTrack> DecodeAwb(string awbPath, ulong hcaKey)
+    private static List<DecodedTrack> DecodeAwb(string awbPath, ulong hcaKey,
+        CancellationToken cancellationToken)
     {
         using var awbStream = File.OpenRead(awbPath);
         var archive = new CriAfs2Archive();
@@ -135,10 +140,18 @@ internal static class ExtractService
         var tracks = new List<DecodedTrack>(archive.Count);
         foreach (var entry in archive)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             using var hcaStream = entry.Open(awbStream);
-            var reader = new HcaReader { EncryptionKey = new CriHcaKey(effectiveKey) };
-            var audio = ReadHcaWithoutStdoutNoise(reader, hcaStream);
-            var pcm = audio.GetFormat<Pcm16Format>();
+            var reader = new HcaReader
+            {
+                EncryptionKey = new CriHcaKey(effectiveKey),
+                LogCrcErrors = false
+            };
+            var audio = reader.Read(hcaStream);
+            var pcm = audio.GetFormat<Pcm16Format>(new CriHcaParameters
+            {
+                Progress = new CancellationProgress(cancellationToken)
+            });
 
             using var wavStream = new MemoryStream();
             new WaveWriter().WriteToStream(audio, wavStream);
@@ -152,20 +165,6 @@ internal static class ExtractService
         }
 
         return tracks;
-    }
-
-    private static VGAudio.Formats.AudioData ReadHcaWithoutStdoutNoise(HcaReader reader, Stream hcaStream)
-    {
-        var originalOut = Console.Out;
-        try
-        {
-            Console.SetOut(TextWriter.Null);
-            return reader.Read(hcaStream);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
     }
 
     internal static ulong ApplySubKey(ulong keyCode, ushort subKey)

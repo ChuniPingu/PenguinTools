@@ -14,6 +14,14 @@ git submodule update --init --recursive
 
 ## Managed builds
 
+Managed builds, style checks, tests, and Sonar analysis need only the two managed codec dependencies:
+
+```powershell
+git submodule update --init External/SonicAudioTools External/vgaudio
+```
+
+CI initializes these explicitly. Native tools are needed for native media integration and complete release payloads.
+
 ```powershell
 dotnet restore PenguinTools.slnx
 dotnet build PenguinTools.slnx -c Release
@@ -39,9 +47,9 @@ For the complete Windows payload:
 .\build.ps1
 ```
 
-The script builds both native tools and publishes the CRI helper and CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime.
+The script builds both native tools and publishes the CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime. CRI operations are included as a managed library in both profiles.
 
-CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the CLI together with its `assets/` directory, including the native tools, CRI helper, and applicable license notices.
+CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the CLI together with its `assets/` directory, including the native tools and applicable license notices.
 
 ## Checks and contributions
 

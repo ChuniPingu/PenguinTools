@@ -11,21 +11,29 @@ using VGAudio.Containers.Wave;
 
 namespace PenguinTools.CRI;
 
-internal sealed record CriEncodingOptions(long PreviewStartMs, long PreviewStopMs,
+public sealed record CriEncodingOptions(long PreviewStartMs, long PreviewStopMs,
     ulong HcaKey, uint Bitrate = ConvertService.DefaultBitrate);
 
-internal static class ConvertService
+public static class ConvertService
 {
     public const ulong DefaultHcaKey = 32931609366120192UL;
     public const uint DefaultBitrate = 16384 * 8;
+
+    static ConvertService()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
 
     public static void Convert(
         string wavPath,
         string acbPath,
         string awbPath,
         string name,
-        CriEncodingOptions options)
+        CriEncodingOptions options,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(options);
         var (previewStartMs, previewStopMs, hcaKey, bitrate) = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(wavPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(acbPath);
@@ -53,11 +61,13 @@ internal static class ConvertService
             Bitrate = (int)bitrate,
             Quality = CriHcaQuality.Highest,
             TrimFile = false,
-            EncryptionKey = new CriHcaKey(hcaKey)
+            EncryptionKey = new CriHcaKey(hcaKey),
+            Progress = new CancellationProgress(cancellationToken)
         };
 
         using var hcaStream = new MemoryStream();
         hcaWriter.WriteToStream(wav, hcaStream, config);
+        cancellationToken.ThrowIfCancellationRequested();
         hcaStream.Seek(0, SeekOrigin.Begin);
 
         var cueSheetTable = new CriTable();
@@ -91,6 +101,7 @@ internal static class ConvertService
 
         cueSheetTable.Rows[0]["TrackEventTable"] = trackEventTable.Save();
 
+        cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(awbPath))!);
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(acbPath))!);
 
