@@ -289,7 +289,6 @@ public partial class C2SChartConverter
             ValidateOverlappingAirParents();
             ValidateAmbiguousC2sSlidePaths();
             ValidateLongNoteLengths();
-            // Audio preroll does not change the chart coordinate origin.
             RestoreSlpSnapshot();
             if (C2s.Extras.HasSpeedSnapshot && C2s.Extras.BinarySnapshotValid && C2s.Extras.SpeedModelKey == ChartExtras.SpeedKey(Mgxc))
             {
@@ -312,6 +311,7 @@ public partial class C2SChartConverter
                 }
             }
             RestoreMeterDefSnapshot();
+            ApplyBgmBarOffset();
 
             return ValidatePairings()
                 ? OperationResult<C2sModel.Chart>.Success(C2s).WithDiagnostics(Diagnostic)
@@ -325,6 +325,37 @@ public partial class C2SChartConverter
     }
 
     private readonly Dictionary<UmgrModel.Slide, int> _slideRootOrder = [];
+
+    private void ApplyBgmBarOffset()
+    {
+        // C2S imports already use the game's coordinate origin, even after edits
+        // invalidate their snapshots. Recognize older saved imports as well.
+        if (!Mgxc.Meta.BgmEnableBarOffset || C2s.Extras.C2sCoordinateOrigin ||
+            C2s.Extras.SourceKey is not null || C2s.Extras.SourceSnapshot.Length > 0)
+        {
+            return;
+        }
+
+        var offset = (int)Math.Round((decimal)ChartResolution.UmiguriTick /
+            Mgxc.Meta.BgmInitialDenominator * Mgxc.Meta.BgmInitialNumerator);
+        foreach (var e in Events)
+        {
+            // Keep the initial tempo and meter active throughout the preroll.
+            if (e.Tick.Original != 0 || e is C2sModel.SpeedEventBase)
+            {
+                e.Tick = checked(e.Tick.Original + offset);
+            }
+        }
+
+        foreach (var note in Notes)
+        {
+            note.Tick = checked(note.Tick.Original + offset);
+            if (note is C2sModel.LongNote longNote)
+            {
+                longNote.EndTick = checked(longNote.EndTick.Original + offset);
+            }
+        }
+    }
 
     private void ScheduleC2sSlidePaths()
     {
