@@ -100,23 +100,6 @@ internal static class DdsContainer
         }
 
         var dxgi = U32(data, 128);
-        var blockBytes = dxgi switch
-        {
-            >= 70 and <= 72 or >= 79 and <= 81 => 8,
-            >= 73 and <= 78 or >= 82 and <= 84 or >= 94 and <= 99 => 16,
-            _ => 0
-        };
-        var bits = dxgi switch
-        {
-            >= 1 and <= 4 => 128,
-            >= 5 and <= 8 => 96,
-            >= 9 and <= 22 => 64,
-            >= 23 and <= 47 or >= 87 and <= 93 => 32,
-            >= 48 and <= 59 or 85 or 86 or 115 => 16,
-            >= 60 and <= 65 => 8,
-            66 => 1,
-            _ => 0
-        };
         var dimension = U32(data, 132);
         var surfaces = checked((int)U32(data, 140));
         if (surfaces < 1 || dimension is < 2 or > 4)
@@ -130,8 +113,27 @@ internal static class DdsContainer
         }
 
         var depth = dimension == 4 ? Math.Max(1, checked((int)U32(data, 24))) : 1;
-        return new DdsStorage(148, $"DXGI:{dxgi}", blockBytes, bits, depth, surfaces);
+        return new DdsStorage(148, $"DXGI:{dxgi}", GetDxgiBlockBytes(dxgi), GetDxgiBits(dxgi), depth, surfaces);
     }
+
+    private static int GetDxgiBlockBytes(uint dxgi) => dxgi switch
+    {
+        >= 70 and <= 72 or >= 79 and <= 81 => 8,
+        >= 73 and <= 78 or >= 82 and <= 84 or >= 94 and <= 99 => 16,
+        _ => 0
+    };
+
+    private static int GetDxgiBits(uint dxgi) => dxgi switch
+    {
+        >= 1 and <= 4 => 128,
+        >= 5 and <= 8 => 96,
+        >= 9 and <= 22 => 64,
+        >= 23 and <= 47 or >= 87 and <= 93 => 32,
+        >= 48 and <= 59 or 85 or 86 or 115 => 16,
+        >= 60 and <= 65 => 8,
+        66 => 1,
+        _ => 0
+    };
 
     private static long CalculatePayload(ReadOnlySpan<byte> data, int width, int height, int mips, DdsStorage storage)
     {
