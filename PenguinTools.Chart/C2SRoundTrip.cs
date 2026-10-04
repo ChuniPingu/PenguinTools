@@ -161,8 +161,7 @@ public static partial class C2SRoundTrip
     }
     public static string Encode(string text, string view = "", string exceptions = "")
     {
-        var saved = new List<string>();
-        saved.Add("HASH\t" + Fingerprint(text));
+        List<string> saved = ["HASH\t" + Fingerprint(text)];
         var sourceLines = text.Replace("\r", "").Split('\n');
         foreach (string line in sourceLines)
         {
@@ -245,7 +244,7 @@ public static partial class C2SRoundTrip
             string key = LongNoteKey(p, family);
             if (!groups.TryGetValue(key, out var list))
             {
-                groups[key] = list = new List<string>();
+                groups[key] = list = [];
             }
 
             list.Add(string.Join("\t", p));
@@ -336,7 +335,7 @@ public static partial class C2SRoundTrip
             int code = (data[j] << 16) | (data[j + 1] << 8) | data[j + 2];
             if (!last.TryGetValue(code, out var list))
             {
-                last[code] = list = new List<int>();
+                last[code] = list = [];
             }
 
             if (list.Count == 256)

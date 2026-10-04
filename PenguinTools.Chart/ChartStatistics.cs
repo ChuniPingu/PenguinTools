@@ -16,11 +16,11 @@ public static class ChartStatistics
         private readonly decimal _bpmDefault;
         private readonly bool _tutorial;
         private readonly long[] _counts = new long[5];
-        private readonly Dictionary<string, int> _attached = new();
-        private readonly Dictionary<string, int> _parentOrder = new();
-        private readonly List<Edge> _ground = new();
-        private readonly List<Edge> _air = new();
-        private readonly List<Edge> _crash = new();
+        private readonly Dictionary<string, int> _attached = [];
+        private readonly Dictionary<string, int> _parentOrder = [];
+        private readonly List<Edge> _ground = [];
+        private readonly List<Edge> _air = [];
+        private readonly List<Edge> _crash = [];
 
         public Calculator(string text)
         {

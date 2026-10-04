@@ -793,7 +793,7 @@ public partial class C2SChartConverter
                 continue;
             }
 
-            used.Add((C2sModel.Note)bound);
+            used.Add(bound);
 
             if (!intended.TryGetValue(pairable, out var expected) ||
                 ReferenceEquals(bound, expected))

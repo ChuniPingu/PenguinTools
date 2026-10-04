@@ -206,6 +206,6 @@ public static class ChartScanner
     private sealed class BookAccumulator
     {
         public readonly object Gate = new();
-        public readonly Dictionary<Difficulty, OptionDifficulty> Items = new();
+        public readonly Dictionary<Difficulty, OptionDifficulty> Items = [];
     }
 }

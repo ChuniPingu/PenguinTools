@@ -23,7 +23,7 @@ public sealed class UgcChartConverter
             return int.MaxValue;
         }
 
-        if (!_positiveNotes.TryGetValue((C2sModel.Note)parent, out var mapped))
+        if (!_positiveNotes.TryGetValue(parent, out var mapped))
         {
             return int.MaxValue;
         }
@@ -701,20 +701,20 @@ public sealed class UgcChartConverter
 
         var canUseMappedParent =
             pairParent is not null &&
-            _positiveNotes.TryGetValue((C2sModel.Note)pairParent, out var positiveParent) &&
+            _positiveNotes.TryGetValue(pairParent, out var positiveParent) &&
             (positiveParent is not UmgrModel.SlideJoint slideJoint ||
              slideJoint.Parent is UmgrModel.Slide mappedSlide &&
              ReferenceEquals(mappedSlide.LastChild, slideJoint));
 
         if (pairParent is not null && canUseMappedParent)
         {
-            PairAirAction((C2sModel.Note)pairParent, action);
+            PairAirAction(pairParent, action);
 
             if (action.PairNote is not null)
             {
                 if (parent is not null)
                 {
-                    RegisterAirAction((C2sModel.Note)parent, action);
+                    RegisterAirAction(parent, action);
                 }
 
                 return;
@@ -768,7 +768,7 @@ public sealed class UgcChartConverter
             return;
         }
 
-        RegisterAirAction((C2sModel.Note)parent, action);
+        RegisterAirAction(parent, action);
     }
 
     private readonly record struct AirCrashPathKey(
