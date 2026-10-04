@@ -1,0 +1,15 @@
+<Project>
+    <Target Name="PrepareNativeTools" BeforeTargets="PrepareForBuild;AssignTargetPaths"
+            Condition="'$(DesignTimeBuild)' != 'true' and $([MSBuild]::IsOSPlatform('Windows'))">
+        <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\scripts\prepare-native-tools.ps1&quot;"/>
+        <ItemGroup>
+            <_PreparedFfmpegFile Include="$(PenguinToolsFfmpegPublishDir)\**\*"/>
+            <Content Include="@(_PreparedFfmpegFile)">
+                <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+                <TargetPath>assets\ffmpeg\%(_PreparedFfmpegFile.RecursiveDir)%(_PreparedFfmpegFile.Filename)%(_PreparedFfmpegFile.Extension)</TargetPath>
+                <Link>assets\ffmpeg\%(_PreparedFfmpegFile.RecursiveDir)%(_PreparedFfmpegFile.Filename)%(_PreparedFfmpegFile.Extension)</Link>
+            </Content>
+        </ItemGroup>
+    </Target>
+</Project>

@@ -26,9 +26,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## [mua](https://github.com/ChuniPingu/mua)
+## [DirectXTex / texconv](https://github.com/microsoft/DirectXTex)
 
-Licensed under MIT OR Apache-2.0. See [MIT](External/mua/LICENSE-MIT) and [Apache-2.0](External/mua/LICENSE-APACHE).
+The Windows x64 texconv executable is pinned to the `may2026` GitHub release and verified against
+`PenguinTools.Assets/native-tools.json`. MIT License. See `PenguinTools.Assets/Licenses/DirectXTex.txt`.
+
+## [NetVips](https://github.com/kleisauke/net-vips)
+
+NetVips 3.2.0 is used under the MIT license. See `PenguinTools.Assets/Licenses/NetVips.txt`.
+
+## [libvips and native dependencies](https://github.com/kleisauke/net-vips)
+
+The dynamically loaded, replaceable `libvips-42.dll` is supplied by NetVips.Native.win-x64 8.18.7 under LGPL-3.0-or-later.
+The package's third-party notices, dependency versions, and LGPL/GPL license texts are distributed under `assets/licenses`.
+Source and reproducible native-build instructions are available from
+[NetVips native packaging](https://github.com/kleisauke/net-vips/tree/master/.github) and
+[libvips 8.18.7](https://github.com/libvips/libvips/tree/v8.18.7).
 
 ## [SonicAudioLib](https://github.com/Foahh/SonicAudioTools)
 

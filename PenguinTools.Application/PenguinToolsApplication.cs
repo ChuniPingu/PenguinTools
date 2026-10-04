@@ -526,9 +526,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         AssetStore? assetStore = null;
         try
         {
-            var paths = ApplicationPaths.Create();
             options ??= new PenguinToolsApplicationOptions();
             var assetsDirectory = AssetPaths.Resolve(options.ExternalAssetsDirectory);
+            var paths = ApplicationPaths.Create();
             assetStore = new AssetStore(assetsDirectory, paths.TempWorkPath);
             var assetProvider = new InfrastructureAssetProvider(assetStore);
             using var assetsStream = assetStore.OpenRead(InfrastructureResourceNames.AssetsJson);
@@ -536,7 +536,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 ? null
                 : Path.GetFullPath(options.UserAssetsPath.Trim());
             var assets = new AssetManager(assetsStream, userAssetsPath);
-            var mediaTool = new MuaMediaTool(assetsDirectory);
+            var mediaTool = new MediaTool(assetsDirectory, paths.TempWorkPath);
             var dependencies = new PenguinToolsApplicationDependencies(
                 paths, assetStore, assets, mediaTool, assetProvider);
             return new PenguinToolsApplication(dependencies, assetStore);

@@ -1,0 +1,104 @@
+{
+  "cpuCount": 32,
+  "sourceSize": "3840x2160",
+  "trials": 3,
+  "memorySampling": "10 ms process-tree working set; logical I/O counters, not physical disk I/O",
+  "results": [
+    {
+      "backend": "previous",
+      "operation": "jacket",
+      "count": 1,
+      "concurrency": 1,
+      "medianMs": 116.01,
+      "imagesPerSecond": 8.62,
+      "sampledPeakTreeMiB": 97.54,
+      "sampledReadMiB": 1.72,
+      "sampledWriteMiB": 0,
+      "temporaryIntermediateBytesPerImage": 0
+    },
+    {
+      "backend": "previous",
+      "operation": "jacket",
+      "count": 16,
+      "concurrency": 8,
+      "medianMs": 429.46,
+      "imagesPerSecond": 37.26,
+      "sampledPeakTreeMiB": 288.83,
+      "sampledReadMiB": 13,
+      "sampledWriteMiB": 0.04,
+      "temporaryIntermediateBytesPerImage": 0
+    },
+    {
+      "backend": "library",
+      "operation": "jacket",
+      "count": 1,
+      "concurrency": 1,
+      "medianMs": 158.67,
+      "imagesPerSecond": 6.3,
+      "sampledPeakTreeMiB": 125.4,
+      "sampledReadMiB": 2.11,
+      "sampledWriteMiB": 0.39,
+      "temporaryIntermediateBytesPerImage": 405146
+    },
+    {
+      "backend": "library",
+      "operation": "jacket",
+      "count": 16,
+      "concurrency": 8,
+      "medianMs": 848.73,
+      "imagesPerSecond": 18.85,
+      "sampledPeakTreeMiB": 459.1,
+      "sampledReadMiB": 14.78,
+      "sampledWriteMiB": 6.18,
+      "temporaryIntermediateBytesPerImage": 405146
+    },
+    {
+      "backend": "previous",
+      "operation": "stage",
+      "count": 1,
+      "concurrency": 1,
+      "medianMs": 207.06,
+      "imagesPerSecond": 4.83,
+      "sampledPeakTreeMiB": 172.59,
+      "sampledReadMiB": 1.72,
+      "sampledWriteMiB": 0,
+      "temporaryIntermediateBytesPerImage": 0
+    },
+    {
+      "backend": "previous",
+      "operation": "stage",
+      "count": 16,
+      "concurrency": 8,
+      "medianMs": 919.77,
+      "imagesPerSecond": 17.4,
+      "sampledPeakTreeMiB": 809.42,
+      "sampledReadMiB": 24.41,
+      "sampledWriteMiB": 1.25,
+      "temporaryIntermediateBytesPerImage": 0
+    },
+    {
+      "backend": "library",
+      "operation": "stage",
+      "count": 1,
+      "concurrency": 1,
+      "medianMs": 356.41,
+      "imagesPerSecond": 2.81,
+      "sampledPeakTreeMiB": 224.18,
+      "sampledReadMiB": 10.92,
+      "sampledWriteMiB": 10.16,
+      "temporaryIntermediateBytesPerImage": 10642212
+    },
+    {
+      "backend": "library",
+      "operation": "stage",
+      "count": 16,
+      "concurrency": 8,
+      "medianMs": 2130.4,
+      "imagesPerSecond": 7.51,
+      "sampledPeakTreeMiB": 660.23,
+      "sampledReadMiB": 75.03,
+      "sampledWriteMiB": 162.54,
+      "temporaryIntermediateBytesPerImage": 10642212
+    }
+  ]
+}

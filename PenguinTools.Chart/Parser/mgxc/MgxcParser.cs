@@ -177,7 +177,7 @@ public partial class MgxcParser
         }
     }
 
-    private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,
+    private void QueueValidation(Task<MediaValidationResult> validationTask, string path, string messageKey,
         Action onFailure)
     {
         Tasks.Add(MediaValidation.ReportAsync(validationTask, path, messageKey, onFailure, Diagnostic));

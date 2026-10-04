@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <Import Project="..\Common.props"/>
+    <PropertyGroup>
+        <TargetFramework>$(DotNetVersion)</TargetFramework>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\PenguinTools.Core\PenguinTools.Core.csproj"/>
+        <PackageReference Include="NetVips" Version="3.2.0"/>
+        <PackageReference Include="NetVips.Native.win-x64" Version="8.18.7"/>
+        <InternalsVisibleTo Include="PenguinTools.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\*.afb"/>
+    </ItemGroup>
+</Project>

@@ -14,14 +14,14 @@ internal sealed class TestMediaTool : IMediaTool
         return Task.FromResult(Ok());
     }
 
-    public Task<ProcessCommandResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
+    public Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
     {
-        return Task.FromResult(Ok());
+        return Task.FromResult(MediaValidationResult.Valid);
     }
 
-    public Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
+    public Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default)
     {
-        return Task.FromResult(Ok());
+        return Task.FromResult(MediaValidationResult.Valid);
     }
 
     public Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)

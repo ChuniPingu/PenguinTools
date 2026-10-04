@@ -5,9 +5,9 @@ public interface IMediaTool
     Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
         CancellationToken ct = default);
 
-    Task<ProcessCommandResult> CheckAudioValidAsync(string src, CancellationToken ct = default);
+    Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default);
 
-    Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default);
+    Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default);
 
     Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default);
 

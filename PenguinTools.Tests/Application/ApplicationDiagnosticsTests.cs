@@ -10,6 +10,18 @@ namespace PenguinTools.Tests.Application;
 public sealed class ApplicationDiagnosticsTests
 {
     [Fact]
+    public void TexconvFailure_PreservesSubprocessDiagnostics()
+    {
+        var failure = new PenguinTools.Image.TexconvException("texconv.exe -- input.tga", 7, "encoder output", "encoder failure");
+        var result = ApplicationDiagnostics.FromException<string>(new DiagnosticException(MsgKeys.Error_Invalid_jk_image, failure));
+        var target = DiagnosticTargetSerializer.ToJsonElement(Assert.Single(result.Diagnostics.Diagnostics).Target)!.Value;
+        Assert.Equal(7, target.GetProperty("exitCode").GetInt32());
+        Assert.Equal("encoder output", target.GetProperty("standardOutput").GetString());
+        Assert.Equal("encoder failure", target.GetProperty("standardError").GetString());
+        Assert.Contains("texconv.exe", target.GetProperty("command").GetString());
+    }
+
+    [Fact]
     public void FromException_PreservesDiagnosticExceptionMessageKey()
     {
         var commandResult = new ProcessCommandResult(

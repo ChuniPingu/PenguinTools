@@ -27,6 +27,7 @@
         <ProjectReference Include="..\PenguinTools.Chart\PenguinTools.Chart.csproj"/>
         <ProjectReference Include="..\PenguinTools.Core\PenguinTools.Core.csproj"/>
         <ProjectReference Include="..\PenguinTools.Media\PenguinTools.Media.csproj"/>
+        <ProjectReference Include="..\PenguinTools.Image\PenguinTools.Image.csproj"/>
         <ProjectReference Include="..\PenguinTools.Workflow\PenguinTools.Workflow.csproj"/>
     </ItemGroup>
 </Project>

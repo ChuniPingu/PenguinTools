@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using PenguinTools.Chart.Parser;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
@@ -18,7 +17,7 @@ public sealed class MediaValidationTests
         var invalidated = false;
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => MediaValidation.ReportAsync(
-            Task.FromCanceled<ProcessCommandResult>(cancellation.Token), "jacket.png", MsgKeys.Error_Invalid_jk_image,
+            Task.FromCanceled<MediaValidationResult>(cancellation.Token), "jacket.png", MsgKeys.Error_Invalid_jk_image,
             () => invalidated = true, diagnostics));
 
         Assert.False(invalidated);
@@ -30,9 +29,9 @@ public sealed class MediaValidationTests
     [InlineData(true)]
     public async Task FailedValidation_InvalidatesOnceAndPreservesCause(bool throws)
     {
-        var failure = new ProcessCommandResult(new ProcessStartInfo { FileName = "mua_img" }, 1, "", "bad image");
+        var failure = new InvalidDataException("bad image");
         var exception = new IOException("cannot read image");
-        var task = throws ? Task.FromException<ProcessCommandResult>(exception) : Task.FromResult(failure);
+        var task = throws ? Task.FromException<MediaValidationResult>(exception) : Task.FromResult(MediaValidationResult.Invalid(failure));
         var diagnostics = new DiagnosticCollector();
         var calls = 0;
 
@@ -49,11 +48,11 @@ public sealed class MediaValidationTests
     [Fact]
     public async Task FailedInvalidation_IsNotRetriedOrHidden()
     {
-        var failure = new ProcessCommandResult(new ProcessStartInfo { FileName = "mua_img" }, 1, "", "bad image");
+        var failure = new InvalidDataException("bad image");
         var calls = 0;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => MediaValidation.ReportAsync(
-            Task.FromResult(failure), "jacket.png", MsgKeys.Error_Invalid_jk_image,
+            Task.FromResult(MediaValidationResult.Invalid(failure)), "jacket.png", MsgKeys.Error_Invalid_jk_image,
             () =>
             {
                 calls++;

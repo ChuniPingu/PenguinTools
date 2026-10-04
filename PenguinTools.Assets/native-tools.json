@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "id": "texconv",
+      "release": "may2026",
+      "type": "file",
+      "url": "https://github.com/microsoft/DirectXTex/releases/download/may2026/texconv.exe",
+      "sha256": "dcfdec10244e02cf5037fba089c55fb7e1326b1c8181742d77d15fa5cb5eef06",
+      "fileName": "texconv.exe"
+    }
+  ]
+}

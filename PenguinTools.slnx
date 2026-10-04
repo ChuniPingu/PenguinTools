@@ -20,6 +20,7 @@
   <Project Path="PenguinTools.CRI/PenguinTools.CRI.csproj" />
   <Project Path="PenguinTools.Chart/PenguinTools.Chart.csproj" />
   <Project Path="PenguinTools.Media/PenguinTools.Media.csproj" />
+  <Project Path="PenguinTools.Image/PenguinTools.Image.csproj" />
   <Project Path="PenguinTools.Infrastructure/PenguinTools.Infrastructure.csproj" />
     <Project Path="PenguinTools.Tests/PenguinTools.Tests.csproj"/>
   <Project Path="PenguinTools.Workflow/PenguinTools.Workflow.csproj" />

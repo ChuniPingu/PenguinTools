@@ -1,7 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
 $nativeBuilds = @(
-    'External/mua/scripts/build.ps1',
     'External/ffmpeg/scripts/build.ps1'
 )
 
