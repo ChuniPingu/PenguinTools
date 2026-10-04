@@ -11,6 +11,11 @@ public record Diagnostic(Severity Severity, MessageDescriptor Message) : ICompar
     public virtual int? Time => null;
     public virtual string? FormattedLocation => null;
 
+    public static bool operator <(Diagnostic? left, Diagnostic? right) => Comparer<Diagnostic>.Default.Compare(left, right) < 0;
+    public static bool operator <=(Diagnostic? left, Diagnostic? right) => Comparer<Diagnostic>.Default.Compare(left, right) <= 0;
+    public static bool operator >(Diagnostic? left, Diagnostic? right) => Comparer<Diagnostic>.Default.Compare(left, right) > 0;
+    public static bool operator >=(Diagnostic? left, Diagnostic? right) => Comparer<Diagnostic>.Default.Compare(left, right) >= 0;
+
     public int CompareTo(object? obj)
     {
         if (obj is Diagnostic other) return CompareTo(other);

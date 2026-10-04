@@ -94,10 +94,15 @@ public sealed class C2SParser
         if (tokens[0].StartsWith("T_", StringComparison.Ordinal)) C2s.Extras.SourceStatistics.Add(text);
         if (tokens[0] is "VERSION" or "MUSIC" or "DIFFICULT" or "LEVEL" or "CREATOR" or "BPM_DEF" or "MET_DEF")
             C2s.Extras.Headers[tokens[0]] = text;
+        ParseTokens(tokens, text, line.Number);
+    }
+
+    private void ParseTokens(string[] tokens, string text, int lineNumber)
+    {
         switch (tokens[0].ToUpperInvariant())
         {
             case "VERSION":
-                ParseVersion(tokens, line.Number);
+                ParseVersion(tokens, lineNumber);
                 break;
             case "MUSIC":
                 ParseMusic(tokens);
@@ -118,25 +123,25 @@ public sealed class C2SParser
                 ParseMeterDefinition(tokens);
                 break;
             case "RESOLUTION":
-                ParseResolution(tokens, line.Number);
+                ParseResolution(tokens, lineNumber);
                 break;
             case "BPM":
-                ParseBpm(tokens, line.Number);
+                ParseBpm(tokens, lineNumber);
                 break;
             case "MET":
-                ParseMet(tokens, line.Number);
+                ParseMet(tokens, lineNumber);
                 break;
             case "SLP":
-                ParseSlp(tokens, line.Number);
+                ParseSlp(tokens, lineNumber);
                 break;
             case "SFL":
-                ParseSfl(tokens, line.Number);
+                ParseSfl(tokens, lineNumber);
                 break;
             case "STP":
-                ParseStop(tokens, line.Number);
+                ParseStop(tokens, lineNumber);
                 break;
             case "DCM":
-                ParseDcm(tokens, line.Number);
+                ParseDcm(tokens, lineNumber);
                 break;
             case "TAP":
             case "MNE":
@@ -158,12 +163,12 @@ public sealed class C2SParser
             case "ASC":
             case "ASD":
             case "ALD":
-                ParseNote(tokens, line.Number);
+                ParseNote(tokens, lineNumber);
                 break;
             case "AHD":
             case "AHX":
             case "ASX":
-                ParseAirHold(tokens, line.Number);
+                ParseAirHold(tokens, lineNumber);
                 break;
             case "T_JUDGE_TAP":
             case "T_JUDGE_HLD":
@@ -171,7 +176,7 @@ public sealed class C2SParser
             case "T_JUDGE_AIR":
             case "T_JUDGE_FLK":
             case "T_JUDGE_ALL":
-                ParseJudgeSummary(tokens, line.Number);
+                ParseJudgeSummary(tokens, lineNumber);
                 break;
             case "SEQUENCEID":
             case "CLK_DEF":
@@ -183,14 +188,14 @@ public sealed class C2SParser
                     C2s.Extras.ClickEnabled = tokens[1] != "0";
                 break;
             case "CLK":
-                if (TryGetInt(tokens, 1, line.Number, "CLK measure", out var bar) &&
-                    TryGetInt(tokens, 2, line.Number, "CLK offset", out var offset))
+                if (TryGetInt(tokens, 1, lineNumber, "CLK measure", out var bar) &&
+                    TryGetInt(tokens, 2, lineNumber, "CLK offset", out var offset))
                     C2s.Extras.ClickTicks.Add(ScalePosition(bar, offset).Original);
                 break;
             default:
                 if (tokens[0].Length == 3)
                     ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
-                        line.Number);
+                        lineNumber);
                 if (tokens[0].Length > 3 && !tokens[0].StartsWith("T_", StringComparison.Ordinal))
                     C2s.Extras.Headers[tokens[0]] = text;
                 // Unknown metadata is carried through without changing modeled fields.
@@ -915,12 +920,8 @@ public sealed class C2SParser
 
         using var reader = new StringReader(text);
         List<SourceLine> lines = [];
-        for (var lineNumber = 1;; lineNumber++)
-        {
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null) break;
-            lines.Add(new SourceLine(lineNumber, line));
-        }
+        while (await reader.ReadLineAsync(ct) is { } line)
+            lines.Add(new SourceLine(lines.Count + 1, line));
 
         return [.. lines];
     }

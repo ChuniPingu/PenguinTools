@@ -403,3 +403,6 @@ FodyWeavers.xsd
 
 .worktrees/
 .tmp-*
+
+# SonarScanner working files
+.sonarqube/

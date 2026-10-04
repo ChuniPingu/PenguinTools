@@ -22,16 +22,17 @@ public static class OptionExporter
     {
         var diagnostics = OptionExportBatch.CreateCollector();
         var processContext =
-            new OptionExportProcessContext(diagnostics, ct, settings.BatchSize, diagnosticsWorkingDirectory, progress);
+            new OptionExportProcessContext(diagnostics, settings.BatchSize, diagnosticsWorkingDirectory, ct, progress);
         var weEntries = new ConcurrentBag<Entry>();
         var ultEntries = new ConcurrentBag<Entry>();
         var releaseTag = ResolveReleaseTag(ctx.Assets, settings);
         var optionGenre = ResolveOptionGenre(ctx.Assets, settings);
 
+        var bookContext = new BookExportContext(ctx, settings, outputPaths, releaseTag, optionGenre, processContext,
+            new EventEntries(weEntries, ultEntries));
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
             books,
-            (book, innerDiagnostics) => ConvertBookAsync(ctx, book, settings, outputPaths, releaseTag, optionGenre,
-                processContext.WorkingDirectory, innerDiagnostics, weEntries, ultEntries, ct),
+            (book, innerDiagnostics) => ConvertBookAsync(bookContext, book, innerDiagnostics),
             book => book.BookMeta.FilePath,
             processContext,
             true,
@@ -44,19 +45,18 @@ public static class OptionExporter
             .WithDiagnostics(snapshot);
     }
 
+    private sealed record EventEntries(ConcurrentBag<Entry> WorldsEnd, ConcurrentBag<Entry> Ultima);
+
+    private sealed record BookExportContext(
+        MusicExportContext Services, OptionExportSettings Settings, ExportOutputPaths OutputPaths,
+        ReleaseTag ReleaseTag, Entry Genre, OptionExportProcessContext Process, EventEntries Events);
+
     private static async Task ConvertBookAsync(
-        MusicExportContext ctx,
-        OptionBook book,
-        OptionExportSettings settings,
-        ExportOutputPaths outputPaths,
-        ReleaseTag releaseTag,
-        Entry optionGenre,
-        string workingDirectory,
-        IDiagnosticSink diagnostics,
-        ConcurrentBag<Entry> weEntries,
-        ConcurrentBag<Entry> ultEntries,
-        CancellationToken ct)
+        BookExportContext context, OptionBook book, IDiagnosticSink diagnostics)
     {
+        var (ctx, settings, outputPaths, releaseTag, optionGenre, process, events) = context;
+        var ct = process.CancellationToken;
+        var workingDirectory = process.WorkingDirectory;
         var stage = await BuildStageAsync(ctx, book, settings, outputPaths, diagnostics, ct) ?? book.Stage;
         var genre = ResolveBookGenre(book, settings, optionGenre);
 
@@ -65,7 +65,7 @@ public static class OptionExporter
             var (xml, chartFolder) = await CreateMusicXmlAsync(book, stage, releaseTag, genre, outputPaths.MusicFolder);
 
             if (settings.ConvertChart)
-                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, weEntries, ultEntries, ct);
+                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, events, ct);
 
             if (settings.ConvertJacket)
                 await ConvertJacketAsync(book, xml, chartFolder, settings, ctx, diagnostics, ct);
@@ -162,15 +162,14 @@ public static class OptionExporter
         string chartFolder,
         string workingDirectory,
         IDiagnosticSink diagnostics,
-        ConcurrentBag<Entry> weEntries,
-        ConcurrentBag<Entry> ultEntries,
+        EventEntries events,
         CancellationToken ct)
     {
         foreach (var (difficulty, item) in book.Difficulties)
         {
             if (item.SongId is not { } songId) throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
 
-            TrackEventEntry(book, difficulty, songId, weEntries, ultEntries);
+            TrackEventEntry(book, difficulty, songId, events.WorldsEnd, events.Ultima);
 
             var chartPath = Path.Combine(chartFolder, xml[difficulty].File);
             var chartDiagnostics = OptionExportBatch.CreateCollector();

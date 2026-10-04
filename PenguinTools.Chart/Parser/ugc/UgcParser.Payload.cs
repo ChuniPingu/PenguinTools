@@ -24,6 +24,20 @@ internal static class UgcPayload
         return -1;
     }
 
+    public static int Base36(ReadOnlySpan<char> chars)
+    {
+        if (chars.Length == 0) return -1;
+        var value = 0;
+        foreach (var c in chars)
+        {
+            var digit = Base36(c);
+            if (digit < 0) return -1;
+            value = value * 36 + digit;
+        }
+
+        return value;
+    }
+
     public static ExEffect ExEffectChar(char c)
     {
         return c switch
@@ -38,20 +52,6 @@ internal static class UgcPayload
             'I' => ExEffect.BS,
             _ => ExEffect.UP // caller should have validated; default for safety
         };
-    }
-
-    public static int Base36(ReadOnlySpan<char> chars)
-    {
-        if (chars.Length == 0) return -1;
-        var value = 0;
-        foreach (var c in chars)
-        {
-            var digit = Base36(c);
-            if (digit < 0) return -1;
-            value = value * 36 + digit;
-        }
-
-        return value;
     }
 
     public static decimal Height36(ReadOnlySpan<char> chars)

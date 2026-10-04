@@ -28,7 +28,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private readonly record struct EffectCarrierPlan(
         ExEffect Effect,
         int Timeline,
-        int Height);
+        int CarrierHeight);
 
     public async Task<OperationResult> WriteAsync(CancellationToken ct = default)
     {
@@ -218,7 +218,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     {
         _chart.Extras.AirAppearances.Clear();
         foreach (var tick in _chart.Extras.ClickTicks)
-            WriteNote(bw, NoteType.Click, LongAttr.None, Direction.None, ExAttr.None, 0, 0, 0, 0, tick, 0);
+            WriteNote(bw, new NoteFormat(NoteType.Click, LongAttr.None, Direction.None, ExAttr.None, 0),
+                new NotePosition(0, 0, 0, tick, 0));
         var effectCarrierPlans = BuildGeneratedEffectCarrierPlans();
         var writtenEffectCarriers = new HashSet<EffectCarrierKey>();
 
@@ -227,8 +228,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             switch (note)
             {
                 case umgr.Tap tap:
-                    WriteNote(bw, NoteType.Tap, LongAttr.None, Direction.None, ExAttr.None, 0,
-                        tap.Lane, tap.Width, DefaultHeight, tap.Tick.Original, tap.Timeline);
+                    WriteNote(bw, new NoteFormat(NoteType.Tap, LongAttr.None, Direction.None, ExAttr.None, 0),
+                        new NotePosition(tap.Lane, tap.Width, DefaultHeight, tap.Tick.Original, tap.Timeline));
                     WritePairedAirActionIfNeeded(bw, tap);
                     break;
                 case umgr.ExTap
@@ -237,146 +238,163 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                 }:
                     break;
                 case umgr.ExTap ex:
-                    var exTapHeight = ex.Role switch
-                    {
-                        umgr.ExTapRole.Explicit =>
-                            MgxcExTapMarkers.ExplicitChr,
-                        umgr.ExTapRole.HoldOnlyCarrier =>
-                            MgxcExTapMarkers.HoldOnlyCarrier,
-                        _ =>
-                            DefaultHeight
-                    };
-
-                    WriteNote(
-                        bw,
-                        NoteType.ExTap,
-                        LongAttr.None,
-                        EffectDirection(ex.Effect),
-                        ExAttr.None,
-                        0,
-                        note.Lane,
-                        note.Width,
-                        exTapHeight,
-                        note.Tick.Original,
-                        note.Timeline);
-
-                    WritePairedAirActionIfNeeded(bw, ex);
+                    WriteExTapNote(bw, ex);
                     break;
                 case umgr.Flick flick:
-                    WriteNote(bw, NoteType.Flick, LongAttr.None, Direction.None, ExAttr.None, 0,
-                        flick.Lane, flick.Width, DefaultHeight, flick.Tick.Original, flick.Timeline);
+                    WriteNote(bw, new NoteFormat(NoteType.Flick, LongAttr.None, Direction.None, ExAttr.None, 0),
+                        new NotePosition(flick.Lane, flick.Width, DefaultHeight, flick.Tick.Original, flick.Timeline));
                     WritePairedAirActionIfNeeded(bw, flick);
                     break;
                 case umgr.Damage damage:
-                    WriteNote(bw, NoteType.Damage, LongAttr.None, Direction.None, ExAttr.None, 0,
-                        damage.Lane, damage.Width, DefaultHeight, damage.Tick.Original, damage.Timeline);
+                    WriteNote(bw, new NoteFormat(NoteType.Damage, LongAttr.None, Direction.None, ExAttr.None, 0),
+                        new NotePosition(damage.Lane, damage.Width, DefaultHeight, damage.Tick.Original, damage.Timeline));
                     WritePairedAirActionIfNeeded(bw, damage);
                     break;
                 case umgr.Hold hold:
-                    WriteExCarrierIfNeeded(bw, hold, effectCarrierPlans, writtenEffectCarriers);
-                    WriteNote(bw, NoteType.Hold, LongAttr.Begin, Direction.None, ExAttr.None, 0,
-                        hold.Lane, hold.Width, DefaultHeight, hold.Tick.Original, hold.Timeline);
-
-                    var holdJoints = hold.Children.OfType<umgr.HoldJoint>().ToArray();
-                    for (var i = 0; i < holdJoints.Length; i++)
-                    {
-                        var joint = holdJoints[i];
-                        WriteNote(bw, NoteType.Hold, LongAttr.End, Direction.None, ExAttr.None, 0,
-                            hold.Lane, hold.Width, DefaultHeight, joint.Tick.Original, joint.Timeline);
-
-                        if (i == holdJoints.Length - 1)
-                            WritePairedAirActionIfNeeded(bw, joint);
-                    }
-
+                    WriteHoldNote(bw, hold, effectCarrierPlans, writtenEffectCarriers);
                     break;
                 case umgr.Slide slide:
-                    WriteExCarrierIfNeeded(bw, slide, effectCarrierPlans, writtenEffectCarriers);
-                    WriteNote(bw, NoteType.Slide, LongAttr.Begin, Direction.None, ExAttr.None,
-                        slide.NoLine ? NoLineVariation : (sbyte)0,
-                        slide.Lane, slide.Width, DefaultHeight, slide.Tick.Original, slide.Timeline);
-                    var joints = slide.Children.OfType<umgr.SlideJoint>().ToArray();
-                    for (var i = 0; i < joints.Length; i++)
-                    {
-                        var joint = joints[i];
-                        var isLast = i == joints.Length - 1;
-                        var noLine = isLast
-                            ? (i == 0 ? slide.NoLine : joints[i - 1].NoLine)
-                            : joint.NoLine;
-
-                        WriteNote(bw, NoteType.Slide, SlideAttr(joint.Joint, isLast), Direction.None, ExAttr.None,
-                            noLine ? NoLineVariation : (sbyte)0,
-                            joint.Lane, joint.Width, DefaultHeight, joint.Tick.Original, joint.Timeline);
-
-                        if (isLast)
-                            WritePairedAirActionIfNeeded(bw, joint);
-                    }
-
+                    WriteSlideNote(bw, slide, effectCarrierPlans, writtenEffectCarriers);
                     break;
                 case umgr.Air air:
-                    if (air.PairNote is umgr.ExTap
-                        {
-                            Role: umgr.ExTapRole.AirActionCarrier
-                        })
-                    {
-                        WriteAirActionCarrier(bw, air);
-                        WriteAirBase(bw, air.Direction, air.Color, air);
-                        break;
-                    }
-
-                    if (HasAirActionAt(air) || air.PairNote is not null) break;
-
-                    WriteNote(bw, NoteType.Air, LongAttr.None, AirDir(air.Direction), AirEx(air.Color), 0,
-                        air.Lane, air.Width, DefaultHeight, air.Tick.Original, air.Timeline);
+                    WriteAirNote(bw, air);
                     break;
                 case umgr.AirHold airHold:
-                    if (airHold.PairNote is umgr.PositiveNote &&
-                        airHold.PairNote is not umgr.ExTap
-                        {
-                            Role: umgr.ExTapRole.AirActionCarrier
-                        })
-                    {
-                        break;
-                    }
-
-                    WriteAirActionCarrier(bw, airHold);
-                    WriteAirHold(bw, airHold);
+                    WriteAirHoldNote(bw, airHold);
                     break;
-
                 case umgr.AirSlide airSlide:
-                    if (airSlide.PairNote is umgr.PositiveNote &&
-                        airSlide.PairNote is not umgr.ExTap
-                        {
-                            Role: umgr.ExTapRole.AirActionCarrier
-                        })
-                    {
-                        break;
-                    }
-
-                    WriteAirActionCarrier(bw, airSlide);
-                    WriteAirSlide(bw, airSlide);
+                    WriteAirSlideNote(bw, airSlide);
                     break;
-
                 case umgr.AirCrash crash:
-                    var crashDirection = AirCrashDirection(crash.Attr);
-                    WriteNote(bw, NoteType.AirCrush, LongAttr.Begin, crashDirection, ExAttr.None,
-                        CrushVariation(crash.Color),
-                        crash.Lane, crash.Width, Height(crash.Height), crash.Tick.Original, crash.Timeline,
-                        crash.Density.Original);
-
-                    var crashJoints = crash.Children.OfType<umgr.AirCrashJoint>().ToArray();
-                    for (var i = 0; i < crashJoints.Length; i++)
-                    {
-                        var joint = crashJoints[i];
-                        var longAttr = i == crashJoints.Length - 1
-                            ? LongAttr.End
-                            : LongAttr.Control;
-
-                        WriteNote(bw, NoteType.AirCrush, longAttr, crashDirection, ExAttr.None, 0,
-                            joint.Lane, joint.Width, Height(joint.Height), joint.Tick.Original,
-                            joint.Timeline);
-                    }
+                    WriteAirCrashNote(bw, crash);
                     break;
             }
+        }
+    }
+
+    private void WriteExTapNote(BinaryWriter bw, umgr.ExTap ex)
+    {
+        var exTapHeight = ex.Role switch
+        {
+            umgr.ExTapRole.Explicit =>
+                MgxcExTapMarkers.ExplicitChr,
+            umgr.ExTapRole.HoldOnlyCarrier =>
+                MgxcExTapMarkers.HoldOnlyCarrier,
+            _ =>
+                DefaultHeight
+        };
+
+        WriteNote(bw, new NoteFormat(NoteType.ExTap, LongAttr.None, EffectDirection(ex.Effect), ExAttr.None, 0),
+            new NotePosition(ex.Lane, ex.Width, exTapHeight, ex.Tick.Original, ex.Timeline));
+
+        WritePairedAirActionIfNeeded(bw, ex);
+    }
+
+    private void WriteHoldNote(BinaryWriter bw, umgr.Hold hold, IReadOnlyDictionary<EffectCarrierKey, EffectCarrierPlan> effectCarrierPlans,
+        HashSet<EffectCarrierKey> writtenEffectCarriers)
+    {
+        WriteExCarrierIfNeeded(bw, hold, effectCarrierPlans, writtenEffectCarriers);
+        WriteNote(bw, new NoteFormat(NoteType.Hold, LongAttr.Begin, Direction.None, ExAttr.None, 0),
+            new NotePosition(hold.Lane, hold.Width, DefaultHeight, hold.Tick.Original, hold.Timeline));
+
+        var holdJoints = hold.Children.OfType<umgr.HoldJoint>().ToArray();
+        for (var i = 0; i < holdJoints.Length; i++)
+        {
+            var joint = holdJoints[i];
+            WriteNote(bw, new NoteFormat(NoteType.Hold, LongAttr.End, Direction.None, ExAttr.None, 0),
+                new NotePosition(hold.Lane, hold.Width, DefaultHeight, joint.Tick.Original, joint.Timeline));
+
+            if (i == holdJoints.Length - 1)
+                WritePairedAirActionIfNeeded(bw, joint);
+        }
+    }
+
+    private void WriteSlideNote(BinaryWriter bw, umgr.Slide slide, IReadOnlyDictionary<EffectCarrierKey, EffectCarrierPlan> effectCarrierPlans,
+        HashSet<EffectCarrierKey> writtenEffectCarriers)
+    {
+        WriteExCarrierIfNeeded(bw, slide, effectCarrierPlans, writtenEffectCarriers);
+        WriteNote(bw, new NoteFormat(NoteType.Slide, LongAttr.Begin, Direction.None, ExAttr.None, slide.NoLine ? NoLineVariation : (sbyte)0),
+            new NotePosition(slide.Lane, slide.Width, DefaultHeight, slide.Tick.Original, slide.Timeline));
+        var joints = slide.Children.OfType<umgr.SlideJoint>().ToArray();
+        for (var i = 0; i < joints.Length; i++)
+        {
+            var joint = joints[i];
+            var isLast = i == joints.Length - 1;
+            var previousNoLine = i == 0 ? slide.NoLine : joints[i - 1].NoLine;
+            var noLine = isLast ? previousNoLine : joint.NoLine;
+
+            WriteNote(bw, new NoteFormat(NoteType.Slide, SlideAttr(joint.Joint, isLast), Direction.None, ExAttr.None, noLine ? NoLineVariation : (sbyte)0),
+                new NotePosition(joint.Lane, joint.Width, DefaultHeight, joint.Tick.Original, joint.Timeline));
+
+            if (isLast)
+                WritePairedAirActionIfNeeded(bw, joint);
+        }
+    }
+
+    private static void WriteAirNote(BinaryWriter bw, umgr.Air air)
+    {
+        if (air.PairNote is umgr.ExTap
+            {
+                Role: umgr.ExTapRole.AirActionCarrier
+            })
+        {
+            WriteAirActionCarrier(bw, air);
+            WriteAirBase(bw, air.Direction, air.Color, air);
+            return;
+        }
+
+        if (HasAirActionAt(air) || air.PairNote is not null) return;
+
+        WriteNote(bw, new NoteFormat(NoteType.Air, LongAttr.None, AirDir(air.Direction), AirEx(air.Color), 0),
+            new NotePosition(air.Lane, air.Width, DefaultHeight, air.Tick.Original, air.Timeline));
+    }
+
+    private void WriteAirHoldNote(BinaryWriter bw, umgr.AirHold airHold)
+    {
+        if (airHold.PairNote is not null &&
+            airHold.PairNote is not umgr.ExTap
+            {
+                Role: umgr.ExTapRole.AirActionCarrier
+            })
+        {
+            return;
+        }
+
+        WriteAirActionCarrier(bw, airHold);
+        WriteAirHold(bw, airHold);
+    }
+
+    private void WriteAirSlideNote(BinaryWriter bw, umgr.AirSlide airSlide)
+    {
+        if (airSlide.PairNote is not null &&
+            airSlide.PairNote is not umgr.ExTap
+            {
+                Role: umgr.ExTapRole.AirActionCarrier
+            })
+        {
+            return;
+        }
+
+        WriteAirActionCarrier(bw, airSlide);
+        WriteAirSlide(bw, airSlide);
+    }
+
+    private static void WriteAirCrashNote(BinaryWriter bw, umgr.AirCrash crash)
+    {
+        var crashDirection = AirCrashDirection(crash.Attr);
+        WriteNote(bw, new NoteFormat(NoteType.AirCrush, LongAttr.Begin, crashDirection, ExAttr.None, CrushVariation(crash.Color)),
+            new NotePosition(crash.Lane, crash.Width, Height(crash.Height), crash.Tick.Original, crash.Timeline), crash.Density.Original);
+
+        var crashJoints = crash.Children.OfType<umgr.AirCrashJoint>().ToArray();
+        for (var i = 0; i < crashJoints.Length; i++)
+        {
+            var joint = crashJoints[i];
+            var longAttr = i == crashJoints.Length - 1
+                ? LongAttr.End
+                : LongAttr.Control;
+
+            WriteNote(bw, new NoteFormat(NoteType.AirCrush, longAttr, crashDirection, ExAttr.None, 0),
+                new NotePosition(joint.Lane, joint.Width, Height(joint.Height), joint.Tick.Original, joint.Timeline));
         }
     }
 
@@ -393,8 +411,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         if (!plans.TryGetValue(key, out var plan)) return;
         if (!written.Add(key)) return;
 
-        WriteNote(bw, NoteType.ExTap, LongAttr.None, EffectDirection(plan.Effect), ExAttr.None, 0,
-            note.Lane, note.Width, plan.Height, note.Tick.Original, plan.Timeline);
+        WriteNote(bw, new NoteFormat(NoteType.ExTap, LongAttr.None, EffectDirection(plan.Effect), ExAttr.None, 0),
+            new NotePosition(note.Lane, note.Width, plan.CarrierHeight, note.Tick.Original, plan.Timeline));
     }
 
     private static EffectCarrierKey EffectCarrierKeyOf(umgr.Note note) =>
@@ -448,18 +466,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         if (parent.PairNote is not umgr.Air air) return;
         if (HasAirActionAt(air)) return;
 
-        WriteNote(
-            bw,
-            NoteType.Air,
-            LongAttr.None,
-            AirDir(air.Direction),
-            AirEx(air.Color),
-            0,
-            air.Lane,
-            air.Width,
-            DefaultHeight,
-            air.Tick.Original,
-            air.Timeline);
+        WriteNote(bw, new NoteFormat(NoteType.Air, LongAttr.None, AirDir(air.Direction), AirEx(air.Color), 0),
+            new NotePosition(air.Lane, air.Width, DefaultHeight, air.Tick.Original, air.Timeline));
     }
 
     private void WriteAirHold(
@@ -473,18 +481,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             airHold.Color,
             airHold);
 
-        WriteNote(
-            bw,
-            NoteType.AirHold,
-            LongAttr.Begin,
-            Direction.None,
-            ExAttr.None,
-            0,
-            airHold.Lane,
-            airHold.Width,
-            DefaultHeight,
-            airHold.Tick.Original,
-            airHold.Timeline);
+        WriteNote(bw, new NoteFormat(NoteType.AirHold, LongAttr.Begin, Direction.None, ExAttr.None, 0),
+            new NotePosition(airHold.Lane, airHold.Width, DefaultHeight, airHold.Tick.Original, airHold.Timeline));
 
         var airHoldJoints =
             airHold.Children.OfType<umgr.AirHoldJoint>().ToArray();
@@ -493,20 +491,10 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             var joint = airHoldJoints[i];
 
-            WriteNote(
-                bw,
-                NoteType.AirHold,
-                SlideAttr(
+            WriteNote(bw, new NoteFormat(NoteType.AirHold, SlideAttr(
                     joint.Joint,
-                    i == airHoldJoints.Length - 1),
-                Direction.None,
-                ExAttr.None,
-                0,
-                airHold.Lane,
-                airHold.Width,
-                DefaultHeight,
-                joint.Tick.Original,
-                joint.Timeline);
+                    i == airHoldJoints.Length - 1), Direction.None, ExAttr.None, 0),
+            new NotePosition(airHold.Lane, airHold.Width, DefaultHeight, joint.Tick.Original, joint.Timeline));
         }
     }
 
@@ -521,18 +509,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             airSlide.Color,
             airSlide);
 
-        WriteNote(
-            bw,
-            NoteType.AirSlide,
-            LongAttr.Begin,
-            Direction.None,
-            ExAttr.None,
-            0,
-            airSlide.Lane,
-            airSlide.Width,
-            Height(airSlide.Height),
-            airSlide.Tick.Original,
-            airSlide.Timeline);
+        WriteNote(bw, new NoteFormat(NoteType.AirSlide, LongAttr.Begin, Direction.None, ExAttr.None, 0),
+            new NotePosition(airSlide.Lane, airSlide.Width, Height(airSlide.Height), airSlide.Tick.Original, airSlide.Timeline));
 
         var airSlideJoints =
             airSlide.Children.OfType<umgr.AirSlideJoint>().ToArray();
@@ -541,24 +519,14 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             var joint = airSlideJoints[i];
 
-            WriteNote(
-                bw,
-                NoteType.AirSlide,
-                SlideAttr(
+            WriteNote(bw, new NoteFormat(NoteType.AirSlide, SlideAttr(
                     joint.Joint,
-                    i == airSlideJoints.Length - 1),
-                Direction.None,
-                ExAttr.None,
-                0,
-                joint.Lane,
-                joint.Width,
-                Height(joint.Height),
-                joint.Tick.Original,
-                joint.Timeline);
+                    i == airSlideJoints.Length - 1), Direction.None, ExAttr.None, 0),
+            new NotePosition(joint.Lane, joint.Width, Height(joint.Height), joint.Tick.Original, joint.Timeline));
         }
     }
 
-    private void WriteAirActionCarrier(
+    private static void WriteAirActionCarrier(
         BinaryWriter bw,
         umgr.NegativeNote action)
     {
@@ -599,28 +567,18 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                 MgxcExTapMarkers.AirActionCarrierTap
         };
 
-        WriteNote(
-            bw,
-            NoteType.ExTap,
-            LongAttr.None,
-            EffectDirection(carrier.Effect),
-            ExAttr.None,
-            0,
-            carrier.Lane,
-            carrier.Width,
-            height,
-            carrier.Tick.Original,
-            carrier.Timeline);
+        WriteNote(bw, new NoteFormat(NoteType.ExTap, LongAttr.None, EffectDirection(carrier.Effect), ExAttr.None, 0),
+            new NotePosition(carrier.Lane, carrier.Width, height, carrier.Tick.Original, carrier.Timeline));
     }
 
-    private void WriteAirBase(
+    private static void WriteAirBase(
         BinaryWriter bw,
         AirDirection direction,
         Color color,
         umgr.NegativeNote action)
     {
-        WriteNote(bw, NoteType.Air, LongAttr.None, AirDir(direction), AirEx(color), 0,
-            action.Lane, action.Width, DefaultHeight, action.Tick.Original, action.Timeline);
+        WriteNote(bw, new NoteFormat(NoteType.Air, LongAttr.None, AirDir(direction), AirEx(color), 0),
+            new NotePosition(action.Lane, action.Width, DefaultHeight, action.Tick.Original, action.Timeline));
     }
 
     private static bool HasAirActionAt(umgr.Air air) =>
@@ -634,20 +592,15 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             x.Lane <= note.Lane &&
             x.Lane + x.Width >= note.Lane + note.Width);
 
-    private static void WriteNote(
-        BinaryWriter bw,
-        NoteType type,
-        LongAttr longAttr,
-        Direction direction,
-        ExAttr exAttr,
-        sbyte variationId,
-        int lane,
-        int width,
-        int height,
-        int tick,
-        int timeline,
-        int? optionValue = null)
+    private readonly record struct NoteFormat(
+        NoteType Type, LongAttr LongAttr, Direction Direction, ExAttr ExAttr, sbyte VariationId);
+
+    private readonly record struct NotePosition(int Lane, int Width, int NativeHeight, int Tick, int Timeline);
+
+    private static void WriteNote(BinaryWriter bw, NoteFormat format, NotePosition position, int? optionValue = null)
     {
+        var (type, longAttr, direction, exAttr, variationId) = format;
+        var (lane, width, height, tick, timeline) = position;
         bw.Write((sbyte)type);
         bw.Write((sbyte)longAttr);
         bw.Write((sbyte)direction);

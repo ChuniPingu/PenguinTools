@@ -110,9 +110,9 @@ public partial class MgxcParser
             if (!Mgxc.Extras.BinarySnapshotValid) Mgxc.Extras.HasSpeedSnapshot = false;
 
             if (Mgxc.Extras.BinarySnapshotValid)
-                foreach (var crash in Mgxc.Notes.Children.OfType<umgr.AirCrash>())
-                    if (Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash)))
-                        crash.Attr = Models.AirLadderAttr.Trace;
+                foreach (var crash in Mgxc.Notes.Children.OfType<umgr.AirCrash>()
+                             .Where(crash => Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash))))
+                    crash.Attr = Models.AirLadderAttr.Trace;
 
             Mgxc.Extras.CheckEventView(Mgxc);
             var post = new ChartPostProcessor(Mgxc, Diagnostic, Assets);

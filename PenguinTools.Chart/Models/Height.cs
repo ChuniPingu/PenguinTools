@@ -14,6 +14,11 @@ public readonly record struct Height(decimal Original) : IComparable<Height>
         return Original.CompareTo(other.Original);
     }
 
+    public static bool operator <(Height left, Height right) => left.CompareTo(right) < 0;
+    public static bool operator <=(Height left, Height right) => left.CompareTo(right) <= 0;
+    public static bool operator >(Height left, Height right) => left.CompareTo(right) > 0;
+    public static bool operator >=(Height left, Height right) => left.CompareTo(right) >= 0;
+
     public static Height operator -(Height a, Height b)
     {
         return a.Original - b.Original;

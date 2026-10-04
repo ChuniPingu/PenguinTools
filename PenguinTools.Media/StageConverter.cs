@@ -23,7 +23,7 @@ public class StageConverter
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private AssetManager Assets { get; }
     private string BackgroundPath { get; }
     private string?[]? EffectPaths { get; }
@@ -83,6 +83,13 @@ public class StageConverter
             }
         }
 
+        var effectsValid = await ValidateEffectsAsync(ct);
+        return !hasError && effectsValid;
+    }
+
+    private async Task<bool> ValidateEffectsAsync(CancellationToken ct)
+    {
+        var hasError = false;
         if (EffectPaths is not null)
             foreach (var p in EffectPaths)
             {

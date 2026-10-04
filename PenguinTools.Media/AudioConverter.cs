@@ -21,7 +21,7 @@ public class AudioConverter
 
     private IMediaTool MediaTool { get; }
     private ulong HcaEncryptionKey { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private Meta Meta { get; }
     private string OutFolder { get; }
     private string WorkingAudioPath { get; }
@@ -78,13 +78,13 @@ public class AudioConverter
         var awbPath = Path.Combine(outputDir, xml.AwbFile);
 
         await MediaTool.ConvertCriAsync(
-            wavPath,
+            new CriConvertRequest(wavPath,
             acbPath,
             awbPath,
             xml.DataName,
             (long)(pvStart * 1000m),
             (long)(pvStop * 1000m),
-            HcaEncryptionKey,
+            HcaEncryptionKey),
             ct);
 
         return OperationResult.Success().WithDiagnostics(Diagnostic);

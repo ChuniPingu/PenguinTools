@@ -17,7 +17,7 @@ public partial class C2SChartConverter
         Mgxc = request.Mgxc;
     }
 
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new();
     private umgr.Chart Mgxc { get; }
     private c2s.Chart C2s { get; } = new();
     private List<c2s.Note> Notes => C2s.Notes;
@@ -74,19 +74,19 @@ public partial class C2SChartConverter
         return true;
     }
 
-    private bool RestoreSlpSnapshot()
+    private void RestoreSlpSnapshot()
     {
         var snapshot = Mgxc.Meta.C2sSlpSnapshot;
 
         if (snapshot is null)
-            return false;
+            return;
 
         if (Mgxc.Meta.C2sSlpEditKey is { } editKey &&
             editKey != C2sRoundTripKeys.FormatSlpEditKey(Mgxc))
         {
             Mgxc.Meta.C2sSlpSnapshot = null;
             Mgxc.Meta.C2sSlpEditKey = null;
-            return false;
+            return;
         }
 
         var restored = new List<c2s.Slp>();
@@ -108,7 +108,7 @@ public partial class C2SChartConverter
                         System.Globalization.NumberStyles.Number,
                         System.Globalization.CultureInfo.InvariantCulture,
                         out var speed))
-                    return false;
+                    return;
 
                 restored.Add(new c2s.Slp
                 {
@@ -123,15 +123,14 @@ public partial class C2SChartConverter
         Events.RemoveAll(x => x is c2s.Slp);
         Events.AddRange(restored);
 
-        return true;
     }
 
-    private bool RestoreAirSnapshot()
+    private void RestoreAirSnapshot()
     {
         var snapshot = Mgxc.Meta.C2sAirSnapshot;
 
         if (snapshot is null)
-            return false;
+            return;
 
         if (!(Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.AirModelKey == C2sRoundTripKeys.FormatAirEditKey(Mgxc)) &&
             Mgxc.Meta.C2sAirEditKey is { } editKey &&
@@ -139,7 +138,7 @@ public partial class C2SChartConverter
         {
             Mgxc.Meta.C2sAirSnapshot = null;
             Mgxc.Meta.C2sAirEditKey = null;
-            return false;
+            return;
         }
 
         var restored = new List<c2s.Air>();
@@ -160,13 +159,13 @@ public partial class C2SChartConverter
                     !Enum.TryParse<AirDirection>(fields[4], out var direction) ||
                     !Enum.TryParse<Color>(fields[5], out var color))
                 {
-                    return false;
+                    return;
                 }
 
                 var parent = CreateAirSnapshotParent(fields[6]);
 
                 if (parent is null)
-                    return false;
+                    return;
 
                 restored.Add(new c2s.Air
                 {
@@ -184,7 +183,6 @@ public partial class C2SChartConverter
         Notes.RemoveAll(x => x is c2s.Air);
         Notes.AddRange(restored);
 
-        return true;
     }
 
     private static c2s.Note? CreateAirSnapshotParent(string id) =>
@@ -261,7 +259,7 @@ public partial class C2SChartConverter
             {
                 Events.RemoveAll(e => e is c2s.Met);
                 Events.AddRange(C2s.Extras.Meters.Select(m => new c2s.Met
-                    { Tick = m.Tick, Numerator = m.Numerator, Denominator = m.Denominator }));
+                { Tick = m.Tick, Numerator = m.Numerator, Denominator = m.Denominator }));
             }
 
             ScheduleC2sSlidePaths();
@@ -337,6 +335,26 @@ public partial class C2SChartConverter
             new Dictionary<(C2sSlidePosition Key, umgr.Slide Source),
                 LinkedListNode<c2s.Slide>>();
 
+        CollectPendingSlides(pendingByKey, pendingBySource);
+
+        var keysByRound = pendingByKey.Keys
+            .GroupBy(k => k.Tick)
+            .OrderBy(g => g.Key)
+            .Select(g => g.OrderBy(k => k.Lane).ThenBy(k => k.Width).ToArray())
+            .ToArray();
+
+        var active = new Dictionary<C2sSlidePosition, Queue<umgr.Slide>>();
+        var scheduled = new List<c2s.Slide>(slideCount);
+
+        foreach (var key in keysByRound.SelectMany(keys => keys))
+            SchedulePendingSlides(key, pendingByKey[key], pendingBySource, active, scheduled);
+
+        RebuildNotesWithScheduledSlides(scheduled, originalIndex);
+    }
+
+    private void CollectPendingSlides(Dictionary<C2sSlidePosition, LinkedList<c2s.Slide>> pendingByKey,
+        Dictionary<(C2sSlidePosition Key, umgr.Slide Source), LinkedListNode<c2s.Slide>> pendingBySource)
+    {
         for (var i = 0; i < Notes.Count; i++)
         {
             if (Notes[i] is not c2s.Slide slide)
@@ -358,83 +376,178 @@ public partial class C2SChartConverter
             pendingBySource[(key, source)] = node;
         }
 
-        var keysByRound = pendingByKey.Keys
-            .GroupBy(k => k.Tick)
-            .OrderBy(g => g.Key)
-            .Select(g => g.OrderBy(k => k.Lane).ThenBy(k => k.Width).ToArray())
-            .ToArray();
+    }
 
-        var active = new Dictionary<C2sSlidePosition, Queue<umgr.Slide>>();
-        var scheduled = new List<c2s.Slide>(slideCount);
-
-        foreach (var keys in keysByRound)
+    private void SchedulePendingSlides(C2sSlidePosition key, LinkedList<c2s.Slide> pending,
+        Dictionary<(C2sSlidePosition Key, umgr.Slide Source), LinkedListNode<c2s.Slide>> pendingBySource,
+        Dictionary<C2sSlidePosition, Queue<umgr.Slide>> active, List<c2s.Slide> scheduled)
+    {
+        while (pending.Count > 0)
         {
-            foreach (var key in keys)
+            active.TryGetValue(key, out var queue);
+            if (queue is { Count: > 1 })
+                active[key] = queue = new Queue<umgr.Slide>(queue.OrderBy(s => _slideRootOrder[s]));
+
+            var pickNode = SelectPendingSlide(key, pending, pendingBySource, queue);
+
+            var pick = pickNode.Value;
+            var source = _slideSegmentSources[pick];
+            pendingBySource.Remove((key, source.SourceSlide));
+            pending.Remove(pickNode);
+            scheduled.Add(pick);
+
+            if (queue is { Count: > 0 })
             {
-                var pending = pendingByKey[key];
+                queue.Dequeue();
+                if (queue.Count == 0)
+                    active.Remove(key);
+            }
 
-                while (pending.Count > 0)
-                {
-                    active.TryGetValue(key, out var queue);
-                    if (queue is { Count: > 1 })
-                        active[key] = queue = new Queue<umgr.Slide>(queue.OrderBy(s => _slideRootOrder[s]));
+            var end = new C2sSlidePosition(
+                pick.EndTick.Round,
+                pick.EndLane,
+                pick.EndWidth);
 
-                    LinkedListNode<c2s.Slide>? pickNode = null;
-                    if (queue is { Count: > 0 } &&
-                        pendingBySource.TryGetValue(
-                            (key, queue.Peek()),
-                            out var continuation) &&
-                        continuation.List == pending)
-                    {
-                        pickNode = continuation;
-                    }
+            if (!active.TryGetValue(end, out var endQueue))
+            {
+                endQueue = new Queue<umgr.Slide>();
+                active[end] = endQueue;
+            }
 
-                    if (pickNode is null)
-                    {
-                        for (var node = pending.First;
-                             node is not null;
-                             node = node.Next)
-                        {
-                            if (_slideSegmentSources[node.Value].IsRoot)
-                            {
-                                pickNode = node;
-                                break;
-                            }
-                        }
+            endQueue.Enqueue(source.SourceSlide);
+        }
+    }
 
-                        pickNode ??= pending.First;
-                    }
+    private LinkedListNode<c2s.Slide> SelectPendingSlide(C2sSlidePosition key, LinkedList<c2s.Slide> pending,
+        Dictionary<(C2sSlidePosition Key, umgr.Slide Source), LinkedListNode<c2s.Slide>> pendingBySource,
+        Queue<umgr.Slide>? queue)
+    {
+        if (queue is { Count: > 0 } &&
+            pendingBySource.TryGetValue(
+                (key, queue.Peek()),
+                out var continuation) &&
+            continuation.List == pending)
+        {
+            return continuation;
+        }
 
-                    var pick = pickNode!.Value;
-                    var source = _slideSegmentSources[pick];
-                    pendingBySource.Remove((key, source.SourceSlide));
-                    pending.Remove(pickNode);
-                    scheduled.Add(pick);
-
-                    if (queue is { Count: > 0 })
-                    {
-                        queue.Dequeue();
-                        if (queue.Count == 0)
-                            active.Remove(key);
-                    }
-
-                    var end = new C2sSlidePosition(
-                        pick.EndTick.Round,
-                        pick.EndLane,
-                        pick.EndWidth);
-
-                    if (!active.TryGetValue(end, out var endQueue))
-                    {
-                        endQueue = new Queue<umgr.Slide>();
-                        active[end] = endQueue;
-                    }
-
-                    endQueue.Enqueue(source.SourceSlide);
-                }
+        for (var node = pending.First;
+             node is not null;
+             node = node.Next)
+        {
+            if (_slideSegmentSources[node.Value].IsRoot)
+            {
+                return node;
             }
         }
 
-        RebuildNotesWithScheduledSlides(scheduled, originalIndex);
+        return pending.First!;
+
+    }
+
+    private void IndexAirCells(Dictionary<(int Round, int Lane, int Width), List<c2s.Note>> airsByCell, Dictionary<c2s.Note, int> noteIndex)
+    {
+        for (var i = 0; i < Notes.Count; i++)
+        {
+            var note = Notes[i];
+            noteIndex[note] = i;
+
+            if (note is not c2s.IPairable { Parent: c2s.Slide })
+                continue;
+
+            var key = (note.Tick.Round, note.Lane, note.Width);
+            if (!airsByCell.TryGetValue(key, out var list))
+            {
+                list = [];
+                airsByCell[key] = list;
+            }
+
+            list.Add(note);
+        }
+
+    }
+
+    private void IndexAirParentEnds(Dictionary<(int Round, int Lane, int Width), List<c2s.Slide>> lastSegmentsByEnd)
+    {
+        foreach (var note in Notes)
+        {
+            if (note is not c2s.Slide slide)
+                continue;
+            if (!_slideSegmentSources.TryGetValue(slide, out var src))
+                continue;
+            if (!_positivePairRealTargets.ContainsKey(src.EndJoint))
+                continue;
+
+            var end = (slide.EndTick.Round, slide.EndLane, slide.EndWidth);
+            if (!lastSegmentsByEnd.TryGetValue(end, out var list))
+            {
+                list = [];
+                lastSegmentsByEnd[end] = list;
+            }
+
+            list.Add(slide);
+        }
+
+    }
+
+    private void ScheduleAirParentCell(List<c2s.Slide> lastSegments, List<c2s.Note> cellAirs,
+        Dictionary<c2s.IPairable, c2s.Note> intended, Dictionary<c2s.Note, int> noteIndex)
+    {
+        var intendedParentRank = new Dictionary<c2s.Slide, int>();
+        var rank = 0;
+        foreach (var air in cellAirs)
+        {
+            if (intended.TryGetValue((c2s.IPairable)air, out var parent) &&
+                parent is c2s.Slide slide &&
+                intendedParentRank.TryAdd(slide, rank))
+            {
+                rank++;
+            }
+        }
+
+        foreach (var startRoundGroup in lastSegments.GroupBy(s => s.Tick.Round))
+        {
+            var tied = startRoundGroup.ToList();
+            if (tied.Count <= 1)
+                continue;
+
+            var desired = tied
+                .OrderBy(s =>
+                    intendedParentRank.TryGetValue(s, out var r)
+                        ? r
+                        : int.MaxValue)
+                .ThenBy(s => noteIndex[s])
+                .ToList();
+
+            if (OverridesSlideFifo(tied, desired, noteIndex))
+                desired = tied.OrderBy(s => noteIndex[s]).ToList();
+
+            ApplyNoteOrder(desired, noteIndex);
+        }
+
+    }
+
+    private static bool OverridesSlideFifo(List<c2s.Slide> tied, List<c2s.Slide> desired, Dictionary<c2s.Note, int> noteIndex)
+    {
+        // Same start (lane, width) order belongs to the slide FIFO.
+        foreach (var startKey in tied.GroupBy(s => (s.Lane, s.Width)))
+        {
+            var scheduledOrder = startKey
+                .OrderBy(s => noteIndex[s])
+                .ToList();
+            var desiredOrder = desired
+                .Where(s =>
+                    s.Lane == startKey.Key.Lane &&
+                    s.Width == startKey.Key.Width)
+                .ToList();
+
+            if (!scheduledOrder.SequenceEqual(desiredOrder))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void RebuildNotesWithScheduledSlides(
@@ -517,23 +630,7 @@ public partial class C2SChartConverter
             new Dictionary<(int Round, int Lane, int Width), List<c2s.Note>>();
         var noteIndex = new Dictionary<c2s.Note, int>(Notes.Count);
 
-        for (var i = 0; i < Notes.Count; i++)
-        {
-            var note = Notes[i];
-            noteIndex[note] = i;
-
-            if (note is not c2s.IPairable { Parent: c2s.Slide })
-                continue;
-
-            var key = (note.Tick.Round, note.Lane, note.Width);
-            if (!airsByCell.TryGetValue(key, out var list))
-            {
-                list = [];
-                airsByCell[key] = list;
-            }
-
-            list.Add(note);
-        }
+        IndexAirCells(airsByCell, noteIndex);
 
         if (airsByCell.Count == 0)
             return;
@@ -541,81 +638,14 @@ public partial class C2SChartConverter
         // Index last segments that can own Air once; Air cells look up by end cell.
         var lastSegmentsByEnd =
             new Dictionary<(int Round, int Lane, int Width), List<c2s.Slide>>();
-        foreach (var note in Notes)
-        {
-            if (note is not c2s.Slide slide)
-                continue;
-            if (!_slideSegmentSources.TryGetValue(slide, out var src))
-                continue;
-            if (!_positivePairRealTargets.ContainsKey(src.EndJoint))
-                continue;
-
-            var end = (slide.EndTick.Round, slide.EndLane, slide.EndWidth);
-            if (!lastSegmentsByEnd.TryGetValue(end, out var list))
-            {
-                list = [];
-                lastSegmentsByEnd[end] = list;
-            }
-
-            list.Add(slide);
-        }
+        IndexAirParentEnds(lastSegmentsByEnd);
 
         foreach (var (cell, cellAirs) in airsByCell)
         {
             lastSegmentsByEnd.TryGetValue(cell, out var lastSegments);
             lastSegments ??= [];
 
-            var intendedParentRank = new Dictionary<c2s.Slide, int>();
-            var rank = 0;
-            foreach (var air in cellAirs)
-            {
-                if (intended.TryGetValue((c2s.IPairable)air, out var parent) &&
-                    parent is c2s.Slide slide &&
-                    intendedParentRank.TryAdd(slide, rank))
-                {
-                    rank++;
-                }
-            }
-
-            foreach (var startRoundGroup in lastSegments.GroupBy(s => s.Tick.Round))
-            {
-                var tied = startRoundGroup.ToList();
-                if (tied.Count <= 1)
-                    continue;
-
-                var desired = tied
-                    .OrderBy(s =>
-                        intendedParentRank.TryGetValue(s, out var r)
-                            ? r
-                            : int.MaxValue)
-                    .ThenBy(s => noteIndex[s])
-                    .ToList();
-
-                // Same start (lane, width) order belongs to the slide FIFO.
-                var overrideWithScheduled = false;
-                foreach (var startKey in tied.GroupBy(s => (s.Lane, s.Width)))
-                {
-                    var scheduledOrder = startKey
-                        .OrderBy(s => noteIndex[s])
-                        .ToList();
-                    var desiredOrder = desired
-                        .Where(s =>
-                            s.Lane == startKey.Key.Lane &&
-                            s.Width == startKey.Key.Width)
-                        .ToList();
-
-                    if (!scheduledOrder.SequenceEqual(desiredOrder))
-                    {
-                        overrideWithScheduled = true;
-                        break;
-                    }
-                }
-
-                if (overrideWithScheduled)
-                    desired = tied.OrderBy(s => noteIndex[s]).ToList();
-
-                ApplyNoteOrder(desired, noteIndex);
-            }
+            ScheduleAirParentCell(lastSegments, cellAirs, intended, noteIndex);
 
             var orderedAirs = cellAirs
                 .OrderBy(a =>
@@ -660,40 +690,7 @@ public partial class C2SChartConverter
         var used = new HashSet<c2s.Note>();
         var warned = new HashSet<(int Tick, int Lane, int Width)>();
 
-        // Index slide attach cells once. Same cell can host start and end parents.
-        var candidatesByCell =
-            new Dictionary<(int Tick, int Lane, int Width), List<c2s.Note>>();
-
-        void AddCandidate(c2s.Note slide, int tick, int lane, int width)
-        {
-            var key = (tick, lane, width);
-            if (!candidatesByCell.TryGetValue(key, out var list))
-            {
-                list = [];
-                candidatesByCell[key] = list;
-            }
-
-            list.Add(slide);
-        }
-
-        foreach (var note in Notes)
-        {
-            if (note is not c2s.Slide slide)
-                continue;
-
-            AddCandidate(slide, slide.Tick.Original, slide.Lane, slide.Width);
-
-            if (slide.EndTick.Original != slide.Tick.Original ||
-                slide.EndLane != slide.Lane ||
-                slide.EndWidth != slide.Width)
-            {
-                AddCandidate(
-                    slide,
-                    slide.EndTick.Original,
-                    slide.EndLane,
-                    slide.EndWidth);
-            }
-        }
+        var candidatesByCell = BuildSlideAttachCandidates();
 
         var pairables = Notes
             .Select((note, index) => (note, index))
@@ -729,6 +726,46 @@ public partial class C2SChartConverter
         }
     }
 
+    private Dictionary<(int Tick, int Lane, int Width), List<c2s.Note>> BuildSlideAttachCandidates()
+    {
+        // Index slide attach cells once. Same cell can host start and end parents.
+        var candidatesByCell =
+            new Dictionary<(int Tick, int Lane, int Width), List<c2s.Note>>();
+
+        void AddCandidate(c2s.Note slide, int tick, int lane, int width)
+        {
+            var key = (tick, lane, width);
+            if (!candidatesByCell.TryGetValue(key, out var list))
+            {
+                list = [];
+                candidatesByCell[key] = list;
+            }
+
+            list.Add(slide);
+        }
+
+        foreach (var note in Notes)
+        {
+            if (note is not c2s.Slide slide)
+                continue;
+
+            AddCandidate(slide, slide.Tick.Original, slide.Lane, slide.Width);
+
+            if (slide.EndTick.Original != slide.Tick.Original ||
+                slide.EndLane != slide.Lane ||
+                slide.EndWidth != slide.Width)
+            {
+                AddCandidate(
+                    slide,
+                    slide.EndTick.Original,
+                    slide.EndLane,
+                    slide.EndWidth);
+            }
+        }
+
+        return candidatesByCell;
+    }
+
     private static c2s.Note? FindSlidePairParent(
         c2s.Note note,
         List<c2s.Note> candidates,
@@ -746,13 +783,8 @@ public partial class C2SChartConverter
             var candidateUsed = used.Contains(candidate);
             var distance = SlidePairDistance(candidate, note);
 
-            if (best is not null)
-            {
-                if (candidateUsed && !bestUsed)
-                    continue;
-                if (candidateUsed == bestUsed && distance >= bestDistance)
-                    continue;
-            }
+            if (best is not null && IsWorseParent(candidateUsed, bestUsed, distance, bestDistance))
+                continue;
 
             best = candidate;
             bestUsed = candidateUsed;
@@ -761,6 +793,9 @@ public partial class C2SChartConverter
 
         return best;
     }
+
+    private static bool IsWorseParent(bool candidateUsed, bool bestUsed, int distance, int bestDistance) =>
+        candidateUsed && !bestUsed || candidateUsed == bestUsed && distance >= bestDistance;
 
     private static bool IsSlideAttachPoint(c2s.Note candidate, c2s.Note note)
     {
@@ -791,13 +826,13 @@ public partial class C2SChartConverter
         // Order matches the writer: Round, then scheduled list index.
         var active = new Dictionary<C2sSlidePosition, Queue<OpenC2sSlidePath>>();
 
-        foreach (var segment in Notes
+        foreach (var note in Notes
                      .OfType<c2s.Slide>()
                      .Select((slide, index) => new { Slide = slide, SourceOrder = index })
                      .OrderBy(x => x.Slide.Tick.Round)
-                     .ThenBy(x => x.SourceOrder))
+                     .ThenBy(x => x.SourceOrder)
+                     .Select(x => x.Slide))
         {
-            var note = segment.Slide;
             var source = _slideSegmentSources[note];
             var start = new C2sSlidePosition(
                 note.Tick.Round,
@@ -879,20 +914,6 @@ public partial class C2SChartConverter
             {
                 Target = sla
             });
-        }
-    }
-
-    private void ApplyBgmBarOffset()
-    {
-        if (!Mgxc.Meta.BgmEnableBarOffset) return;
-
-        var offset = (int)Math.Round((decimal)ChartResolution.UmiguriTick / Mgxc.Meta.BgmInitialDenominator *
-                                     Mgxc.Meta.BgmInitialNumerator);
-        foreach (var e in Events.Where(e => e.Tick.Original != 0)) e.Tick = e.Tick.Original + offset;
-        foreach (var n in Notes)
-        {
-            n.Tick = n.Tick.Original + offset;
-            if (n is c2s.LongNote longNote) longNote.EndTick = longNote.EndTick.Original + offset;
         }
     }
 

@@ -2,13 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace PenguinTools.Chart;
 
 // Compact source metadata for fields the editor cannot represent directly.
 // It is carried by MGXC/UGC only, never emitted as a private C2S command.
-public static class C2SRoundTrip
+public static partial class C2SRoundTrip
 {
+    [GeneratedRegex(@"(?:^|;)MGR_C2S_(V1|LZ1)=([A-Za-z0-9+/=]+);", RegexOptions.None, 1000)]
+    private static partial Regex MetadataRegex();
     public const string Records = "BPM MET SLP SFL DCM STP CLK TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD";
     public static string[] Parts(string s)
     {
@@ -26,6 +30,36 @@ public static class C2SRoundTrip
         string tag = p[0];
         if (tag == "SLA")
             return "";
+        AddRecordDefaults(p);
+        tag = p[0];
+        decimal tick = decimal.Parse(p[1], CultureInfo.InvariantCulture) * 1920 + decimal.Parse(p[2], CultureInfo.InvariantCulture) * 1920 / resolution;
+        p[1] = tick.ToString("0.############################", CultureInfo.InvariantCulture);
+        p[2] = "0";
+        int duration = DurationIndex(tag);
+        if (duration >= 0 && duration < p.Count)
+            p[duration] = (decimal.Parse(p[duration], CultureInfo.InvariantCulture) * 1920 / resolution).ToString(CultureInfo.InvariantCulture);
+        if (tag == "ALD")
+            p[5] = (decimal.Parse(p[5], CultureInfo.InvariantCulture) * 1920 / resolution).ToString(CultureInfo.InvariantCulture);
+        for (int i = 1; i < p.Count; i++)
+        {
+            if (decimal.TryParse(p[i], NumberStyles.Float, CultureInfo.InvariantCulture, out var n))
+                p[i] = n.ToString("0.############################", CultureInfo.InvariantCulture);
+        }
+        return string.Join("\t", p);
+    }
+
+    private static int DurationIndex(string tag) => tag switch
+    {
+        "HLD" or "HXD" or "SLC" or "SLD" or "SXC" or "SXD" => 5,
+        "ALD" or "ASC" or "ASD" => 7,
+        "AHD" or "AHX" or "ASX" => 6,
+        "SLP" or "SFL" or "DCM" or "STP" => 3,
+        _ => -1
+    };
+
+    private static void AddRecordDefaults(List<string> p)
+    {
+        var tag = p[0];
         if ((" AHD AHX ASX ").Contains(" " + tag + " ") && p.Count == 7)
             p.Add("DEF");
         if (tag == "SFL")
@@ -36,36 +70,29 @@ public static class C2SRoundTrip
         if (tag == "FLK" && p.Count == 5)
             p.Add("L");
         if (tag == "ALD")
-        while (p.Count < 13)
-            p.Add("DEF");
-        if (tag == "ALD" && p[12] == "Trace")
-            p[12] = "DEF";
+            AddCrashDefaults(p);
         if ((tag == "ASC" || tag == "ASD") && p.Count == 11)
             p.Add("DEF");
         if ((" AIR AUL AUR ADW ADL ADR ").Contains(" " + tag + " ") && p.Count == 6)
             p.Add("DEF");
         if ((" SLC SLD SXC SXD ").Contains(" " + tag + " "))
-        {
-            if (p.Count == 7)
-                p.Add(p[4]);
-            if (p.Count == 8)
-                p.Add("SLD");
-        }
-        decimal tick = decimal.Parse(p[1], CultureInfo.InvariantCulture) * 1920 + decimal.Parse(p[2], CultureInfo.InvariantCulture) * 1920 / resolution;
-        p[1] = tick.ToString("0.############################", CultureInfo.InvariantCulture);
-        p[2] = "0";
-        int duration = (" HLD HXD SLC SLD SXC SXD ALD ").Contains(" " + tag + " ") ? (tag == "ALD" ? 7 : 5) : (" ASC ASD ").Contains(" " + tag + " ") ? 7 : (" AHD AHX ASX ").Contains(" " + tag + " ") ? 6 : (" SLP SFL DCM STP ").Contains(" " + tag + " ") ? 3 : -1;
-        if (duration >= 0 && duration < p.Count)
-            p[duration] = (decimal.Parse(p[duration], CultureInfo.InvariantCulture) * 1920 / resolution).ToString(CultureInfo.InvariantCulture);
-        if (tag == "ALD")
-            p[5] = (decimal.Parse(p[5], CultureInfo.InvariantCulture) * 1920 / resolution).ToString(CultureInfo.InvariantCulture);
-        for (int i = 1; i < p.Count; i++)
-        {
-            decimal n;
-            if (decimal.TryParse(p[i], NumberStyles.Float, CultureInfo.InvariantCulture, out n))
-                p[i] = n.ToString("0.############################", CultureInfo.InvariantCulture);
-        }
-        return string.Join("\t", p.ToArray());
+            AddSlideDefaults(p);
+    }
+
+    private static void AddSlideDefaults(List<string> p)
+    {
+        if (p.Count == 7)
+            p.Add(p[4]);
+        if (p.Count == 8)
+            p.Add("SLD");
+    }
+
+    private static void AddCrashDefaults(List<string> p)
+    {
+        while (p.Count < 13)
+            p.Add("DEF");
+        if (p[12] == "Trace")
+            p[12] = "DEF";
     }
     public static string Fingerprint(string text)
     {
@@ -85,14 +112,14 @@ public static class C2SRoundTrip
                 rows.Add(s);
         }
         rows.Sort(StringComparer.Ordinal);
-        using (var hash = System.Security.Cryptography.SHA256.Create())
-            return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(string.Join("\n", rows.ToArray())))).Replace("-", "");
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", rows))));
     }
     public static string Encode(string text, string view = "", string exceptions = "")
     {
         var saved = new List<string>();
         saved.Add("HASH\t" + Fingerprint(text));
-        foreach (string line in text.Replace("\r", "").Split('\n'))
+        var sourceLines = text.Replace("\r", "").Split('\n');
+        foreach (string line in sourceLines)
         {
             var p = Parts(line);
             if (p.Length == 0 || p[0].StartsWith("//"))
@@ -102,37 +129,57 @@ public static class C2SRoundTrip
         }
         foreach (string kind in new[] { "BEAT", "BPM", "TIL", "SPDMOD" })
         {
-            var rows = new List<string>();
-            foreach (string line in view.Replace("\r", "").Split('\n'))
-            if (line.StartsWith(kind + "\t"))
-                rows.Add(line);
+            var rows = view.Replace("\r", "").Split('\n').Where(line => line.StartsWith(kind + "\t"));
             saved.Add("VIEWHASH\t" + kind + "\t" + ViewHash(rows));
         }
-        foreach (string line in exceptions.Split('\n'))
-        if (line.StartsWith("EXCEPT\t"))
-            saved.Add(line);
+        saved.AddRange(exceptions.Split('\n').Where(line => line.StartsWith("EXCEPT\t")));
+        SaveAmbiguousOrder(sourceLines, saved);
+        foreach (string line in sourceLines)
+        {
+            var p = Parts(line);
+            if (p.Length > 0 && (" AIR AUL AUR ADW ADL ADR ASC ASD ").Contains(" " + p[0] + " ") && p[p.Length - 1] == "GRN")
+                saved.Add("COLOR\t" + string.Join("\t", p));
+        }
+        return Pack(string.Join("\n", saved));
+    }
+
+    private static string LongNoteFamily(string tag) => tag switch
+    {
+        "SLC" or "SLD" or "SXC" or "SXD" => "S",
+        "ASC" or "ASD" => "A",
+        "AHD" or "AHX" or "ASX" => "H",
+        "ALD" => "C",
+        _ => ""
+    };
+
+    private static string LongNoteKey(string[] p, string family)
+    {
+        var key = new StringBuilder(family).Append('|').AppendJoin('|', p.Skip(1).Take(4));
+        if (family == "A" || family == "C")
+        {
+            key.Append('|').Append(p[5]).Append('|').Append(p[6]);
+            foreach (var part in p.Skip(11))
+                key.Append('|').Append(part);
+        }
+        else if (family == "H")
+            key.Append('|').Append(p[5]);
+        return key.ToString();
+    }
+
+    private static void SaveAmbiguousOrder(IEnumerable<string> sourceLines, List<string> saved)
+    {
         // Equal-position long-note rows are ordered edges, not an unordered set.
         // Save only ambiguous groups; ordinary rows need no extra metadata.
         var groups = new Dictionary<string, List<string>>();
-        foreach (string line in text.Replace("\r", "").Split('\n'))
+        foreach (string line in sourceLines)
         {
             var p = Parts(line);
             if (p.Length < 5)
                 continue;
-            string family = (" SLC SLD SXC SXD ").Contains(" " + p[0] + " ") ? "S" :
-                (" ASC ASD ").Contains(" " + p[0] + " ") ? "A" :
-                (" AHD AHX ASX ").Contains(" " + p[0] + " ") ? "H" : p[0] == "ALD" ? "C" : "";
+            string family = LongNoteFamily(p[0]);
             if (family.Length == 0)
                 continue;
-            string key = family + "|" + p[1] + "|" + p[2] + "|" + p[3] + "|" + p[4];
-            if (family == "A" || family == "C")
-            {
-                key += "|" + p[5] + "|" + p[6];
-                for (int i = 11; i < p.Length; i++)
-                    key += "|" + p[i];
-            }
-            else if (family == "H")
-                key += "|" + p[5];
+            string key = LongNoteKey(p, family);
             if (!groups.TryGetValue(key, out var list))
                 groups[key] = list = new List<string>();
             list.Add(string.Join("\t", p));
@@ -141,16 +188,8 @@ public static class C2SRoundTrip
         {
             if (group.Count < 2 || new HashSet<string>(group).Count < 2)
                 continue;
-            foreach (string line in group)
-                saved.Add("ORDER\t" + line);
+            saved.AddRange(group.Select(line => "ORDER\t" + line));
         }
-        foreach (string line in text.Replace("\r", "").Split('\n'))
-        {
-            var p = Parts(line);
-            if (p.Length > 0 && (" AIR AUL AUR ADW ADL ADR ASC ASD ").Contains(" " + p[0] + " ") && p[p.Length - 1] == "GRN")
-                saved.Add("COLOR\t" + string.Join("\t", p));
-        }
-        return Pack(string.Join("\n", saved.ToArray()));
     }
     // Byte-oriented LZ encoding keeps lossless snapshots within MGXC string limits.
     public static string Pack(string text, bool forceCompression = false)
@@ -162,24 +201,7 @@ public static class C2SRoundTrip
         var last = new Dictionary<int, List<int>>();
         for (int i = 0; i < data.Length;)
         {
-            int length = 0, prior = 0, key = i + 2 < data.Length ? (data[i] << 16) | (data[i + 1] << 8) | data[i + 2] : -1;
-            List<int>? candidates;
-            if (key >= 0 && last.TryGetValue(key, out candidates))
-            for (int k = candidates.Count - 1; k >= 0; k--)
-            {
-                int pos = candidates[k], matched = 0;
-                if (i - pos > 65535)
-                    break;
-                while (matched < 258 && i + matched < data.Length && data[pos + matched] == data[i + matched])
-                    matched++;
-                if (matched > length)
-                {
-                    length = matched;
-                    prior = pos;
-                }
-                if (length == 258)
-                    break;
-            }
+            var (length, prior) = FindMatch(data, i, last);
             int advance = length >= 4 ? length : 1;
             if (length >= 4)
             {
@@ -191,47 +213,83 @@ public static class C2SRoundTrip
             }
             else
                 packed.Add(data[i]);
-            for (int j = i; j < i + advance && j + 2 < data.Length; j++)
-            {
-                int code = (data[j] << 16) | (data[j + 1] << 8) | data[j + 2];
-                List<int>? list;
-                if (!last.TryGetValue(code, out list))
-                    last[code] = list = new List<int>();
-                if (list.Count == 256)
-                    list.RemoveAt(0);
-                list.Add(j);
-            }
+            RememberPositions(data, i, advance, last);
             i += advance;
         }
         return "MGR_C2S_LZ1=" + Convert.ToBase64String(packed.ToArray()) + ";";
     }
+
+    private static (int Length, int Prior) FindMatch(byte[] data, int index, Dictionary<int, List<int>> last)
+    {
+        int key = index + 2 < data.Length ? (data[index] << 16) | (data[index + 1] << 8) | data[index + 2] : -1;
+        if (key < 0 || !last.TryGetValue(key, out var candidates))
+            return (0, 0);
+        int length = 0, prior = 0;
+        for (int k = candidates.Count - 1; k >= 0; k--)
+        {
+            int pos = candidates[k], matched = 0;
+            if (index - pos > 65535)
+                break;
+            while (matched < 258 && index + matched < data.Length && data[pos + matched] == data[index + matched])
+                matched++;
+            if (matched > length)
+            {
+                length = matched;
+                prior = pos;
+            }
+            if (length == 258)
+                break;
+        }
+        return (length, prior);
+    }
+
+    private static void RememberPositions(byte[] data, int index, int advance, Dictionary<int, List<int>> last)
+    {
+        for (int j = index; j < index + advance && j + 2 < data.Length; j++)
+        {
+            int code = (data[j] << 16) | (data[j + 1] << 8) | data[j + 2];
+            if (!last.TryGetValue(code, out var list))
+                last[code] = list = new List<int>();
+            if (list.Count == 256)
+                list.RemoveAt(0);
+            list.Add(j);
+        }
+    }
     public static string Decode(string copyright)
     {
-        var m = System.Text.RegularExpressions.Regex.Match(copyright ?? "", @"(?:^|;)MGR_C2S_(V1|LZ1)=([A-Za-z0-9+/=]+);");
+        var m = MetadataRegex().Match(copyright ?? "");
         if (!m.Success)
             return "";
         byte[] data = Convert.FromBase64String(m.Groups[2].Value);
         if (m.Groups[1].Value == "V1")
             return Encoding.UTF8.GetString(data);
         var output = new List<byte>();
-        for (int i = 0; i < data.Length; i++)
+        int i = 0;
+        while (i < data.Length)
         {
             if (data[i] != 255)
                 output.Add(data[i]);
             else
             {
-                if (i + 3 >= data.Length)
-                    throw new FormatException("Truncated chart metadata");
-                int distance = (data[++i] << 8) | data[++i], length = data[++i] + 3;
-                if (distance == 0 || distance > output.Count)
-                    throw new FormatException("Invalid chart metadata reference");
-                for (int j = 0; j < length; j++)
-                    output.Add(output[output.Count - distance]);
+                CopyReference(data, i, output);
+                i += 3;
             }
             if (output.Count > 4000000)
                 throw new FormatException("Chart metadata exceeds limit");
+            i++;
         }
         return Encoding.UTF8.GetString(output.ToArray());
+    }
+
+    private static void CopyReference(byte[] data, int index, List<byte> output)
+    {
+        if (index + 3 >= data.Length)
+            throw new FormatException("Truncated chart metadata");
+        int distance = (data[index + 1] << 8) | data[index + 2], length = data[index + 3] + 3;
+        if (distance == 0 || distance > output.Count)
+            throw new FormatException("Invalid chart metadata reference");
+        for (int j = 0; j < length; j++)
+            output.Add(output[output.Count - distance]);
     }
     public static string ViewHash(IEnumerable<string> lines)
     {
@@ -248,7 +306,6 @@ public static class C2SRoundTrip
             rows.Add(string.Join("\t", p));
         }
         rows.Sort(StringComparer.Ordinal);
-        using (var hash = System.Security.Cryptography.SHA256.Create())
-            return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(string.Join("\n", rows.ToArray())))).Replace("-", "");
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", rows))));
     }
 }

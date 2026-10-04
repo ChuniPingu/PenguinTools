@@ -4,7 +4,7 @@ using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Xml;
 
-public abstract class XmlElement<T>
+public abstract class XmlElement
 {
     protected abstract string FileName { get; }
 

@@ -1,3 +1,8 @@
+# Third-party notices
+
+Retain these notices with redistributed source and binaries. Native publish scripts also copy dependency notices into their output.
+
+## Included MIT notice
 
 > The MIT License (MIT)
 
@@ -21,20 +26,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-# [mua](https://github.com/ChuniPingu/mua)
+## [mua](https://github.com/ChuniPingu/mua)
 
-Licensed under MIT OR Apache-2.0. See `External/mua/LICENSE-MIT` and `External/mua/LICENSE-APACHE`.
+Licensed under MIT OR Apache-2.0. See [MIT](External/mua/LICENSE-MIT) and [Apache-2.0](External/mua/LICENSE-APACHE).
 
-# [SonicAudioLib](https://github.com/Foahh/SonicAudioTools)
+## [SonicAudioLib](https://github.com/Foahh/SonicAudioTools)
 
 MIT License. Copyright (c) Skyth / blueskythlikesclouds.
 
-# [VGAudio](https://github.com/Foahh/vgaudio)
+## [VGAudio](https://github.com/Foahh/vgaudio)
 
 MIT License. Copyright (c) Alex Barney.
 
-# [FFmpeg](https://ffmpeg.org/)
+## [FFmpeg](https://ffmpeg.org/)
 
 FFmpeg is distributed as a standalone executable built from a custom LGPL vcpkg overlay. Redistribution obligations
-are documented in `External/ffmpeg/legal/NOTICE.md`, `External/ffmpeg/legal/FFMPEG-SOURCE-OFFER.md`, and the FFmpeg
+are documented in [FFmpeg notice](External/ffmpeg/legal/NOTICE.md), [source information](External/ffmpeg/legal/FFMPEG-SOURCE-OFFER.md), and the FFmpeg
 copyright notice copied during `External/ffmpeg/scripts/build.ps1`.

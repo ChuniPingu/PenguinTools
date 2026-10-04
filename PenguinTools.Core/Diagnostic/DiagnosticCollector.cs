@@ -18,6 +18,22 @@ public class DiagnosticCollector : IDiagnosticSink
         _diagnostics.Add(item.WithTimeCalculator(TimeCalculator));
     }
 
+    public void Report(Exception ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+
+        if (ex is DiagnosticException diagnosticException)
+        {
+            Report(diagnosticException.ToDiagnostic());
+            return;
+        }
+
+        Report(new Diagnostic(Severity.Error, Msg.Unhandled(ex.Message))
+        {
+            RelatedException = ex
+        });
+    }
+
     public void Clear()
     {
         _diagnostics.Clear();
@@ -36,19 +52,4 @@ public class DiagnosticCollector : IDiagnosticSink
             _diagnostics.Add(diagnostic.WithTimeCalculator(TimeCalculator));
     }
 
-    public void Report(Exception ex)
-    {
-        ArgumentNullException.ThrowIfNull(ex);
-
-        if (ex is DiagnosticException diagnosticException)
-        {
-            Report(diagnosticException.ToDiagnostic());
-            return;
-        }
-
-        Report(new Diagnostic(Severity.Error, Msg.Unhandled(ex.Message))
-        {
-            RelatedException = ex
-        });
-    }
 }

@@ -98,19 +98,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             if (exTap.Role == umgr.ExTapRole.Explicit || notesAtTick is null)
                 continue;
 
-            foreach (var note in notesAtTick)
-            {
-                if (exTap.Role == umgr.ExTapRole.HoldOnlyCarrier && note is not umgr.Hold)
-                    continue;
-
-                var covering =
-                    exTap.Lane <= note.Lane &&
-                    exTap.Lane + exTap.Width >= note.Lane + note.Width;
-
-                if (!covering) continue;
-
-                note.Effect = exTap.Effect;
-            }
+            ApplyLongNoteEffect(exTap, notesAtTick);
         }
 
         chart.Notes.Sort();
@@ -121,6 +109,23 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             var str = string.Join(", ", effects.Select(e => e.ToString()));
             MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Concurrent_ex_effects, str);
             diag.Report(new TimedDiagnostic(Severity.Information, msg, tick.Original));
+        }
+    }
+
+    private static void ApplyLongNoteEffect(umgr.ExTap exTap, umgr.ExTapableNote[] notesAtTick)
+    {
+        foreach (var note in notesAtTick)
+        {
+            if (exTap.Role == umgr.ExTapRole.HoldOnlyCarrier && note is not umgr.Hold)
+                continue;
+
+            var covering =
+                exTap.Lane <= note.Lane &&
+                exTap.Lane + exTap.Width >= note.Lane + note.Width;
+
+            if (!covering) continue;
+
+            note.Effect = exTap.Effect;
         }
     }
 
@@ -144,16 +149,16 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         var noteSpeedMods = chart.Events.Children.OfType<umgr.NoteSpeedEvent>().ToArray();
         foreach (var e in chart.Events.Children.OfType<umgr.SpeedEventBase>().ToArray()) chart.Events.RemoveChild(e);
         foreach (var (tilId, events) in _tilGroups)
-        foreach (var e in events)
-        {
-            var newEvent = new umgr.ScrollSpeedEvent
+            foreach (var e in events)
             {
-                Tick = e.Tick,
-                Timeline = tilId,
-                Speed = e.Speed
-            };
-            chart.Events.AppendChild(newEvent);
-        }
+                var newEvent = new umgr.ScrollSpeedEvent
+                {
+                    Tick = e.Tick,
+                    Timeline = tilId,
+                    Speed = e.Speed
+                };
+                chart.Events.AppendChild(newEvent);
+            }
 
         foreach (var e in noteSpeedMods)
             chart.Events.AppendChild(e);
@@ -292,7 +297,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         _noteGroups[bId] = aNotes;
     }
 
-    private void FindNoteViolations(IReadOnlySet<umgr.Note> slaSources)
+    private void FindNoteViolations(HashSet<umgr.Note> slaSources)
     {
         var notes = _noteGroups.Values
             .SelectMany(n => n)
@@ -303,16 +308,18 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         {
             var notesInGroup = group.ToArray();
             for (var i = 0; i < notesInGroup.Length; i++)
-            for (var j = i + 1; j < notesInGroup.Length; j++)
             {
-                var left = notesInGroup[i];
-                var right = notesInGroup[j];
-                if (!left.IsViolate(right, slaSources.Contains(left), slaSources.Contains(right))) continue;
-                diag.Report(new TimedDiagnostic(Severity.Warning,
-                    Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), left.Tick.Original)
+                for (var j = i + 1; j < notesInGroup.Length; j++)
                 {
-                    Target = NotePairDiagnosticTarget.From(left, right, diag.TimeCalculator)
-                });
+                    var left = notesInGroup[i];
+                    var right = notesInGroup[j];
+                    if (!left.IsViolate(right, slaSources.Contains(left), slaSources.Contains(right))) continue;
+                    diag.Report(new TimedDiagnostic(Severity.Warning,
+                        Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), left.Tick.Original)
+                    {
+                        Target = NotePairDiagnosticTarget.From(left, right, diag.TimeCalculator)
+                    });
+                }
             }
         }
     }
@@ -438,7 +445,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             return;
         }
 
-        if (!DateTime.TryParseExact(args[0], "yyyyMMdd", null, DateTimeStyles.None, out var date))
+        if (!DateTime.TryParseExact(args[0], "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
         {
             diag.Report(new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Mg_Meta_Invalid_date))
             {

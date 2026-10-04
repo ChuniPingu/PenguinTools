@@ -44,7 +44,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         try
         {
             var analysisArgs = CreateAnalysisArguments(sourcePath, offset, statsFileName);
-            var analysis = await RunAsync(FfmpegExecutablePath, analysisArgs, ct, outputDirectory);
+            var analysis = await RunAsync(FfmpegExecutablePath, analysisArgs, outputDirectory, ct);
             analysis.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
 
             if (!TryReadLoudnessStats(statsPath, out var stats, out var parseError))
@@ -59,7 +59,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             }
 
             var conversionArgs = CreateConversionArguments(sourcePath, temporaryPath, offset, CalculateGainDb(stats));
-            var converted = await RunAsync(FfmpegExecutablePath, conversionArgs, ct, outputDirectory);
+            var converted = await RunAsync(FfmpegExecutablePath, conversionArgs, outputDirectory, ct);
             converted.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
             File.Move(temporaryPath, destinationPath, true);
             return converted;
@@ -87,13 +87,13 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             "-dn",
             "-f", "null",
             "-"
-        ], ct);
+        ], ct: ct);
     }
 
     public async Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        return await RunAsync(ImgExecutablePath, ["check", "-s", src], ct);
+        return await RunAsync(ImgExecutablePath, ["check", "-s", src], ct: ct);
     }
 
     public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
@@ -101,7 +101,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_jk_image);
     }
 
@@ -131,7 +131,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             args.Add(fxPath);
         }
 
-        var ret = await RunAsync(ImgExecutablePath, args, ct);
+        var ret = await RunAsync(ImgExecutablePath, args, ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
     }
 
@@ -140,7 +140,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
     }
 
@@ -148,7 +148,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
-        var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
         return new DdsDecodeResult(src, dst);
     }
@@ -170,22 +170,17 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             args.Add(key.ToString(CultureInfo.InvariantCulture));
         }
 
-        var ret = await RunAsync(CriExecutablePath, args, ct);
+        var ret = await RunAsync(CriExecutablePath, args, ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
         return JsonSerializer.Deserialize(ret.StandardOutput, InfrastructureJsonContext.Default.CriExtractResult)
                ?? throw new JsonException("PenguinTools.CRI returned an empty extraction manifest.");
     }
 
     public async Task ConvertCriAsync(
-        string wav,
-        string acb,
-        string awb,
-        string name,
-        long previewStartMs,
-        long previewStopMs,
-        ulong hcaKey,
+        CriConvertRequest request,
         CancellationToken ct = default)
     {
+        var (wav, acb, awb, name, previewStartMs, previewStopMs, hcaKey) = request;
         ArgumentException.ThrowIfNullOrWhiteSpace(wav);
         ArgumentException.ThrowIfNullOrWhiteSpace(acb);
         ArgumentException.ThrowIfNullOrWhiteSpace(awb);
@@ -200,7 +195,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             "--preview-start-ms", previewStartMs.ToString(CultureInfo.InvariantCulture),
             "--preview-stop-ms", previewStopMs.ToString(CultureInfo.InvariantCulture),
             "--hca-key", hcaKey.ToString(CultureInfo.InvariantCulture)
-        ], ct);
+        ], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
     }
 
@@ -354,7 +349,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     }
 
     private static async Task<ProcessCommandResult> RunAsync(string executablePath, IEnumerable<string> args,
-        CancellationToken ct = default, string? workingDirectory = null)
+        string? workingDirectory = null, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         var startInfo = CreateStartInfo(executablePath, args, workingDirectory);

@@ -73,14 +73,14 @@ internal static class C2SJudgeSummaryCalculator
 
         var nextChainId = 0;
 
-        foreach (var entry in chart.Notes
+        foreach (var segment in chart.Notes
                      .OfType<c2s.Slide>()
                      .Select((segment, sourceOrder) =>
                          (Segment: segment, SourceOrder: sourceOrder))
                      .OrderBy(x => x.Segment.Tick.Original)
-                     .ThenBy(x => x.SourceOrder))
+                     .ThenBy(x => x.SourceOrder)
+                     .Select(entry => entry.Segment))
         {
-            var segment = entry.Segment;
 
             var start = new SlidePoint(
                 segment.Tick.Original,
@@ -166,11 +166,8 @@ internal static class C2SJudgeSummaryCalculator
         IReadOnlyList<c2s.Bpm> bpmEvents,
         int tick)
     {
-        var bpm = chart.Meta.MainBpm > 0
-            ? chart.Meta.MainBpm
-            : chart.Meta.BgmInitialBpm > 0
-                ? chart.Meta.BgmInitialBpm
-                : 120m;
+        var initialBpm = chart.Meta.BgmInitialBpm > 0 ? chart.Meta.BgmInitialBpm : 120m;
+        var bpm = chart.Meta.MainBpm > 0 ? chart.Meta.MainBpm : initialBpm;
 
         foreach (var bpmEvent in bpmEvents)
         {
@@ -212,14 +209,14 @@ internal static class C2SJudgeSummaryCalculator
         var roots = new List<c2s.Slide>();
         var nextChainId = 0;
 
-        foreach (var entry in chart.Notes
+        foreach (var segment in chart.Notes
                      .OfType<c2s.Slide>()
                      .Select((segment, sourceOrder) =>
                          (Segment: segment, SourceOrder: sourceOrder))
                      .OrderBy(x => x.Segment.Tick.Original)
-                     .ThenBy(x => x.SourceOrder))
+                     .ThenBy(x => x.SourceOrder)
+                     .Select(entry => entry.Segment))
         {
-            var segment = entry.Segment;
 
             var start = new SlidePoint(
                 segment.Tick.Original,

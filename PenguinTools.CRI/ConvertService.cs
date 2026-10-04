@@ -11,6 +11,9 @@ using VGAudio.Containers.Wave;
 
 namespace PenguinTools.CRI;
 
+internal sealed record CriEncodingOptions(long PreviewStartMs, long PreviewStopMs,
+    ulong HcaKey, uint Bitrate = ConvertService.DefaultBitrate);
+
 internal static class ConvertService
 {
     public const ulong DefaultHcaKey = 32931609366120192UL;
@@ -21,11 +24,9 @@ internal static class ConvertService
         string acbPath,
         string awbPath,
         string name,
-        long previewStartMs,
-        long previewStopMs,
-        ulong hcaKey,
-        uint bitrate = DefaultBitrate)
+        CriEncodingOptions options)
     {
+        var (previewStartMs, previewStopMs, hcaKey, bitrate) = options;
         ArgumentException.ThrowIfNullOrWhiteSpace(wavPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(acbPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(awbPath);
