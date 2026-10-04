@@ -7,14 +7,14 @@ using Xunit;
 
 namespace PenguinTools.Tests.Infrastructure;
 
-public sealed class MuaMediaToolTests
+public sealed class MediaToolTests
 {
     [Fact]
     public void CalculateGainDb_UsesGameTarget_WhenItFitsPeakCeiling()
     {
         var stats = new FfmpegLoudnessStats(-6.21, 2.11, 8.3);
 
-        var gain = MuaMediaTool.CalculateGainDb(stats);
+        var gain = MediaTool.CalculateGainDb(stats);
 
         Assert.InRange(gain, -2.291, -2.289);
     }
@@ -24,7 +24,7 @@ public sealed class MuaMediaToolTests
     {
         var stats = new FfmpegLoudnessStats(-12.0, -0.1, 4.0);
 
-        var gain = MuaMediaTool.CalculateGainDb(stats);
+        var gain = MediaTool.CalculateGainDb(stats);
 
         Assert.InRange(gain, 0.099, 0.101);
     }
@@ -43,7 +43,7 @@ public sealed class MuaMediaToolTests
                                     }
                                     """);
 
-            var success = MuaMediaTool.TryReadLoudnessStats(path, out var stats, out var error);
+            var success = MediaTool.TryReadLoudnessStats(path, out var stats, out var error);
 
             Assert.True(success, error);
             Assert.Equal(-8.5, stats.InputIntegratedLufs);
@@ -59,20 +59,21 @@ public sealed class MuaMediaToolTests
     [Fact]
     public async Task CheckAudioValidAsync_ReturnsFailure_WhenExecutableIsMissing()
     {
-        var workDir = Path.Combine(Path.GetTempPath(), "penguintools-mua-tests", Guid.NewGuid().ToString("N"));
+        var workDir = Path.Combine(Path.GetTempPath(), "penguintools-media-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workDir);
 
         try
         {
-            var tool = new MuaMediaTool(workDir);
+            var tool = new MediaTool(workDir);
             var result = await tool.CheckAudioValidAsync(
                 Path.Combine(workDir, "missing.wav"),
                 TestContext.Current.CancellationToken);
 
             Assert.True(result.IsFailure);
-            Assert.Equal(InterExitCode.Failure, result.ExitCode);
-            Assert.Contains("ffmpeg", result.StandardError, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(workDir, result.StandardError);
+            var command = Assert.IsType<ProcessCommandResult>(result.Failure);
+            Assert.Equal(InterExitCode.Failure, command.ExitCode);
+            Assert.Contains("ffmpeg", command.StandardError, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(workDir, command.StandardError);
         }
         finally
         {
@@ -85,7 +86,7 @@ public sealed class MuaMediaToolTests
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var tool = new MuaMediaTool(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        var tool = new MediaTool(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             tool.CheckAudioValidAsync("input.wav", cancellation.Token));

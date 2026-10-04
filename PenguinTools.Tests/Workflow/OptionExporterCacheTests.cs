@@ -17,6 +17,28 @@ namespace PenguinTools.Tests.Workflow;
 public sealed class OptionExporterCacheTests
 {
     [Fact]
+    public void ImageMigration_InvalidatesVersionFourImagesAndPreservesAudioCache()
+    {
+        var entry = new OptionConversionCacheEntry { RecipeHash = "old" };
+        var cache = new OptionConversionCache
+        {
+            Image = new OptionConversionCachePartition
+            {
+                Version = 4,
+                Entries = new Dictionary<string, OptionConversionCacheEntry> { ["jacket:old"] = entry, ["stage:old"] = entry }
+            }
+        };
+        cache.SetEntry("audio:existing", entry);
+        Assert.Null(cache.GetEntry("jacket:old"));
+        Assert.Null(cache.GetEntry("stage:old"));
+        Assert.Same(entry, cache.GetEntry("audio:existing"));
+        cache.SetEntry("jacket:new", entry);
+        Assert.Same(entry, cache.GetEntry("jacket:new"));
+        Assert.Equal(5, cache.Image.Version);
+        Assert.Single(cache.Image.Entries);
+    }
+
+    [Fact]
     public async Task ExportAsync_FailedJacketDoesNotSucceedOrPopulateCache()
     {
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -544,14 +566,14 @@ public sealed class OptionExporterCacheTests
             return Task.FromResult(Ok());
         }
 
-        public Task<ProcessCommandResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
+        public Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
         {
-            return Task.FromResult(Ok());
+            return Task.FromResult(MediaValidationResult.Valid);
         }
 
-        public Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
+        public Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default)
         {
-            return Task.FromResult(Ok());
+            return Task.FromResult(MediaValidationResult.Valid);
         }
 
         public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
@@ -605,7 +627,7 @@ public sealed class OptionExporterCacheTests
         {
             return asset switch
             {
-                InfrastructureAsset.Mua => Path.Combine(workPath, "mua"),
+                InfrastructureAsset.Texconv => Path.Combine(workPath, "texconv"),
                 _ => throw new ArgumentOutOfRangeException(nameof(asset), asset, null)
             };
         }

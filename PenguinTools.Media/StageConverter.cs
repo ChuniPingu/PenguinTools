@@ -84,7 +84,7 @@ public class StageConverter
                 Diagnostic.Report(
                     new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Invalid_bg_image), BackgroundPath)
                     {
-                        Target = ret
+                        Target = ret.Failure
                     });
                 hasError = true;
             }
@@ -119,7 +119,7 @@ public class StageConverter
                 {
                     Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Invalid_bg_fx_image), p)
                     {
-                        Target = ret
+                        Target = ret.Failure
                     });
                     hasError = true;
                 }

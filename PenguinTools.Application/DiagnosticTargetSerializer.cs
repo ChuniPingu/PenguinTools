@@ -2,6 +2,7 @@ using System.Text.Json;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Image;
 using PenguinTools.Media;
 using PenguinTools.Workflow;
 
@@ -14,6 +15,10 @@ public static class DiagnosticTargetSerializer
         return target switch
         {
             null => null,
+            TexconvException command => JsonSerializer.SerializeToElement(
+                new CommandDiagnosticTarget(command.Command, command.ExitCode,
+                    command.StandardOutput, command.StandardError),
+                DiagnosticTargetJsonContext.Default.CommandDiagnosticTarget),
             ProcessCommandResult command => JsonSerializer.SerializeToElement(
                 new CommandDiagnosticTarget(command.Command, (int)command.ExitCode,
                     command.StandardOutput, command.StandardError),

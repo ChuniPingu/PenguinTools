@@ -4,7 +4,7 @@ namespace PenguinTools.Infrastructure;
 
 /// <summary>
 ///     Resolves the temp work directory.
-///     Override with <c>PENGUIN_TOOLS_TEMP</c>.
+///     Override the parent directory with <c>PENGUIN_TOOLS_TEMP</c>.
 /// </summary>
 public sealed class ApplicationPaths : IApplicationPaths
 {
@@ -21,7 +21,9 @@ public sealed class ApplicationPaths : IApplicationPaths
 
     public static ApplicationPaths Create()
     {
-        var tempWorkPath = ResolveTempWorkPath();
+        // AssetStore owns and deletes this directory. Sharing its root across applications
+        // would let one CLI invocation delete another invocation's active image workspaces.
+        var tempWorkPath = Path.Combine(ResolveTempWorkPath(), "session-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempWorkPath);
         return new ApplicationPaths(tempWorkPath);
     }

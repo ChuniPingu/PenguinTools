@@ -4,7 +4,7 @@ Tools for converting CHUNITHM charts, music, jackets, and stages.
 
 ## Prerequisites
 
-For Windows builds: Git, the .NET SDK, Rust with the MSVC target, Visual Studio C++ build tools, LLVM, and a vcpkg checkout.
+For Windows builds: Git, the .NET SDK, Visual Studio C++ build tools, and a vcpkg checkout for FFmpeg.
 
 Use the versions selected by [global.json](global.json), [Common.props](Common.props), and native dependency configuration. See [development setup](docs/development.md) for environment variables and publish profiles.
 
@@ -18,7 +18,7 @@ dotnet build PenguinTools.slnx -c Release
 dotnet run --project PenguinTools.CLI -- --help
 ```
 
-A managed build is enough to inspect CLI help. Media operations need the native tools and runtime assets described in the development guide.
+Builds prepare the pinned image tools automatically; a verified tool cache works offline. Audio setup is covered in the development guide.
 
 ## Common commands
 
@@ -34,6 +34,7 @@ A managed build is enough to inspect CLI help. Media operations need the native 
 
 - [Development and releases](docs/development.md)
 - [Project architecture](docs/architecture.md)
+- [Image pipeline](docs/image-pipeline.md)
 - [Testing and local fixtures](docs/testing.md)
 - [Chart formats](docs/formats/README.md)
 - [Third-party notices](THIRD-PARTY-NOTICES.md)

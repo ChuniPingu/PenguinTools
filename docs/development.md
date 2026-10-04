@@ -2,9 +2,9 @@
 
 ## Windows prerequisites
 
-Install Git, the .NET SDK selected by [global.json](../global.json), Rust with the Windows MSVC target, and Visual Studio C++ x64 build tools. Managed target frameworks and package versions are declared in [Common.props](../Common.props) and the project files.
+Install Git, the .NET SDK selected by [global.json](../global.json), and Visual Studio C++ x64 build tools. Managed target frameworks and package versions are declared in [Common.props](../Common.props) and the project files.
 
-The native image tool uses [rust-toolchain.toml](../External/mua/rust-toolchain.toml). Native media builds need a Microsoft vcpkg checkout; set `VCPKG_ROOT` to it. Install LLVM and set `LIBCLANG_PATH` to its bin directory when required by the image tool's native dependencies.
+FFmpeg builds need a Microsoft vcpkg checkout; set `VCPKG_ROOT` to it. Image builds automatically prepare the pinned tools from [native-tools.json](../PenguinTools.Assets/native-tools.json), verifying hashes and reusing `artifacts/tools` offline.
 
 Initialize the pinned dependencies:
 
@@ -27,11 +27,10 @@ Managed CLI output is under `PenguinTools.CLI/bin/<Configuration>/<TargetFramewo
 From the repository root:
 
 ```powershell
-.\External\mua\scripts\build.ps1
 .\External\ffmpeg\scripts\build.ps1
 ```
 
-mua publishes its image executable and notices under `External/mua/target/release/mua/`. FFmpeg publishes under `External/ffmpeg/bin/`.
+FFmpeg publishes under `External/ffmpeg/bin/`. Its release workflow is maintained in [ffmpeg-build](https://github.com/ChuniPingu/ffmpeg-build); the binary dependency switch awaits the first published, verified release.
 
 For the complete Windows payload:
 
@@ -39,9 +38,9 @@ For the complete Windows payload:
 .\build.ps1
 ```
 
-The script builds both native tools and publishes the CRI helper and CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime.
+The script builds FFmpeg and publishes the CRI helper and CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime.
 
-CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the CLI together with its `assets/` directory, including the native tools, CRI helper, and applicable license notices.
+CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the complete folder, including libvips, `assets/`, the CRI helper, and license notices. Runtime needs no network.
 
 ## Checks and contributions
 

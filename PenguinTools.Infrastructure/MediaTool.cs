@@ -2,11 +2,13 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
+using PenguinTools.Image;
 using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
 
-public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
+public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirectory = null) : IMediaTool
 {
     internal const double TargetLoudnessLufs = -8.5;
     internal const double TargetTruePeakDbtp = 0.0;
@@ -15,14 +17,16 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
 
     private string AssetDirectory { get; } = RequireDirectory(assetDirectory, nameof(assetDirectory));
 
-    private string MuaDirectory => Path.Combine(AssetDirectory, "mua");
+    private ImageService Images { get; } = new(
+        Path.Combine(RequireDirectory(assetDirectory, nameof(assetDirectory)), "texconv", "texconv.exe"),
+        temporaryWorkDirectory ?? Path.Combine(Path.GetTempPath(), "PenguinTools.Temp"));
 
     private string FfmpegDirectory => Path.Combine(AssetDirectory, "ffmpeg");
 
     private string CriDirectory => Path.Combine(AssetDirectory, "cri");
 
     private string FfmpegExecutablePath => ResolveExecutable(FfmpegDirectory, "ffmpeg");
-    private string ImgExecutablePath => ResolveMuaExecutable("mua_img");
+
     private string CriExecutablePath => ResolveCriExecutable();
 
     public async Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
@@ -71,10 +75,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         }
     }
 
-    public async Task<ProcessCommandResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
+    public async Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        return await RunAsync(FfmpegExecutablePath, [
+        var result = await RunAsync(FfmpegExecutablePath, [
             "-hide_banner",
             "-nostdin",
             "-nostats",
@@ -88,74 +92,50 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             "-f", "null",
             "-"
         ], ct: ct);
+        return result.IsSuccess ? MediaValidationResult.Valid : MediaValidationResult.Invalid(result);
     }
 
-    public async Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
+    public async Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        return await RunAsync(ImgExecutablePath, ["check", "-s", src], ct: ct);
-    }
-
-    public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        ArgumentException.ThrowIfNullOrWhiteSpace(dst);
-
-        var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct: ct);
-        ret.ThrowIfFailed(MsgKeys.Error_Invalid_jk_image);
-    }
-
-    public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
-        int backgroundOffset,
-        CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bg);
-        ArgumentException.ThrowIfNullOrWhiteSpace(stDst);
-        ArgumentException.ThrowIfNullOrWhiteSpace(nfDst);
-
-        var args = new List<string>
+        try
         {
-            "stage",
-            "-b", bg,
-            "-d", stDst,
-            "-n", nfDst,
-            "--background-offset", backgroundOffset.ToString(CultureInfo.InvariantCulture)
-        };
-
-        for (var i = 0; fxPaths is not null && i < fxPaths.Length && i < 4; i++)
-        {
-            var fxPath = fxPaths[i];
-            if (string.IsNullOrWhiteSpace(fxPath))
-            {
-                continue;
-            }
-
-            args.Add($"--fx{i + 1}");
-            args.Add(fxPath);
+            await Images.ValidateAsync(src, ct);
+            return MediaValidationResult.Valid;
         }
-
-        var ret = await RunAsync(ImgExecutablePath, args, ct: ct);
-        ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return MediaValidationResult.Invalid(ex);
+        }
     }
 
-    public async Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        ArgumentException.ThrowIfNullOrWhiteSpace(dst);
+    public Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default) =>
+        RunImageAsync(() => Images.ConvertJacketAsync(src, dst, ct), MsgKeys.Error_Invalid_jk_image);
 
-        var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct: ct);
-        ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
-    }
+    public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
+        int backgroundOffset, CancellationToken ct = default) =>
+        RunImageAsync(() => Images.ConvertStageAsync(bg, stDst, nfDst, fxPaths, backgroundOffset, ct: ct),
+            MsgKeys.Error_Invalid_bg_image);
+
+    public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default) =>
+        RunImageAsync(() => Images.ExtractDdsAsync(src, dst, ct), MsgKeys.Error_Invalid_bg_image);
 
     public async Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        ArgumentException.ThrowIfNullOrWhiteSpace(dst);
-        var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct: ct);
-        ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
+        await RunImageAsync(() => Images.DecodeDdsAsync(src, dst, ct), MsgKeys.Error_Invalid_bg_image);
         return new DdsDecodeResult(src, dst);
     }
 
+    private static async Task RunImageAsync(Func<Task> action, string messageKey)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new DiagnosticException(messageKey, ex);
+        }
+    }
     public async Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options,
         CancellationToken ct = default)
     {
@@ -200,11 +180,6 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             "--hca-key", hcaKey.ToString(CultureInfo.InvariantCulture)
         ], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
-    }
-
-    private string ResolveMuaExecutable(string name)
-    {
-        return ResolveExecutable(MuaDirectory, name);
     }
 
     private string ResolveCriExecutable()
