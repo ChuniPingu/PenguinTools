@@ -31,6 +31,7 @@ public sealed partial class ChartExtras
     public Dictionary<string, string> Headers { get; set; } = [];
     public List<string> SourceStatistics { get; set; } = [];
     public string? SourceKey { get; set; }
+    public bool C2sCoordinateOrigin { get; set; }
     public string? UgcContentKey { get; set; }
     [JsonIgnore] public string? ParsedEventModelKey { get; set; }
     public List<MeterSnapshot> Meters { get; set; } = [];

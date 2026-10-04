@@ -76,6 +76,7 @@ public sealed class UgcChartConverter
     {
         _target.Meta = _source.Meta;
         _target.Extras = _source.Extras;
+        _target.Extras.C2sCoordinateOrigin = true;
 
         CaptureSourceSnapshots();
 
