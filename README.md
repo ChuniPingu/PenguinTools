@@ -34,7 +34,6 @@ Builds prepare the pinned image tools automatically; a verified tool cache works
 
 - [Development and releases](docs/development.md)
 - [Project architecture](docs/architecture.md)
-- [Image pipeline](docs/image-pipeline.md)
 - [Testing and local fixtures](docs/testing.md)
 - [Chart formats](docs/formats/README.md)
 - [Third-party notices](THIRD-PARTY-NOTICES.md)

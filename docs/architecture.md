@@ -32,8 +32,8 @@ Conversion tests cover metadata, timing, note relationships, payloads, and C2S r
 
 English and Simplified Chinese catalogs are in `docs/locales/`. Keep keys and placeholders aligned across catalogs. Callers can translate these descriptors without parsing CLI prose.
 
-## Native dependencies
+## External dependencies
 
-`External/` contains independent Git submodules for FFmpeg, SonicAudioTools, and VGAudio. Image processing uses NetVips in-process and pinned texconv for DDS codecs. The Windows publish pipeline supplies native dependencies and the CRI helper; see the [image pipeline](image-pipeline.md).
+`External/` contains independent Git submodules for SonicAudioTools and VGAudio.
 
 Dependency source changes and submodule reference updates are separate reviewable changes. Build output and proprietary local samples do not belong in source control. See [development](development.md) and [testing](testing.md).
