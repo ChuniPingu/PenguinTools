@@ -24,18 +24,18 @@ public sealed class InfrastructureAssetProvider(IAssetStore assets) : IInfrastru
     {
         return asset switch
         {
-            InfrastructureAsset.Mua => ResolveMuaDirectory(),
+            InfrastructureAsset.Texconv => ResolveTexconvDirectory(),
             _ => throw new ArgumentOutOfRangeException(nameof(asset), asset, null)
         };
     }
 
-    private string ResolveMuaDirectory()
+    private string ResolveTexconvDirectory()
     {
-        var path = Path.Combine(Assets.AssetDirectory, "mua");
+        var path = Path.Combine(Assets.AssetDirectory, "texconv");
         if (!Directory.Exists(path))
         {
             throw new DirectoryNotFoundException(
-                $"mua publish directory was not found in asset directory '{Assets.AssetDirectory}'.");
+                $"texconv directory was not found in asset directory '{Assets.AssetDirectory}'.");
         }
 
         return path;

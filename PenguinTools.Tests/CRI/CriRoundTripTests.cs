@@ -88,7 +88,7 @@ public class CriRoundTripTests
         WriteStereo48kWav(wavPath, sampleFrames: 2400);
         var acbPath = Path.Combine(dir.Path, "output with spaces.acb");
         var awbPath = Path.Combine(dir.Path, "output with spaces.awb");
-        var tool = new MuaMediaTool(Path.Combine(dir.Path, "absent assets"));
+        var tool = new MediaTool(Path.Combine(dir.Path, "absent assets"));
         var ct = TestContext.Current.CancellationToken;
 
         await tool.ConvertCriAsync(new CriConvertRequest(wavPath, acbPath, awbPath, "cueFile000002", 100, 200,
@@ -114,7 +114,7 @@ public class CriRoundTripTests
     public async Task Media_tool_reports_CRI_failure_as_invalid_audio()
     {
         using var dir = new TempDirectory();
-        var tool = new MuaMediaTool(dir.Path);
+        var tool = new MediaTool(dir.Path);
         var ct = TestContext.Current.CancellationToken;
 
         var convertError = await Assert.ThrowsAsync<DiagnosticException>(() => tool.ConvertCriAsync(new CriConvertRequest(
@@ -135,7 +135,7 @@ public class CriRoundTripTests
         using var dir = new TempDirectory();
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var tool = new MuaMediaTool(dir.Path);
+        var tool = new MediaTool(dir.Path);
         var acbPath = Path.Combine(dir.Path, "out.acb");
         var awbPath = Path.Combine(dir.Path, "out.awb");
         var decodedPath = Path.Combine(dir.Path, "decoded");

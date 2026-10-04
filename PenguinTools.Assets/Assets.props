@@ -1,20 +1,13 @@
 <Project>
     <PropertyGroup>
-        <PenguinToolsMuaRoot>$(MSBuildThisFileDirectory)..\External\mua</PenguinToolsMuaRoot>
-        <PenguinToolsMuaPublishDir>$(PenguinToolsMuaRoot)\target\release\mua</PenguinToolsMuaPublishDir>
-        <PenguinToolsFfmpegRoot>$(MSBuildThisFileDirectory)..\External\ffmpeg</PenguinToolsFfmpegRoot>
-        <PenguinToolsFfmpegPublishDir>$(PenguinToolsFfmpegRoot)\bin</PenguinToolsFfmpegPublishDir>
+        <PenguinToolsTexconvDirectory>$(MSBuildThisFileDirectory)..\artifacts\tools\texconv</PenguinToolsTexconvDirectory>
+        <PenguinToolsFfmpegPublishDir>$(MSBuildThisFileDirectory)..\artifacts\tools\ffmpeg</PenguinToolsFfmpegPublishDir>
     </PropertyGroup>
 
     <ItemGroup>
-        <_MuaPublishFile Include="$(PenguinToolsMuaPublishDir)\**\*"/>
-        <PenguinToolsMuaContent Include="@(_MuaPublishFile)">
-            <PublishPath>assets\mua\%(RecursiveDir)%(Filename)%(Extension)</PublishPath>
-        </PenguinToolsMuaContent>
-        <_FfmpegPublishFile Include="$(PenguinToolsFfmpegPublishDir)\**\*"/>
-        <PenguinToolsFfmpegContent Include="@(_FfmpegPublishFile)">
-            <PublishPath>assets\ffmpeg\%(RecursiveDir)%(Filename)%(Extension)</PublishPath>
-        </PenguinToolsFfmpegContent>
+        <PenguinToolsTexconvContent Include="$(PenguinToolsTexconvDirectory)\texconv.exe;$(MSBuildThisFileDirectory)Licenses\DirectXTex.txt">
+            <PublishPath>assets\texconv\%(Filename)%(Extension)</PublishPath>
+        </PenguinToolsTexconvContent>
         <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\Assets\assets.json">
             <ResourceName>assets.json</ResourceName>
             <ManifestKey>AssetsJson</ManifestKey>
@@ -23,13 +16,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="@(PenguinToolsMuaContent)">
+        <Content Include="$(MSBuildThisFileDirectory)Licenses\NetVips.txt;$(MSBuildThisFileDirectory)Licenses\LGPL-3.0.txt;$(MSBuildThisFileDirectory)Licenses\GPL-3.0.txt;$(MSBuildThisFileDirectory)Licenses\libvips-THIRD-PARTY-NOTICES.md;$(MSBuildThisFileDirectory)Licenses\libvips-versions.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            <TargetPath>%(PublishPath)</TargetPath>
-            <Link>%(PublishPath)</Link>
+            <TargetPath>assets\licenses\%(Filename)%(Extension)</TargetPath>
+            <Link>assets\licenses\%(Filename)%(Extension)</Link>
         </Content>
-        <Content Include="@(PenguinToolsFfmpegContent)">
+        <Content Include="@(PenguinToolsTexconvContent)">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             <TargetPath>%(PublishPath)</TargetPath>

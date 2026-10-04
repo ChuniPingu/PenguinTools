@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <Import Project="..\Common.props"/>
     <Import Project="Assets.props"/>
+    <Import Project="PrepareNativeTools.targets"/>
     <Import Project="GenerateInfrastructureResourceManifest.targets"/>
 
     <PropertyGroup>

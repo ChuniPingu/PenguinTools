@@ -5,7 +5,7 @@ namespace PenguinTools.Chart.Parser;
 
 internal static class MediaValidation
 {
-    public static async Task ReportAsync(Task<ProcessCommandResult> validation, string path, string messageKey,
+    public static async Task ReportAsync(Task<MediaValidationResult> validation, string path, string messageKey,
         Action onFailure, IDiagnosticSink diagnostics)
     {
         object failure;
@@ -17,7 +17,7 @@ internal static class MediaValidation
                 return;
             }
 
-            failure = result;
+            failure = result.Failure ?? result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

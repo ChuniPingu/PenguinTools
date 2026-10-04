@@ -7,6 +7,21 @@ namespace PenguinTools.Tests.Infrastructure;
 public class TempFileNamesTests
 {
     [Fact]
+    public void ApplicationCleanup_DoesNotDeleteAnotherApplicationsWorkspace()
+    {
+        var first = ApplicationPaths.Create();
+        var second = ApplicationPaths.Create();
+        using var firstStore = new AssetStore(AppContext.BaseDirectory, first.TempWorkPath);
+        using var secondStore = new AssetStore(AppContext.BaseDirectory, second.TempWorkPath);
+        Assert.NotEqual(first.TempWorkPath, second.TempWorkPath);
+        var activeFile = secondStore.GetTempPath("active.tga");
+        File.WriteAllText(activeFile, "active conversion");
+        firstStore.Dispose();
+        Assert.False(Directory.Exists(first.TempWorkPath));
+        Assert.Equal("active conversion", File.ReadAllText(activeFile));
+    }
+
+    [Fact]
     public void MakeUnique_PreservesStemAndExtension_AndDiffersAcrossCalls()
     {
         var first = TempFileNames.MakeUnique("c_240.wav");

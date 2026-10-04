@@ -1,18 +1,5 @@
 $ErrorActionPreference = 'Stop'
 
-$nativeBuilds = @(
-    'External/mua/scripts/build.ps1',
-    'External/ffmpeg/scripts/build.ps1'
-)
-
-foreach ($nativeBuild in $nativeBuilds) {
-    Write-Host "Building $nativeBuild..."
-    & (Join-Path $PSScriptRoot $nativeBuild)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Native build failed: $nativeBuild"
-    }
-}
-
 $publishTargets = @(
     @{
         Project = 'PenguinTools.CLI/PenguinTools.CLI.csproj'
@@ -32,6 +19,7 @@ foreach ($target in $publishTargets) {
         '/p:DebugType=None',
         '/p:DebugSymbols=false'
     )
+
     & dotnet @publishArgs
 
     if ($LASTEXITCODE -ne 0) {
@@ -39,4 +27,6 @@ foreach ($target in $publishTargets) {
     }
 }
 
-if (-not $env:CI) { pause }
+if (-not $env:CI) {
+    pause
+}

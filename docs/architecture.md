@@ -9,6 +9,7 @@ The CLI is a command adapter around application services. Chart and media projec
 | `PenguinTools.Core`           | Shared metadata, diagnostics, messages, IO helpers, and interfaces |
 | `PenguinTools.Chart`          | Parse, model, validate, post-process, and write charts             |
 | `PenguinTools.Media`          | Audio, jacket, stage, and container operations                     |
+| `PenguinTools.Image`          | In-process raster processing, DDS conversion, and AFB handling     |
 | `PenguinTools.Workflow`       | Scan charts and coordinate music/option exports and caches         |
 | `PenguinTools.Infrastructure` | Asset storage, paths, and native tool execution                    |
 | `PenguinTools.Assets`         | Asset build/copy configuration                                     |
@@ -31,8 +32,8 @@ Conversion tests cover metadata, timing, note relationships, payloads, and C2S r
 
 English and Simplified Chinese catalogs are in `docs/locales/`. Keep keys and placeholders aligned across catalogs. Callers can translate these descriptors without parsing CLI prose.
 
-## Native dependencies
+## External dependencies
 
-`External/` contains independent Git submodules for mua, FFmpeg, SonicAudioTools, and VGAudio. The Windows publish pipeline supplies native executables under the CLI's `assets/` directory. CRI conversion and extraction run through the managed CRI library in the CLI process, return typed results, and propagate cancellation through codec progress callbacks. HCA extraction disables codec console logging to preserve CLI JSON output.
+`External/` contains independent Git submodules for SonicAudioTools and VGAudio.
 
 Dependency source changes and submodule reference updates are separate reviewable changes. Build output and proprietary local samples do not belong in source control. See [development](development.md) and [testing](testing.md).
