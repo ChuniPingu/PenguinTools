@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
+using PenguinTools.CRI;
 using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
@@ -19,11 +21,8 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
 
     private string FfmpegDirectory => Path.Combine(AssetDirectory, "ffmpeg");
 
-    private string CriDirectory => Path.Combine(AssetDirectory, "cri");
-
     private string FfmpegExecutablePath => ResolveExecutable(FfmpegDirectory, "ffmpeg");
     private string ImgExecutablePath => ResolveMuaExecutable("mua_img");
-    private string CriExecutablePath => ResolveCriExecutable();
 
     public async Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
         CancellationToken ct = default)
@@ -157,23 +156,16 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var args = new List<string> { "extract", options.SourcePath, options.OutputDirectory };
-        if (!string.IsNullOrWhiteSpace(options.PairedInputPath))
+        try
         {
-            args.Add("--paired-input");
-            args.Add(options.PairedInputPath);
+            return await Task.Run(() => ExtractService.Extract(
+                options.SourcePath, options.OutputDirectory, options.PairedInputPath,
+                options.HcaKey ?? ConvertService.DefaultHcaKey, ct), ct);
         }
-
-        if (options.HcaKey is { } key)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            args.Add("--hca-key");
-            args.Add(key.ToString(CultureInfo.InvariantCulture));
+            throw new DiagnosticException(MsgKeys.Error_Invalid_audio, ex.Message);
         }
-
-        var ret = await RunAsync(CriExecutablePath, args, ct);
-        ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
-        return JsonSerializer.Deserialize(ret.StandardOutput, InfrastructureJsonContext.Default.CriExtractResult)
-               ?? throw new JsonException("PenguinTools.CRI returned an empty extraction manifest.");
     }
 
     public async Task ConvertCriAsync(
@@ -191,28 +183,20 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(awb);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var ret = await RunAsync(CriExecutablePath, [
-            "convert",
-            "--wav", wav,
-            "--acb", acb,
-            "--awb", awb,
-            "--name", name,
-            "--preview-start-ms", previewStartMs.ToString(CultureInfo.InvariantCulture),
-            "--preview-stop-ms", previewStopMs.ToString(CultureInfo.InvariantCulture),
-            "--hca-key", hcaKey.ToString(CultureInfo.InvariantCulture)
-        ], ct);
-        ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
+        try
+        {
+            await Task.Run(() => ConvertService.Convert(
+                wav, acb, awb, name, previewStartMs, previewStopMs, hcaKey, cancellationToken: ct), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new DiagnosticException(MsgKeys.Error_Invalid_audio, ex.Message);
+        }
     }
 
     private string ResolveMuaExecutable(string name)
     {
         return ResolveExecutable(MuaDirectory, name);
-    }
-
-    private string ResolveCriExecutable()
-    {
-        const string name = "PenguinTools.CRI";
-        return ResolveExecutable(CriDirectory, name);
     }
 
     private static string ResolveExecutable(string directory, string name)
