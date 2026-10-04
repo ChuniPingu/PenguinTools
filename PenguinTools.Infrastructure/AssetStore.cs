@@ -55,9 +55,11 @@ public sealed class AssetStore : IAssetStore
     {
         var path = Path.Combine(AssetDirectory, assetName);
         if (!File.Exists(path))
+        {
             throw new FileNotFoundException(
                 $"Asset '{assetName}' was not found in asset directory '{AssetDirectory}'.",
                 path);
+        }
 
         return path;
     }

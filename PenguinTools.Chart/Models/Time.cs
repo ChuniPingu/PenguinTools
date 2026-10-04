@@ -15,6 +15,11 @@ public readonly record struct Time(int Original) : IComparable<Time>
         return Original.CompareTo(other.Original);
     }
 
+    public static bool operator <(Time left, Time right) => left.CompareTo(right) < 0;
+    public static bool operator <=(Time left, Time right) => left.CompareTo(right) <= 0;
+    public static bool operator >(Time left, Time right) => left.CompareTo(right) > 0;
+    public static bool operator >=(Time left, Time right) => left.CompareTo(right) >= 0;
+
     public static implicit operator Time(int value)
     {
         return new Time(value);

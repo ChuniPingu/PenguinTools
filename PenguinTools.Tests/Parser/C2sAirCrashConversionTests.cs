@@ -1,14 +1,14 @@
+using System.Text;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
-using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
-using PenguinTools.Core.Metadata;
+using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
-using System.Text;
+using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
 
@@ -195,11 +195,15 @@ public sealed class C2sAirCrashConversionTests
                     reader.ReadInt32(); // timeline
 
                     if (noteType == 0x0A)
+                    {
                         airCrashLongAttrs.Add(longAttr);
+                    }
 
                     // AirCrush Begin 比普通记录多一个 density/option 字段。
                     if (noteType == 0x0A && longAttr == 0x01)
+                    {
                         reader.ReadInt32();
+                    }
                 }
 
                 stream.Position = blockEnd;
@@ -319,56 +323,85 @@ public sealed class C2sAirCrashConversionTests
 
         source.Notes.Add(new Tap
         {
-            Tick = 0, Lane = 0, Width = 1
+            Tick = 0,
+            Lane = 0,
+            Width = 1
         });
 
         source.Notes.Add(new ExTap
         {
-            Tick = 100, Lane = 1, Width = 1, Effect = ExEffect.UP
+            Tick = 100,
+            Lane = 1,
+            Width = 1,
+            Effect = ExEffect.UP
         });
 
         source.Notes.Add(new Damage
         {
-            Tick = 200, Lane = 2, Width = 1
+            Tick = 200,
+            Lane = 2,
+            Width = 1
         });
 
         source.Notes.Add(new Hold
         {
-            Tick = 300, Lane = 3, Width = 1,
-            EndTick = 400, EndLane = 3, EndWidth = 1
+            Tick = 300,
+            Lane = 3,
+            Width = 1,
+            EndTick = 400,
+            EndLane = 3,
+            EndWidth = 1
         });
 
         source.Notes.Add(new Hold
         {
-            Tick = 500, Lane = 4, Width = 1,
-            EndTick = 600, EndLane = 4, EndWidth = 1,
+            Tick = 500,
+            Lane = 4,
+            Width = 1,
+            EndTick = 600,
+            EndLane = 4,
+            EndWidth = 1,
             Effect = ExEffect.UP
         });
 
         source.Notes.Add(new Slide
         {
-            Tick = 700, Lane = 5, Width = 1,
-            EndTick = 800, EndLane = 6, EndWidth = 1,
+            Tick = 700,
+            Lane = 5,
+            Width = 1,
+            EndTick = 800,
+            EndLane = 6,
+            EndWidth = 1,
             Joint = Joint.D
         });
 
         source.Notes.Add(new Slide
         {
-            Tick = 800, Lane = 6, Width = 1,
-            EndTick = 900, EndLane = 7, EndWidth = 1,
+            Tick = 800,
+            Lane = 6,
+            Width = 1,
+            EndTick = 900,
+            EndLane = 7,
+            EndWidth = 1,
             Joint = Joint.D
         });
 
         source.Notes.Add(new Slide
         {
-            Tick = 1000, Lane = 9, Width = 1,
-            EndTick = 1100, EndLane = 10, EndWidth = 1,
+            Tick = 1000,
+            Lane = 9,
+            Width = 1,
+            EndTick = 1100,
+            EndLane = 10,
+            EndWidth = 1,
             Joint = Joint.D
         });
 
         source.Notes.Add(new Flick
         {
-            Tick = 1200, Lane = 11, Width = 1
+            Tick = 1200,
+            Lane = 11,
+            Width = 1
         });
 
         var result = new UgcChartConverter(new UgcConvertRequest(source)).Convert();

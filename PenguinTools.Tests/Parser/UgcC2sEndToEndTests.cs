@@ -51,7 +51,11 @@ public class UgcC2sEndToEndTests
                 var list = new List<string>();
                 foreach (var line in File.ReadLines(path))
                 {
-                    if (line.StartsWith("SLP\t", StringComparison.Ordinal)) break;
+                    if (line.StartsWith("SLP\t", StringComparison.Ordinal))
+                    {
+                        break;
+                    }
+
                     list.Add(line);
                 }
 
@@ -66,8 +70,15 @@ public class UgcC2sEndToEndTests
         }
         finally
         {
-            if (File.Exists(ugcOut)) File.Delete(ugcOut);
-            if (File.Exists(mgxcOut)) File.Delete(mgxcOut);
+            if (File.Exists(ugcOut))
+            {
+                File.Delete(ugcOut);
+            }
+
+            if (File.Exists(mgxcOut))
+            {
+                File.Delete(mgxcOut);
+            }
         }
     }
 }

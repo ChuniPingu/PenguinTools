@@ -5,7 +5,9 @@ namespace PenguinTools.Core.Xml;
 
 internal static class XmlDocumentFactory
 {
-    internal static XDocument Create<T>(XmlElement<T> value)
+    private const string DataNameElement = "dataName";
+
+    internal static XDocument Create(XmlElement value)
     {
         return value switch
         {
@@ -22,7 +24,7 @@ internal static class XmlDocumentFactory
     {
         return CreateDocument("CueFileData",
         [
-            Element("dataName", value.DataName),
+            Element(DataNameElement, value.DataName),
             EntryElement("name", value.Name),
             PathElement("acbFile", value.AcbFile),
             PathElement("awbFile", value.AwbFile)
@@ -33,7 +35,7 @@ internal static class XmlDocumentFactory
     {
         return CreateDocument("EventData",
         [
-            Element("dataName", value.DataName),
+            Element(DataNameElement, value.DataName),
             EntryElement("netOpenName", value.NetOpenName),
             EntryElement("name", value.Name),
             Element("text", value.Text),
@@ -51,7 +53,7 @@ internal static class XmlDocumentFactory
     {
         return CreateDocument("MusicData",
         [
-            Element("dataName", value.DataName),
+            Element(DataNameElement, value.DataName),
             EntryElement("releaseTagName", value.ReleaseTagName),
             EntryElement("netOpenName", value.NetOpenName),
             Element("disableFlag", value.DisableFlag),
@@ -80,7 +82,7 @@ internal static class XmlDocumentFactory
     {
         return CreateDocument("ReleaseTagData",
         [
-            Element("dataName", value.DataName),
+            Element(DataNameElement, value.DataName),
             EntryElement("name", value.Name),
             Element("titleName", value.TitleName)
         ]);
@@ -90,7 +92,7 @@ internal static class XmlDocumentFactory
     {
         return CreateDocument("StageData",
         [
-            Element("dataName", value.DataName),
+            Element(DataNameElement, value.DataName),
             EntryElement("netOpenName", value.NetOpenName),
             EntryElement("releaseTagName", value.ReleaseTagName),
             EntryElement("name", value.Name),

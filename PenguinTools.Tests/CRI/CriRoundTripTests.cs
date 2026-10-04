@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
@@ -33,10 +34,8 @@ public class CriRoundTripTests
             acbPath,
             awbPath,
             "cueFile000001",
-            previewStartMs: 1234,
-            previewStopMs: 5678,
-            hcaKey: ConvertService.DefaultHcaKey,
-            cancellationToken: TestContext.Current.CancellationToken);
+            new CriEncodingOptions(1234, 5678, ConvertService.DefaultHcaKey),
+            TestContext.Current.CancellationToken);
 
         Assert.True(File.Exists(acbPath));
         Assert.True(File.Exists(awbPath));
@@ -48,17 +47,16 @@ public class CriRoundTripTests
         var cueTable = new CriTable();
         cueTable.Load(cueSheet.Rows[0]["CueTable"] as byte[]);
         Assert.Equal(2, cueTable.Rows.Count);
-        Assert.Equal(0, Convert.ToInt32(cueTable.Rows[0]["CueId"]));
-        Assert.Equal(1, Convert.ToInt32(cueTable.Rows[1]["CueId"]));
-        Assert.Equal(50, Convert.ToInt32(cueTable.Rows[0]["Length"]));
+        Assert.Equal(0, Convert.ToInt32(cueTable.Rows[0]["CueId"], CultureInfo.InvariantCulture));
+        Assert.Equal(1, Convert.ToInt32(cueTable.Rows[1]["CueId"], CultureInfo.InvariantCulture));
+        Assert.Equal(50, Convert.ToInt32(cueTable.Rows[0]["Length"], CultureInfo.InvariantCulture));
 
         var decodedDir = Path.Combine(dir.Path, "decoded");
         var manifest = ExtractService.Extract(acbPath, decodedDir, awbPath, ConvertService.DefaultHcaKey,
             TestContext.Current.CancellationToken);
         Assert.Equal(1, manifest.SchemaVersion);
-        Assert.Single(manifest.Cues);
 
-        var cue = manifest.Cues[0];
+        var cue = Assert.Single(manifest.Cues);
         Assert.Equal(0, cue.CueId);
         Assert.Equal("cueFile000001", cue.Name);
         Assert.Equal((uint)1234, cue.PreviewStartMs);
@@ -93,8 +91,8 @@ public class CriRoundTripTests
         var tool = new MuaMediaTool(Path.Combine(dir.Path, "absent assets"));
         var ct = TestContext.Current.CancellationToken;
 
-        await tool.ConvertCriAsync(wavPath, acbPath, awbPath, "cueFile000002", 100, 200,
-            key ?? ConvertService.DefaultHcaKey, ct);
+        await tool.ConvertCriAsync(new CriConvertRequest(wavPath, acbPath, awbPath, "cueFile000002", 100, 200,
+            key ?? ConvertService.DefaultHcaKey), ct);
         var result = await tool.ExtractCriAudioAsync(new CriExtractOptions(
             useAwb ? awbPath : acbPath, Path.Combine(dir.Path, "decoded"), HcaKey: key), ct);
 
@@ -119,9 +117,9 @@ public class CriRoundTripTests
         var tool = new MuaMediaTool(dir.Path);
         var ct = TestContext.Current.CancellationToken;
 
-        var convertError = await Assert.ThrowsAsync<DiagnosticException>(() => tool.ConvertCriAsync(
+        var convertError = await Assert.ThrowsAsync<DiagnosticException>(() => tool.ConvertCriAsync(new CriConvertRequest(
             Path.Combine(dir.Path, "missing.wav"), Path.Combine(dir.Path, "out.acb"),
-            Path.Combine(dir.Path, "out.awb"), "cue", 0, 1, ConvertService.DefaultHcaKey, ct));
+            Path.Combine(dir.Path, "out.awb"), "cue", 0, 1, ConvertService.DefaultHcaKey), ct));
         var extractError = await Assert.ThrowsAsync<DiagnosticException>(() => tool.ExtractCriAudioAsync(
             new CriExtractOptions(Path.Combine(dir.Path, "missing.awb"), Path.Combine(dir.Path, "decoded")), ct));
 
@@ -142,8 +140,8 @@ public class CriRoundTripTests
         var awbPath = Path.Combine(dir.Path, "out.awb");
         var decodedPath = Path.Combine(dir.Path, "decoded");
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ConvertCriAsync(
-            "missing.wav", acbPath, awbPath, "cue", 0, 1, ConvertService.DefaultHcaKey, cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ConvertCriAsync(new CriConvertRequest(
+            "missing.wav", acbPath, awbPath, "cue", 0, 1, ConvertService.DefaultHcaKey), cancellation.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ExtractCriAudioAsync(
             new CriExtractOptions("missing.awb", decodedPath), cancellation.Token));
 
@@ -159,8 +157,8 @@ public class CriRoundTripTests
         var wavPath = Path.Combine(dir.Path, "input.wav");
         WriteStereo48kWav(wavPath, sampleFrames: 2400);
         var awbPath = Path.Combine(dir.Path, "out.awb");
-        ConvertService.Convert(wavPath, Path.Combine(dir.Path, "out.acb"), awbPath, "cue", 0, 1,
-            ConvertService.DefaultHcaKey, cancellationToken: TestContext.Current.CancellationToken);
+        ConvertService.Convert(wavPath, Path.Combine(dir.Path, "out.acb"), awbPath, "cue",
+            new CriEncodingOptions(0, 1, ConvertService.DefaultHcaKey), TestContext.Current.CancellationToken);
         using var awbStream = File.OpenRead(awbPath);
         var archive = new CriAfs2Archive();
         archive.Read(awbStream);
@@ -235,7 +233,9 @@ public class CriRoundTripTests
             try
             {
                 if (Directory.Exists(Path))
+                {
                     Directory.Delete(Path, recursive: true);
+                }
             }
             catch
             {

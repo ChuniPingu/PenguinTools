@@ -1,3 +1,4 @@
+using System.Globalization;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Metadata;
 
@@ -42,7 +43,7 @@ internal static class ChartMetadata
             GetStarDifficultyLabel(meta.WeDifficulty),
             meta.SortName,
             meta.UnlockEventId,
-            meta.ReleaseDate.ToString("yyyy-MM-dd"),
+            meta.ReleaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             meta.MainTil);
     }
 
@@ -73,51 +74,159 @@ internal static class ChartMetadata
 
     internal static void ApplyMusicBuildOverrides(Meta meta, MusicBuildOverrides? overrides)
     {
-        if (overrides is null) return;
-        if (overrides.SongId is { } songId) meta.Id = songId;
-        if (overrides.Title is not null) meta.Title = overrides.Title;
-        if (overrides.Artist is not null) meta.Artist = overrides.Artist;
-        if (overrides.Designer is not null) meta.Designer = overrides.Designer;
+        if (overrides is null)
+        {
+            return;
+        }
+
+        if (overrides.SongId is { } songId)
+        {
+            meta.Id = songId;
+        }
+
+        if (overrides.Title is not null)
+        {
+            meta.Title = overrides.Title;
+        }
+
+        if (overrides.Artist is not null)
+        {
+            meta.Artist = overrides.Artist;
+        }
+
+        if (overrides.Designer is not null)
+        {
+            meta.Designer = overrides.Designer;
+        }
+
         if (overrides.DifficultyId is { } difficultyId)
         {
             if (!Enum.IsDefined(typeof(Difficulty), difficultyId))
+            {
                 throw new ArgumentOutOfRangeException(nameof(overrides), difficultyId, "Unknown difficulty ID.");
+            }
+
             meta.Difficulty = (Difficulty)difficultyId;
         }
-        if (overrides.Level is { } level) meta.Level = level;
-        if (overrides.MainBpm is { } mainBpm) meta.MainBpm = mainBpm;
+        if (overrides.Level is { } level)
+        {
+            meta.Level = level;
+        }
+
+        if (overrides.MainBpm is { } mainBpm)
+        {
+            meta.MainBpm = mainBpm;
+        }
+
         if (overrides.InsertBlankMeasure is { } insertBlankMeasure)
+        {
             meta.BgmEnableBarOffset = insertBlankMeasure;
+        }
+
+        ApplyAssetOverrides(meta, overrides);
+        ApplyAudioOverrides(meta, overrides);
+        ApplyReleaseOverrides(meta, overrides);
+    }
+
+    private static void ApplyAssetOverrides(Meta meta, MusicBuildOverrides overrides)
+    {
         if (overrides.GenreId is not null || overrides.GenreName is not null)
+        {
             meta.Genre = new Entry(
                 overrides.GenreId ?? meta.Genre?.Id ?? GenreDefaults.CustomDefaultId,
                 overrides.GenreName ?? meta.Genre?.Str ?? GenreDefaults.CustomDefaultName);
+        }
+
         if (overrides.WeTagId is not null || overrides.WeTagName is not null)
+        {
             meta.WeTag = new Entry(overrides.WeTagId ?? meta.WeTag.Id, overrides.WeTagName ?? meta.WeTag.Str);
+        }
+
         if (overrides.WeDifficultyId is { } weDifficultyId &&
             Enum.IsDefined(typeof(StarDifficulty), weDifficultyId))
+        {
             meta.WeDifficulty = (StarDifficulty)weDifficultyId;
-        if (overrides.IsCustomStage is { } isCustomStage) meta.IsCustomStage = isCustomStage;
-        if (overrides.StageId is { } stageId) meta.StageId = stageId;
+        }
+
+        if (overrides.IsCustomStage is { } isCustomStage)
+        {
+            meta.IsCustomStage = isCustomStage;
+        }
+
+        if (overrides.StageId is { } stageId)
+        {
+            meta.StageId = stageId;
+        }
+
         if (overrides.NotesFieldLineId is not null || overrides.NotesFieldLineName is not null ||
             overrides.NotesFieldLineData is not null)
+        {
             meta.NotesFieldLine = new Entry(
                 overrides.NotesFieldLineId ?? meta.NotesFieldLine.Id,
                 overrides.NotesFieldLineName ?? meta.NotesFieldLine.Str,
                 overrides.NotesFieldLineData ?? meta.NotesFieldLine.Data);
+        }
+
         if (overrides.StageEntryId is not null || overrides.StageEntryName is not null)
+        {
             meta.Stage = new Entry(overrides.StageEntryId ?? meta.Stage.Id, overrides.StageEntryName ?? meta.Stage.Str);
-        if (overrides.BgmPreviewStart is { } previewStart) meta.BgmPreviewStart = previewStart;
-        if (overrides.BgmPreviewStop is { } previewStop) meta.BgmPreviewStop = previewStop;
-        if (overrides.BgmManualOffset is { } manualOffset) meta.BgmManualOffset = manualOffset;
-        if (overrides.BgmInitialBpm is { } initialBpm) meta.BgmInitialBpm = initialBpm;
-        if (overrides.BgmInitialNumerator is { } numerator) meta.BgmInitialNumerator = numerator;
-        if (overrides.BgmInitialDenominator is { } denominator) meta.BgmInitialDenominator = denominator;
-        if (overrides.SortName is not null) meta.SortName = overrides.SortName;
-        if (overrides.UnlockEventId is { } unlockEventId) meta.UnlockEventId = unlockEventId;
+        }
+    }
+
+    private static void ApplyAudioOverrides(Meta meta, MusicBuildOverrides overrides)
+    {
+        if (overrides.BgmPreviewStart is { } previewStart)
+        {
+            meta.BgmPreviewStart = previewStart;
+        }
+
+        if (overrides.BgmPreviewStop is { } previewStop)
+        {
+            meta.BgmPreviewStop = previewStop;
+        }
+
+        if (overrides.BgmManualOffset is { } manualOffset)
+        {
+            meta.BgmManualOffset = manualOffset;
+        }
+
+        if (overrides.BgmInitialBpm is { } initialBpm)
+        {
+            meta.BgmInitialBpm = initialBpm;
+        }
+
+        if (overrides.BgmInitialNumerator is { } numerator)
+        {
+            meta.BgmInitialNumerator = numerator;
+        }
+
+        if (overrides.BgmInitialDenominator is { } denominator)
+        {
+            meta.BgmInitialDenominator = denominator;
+        }
+    }
+
+    private static void ApplyReleaseOverrides(Meta meta, MusicBuildOverrides overrides)
+    {
+        if (overrides.SortName is not null)
+        {
+            meta.SortName = overrides.SortName;
+        }
+
+        if (overrides.UnlockEventId is { } unlockEventId)
+        {
+            meta.UnlockEventId = unlockEventId;
+        }
+
         if (overrides.ReleaseDate is { } releaseDate &&
-            DateTime.TryParse(releaseDate, out var parsedReleaseDate))
+            DateTime.TryParse(releaseDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedReleaseDate))
+        {
             meta.ReleaseDate = parsedReleaseDate;
-        if (overrides.MainTil is { } mainTil) meta.MainTil = mainTil;
+        }
+
+        if (overrides.MainTil is { } mainTil)
+        {
+            meta.MainTil = mainTil;
+        }
     }
 }

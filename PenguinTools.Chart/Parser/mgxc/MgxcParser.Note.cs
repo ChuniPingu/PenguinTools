@@ -1,9 +1,9 @@
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
-namespace PenguinTools.Chart.Parser.mgxc;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Models.umgr;
+namespace PenguinTools.Chart.Parser.mgxc;
 
 internal enum NoteType : sbyte
 {
@@ -62,8 +62,8 @@ internal enum ExAttr : sbyte
 
 public partial class MgxcParser
 {
-    private umgr.Note? _lastNote;
-    private umgr.Note? _lastParentNote;
+    private UmgrModel.Note? _lastNote;
+    private UmgrModel.Note? _lastParentNote;
 
     private void ParseNote(BinaryReader br)
     {
@@ -79,325 +79,47 @@ public partial class MgxcParser
         var timelineId = br.ReadInt32();
         var optionValue = type == NoteType.AirCrush && longAttr == LongAttr.Begin ? br.ReadInt32() : 0;
 
-        umgr.Note? note = null;
+        UmgrModel.Note? note = null;
         var isChildNote = false;
         var isPairNote = false;
-
-        if (type == NoteType.Tap)
+        switch (type)
         {
-            note = new umgr.Tap();
-        }
-        else if (type == NoteType.ExTap)
-        {
-            var exNote = new umgr.ExTap
-            {
-                Effect = direction switch
-                {
-                    Direction.Up => ExEffect.UP,
-                    Direction.Down => ExEffect.DW,
-                    Direction.Center => ExEffect.CE,
-                    Direction.Left => ExEffect.LS,
-                    Direction.Right => ExEffect.RS,
-                    Direction.RotateLeft => ExEffect.LC,
-                    Direction.RotateRight => ExEffect.RC,
-                    Direction.InOut => ExEffect.BS,
-                    Direction.OutIn => ExEffect.CE,
-                    _ => ExEffect.UP
-                },
-                Role = height switch
-                {
-                    MgxcExTapMarkers.ExplicitChr =>
-                        umgr.ExTapRole.Explicit,
-                    MgxcExTapMarkers.HoldOnlyCarrier =>
-                        umgr.ExTapRole.HoldOnlyCarrier,
-                    MgxcExTapMarkers.AirActionCarrierTap or
-                    MgxcExTapMarkers.AirActionCarrierExTap or
-                    MgxcExTapMarkers.AirActionCarrierFlick or
-                    MgxcExTapMarkers.AirActionCarrierDamage or
-                    MgxcExTapMarkers.AirActionCarrierHold or
-                    MgxcExTapMarkers.AirActionCarrierSlideD or
-                    MgxcExTapMarkers.AirActionCarrierSlideC or
-                    MgxcExTapMarkers.AirActionCarrierExHold or
-                    MgxcExTapMarkers.AirActionCarrierExSlideD or
-                    MgxcExTapMarkers.AirActionCarrierExSlideC =>
-                        umgr.ExTapRole.AirActionCarrier,
-                    _ =>
-                        umgr.ExTapRole.Auto
-                },
-                AirActionParent = height switch
-                {
-                    MgxcExTapMarkers.AirActionCarrierTap =>
-                        umgr.AirActionCarrierParent.Tap,
-                    MgxcExTapMarkers.AirActionCarrierExTap =>
-                        umgr.AirActionCarrierParent.ExTap,
-                    MgxcExTapMarkers.AirActionCarrierFlick =>
-                        umgr.AirActionCarrierParent.Flick,
-                    MgxcExTapMarkers.AirActionCarrierDamage =>
-                        umgr.AirActionCarrierParent.Damage,
-                    MgxcExTapMarkers.AirActionCarrierHold or
-                    MgxcExTapMarkers.AirActionCarrierExHold =>
-                        umgr.AirActionCarrierParent.Hold,
-                    MgxcExTapMarkers.AirActionCarrierSlideD or
-                    MgxcExTapMarkers.AirActionCarrierSlideC or
-                    MgxcExTapMarkers.AirActionCarrierExSlideD or
-                    MgxcExTapMarkers.AirActionCarrierExSlideC =>
-                        umgr.AirActionCarrierParent.Slide,
-                    _ =>
-                        umgr.AirActionCarrierParent.None
-                },
-                AirActionParentJoint =
-                    height is MgxcExTapMarkers.AirActionCarrierSlideC or
-                        MgxcExTapMarkers.AirActionCarrierExSlideC
-                        ? Joint.C
-                        : Joint.D,
-                AirActionParentIsEx =
-                    height is MgxcExTapMarkers.AirActionCarrierExHold or
-                        MgxcExTapMarkers.AirActionCarrierExSlideD or
-                        MgxcExTapMarkers.AirActionCarrierExSlideC
-            };
-            note = exNote;
-        }
-        else if (type == NoteType.Flick)
-        {
-            note = new umgr.Flick();
-        }
-        else if (type == NoteType.Damage)
-        {
-            note = new umgr.Damage();
-        }
-        else if (type == NoteType.Hold)
-        {
-            if (longAttr == LongAttr.Begin)
-            {
-                note = new umgr.Hold();
-            }
-            else if (longAttr == LongAttr.End)
-            {
-                note = new umgr.HoldJoint();
-                isChildNote = true;
-            }
-            else
-            {
-                MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.HoldJoint));
-                Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
-                {
-                    Target = longAttr
-                });
-            }
-        }
-        else if (type == NoteType.Slide)
-        {
-            var noLine = variationId == 0x7F;
-
-            if (longAttr == LongAttr.Begin)
-            {
-                note = new umgr.Slide
-                {
-                    NoLine = noLine
-                };
-            }
-            else
-            {
-                var exNote = new umgr.SlideJoint
-                {
-                    NoLine = noLine
-                };
-
-                if (longAttr is LongAttr.Step or LongAttr.End)
-                {
-                    exNote.Joint = Joint.D;
-                }
-                else if (longAttr is LongAttr.Control or LongAttr.EndNoAct or LongAttr.CurveControl)
-                {
-                    exNote.Joint = Joint.C;
-                }
-                else
-                {
-                   MessageDescriptor msg = Msg.Create(
-                        MsgKeys.Mg_Invalid_joint_type_note,
-                        nameof(umgr.SlideJoint));
-
-                    Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
-                    {
-                        Target = longAttr
-                    });
-                }
-
-                note = exNote;
-                isChildNote = true;
-            }
-        }
-        else if (type == NoteType.Air)
-        {
-            var exNote = new umgr.Air();
-            switch (direction)
-            {
-                case Direction.Up: exNote.Direction = AirDirection.IR; break;
-                case Direction.Down: exNote.Direction = AirDirection.DW; break;
-                case Direction.UpLeft: exNote.Direction = AirDirection.UL; break;
-                case Direction.UpRight: exNote.Direction = AirDirection.UR; break;
-                case Direction.DownLeft: exNote.Direction = AirDirection.DL; break;
-                case Direction.DownRight: exNote.Direction = AirDirection.DR; break;
-                default: exNote.Direction = AirDirection.IR; break;
-            }
-
-            exNote.Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
-            note = exNote;
-            isPairNote = true;
-        }
-        else if (type is NoteType.AirHold or NoteType.AirSlide)
-        {
-            if (longAttr == LongAttr.Begin)
-            {
-                umgr.NegativeNote exNote;
-                if (type == NoteType.AirHold)
-                {
-                    var hold = new umgr.AirHold();
-
-                    if (_lastNote is umgr.Air oldLastNote)
-                    {
-                        _lastNote.Parent?.RemoveChild(_lastNote);
-                        _lastNote = oldLastNote.PairNote;
-                        hold.Color = oldLastNote.Color;
-                        hold.Direction = oldLastNote.Direction;
-                    }
-
-                    exNote = hold;
-                }
-                else
-                {
-                    var slide = new umgr.AirSlide
-                    {
-                        Height = height
-                    };
-
-                    if (_lastNote is umgr.Air oldLastNote)
-                    {
-                        _lastNote.Parent?.RemoveChild(_lastNote);
-                        _lastNote = oldLastNote.PairNote;
-                        slide.Color = oldLastNote.Color;
-                        slide.Direction = oldLastNote.Direction;
-                    }
-
-                    exNote = slide;
-                }
-
-                note = exNote;
+            case NoteType.Tap:
+                note = new UmgrModel.Tap();
+                break;
+            case NoteType.ExTap:
+                note = CreateExTap(direction, height);
+                break;
+            case NoteType.Flick:
+                note = new UmgrModel.Flick();
+                break;
+            case NoteType.Damage:
+                note = new UmgrModel.Damage();
+                break;
+            case NoteType.Hold:
+                (note, isChildNote) = CreateHold(longAttr, tick);
+                break;
+            case NoteType.Slide:
+                (note, isChildNote) = CreateSlide(longAttr, variationId, tick);
+                break;
+            case NoteType.Air:
+                note = CreateAir(direction, exAttr);
                 isPairNote = true;
-            }
-            else if (type == NoteType.AirHold)
-            {
-                var exNote = new umgr.AirHoldJoint();
-                if (longAttr is LongAttr.Step or LongAttr.End)
-                {
-                    exNote.Joint = Joint.D;
-                }
-                else if (longAttr is LongAttr.Control or LongAttr.EndNoAct or LongAttr.CurveControl)
-                {
-                    exNote.Joint = Joint.C;
-                }
-                else
-                {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.AirHoldJoint));
-                    Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
-                    {
-                        Target = longAttr
-                    });
-                }
-
-                note = exNote;
-                isChildNote = true;
-            }
-            else
-            {
-                var exNote = new umgr.AirSlideJoint();
-                if (longAttr is LongAttr.Step or LongAttr.End)
-                {
-                    exNote.Joint = Joint.D;
-                }
-                else if (longAttr is LongAttr.Control or LongAttr.EndNoAct or LongAttr.CurveControl)
-                {
-                    exNote.Joint = Joint.C;
-                }
-                else
-                {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.AirSlideJoint));
-                    Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
-                    {
-                        Target = longAttr
-                    });
-                }
-
-                exNote.Height = height;
-                note = exNote;
-                isChildNote = true;
-            }
-        }
-        else if (type == NoteType.AirCrush)
-        {
-            var color = variationId switch
-            {
-                0 => Color.DEF,
-                1 => Color.RED, // Red
-                2 => Color.ORN, // Orange
-                3 => Color.YEL, // Yellow
-                4 => Color.GRN, // Green
-                5 => Color.AQA, // Sky
-                6 => Color.BLU, // Blue
-                7 => Color.PPL, // Violet
-                8 => Color.VLT, // Pink
-                9 => Color.PPL, // Violet
-                10 => Color.GRY, // White
-                11 => Color.BLK, // Black
-                12 => Color.LIM, // Grass
-                13 => Color.CYN, // Sky Blue
-                14 => Color.DGR, // Cobalt Blue
-                15 => Color.PNK, // Purple
-                35 => Color.NON, // Transparent
-                _ => Color.DEF
-            };
-
-            if (longAttr == LongAttr.Begin)
-            {
-                var exNote = new umgr.AirCrash
-                {
-                    Color = color,
-                    Height = height,
-                    Density = optionValue,
-                    Attr = direction switch
-                    {
-                        Direction.RotateLeft => AirLadderAttr.AxisY,
-                        Direction.RotateRight => AirLadderAttr.AxisZ,
-                        _ => AirLadderAttr.DEF
-                    }
-                };
-                note = exNote;
-            }
-            else
-            {
-                var exNote = new umgr.AirCrashJoint();
-                if (longAttr is LongAttr.Step)
-                {
-                    MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, nameof(umgr.AirCrashJoint));
-                    Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
-                    {
-                        Target = longAttr
-                    });
-                }
-
-                exNote.Height = height;
-                note = exNote;
-                isChildNote = true;
-            }
-        }
-        else if (type == NoteType.Click)
-        {
-            Mgxc.Extras.ClickTicks.Add(tick);
-            return;
-        }
-        else if (type == NoteType.Last)
-        {
-            return;
+                break;
+            case NoteType.AirHold:
+            case NoteType.AirSlide:
+                (note, isChildNote, isPairNote) = CreateLongAir(type, longAttr, height, tick);
+                break;
+            case NoteType.AirCrush:
+                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, direction, tick);
+                break;
+            case NoteType.Click:
+                Mgxc.Extras.ClickTicks.Add(tick);
+                return;
+            case NoteType.Last:
+                return;
+            default:
+                break;
         }
 
         if (note == null)
@@ -412,29 +134,286 @@ public partial class MgxcParser
         note.Width = width;
         note.Timeline = timelineId;
 
-        if (isChildNote) _lastParentNote?.AppendChild(note);
-        else Mgxc.Notes.AppendChild(note);
+        if (isChildNote)
+        {
+            _lastParentNote?.AppendChild(note);
+        }
+        else
+        {
+            Mgxc.Notes.AppendChild(note);
+        }
 
         if (isPairNote)
-            switch (_lastNote)
-            {
-                case umgr.PositiveNote lastP when note is umgr.NegativeNote newN:
-                    lastP.MakePair(newN);
-                    break;
-                case umgr.NegativeNote lastN when note is umgr.PositiveNote newP:
-                    lastN.MakePair(newP);
-                    break;
-                default:
-                    throw new TimedDiagnosticException(MsgKeys.MgCrit_Pairing_notes_incompatible, note.Tick.Original,
-                        new[]
-                        {
-                            note,
-                            _lastNote
-                        });
-            }
+        {
+            PairNote(note);
+        }
 
-        if (!isChildNote) _lastParentNote = note;
+        if (!isChildNote)
+        {
+            _lastParentNote = note;
+        }
 
         _lastNote = note;
+    }
+
+    private static UmgrModel.ExTap CreateExTap(Direction direction, int height)
+    {
+        var exNote = new UmgrModel.ExTap
+        {
+            Effect = direction switch
+            {
+                Direction.Up => ExEffect.UP,
+                Direction.Down => ExEffect.DW,
+                Direction.Center => ExEffect.CE,
+                Direction.Left => ExEffect.LS,
+                Direction.Right => ExEffect.RS,
+                Direction.RotateLeft => ExEffect.LC,
+                Direction.RotateRight => ExEffect.RC,
+                Direction.InOut => ExEffect.BS,
+                Direction.OutIn => ExEffect.CE,
+                _ => ExEffect.UP
+            },
+            Role = height switch
+            {
+                MgxcExTapMarkers.ExplicitChr =>
+                    UmgrModel.ExTapRole.Explicit,
+                MgxcExTapMarkers.HoldOnlyCarrier =>
+                    UmgrModel.ExTapRole.HoldOnlyCarrier,
+                MgxcExTapMarkers.AirActionCarrierTap or
+                MgxcExTapMarkers.AirActionCarrierExTap or
+                MgxcExTapMarkers.AirActionCarrierFlick or
+                MgxcExTapMarkers.AirActionCarrierDamage or
+                MgxcExTapMarkers.AirActionCarrierHold or
+                MgxcExTapMarkers.AirActionCarrierSlideD or
+                MgxcExTapMarkers.AirActionCarrierSlideC or
+                MgxcExTapMarkers.AirActionCarrierExHold or
+                MgxcExTapMarkers.AirActionCarrierExSlideD or
+                MgxcExTapMarkers.AirActionCarrierExSlideC =>
+                    UmgrModel.ExTapRole.AirActionCarrier,
+                _ =>
+                    UmgrModel.ExTapRole.Auto
+            },
+            AirActionParent = height switch
+            {
+                MgxcExTapMarkers.AirActionCarrierTap =>
+                    UmgrModel.AirActionCarrierParent.Tap,
+                MgxcExTapMarkers.AirActionCarrierExTap =>
+                    UmgrModel.AirActionCarrierParent.ExTap,
+                MgxcExTapMarkers.AirActionCarrierFlick =>
+                    UmgrModel.AirActionCarrierParent.Flick,
+                MgxcExTapMarkers.AirActionCarrierDamage =>
+                    UmgrModel.AirActionCarrierParent.Damage,
+                MgxcExTapMarkers.AirActionCarrierHold or
+                MgxcExTapMarkers.AirActionCarrierExHold =>
+                    UmgrModel.AirActionCarrierParent.Hold,
+                MgxcExTapMarkers.AirActionCarrierSlideD or
+                MgxcExTapMarkers.AirActionCarrierSlideC or
+                MgxcExTapMarkers.AirActionCarrierExSlideD or
+                MgxcExTapMarkers.AirActionCarrierExSlideC =>
+                    UmgrModel.AirActionCarrierParent.Slide,
+                _ =>
+                    UmgrModel.AirActionCarrierParent.None
+            },
+            AirActionParentJoint =
+                height is MgxcExTapMarkers.AirActionCarrierSlideC or
+                    MgxcExTapMarkers.AirActionCarrierExSlideC
+                    ? Joint.C
+                    : Joint.D,
+            AirActionParentIsEx =
+                height is MgxcExTapMarkers.AirActionCarrierExHold or
+                    MgxcExTapMarkers.AirActionCarrierExSlideD or
+                    MgxcExTapMarkers.AirActionCarrierExSlideC
+        };
+        return exNote;
+    }
+
+    private (UmgrModel.Note? Note, bool IsChild) CreateHold(LongAttr longAttr, int tick)
+    {
+        if (longAttr == LongAttr.Begin)
+        {
+            return (new UmgrModel.Hold(), false);
+        }
+
+        if (longAttr == LongAttr.End)
+        {
+            return (new UmgrModel.HoldJoint(), true);
+        }
+
+        ReportInvalidJoint(nameof(UmgrModel.HoldJoint), longAttr, tick);
+        return (null, false);
+    }
+
+    private (UmgrModel.Note Note, bool IsChild) CreateSlide(LongAttr longAttr, sbyte variationId, int tick)
+    {
+        var noLine = variationId == 0x7F;
+        if (longAttr == LongAttr.Begin)
+        {
+            return (new UmgrModel.Slide { NoLine = noLine }, false);
+        }
+
+        return (new UmgrModel.SlideJoint
+        {
+            NoLine = noLine,
+            Joint = ParseJoint(longAttr, nameof(UmgrModel.SlideJoint), tick)
+        }, true);
+    }
+
+    private static UmgrModel.Air CreateAir(Direction direction, ExAttr exAttr) => new()
+    {
+        Direction = direction switch
+        {
+            Direction.Up => AirDirection.IR,
+            Direction.Down => AirDirection.DW,
+            Direction.UpLeft => AirDirection.UL,
+            Direction.UpRight => AirDirection.UR,
+            Direction.DownLeft => AirDirection.DL,
+            Direction.DownRight => AirDirection.DR,
+            _ => AirDirection.IR
+        },
+        Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF
+    };
+
+    private (UmgrModel.Note Note, bool IsChild, bool IsPair) CreateLongAir(
+        NoteType type, LongAttr longAttr, int height, int tick)
+    {
+        if (longAttr == LongAttr.Begin)
+        {
+            UmgrModel.Note parent = type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height);
+            return (parent, false, true);
+        }
+        if (type == NoteType.AirHold)
+        {
+            return (new UmgrModel.AirHoldJoint
+            {
+                Joint = ParseJoint(longAttr, nameof(UmgrModel.AirHoldJoint), tick)
+            }, true, false);
+        }
+
+        return (new UmgrModel.AirSlideJoint
+        {
+            Joint = ParseJoint(longAttr, nameof(UmgrModel.AirSlideJoint), tick),
+            Height = height
+        }, true, false);
+    }
+
+    private UmgrModel.Air? TakeLastAir()
+    {
+        if (_lastNote is not UmgrModel.Air air)
+        {
+            return null;
+        }
+
+        air.Parent?.RemoveChild(air);
+        _lastNote = air.PairNote;
+        return air;
+    }
+
+    private UmgrModel.AirHold CreateAirHold()
+    {
+        var note = new UmgrModel.AirHold();
+        if (TakeLastAir() is { } air)
+        {
+            note.Color = air.Color;
+            note.Direction = air.Direction;
+        }
+        return note;
+    }
+
+    private UmgrModel.AirSlide CreateAirSlide(int height)
+    {
+        var note = new UmgrModel.AirSlide { Height = height };
+        if (TakeLastAir() is { } air)
+        {
+            note.Color = air.Color;
+            note.Direction = air.Direction;
+        }
+        return note;
+    }
+
+    private Joint ParseJoint(LongAttr longAttr, string noteName, int tick)
+    {
+        if (longAttr is LongAttr.Step or LongAttr.End)
+        {
+            return Joint.D;
+        }
+
+        if (longAttr is LongAttr.Control or LongAttr.EndNoAct or LongAttr.CurveControl)
+        {
+            return Joint.C;
+        }
+
+        ReportInvalidJoint(noteName, longAttr, tick);
+        return Joint.D;
+    }
+
+    private void ReportInvalidJoint(string noteName, LongAttr longAttr, int tick)
+    {
+        MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Invalid_joint_type_note, noteName);
+        Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick) { Target = longAttr });
+    }
+
+    private (UmgrModel.Note Note, bool IsChild) CreateAirCrash(
+        LongAttr longAttr, sbyte variationId, int height, int optionValue, Direction direction, int tick)
+    {
+        if (longAttr == LongAttr.Begin)
+        {
+            return (new UmgrModel.AirCrash
+            {
+                Color = AirCrashColor(variationId),
+                Height = height,
+                Density = optionValue,
+                Attr = direction switch
+                {
+                    Direction.RotateLeft => AirLadderAttr.AxisY,
+                    Direction.RotateRight => AirLadderAttr.AxisZ,
+                    _ => AirLadderAttr.DEF
+                }
+            }, false);
+        }
+
+        if (longAttr == LongAttr.Step)
+        {
+            ReportInvalidJoint(nameof(UmgrModel.AirCrashJoint), longAttr, tick);
+        }
+
+        return (new UmgrModel.AirCrashJoint { Height = height }, true);
+    }
+
+    private static Color AirCrashColor(sbyte variationId) => variationId switch
+    {
+        0 => Color.DEF,
+        1 => Color.RED, // Red
+        2 => Color.ORN, // Orange
+        3 => Color.YEL, // Yellow
+        4 => Color.GRN, // Green
+        5 => Color.AQA, // Sky
+        6 => Color.BLU, // Blue
+        7 => Color.PPL, // Violet
+        8 => Color.VLT, // Pink
+        9 => Color.PPL, // Violet
+        10 => Color.GRY, // White
+        11 => Color.BLK, // Black
+        12 => Color.LIM, // Grass
+        13 => Color.CYN, // Sky Blue
+        14 => Color.DGR, // Cobalt Blue
+        15 => Color.PNK, // Purple
+        35 => Color.NON, // Transparent
+        _ => Color.DEF
+    };
+
+    private void PairNote(UmgrModel.Note note)
+    {
+        switch (_lastNote)
+        {
+            case UmgrModel.PositiveNote lastP when note is UmgrModel.NegativeNote newN:
+                lastP.MakePair(newN);
+                break;
+            case UmgrModel.NegativeNote lastN when note is UmgrModel.PositiveNote newP:
+                lastN.MakePair(newP);
+                break;
+            default:
+                throw new TimedDiagnosticException(MsgKeys.MgCrit_Pairing_notes_incompatible, note.Tick.Original,
+                    new[] { note, _lastNote });
+        }
     }
 }

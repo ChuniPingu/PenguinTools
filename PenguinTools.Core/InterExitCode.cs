@@ -1,4 +1,4 @@
-﻿namespace PenguinTools.Core;
+namespace PenguinTools.Core;
 
 public enum InterExitCode
 {

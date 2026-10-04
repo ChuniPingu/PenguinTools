@@ -8,20 +8,70 @@ internal static class UgcPayload
 
     public static int Lane(char c)
     {
-        if (c is >= '\uE000' and <= '\uE0FF') return -(c - 0xE000 + 1);
-        if (c is >= '\uE100' and <= '\uE1FF') return 36 + c - 0xE100;
-        if (c is >= '\uE200' and <= '\uE8FF') return -(257 + c - 0xE200);
-        if (c is >= '\uE900' and <= '\uF8FF') return 292 + c - 0xE900;
+        if (c is >= '\uE000' and <= '\uE0FF')
+        {
+            return -(c - 0xE000 + 1);
+        }
+
+        if (c is >= '\uE100' and <= '\uE1FF')
+        {
+            return 36 + c - 0xE100;
+        }
+
+        if (c is >= '\uE200' and <= '\uE8FF')
+        {
+            return -(257 + c - 0xE200);
+        }
+
+        if (c is >= '\uE900' and <= '\uF8FF')
+        {
+            return 292 + c - 0xE900;
+        }
+
         var value = Base36(c);
         return value >= 0 ? value : throw new FormatException("Invalid UGC coordinate.");
     }
 
     public static int Base36(char c)
     {
-        if (c is >= '0' and <= '9') return c - '0';
-        if (c is >= 'a' and <= 'z') return 10 + (c - 'a');
-        if (c is >= 'A' and <= 'Z') return 10 + (c - 'A');
+        if (c is >= '0' and <= '9')
+        {
+            return c - '0';
+        }
+
+        if (c is >= 'a' and <= 'z')
+        {
+            return 10 + (c - 'a');
+        }
+
+        if (c is >= 'A' and <= 'Z')
+        {
+            return 10 + (c - 'A');
+        }
+
         return -1;
+    }
+
+    public static int Base36(ReadOnlySpan<char> chars)
+    {
+        if (chars.Length == 0)
+        {
+            return -1;
+        }
+
+        var value = 0;
+        foreach (var c in chars)
+        {
+            var digit = Base36(c);
+            if (digit < 0)
+            {
+                return -1;
+            }
+
+            value = value * 36 + digit;
+        }
+
+        return value;
     }
 
     public static ExEffect ExEffectChar(char c)
@@ -38,20 +88,6 @@ internal static class UgcPayload
             'I' => ExEffect.BS,
             _ => ExEffect.UP // caller should have validated; default for safety
         };
-    }
-
-    public static int Base36(ReadOnlySpan<char> chars)
-    {
-        if (chars.Length == 0) return -1;
-        var value = 0;
-        foreach (var c in chars)
-        {
-            var digit = Base36(c);
-            if (digit < 0) return -1;
-            value = value * 36 + digit;
-        }
-
-        return value;
     }
 
     public static decimal Height36(ReadOnlySpan<char> chars)
@@ -99,8 +135,16 @@ internal static class UgcPayload
 
     public static int AirCrashInterval(string s)
     {
-        if (string.IsNullOrWhiteSpace(s)) return 0;
-        if (s == "$") return TransparentCrashDensity;
+        if (string.IsNullOrWhiteSpace(s))
+        {
+            return 0;
+        }
+
+        if (s == "$")
+        {
+            return TransparentCrashDensity;
+        }
+
         return int.TryParse(s, out var density) ? density : 0;
     }
 

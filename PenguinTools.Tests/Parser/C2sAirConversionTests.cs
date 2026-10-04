@@ -1,14 +1,14 @@
+using System.Text;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
-using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
-using PenguinTools.Core.Metadata;
+using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
-using System.Text;
+using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
 
@@ -124,8 +124,15 @@ public sealed class C2sAirConversionTests
         source.Notes.Add(hold);
         source.Notes.Add(new AirHold
         {
-            Tick = 0, Lane = 2, Width = 2, EndTick = 480, EndLane = 2, EndWidth = 2,
-            Parent = hold, Color = Color.DEF, Joint = Joint.D
+            Tick = 0,
+            Lane = 2,
+            Width = 2,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 2,
+            Parent = hold,
+            Color = Color.DEF,
+            Joint = Joint.D
         });
 
         source.Notes.Add(new Air
@@ -177,9 +184,16 @@ public sealed class C2sAirConversionTests
                         reader.ReadInt32();
                         reader.ReadInt32();
                         reader.ReadInt32();
-                        if (type == 0x0A && longAttr == 0x01) reader.ReadInt32();
+                        if (type == 0x0A && longAttr == 0x01)
+                        {
+                            reader.ReadInt32();
+                        }
+
                         if (type == 0x08 && longAttr == 0x01 && previousType == 0x07)
+                        {
                             sawAirBeforeHold = true;
+                        }
+
                         previousType = type;
                     }
                 }

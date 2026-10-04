@@ -18,24 +18,6 @@ public class DiagnosticCollector : IDiagnosticSink
         _diagnostics.Add(item.WithTimeCalculator(TimeCalculator));
     }
 
-    public void Clear()
-    {
-        _diagnostics.Clear();
-    }
-
-    /// <summary>
-    /// Applies <see cref="TimeCalculator"/> to diagnostics that were reported before it was available.
-    /// </summary>
-    public void BackfillTimeCalculator()
-    {
-        if (TimeCalculator is null) return;
-
-        var existing = _diagnostics.ToArray();
-        _diagnostics.Clear();
-        foreach (var diagnostic in existing)
-            _diagnostics.Add(diagnostic.WithTimeCalculator(TimeCalculator));
-    }
-
     public void Report(Exception ex)
     {
         ArgumentNullException.ThrowIfNull(ex);
@@ -51,4 +33,28 @@ public class DiagnosticCollector : IDiagnosticSink
             RelatedException = ex
         });
     }
+
+    public void Clear()
+    {
+        _diagnostics.Clear();
+    }
+
+    /// <summary>
+    /// Applies <see cref="TimeCalculator"/> to diagnostics that were reported before it was available.
+    /// </summary>
+    public void BackfillTimeCalculator()
+    {
+        if (TimeCalculator is null)
+        {
+            return;
+        }
+
+        var existing = _diagnostics.ToArray();
+        _diagnostics.Clear();
+        foreach (var diagnostic in existing)
+        {
+            _diagnostics.Add(diagnostic.WithTimeCalculator(TimeCalculator));
+        }
+    }
+
 }

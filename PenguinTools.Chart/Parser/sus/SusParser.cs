@@ -5,9 +5,9 @@ using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Media;
 
-namespace PenguinTools.Chart.Parser.sus;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Models.umgr;
+namespace PenguinTools.Chart.Parser.sus;
 
 public sealed class SusParser
 {
@@ -49,9 +49,9 @@ public sealed class SusParser
     private string Path { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
-    private umgr.Chart Sus { get; } = new();
+    private UmgrModel.Chart Sus { get; } = new();
 
-    public async Task<OperationResult<umgr.Chart>> ParseAsync(CancellationToken ct = default)
+    public async Task<OperationResult<UmgrModel.Chart>> ParseAsync(CancellationToken ct = default)
     {
         try
         {
@@ -59,7 +59,9 @@ public sealed class SusParser
             var lines = await ReadLinesAsync(Path, ct);
 
             if (TryGetIgnoreLine(lines, out var ignoreLine))
+            {
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
+            }
 
             foreach (var line in lines)
             {
@@ -76,24 +78,30 @@ public sealed class SusParser
             ProcessMeta();
 
             await Task.WhenAll(Tasks);
-            return OperationResult<umgr.Chart>.Success(Sus).WithDiagnostics(Diagnostic);
+            return OperationResult<UmgrModel.Chart>.Success(Sus).WithDiagnostics(Diagnostic);
         }
         catch (DiagnosticException ex)
         {
             Diagnostic.TimeCalculator ??= Sus.GetCalculator();
             Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
-            return OperationResult<umgr.Chart>.Failure().WithDiagnostics(Diagnostic);
+            return OperationResult<UmgrModel.Chart>.Failure().WithDiagnostics(Diagnostic);
         }
     }
 
     private void ParseLine(SourceLine line)
     {
         var text = line.Text.Trim();
-        if (!text.StartsWith('#')) return;
+        if (!text.StartsWith('#'))
+        {
+            return;
+        }
 
         var body = text[1..].Trim();
-        if (body.Length == 0) return;
+        if (body.Length == 0)
+        {
+            return;
+        }
 
         var colonIndex = body.IndexOf(':');
         if (char.IsDigit(body[0]))
@@ -179,29 +187,42 @@ public sealed class SusParser
                 break;
             case "SONGID":
                 Sus.Meta.MgxcId = value;
-                if (int.TryParse(value, out var id)) Sus.Meta.Id = id;
+                if (int.TryParse(value, out var id))
+                {
+                    Sus.Meta.Id = id;
+                }
+
                 break;
             case "WAVE":
                 Sus.Meta.BgmFilePath = value;
                 if (!string.IsNullOrWhiteSpace(value))
+                {
                     QueueValidation(
                         MediaTool.CheckAudioValidAsync(Sus.Meta.FullBgmFilePath),
                         Sus.Meta.FullBgmFilePath,
                         MsgKeys.Error_Invalid_audio,
                         () => Sus.Meta.BgmFilePath = string.Empty);
+                }
+
                 break;
             case "WAVEOFFSET":
                 if (decimal.TryParse(value, CultureInfo.InvariantCulture, out var waveOffset))
+                {
                     Sus.Meta.BgmManualOffset = waveOffset;
+                }
+
                 break;
             case "JACKET":
                 Sus.Meta.JacketFilePath = value;
                 if (!string.IsNullOrWhiteSpace(value))
+                {
                     QueueValidation(
                         MediaTool.CheckImageValidAsync(Sus.Meta.FullJacketFilePath),
                         Sus.Meta.FullJacketFilePath,
                         MsgKeys.Error_Invalid_jk_image,
                         () => Sus.Meta.JacketFilePath = string.Empty);
+                }
+
                 break;
             case "BACKGROUND":
                 Sus.Meta.BgiFilePath = value;
@@ -211,16 +232,28 @@ public sealed class SusParser
                 HandleRequest(value, lineNumber);
                 break;
             case "HISPEED":
-                if (TryParseBase36(value, out var speedId)) _currentHispeedId = speedId;
+                if (TryParseBase36(value, out var speedId))
+                {
+                    _currentHispeedId = speedId;
+                }
+
                 break;
             case "NOSPEED":
                 ReportIgnoredMeta(lineNumber, name, value);
                 break;
             case "MEASUREBS":
-                if (int.TryParse(value, out var measureBase)) _measureBase = measureBase;
+                if (int.TryParse(value, out var measureBase))
+                {
+                    _measureBase = measureBase;
+                }
+
                 break;
             case "MEASUREHS":
-                if (TryParseBase36(value, out var mainTil)) Sus.Meta.MainTil = mainTil;
+                if (TryParseBase36(value, out var mainTil))
+                {
+                    Sus.Meta.MainTil = mainTil;
+                }
+
                 break;
             case "SUBTITLE":
             case "GENRE":
@@ -265,7 +298,10 @@ public sealed class SusParser
         if (Sus.Meta.Difficulty == Difficulty.WorldsEnd)
         {
             Sus.Meta.Stage = UmiguriParserCommon.CreateWorldsEndStage();
-            if (TryParseWorldsEndStars(value, out var starDifficulty)) Sus.Meta.WeDifficulty = starDifficulty;
+            if (TryParseWorldsEndStars(value, out var starDifficulty))
+            {
+                Sus.Meta.WeDifficulty = starDifficulty;
+            }
         }
     }
 
@@ -275,7 +311,10 @@ public sealed class SusParser
         var plus = trimmed.EndsWith('+');
         trimmed = trimmed.TrimEnd('+');
 
-        if (!int.TryParse(trimmed, out var numericLevel)) return;
+        if (!int.TryParse(trimmed, out var numericLevel))
+        {
+            return;
+        }
 
         if (Sus.Meta.Difficulty == Difficulty.WorldsEnd)
         {
@@ -297,7 +336,10 @@ public sealed class SusParser
     private void HandleRequest(string request, int lineNumber)
     {
         var tokens = request.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 0) return;
+        if (tokens.Length == 0)
+        {
+            return;
+        }
 
         switch (tokens[0].ToLowerInvariant())
         {
@@ -353,93 +395,96 @@ public sealed class SusParser
 
         var effectiveMeasure = _measureBase + measure;
         var suffix = header[3..].ToUpperInvariant();
-
         if (suffix == "02")
         {
-            if (decimal.TryParse(data, CultureInfo.InvariantCulture, out var beats) && beats > 0)
-                _measureLengthDefinitions[effectiveMeasure] = beats;
-            else
-                WarnMalformedLine(lineNumber, $"{header}: {data}");
-
-            return;
+            ParseMeasureLength(header, data, lineNumber, effectiveMeasure);
         }
-
-        if (suffix == "08")
+        else if (suffix == "08")
         {
-            var tokens = EnumerateTokens(data).ToArray();
-            for (var i = 0; i < tokens.Length; i++)
-                if (!string.Equals(tokens[i], "00", StringComparison.OrdinalIgnoreCase))
-                    _pendingBpmChanges.Add(new RawTokenPoint(effectiveMeasure, i, tokens.Length, tokens[i],
-                        lineNumber));
-
-            return;
+            ParseMeasureBpm(data, lineNumber, effectiveMeasure);
         }
-
-        if (suffix.Length == 2 && suffix[0] is '1' or '5')
+        else if (suffix.Length == 2 && suffix[0] is '1' or '5')
         {
-            if (!TryParseBase36(suffix[1].ToString(), out var lane))
-            {
-                WarnMalformedLine(lineNumber, $"{header}: {data}");
-                return;
-            }
-
-            AddShortNotePoints(
-                suffix[0] == '1' ? _tapPoints : _directionalPoints,
-                effectiveMeasure,
-                lane,
-                data,
-                lineNumber);
-            return;
+            ParseShortNoteData(header, suffix, data, lineNumber, effectiveMeasure);
         }
-
-        if (suffix.Length == 3 && suffix[0] is '2' or '3' or '4')
+        else if (suffix.Length == 3 && suffix[0] is '2' or '3' or '4')
         {
-            if (!TryParseBase36(suffix[1].ToString(), out var lane) ||
-                !TryParseBase36(suffix[2].ToString(), out var channel))
-            {
-                WarnMalformedLine(lineNumber, $"{header}: {data}");
-                return;
-            }
-
-            var target = suffix[0] switch
-            {
-                '2' => GetOrCreate(_holdPoints, (channel, lane)),
-                '3' => GetOrCreate(_slidePoints, channel),
-                '4' => GetOrCreate(_airHoldPoints, channel),
-                _ => null
-            };
-
-            if (target != null) AddLongNotePoints(target, effectiveMeasure, lane, data, lineNumber);
-            return;
+            ParseLongNoteData(header, suffix, data, lineNumber, effectiveMeasure);
         }
-
-        ReportIgnoredMeta(lineNumber, header, data);
+        else
+        {
+            ReportIgnoredMeta(lineNumber, header, data);
+        }
     }
 
-    private void AddShortNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
+    private void ParseMeasureLength(string header, string data, int lineNumber, int measure)
+    {
+        if (decimal.TryParse(data, CultureInfo.InvariantCulture, out var beats) && beats > 0)
+        {
+            _measureLengthDefinitions[measure] = beats;
+        }
+        else
+        {
+            WarnMalformedLine(lineNumber, $"{header}: {data}");
+        }
+    }
+
+    private void ParseMeasureBpm(string data, int lineNumber, int measure)
+    {
+        var tokens = EnumerateTokens(data).ToArray();
+        for (var i = 0; i < tokens.Length; i++)
+        {
+            if (!string.Equals(tokens[i], "00", StringComparison.OrdinalIgnoreCase))
+            {
+                _pendingBpmChanges.Add(new RawTokenPoint(measure, i, tokens.Length, tokens[i], lineNumber));
+            }
+        }
+    }
+
+    private void ParseShortNoteData(string header, string suffix, string data, int lineNumber, int measure)
+    {
+        if (!TryParseBase36(suffix[1].ToString(), out var lane))
+        {
+            WarnMalformedLine(lineNumber, $"{header}: {data}");
+            return;
+        }
+
+        AddNotePoints(suffix[0] == '1' ? _tapPoints : _directionalPoints, measure, lane, data, lineNumber);
+    }
+
+    private void ParseLongNoteData(string header, string suffix, string data, int lineNumber, int measure)
+    {
+        if (!TryParseBase36(suffix[1].ToString(), out var lane) ||
+            !TryParseBase36(suffix[2].ToString(), out var channel))
+        {
+            WarnMalformedLine(lineNumber, $"{header}: {data}");
+            return;
+        }
+
+        var target = suffix[0] switch
+        {
+            '2' => GetOrCreate(_holdPoints, (channel, lane)),
+            '3' => GetOrCreate(_slidePoints, channel),
+            '4' => GetOrCreate(_airHoldPoints, channel),
+            _ => null
+        };
+        if (target is not null)
+        {
+            AddNotePoints(target, measure, lane, data, lineNumber);
+        }
+    }
+
+    private void AddNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
     {
         var tokens = EnumerateTokens(data).ToArray();
         for (var i = 0; i < tokens.Length; i++)
         {
             var token = tokens[i];
-            if (string.Equals(token, "00", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!TryParsePair(token, out var kind, out var width))
+            if (string.Equals(token, "00", StringComparison.OrdinalIgnoreCase))
             {
-                WarnMalformedLine(lineNumber, token);
                 continue;
             }
 
-            target.Add(new RawNotePoint(measure, i, tokens.Length, lane, width, kind, _currentHispeedId, lineNumber));
-        }
-    }
-
-    private void AddLongNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
-    {
-        var tokens = EnumerateTokens(data).ToArray();
-        for (var i = 0; i < tokens.Length; i++)
-        {
-            var token = tokens[i];
-            if (string.Equals(token, "00", StringComparison.OrdinalIgnoreCase)) continue;
             if (!TryParsePair(token, out var kind, out var width))
             {
                 WarnMalformedLine(lineNumber, token);
@@ -490,7 +535,11 @@ public sealed class SusParser
 
         for (var measure = 0; measure <= maxMeasure; measure++)
         {
-            if (_measureLengthDefinitions.TryGetValue(measure, out var definedBeats)) currentBeats = definedBeats;
+            if (_measureLengthDefinitions.TryGetValue(measure, out var definedBeats))
+            {
+                currentBeats = definedBeats;
+            }
+
             beatsByMeasure[measure] = currentBeats;
             startTicksByMeasure[measure] = ticks;
             ticks += MeasureTicksFromBeats(currentBeats);
@@ -505,10 +554,13 @@ public sealed class SusParser
         for (var measure = 0; measure <= timing.MaxMeasure; measure++)
         {
             var beats = timing.BeatsAt(measure);
-            if (measure > 0 && previousBeats == beats) continue;
+            if (measure > 0 && previousBeats == beats)
+            {
+                continue;
+            }
 
             var fraction = ToBeatSignature(beats);
-            Sus.Events.AppendChild(new umgr.BeatEvent
+            Sus.Events.AppendChild(new UmgrModel.BeatEvent
             {
                 Bar = measure,
                 Tick = timing.StartTickAt(measure),
@@ -531,7 +583,7 @@ public sealed class SusParser
                 continue;
             }
 
-            Sus.Events.AppendChild(new umgr.BpmEvent
+            Sus.Events.AppendChild(new UmgrModel.BpmEvent
             {
                 Tick = timing.ToTick(change.Measure, change.Index, change.Count),
                 Bpm = bpm
@@ -542,25 +594,29 @@ public sealed class SusParser
     private void BuildTilEvents(MeasureTiming timing)
     {
         foreach (var (tilId, definitions) in _tilDefinitions)
-        foreach (var definition in definitions.OrderBy(p => timing.ToSusTick(p.Measure, p.Tick, _susTicksPerBeat)))
-            Sus.Events.AppendChild(new umgr.ScrollSpeedEvent
+        {
+            foreach (var definition in definitions.OrderBy(p => timing.ToSusTick(p.Measure, p.Tick, _susTicksPerBeat)))
             {
-                Timeline = tilId,
-                Tick = timing.ToSusTick(definition.Measure, definition.Tick, _susTicksPerBeat),
-                Speed = definition.Speed
-            });
+                Sus.Events.AppendChild(new UmgrModel.ScrollSpeedEvent
+                {
+                    Timeline = tilId,
+                    Tick = timing.ToSusTick(definition.Measure, definition.Tick, _susTicksPerBeat),
+                    Speed = definition.Speed
+                });
+            }
+        }
     }
 
     private void BuildTapNotes(MeasureTiming timing)
     {
         foreach (var point in _tapPoints.OrderBy(p => timing.ToTick(p.Measure, p.Index, p.Count)).ThenBy(p => p.Lane))
         {
-            umgr.PositiveNote? note = point.Kind switch
+            UmgrModel.PositiveNote? note = point.Kind switch
             {
-                1 => new umgr.Tap(),
-                2 => new umgr.ExTap(),
-                3 => new umgr.Flick(),
-                4 => new umgr.Damage(),
+                1 => new UmgrModel.Tap(),
+                2 => new UmgrModel.ExTap(),
+                3 => new UmgrModel.Flick(),
+                4 => new UmgrModel.Damage(),
                 _ => null
             };
 
@@ -584,13 +640,13 @@ public sealed class SusParser
     {
         foreach (var points in _holdPoints.Values)
         {
-            umgr.Hold? active = null;
+            UmgrModel.Hold? active = null;
             foreach (var point in ResolveLongPoints(points, timing))
             {
                 switch (point.Kind)
                 {
                     case 1:
-                        active = new umgr.Hold
+                        active = new UmgrModel.Hold
                         {
                             Tick = point.Tick,
                             Lane = point.Lane,
@@ -608,13 +664,17 @@ public sealed class SusParser
                             break;
                         }
 
-                        active.AppendChild(new umgr.HoldJoint
+                        active.AppendChild(new UmgrModel.HoldJoint
                         {
                             Tick = point.Tick,
                             Timeline = active.Timeline
                         });
 
-                        if (point.Kind == 2) active = null;
+                        if (point.Kind == 2)
+                        {
+                            active = null;
+                        }
+
                         break;
                     default:
                         ReportAtLine(Severity.Information,
@@ -630,51 +690,60 @@ public sealed class SusParser
     {
         foreach (var points in _slidePoints.Values)
         {
-            umgr.Slide? active = null;
+            UmgrModel.Slide? active = null;
             foreach (var point in ResolveLongPoints(points, timing))
             {
-                switch (point.Kind)
-                {
-                    case 1:
-                        active = new umgr.Slide
-                        {
-                            Tick = point.Tick,
-                            Lane = point.Lane,
-                            Width = point.Width,
-                            Timeline = point.Timeline
-                        };
-                        Sus.Notes.AppendChild(active);
-                        break;
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                        if (active == null)
-                        {
-                            ReportAtLine(Severity.Warning,
-                                Msg.Key(MsgKeys.Sus_Slide_joint_ignored), point.Line,
-                                point.Tick);
-                            break;
-                        }
-
-                        active.AppendChild(new umgr.SlideJoint
-                        {
-                            Tick = point.Tick,
-                            Lane = point.Lane,
-                            Width = point.Width,
-                            Timeline = active.Timeline,
-                            Joint = point.Kind == 4 ? Joint.C : Joint.D
-                        });
-
-                        if (point.Kind == 2) active = null;
-                        break;
-                    default:
-                        ReportAtLine(Severity.Information,
-                            Msg.Create(MsgKeys.Sus_Unsupported_slide_point_type, point.Kind),
-                            point.Line, point.Tick);
-                        break;
-                }
+                BuildSlidePoint(point, ref active);
             }
+        }
+    }
+
+    private void BuildSlidePoint(ResolvedLongPoint point, ref UmgrModel.Slide? active)
+    {
+        switch (point.Kind)
+        {
+            case 1:
+                active = new UmgrModel.Slide
+                {
+                    Tick = point.Tick,
+                    Lane = point.Lane,
+                    Width = point.Width,
+                    Timeline = point.Timeline
+                };
+                Sus.Notes.AppendChild(active);
+                break;
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+                if (active == null)
+                {
+                    ReportAtLine(Severity.Warning,
+                        Msg.Key(MsgKeys.Sus_Slide_joint_ignored), point.Line,
+                        point.Tick);
+                    break;
+                }
+
+                active.AppendChild(new UmgrModel.SlideJoint
+                {
+                    Tick = point.Tick,
+                    Lane = point.Lane,
+                    Width = point.Width,
+                    Timeline = active.Timeline,
+                    Joint = point.Kind == 4 ? Joint.C : Joint.D
+                });
+
+                if (point.Kind == 2)
+                {
+                    active = null;
+                }
+
+                break;
+            default:
+                ReportAtLine(Severity.Information,
+                    Msg.Create(MsgKeys.Sus_Unsupported_slide_point_type, point.Kind),
+                    point.Line, point.Tick);
+                break;
         }
     }
 
@@ -694,7 +763,7 @@ public sealed class SusParser
 
             ApplyAirWidthRounding(pairPositive, point.Width);
 
-            var air = new umgr.Air
+            var air = new UmgrModel.Air
             {
                 Tick = tick,
                 Timeline = point.Timeline,
@@ -719,74 +788,83 @@ public sealed class SusParser
     {
         foreach (var points in _airHoldPoints.Values)
         {
-            umgr.AirHold? active = null;
+            UmgrModel.AirHold? active = null;
             foreach (var point in ResolveLongPoints(points, timing))
             {
-                switch (point.Kind)
-                {
-                    case 1:
-                    {
-                        var pairPositive = FindPairPositive(point.Tick, point.Lane, point.Width);
-                        if (pairPositive == null)
-                        {
-                            ReportAtLine(Severity.Warning,
-                                Msg.Key(MsgKeys.Sus_Air_hold_ignored), point.Line,
-                                point.Tick);
-                            active = null;
-                            break;
-                        }
-
-                        var attachedAir = Sus.Notes.Children.OfType<umgr.Air>()
-                            .LastOrDefault(air =>
-                                air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
-                        active = new umgr.AirHold
-                        {
-                            Tick = point.Tick,
-                            Timeline = point.Timeline
-                        };
-                        if (attachedAir != null)
-                        {
-                            active.Direction = attachedAir.Direction;
-                            active.Color = attachedAir.Color;
-                            Sus.Notes.RemoveChild(attachedAir);
-                        }
-
-                        pairPositive.MakePair(active);
-                        Sus.Notes.AppendChild(active);
-                        break;
-                    }
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                        if (active == null)
-                        {
-                            ReportAtLine(Severity.Warning,
-                                Msg.Key(MsgKeys.Sus_Air_hold_joint_ignored), point.Line,
-                                point.Tick);
-                            break;
-                        }
-
-                        active.AppendChild(new umgr.AirHoldJoint
-                        {
-                            Tick = point.Tick,
-                            Timeline = active.Timeline,
-                            Joint = point.Kind == 4 ? Joint.C : Joint.D
-                        });
-
-                        if (point.Kind == 2) active = null;
-                        break;
-                    default:
-                        ReportAtLine(Severity.Information,
-                            Msg.Create(MsgKeys.Sus_Unsupported_air_hold_point_type, point.Kind),
-                            point.Line, point.Tick);
-                        break;
-                }
+                BuildAirHoldPoint(point, ref active);
             }
         }
     }
 
-    private IEnumerable<ResolvedLongPoint> ResolveLongPoints(IEnumerable<RawNotePoint> points, MeasureTiming timing)
+    private void BuildAirHoldPoint(ResolvedLongPoint point, ref UmgrModel.AirHold? active)
+    {
+        switch (point.Kind)
+        {
+            case 1:
+                {
+                    var pairPositive = FindPairPositive(point.Tick, point.Lane, point.Width);
+                    if (pairPositive == null)
+                    {
+                        ReportAtLine(Severity.Warning,
+                            Msg.Key(MsgKeys.Sus_Air_hold_ignored), point.Line,
+                            point.Tick);
+                        active = null;
+                        break;
+                    }
+
+                    var attachedAir = Sus.Notes.Children.OfType<UmgrModel.Air>()
+                        .LastOrDefault(air =>
+                            air.Tick.Original == point.Tick && ReferenceEquals(air.PairNote, pairPositive));
+                    active = new UmgrModel.AirHold
+                    {
+                        Tick = point.Tick,
+                        Timeline = point.Timeline
+                    };
+                    if (attachedAir != null)
+                    {
+                        active.Direction = attachedAir.Direction;
+                        active.Color = attachedAir.Color;
+                        Sus.Notes.RemoveChild(attachedAir);
+                    }
+
+                    pairPositive.MakePair(active);
+                    Sus.Notes.AppendChild(active);
+                    break;
+                }
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+                if (active == null)
+                {
+                    ReportAtLine(Severity.Warning,
+                        Msg.Key(MsgKeys.Sus_Air_hold_joint_ignored), point.Line,
+                        point.Tick);
+                    break;
+                }
+
+                active.AppendChild(new UmgrModel.AirHoldJoint
+                {
+                    Tick = point.Tick,
+                    Timeline = active.Timeline,
+                    Joint = point.Kind == 4 ? Joint.C : Joint.D
+                });
+
+                if (point.Kind == 2)
+                {
+                    active = null;
+                }
+
+                break;
+            default:
+                ReportAtLine(Severity.Information,
+                    Msg.Create(MsgKeys.Sus_Unsupported_air_hold_point_type, point.Kind),
+                    point.Line, point.Tick);
+                break;
+        }
+    }
+
+    private static IEnumerable<ResolvedLongPoint> ResolveLongPoints(IEnumerable<RawNotePoint> points, MeasureTiming timing)
     {
         return points.Select(point => new ResolvedLongPoint(
                 timing.ToTick(point.Measure, point.Index, point.Count),
@@ -800,7 +878,7 @@ public sealed class SusParser
             .ThenBy(point => point.Lane);
     }
 
-    private umgr.PositiveNote? FindPairPositive(int tick, int lane, int width)
+    private UmgrModel.PositiveNote? FindPairPositive(int tick, int lane, int width)
     {
         return EnumeratePositiveNotes(Sus.Notes)
             .Where(note => note.Tick.Original == tick)
@@ -810,16 +888,23 @@ public sealed class SusParser
             .FirstOrDefault();
     }
 
-    private static IEnumerable<umgr.PositiveNote> EnumeratePositiveNotes(umgr.Note parent)
+    private static IEnumerable<UmgrModel.PositiveNote> EnumeratePositiveNotes(UmgrModel.Note parent)
     {
         foreach (var child in parent.Children)
         {
-            if (child is umgr.PositiveNote positive) yield return positive;
-            foreach (var nested in EnumeratePositiveNotes(child)) yield return nested;
+            if (child is UmgrModel.PositiveNote positive)
+            {
+                yield return positive;
+            }
+
+            foreach (var nested in EnumeratePositiveNotes(child))
+            {
+                yield return nested;
+            }
         }
     }
 
-    private static void ApplyAirWidthRounding(umgr.PositiveNote pairPositive, int width)
+    private static void ApplyAirWidthRounding(UmgrModel.PositiveNote pairPositive, int width)
     {
         var roundedWidth = RoundedAirWidths
             .OrderBy(candidate => Math.Abs(candidate - width))
@@ -828,7 +913,7 @@ public sealed class SusParser
 
         switch (pairPositive)
         {
-            case umgr.HoldJoint { Parent: umgr.Hold hold }:
+            case UmgrModel.HoldJoint { Parent: UmgrModel.Hold hold }:
                 hold.Width = roundedWidth;
                 break;
             default:
@@ -846,6 +931,7 @@ public sealed class SusParser
         }
 
         if (Sus.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Sus.Meta.FullBgiFilePath))
+        {
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Sus.Meta.FullBgiFilePath),
                 Sus.Meta.FullBgiFilePath,
@@ -855,6 +941,7 @@ public sealed class SusParser
                     Sus.Meta.IsCustomStage = false;
                     Sus.Meta.BgiFilePath = string.Empty;
                 });
+        }
     }
 
     private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,
@@ -895,7 +982,11 @@ public sealed class SusParser
         var normalized = new string(data.Where(c => !char.IsWhiteSpace(c)).ToArray());
         var count = normalized.Length / 2;
         var tokens = new string[count];
-        for (var i = 0; i < count; i++) tokens[i] = normalized.Substring(i * 2, 2).ToUpperInvariant();
+        for (var i = 0; i < count; i++)
+        {
+            tokens[i] = normalized.Substring(i * 2, 2).ToUpperInvariant();
+        }
+
         return tokens;
     }
 
@@ -903,7 +994,11 @@ public sealed class SusParser
     {
         kind = -1;
         width = -1;
-        if (token.Length != 2) return false;
+        if (token.Length != 2)
+        {
+            return false;
+        }
+
         kind = Base36(token[0]);
         width = Base36(token[1]);
         return kind > 0 && width > 0;
@@ -912,12 +1007,19 @@ public sealed class SusParser
     private static bool TryParseBase36(string text, out int value)
     {
         value = 0;
-        if (string.IsNullOrWhiteSpace(text)) return false;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
 
         foreach (var c in text.Trim())
         {
             var digit = Base36(c);
-            if (digit < 0) return false;
+            if (digit < 0)
+            {
+                return false;
+            }
+
             value = value * 36 + digit;
         }
 
@@ -926,9 +1028,21 @@ public sealed class SusParser
 
     private static int Base36(char c)
     {
-        if (c is >= '0' and <= '9') return c - '0';
-        if (c is >= 'a' and <= 'z') return 10 + c - 'a';
-        if (c is >= 'A' and <= 'Z') return 10 + c - 'A';
+        if (c is >= '0' and <= '9')
+        {
+            return c - '0';
+        }
+
+        if (c is >= 'a' and <= 'z')
+        {
+            return 10 + c - 'a';
+        }
+
+        if (c is >= 'A' and <= 'Z')
+        {
+            return 10 + c - 'A';
+        }
+
         return -1;
     }
 
@@ -966,10 +1080,16 @@ public sealed class SusParser
         while (denominator > UmiguriParserCommon.DefaultBeatDenominator)
         {
             var gcd = GreatestCommonDivisor(Math.Abs(numerator), denominator);
-            if (gcd <= 1) break;
+            if (gcd <= 1)
+            {
+                break;
+            }
 
             var reducedDenominator = denominator / gcd;
-            if (reducedDenominator < UmiguriParserCommon.DefaultBeatDenominator) break;
+            if (reducedDenominator < UmiguriParserCommon.DefaultBeatDenominator)
+            {
+                break;
+            }
 
             numerator /= gcd;
             denominator = reducedDenominator;
@@ -982,11 +1102,17 @@ public sealed class SusParser
     {
         var text = value.ToString(CultureInfo.InvariantCulture);
         var dot = text.IndexOf('.');
-        if (dot < 0) return new Fraction(int.Parse(text, CultureInfo.InvariantCulture), 1);
+        if (dot < 0)
+        {
+            return new Fraction(int.Parse(text, CultureInfo.InvariantCulture), 1);
+        }
 
         var digits = text.Replace(".", string.Empty, StringComparison.Ordinal);
         var denominator = 1;
-        for (var i = dot + 1; i < text.Length; i++) denominator *= 10;
+        for (var i = dot + 1; i < text.Length; i++)
+        {
+            denominator *= 10;
+        }
 
         var numerator = int.Parse(digits, CultureInfo.InvariantCulture);
         var gcd = GreatestCommonDivisor(Math.Abs(numerator), denominator);
@@ -1022,7 +1148,11 @@ public sealed class SusParser
     private static TValue GetOrCreate<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key) where TKey : notnull
         where TValue : new()
     {
-        if (dict.TryGetValue(key, out var value)) return value;
+        if (dict.TryGetValue(key, out var value))
+        {
+            return value;
+        }
+
         value = new TValue();
         dict[key] = value;
         return value;
@@ -1045,11 +1175,9 @@ public sealed class SusParser
         using var reader = new StringReader(text);
         List<SourceLine> lines = [];
 
-        for (var lineNumber = 1;; lineNumber++)
+        while (await reader.ReadLineAsync(ct) is { } line)
         {
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null) break;
-            lines.Add(new SourceLine(lineNumber, line));
+            lines.Add(new SourceLine(lines.Count + 1, line));
         }
 
         return [.. lines];
@@ -1067,9 +1195,17 @@ public sealed class SusParser
                 return true;
             }
 
-            if (!text.StartsWith("#COMMENT", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!text.StartsWith("#COMMENT", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             SplitNameValue(text[1..], out _, out var rawValue);
-            if (!ChartMetaCommands.IsIgnored(Unquote(rawValue))) continue;
+            if (!ChartMetaCommands.IsIgnored(Unquote(rawValue)))
+            {
+                continue;
+            }
+
             lineNumber = line.Number;
             return true;
         }
@@ -1119,7 +1255,10 @@ public sealed class SusParser
         public int ToTick(int measure, int index, int count)
         {
             var start = StartTickAt(measure);
-            if (count <= 0) return start;
+            if (count <= 0)
+            {
+                return start;
+            }
 
             var measureTicks = MeasureTicksFromBeats(BeatsAt(measure));
             return start + (int)Math.Round((decimal)measureTicks * index / count, MidpointRounding.AwayFromZero);

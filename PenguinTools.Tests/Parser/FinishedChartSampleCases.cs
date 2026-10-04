@@ -1,3 +1,5 @@
+using Xunit;
+
 namespace PenguinTools.Tests.Parser;
 
 /// <summary>
@@ -6,18 +8,24 @@ namespace PenguinTools.Tests.Parser;
 /// </summary>
 public static class FinishedChartSampleCases
 {
-    public static IEnumerable<object[]> MasterPairs()
+    public static IEnumerable<TheoryDataRow<string, string, string>> MasterPairs()
     {
         var root = ChartTestPaths.AssetsDirectory;
-        if (!Directory.Exists(root)) yield break;
+        if (!Directory.Exists(root))
+        {
+            yield break;
+        }
 
         foreach (var ugcPath in Directory.EnumerateFiles(root, "*.ugc", SearchOption.TopDirectoryOnly))
         {
             var stem = Path.GetFileNameWithoutExtension(ugcPath);
             var mgxcPath = Path.Combine(root, stem + ".mgxc");
-            if (!File.Exists(mgxcPath)) continue;
+            if (!File.Exists(mgxcPath))
+            {
+                continue;
+            }
 
-            yield return new object[] { stem, ugcPath, mgxcPath };
+            yield return new TheoryDataRow<string, string, string>(stem, ugcPath, mgxcPath);
         }
     }
 }

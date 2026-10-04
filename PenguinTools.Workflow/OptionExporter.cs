@@ -22,16 +22,17 @@ public static class OptionExporter
     {
         var diagnostics = OptionExportBatch.CreateCollector();
         var processContext =
-            new OptionExportProcessContext(diagnostics, ct, settings.BatchSize, diagnosticsWorkingDirectory, progress);
+            new OptionExportProcessContext(diagnostics, settings.BatchSize, diagnosticsWorkingDirectory, ct, progress);
         var weEntries = new ConcurrentBag<Entry>();
         var ultEntries = new ConcurrentBag<Entry>();
         var releaseTag = ResolveReleaseTag(ctx.Assets, settings);
         var optionGenre = ResolveOptionGenre(ctx.Assets, settings);
 
+        var bookContext = new BookExportContext(ctx, settings, outputPaths, releaseTag, optionGenre, processContext,
+            new EventEntries(weEntries, ultEntries));
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
             books,
-            (book, innerDiagnostics) => ConvertBookAsync(ctx, book, settings, outputPaths, releaseTag, optionGenre,
-                processContext.WorkingDirectory, innerDiagnostics, weEntries, ultEntries, ct),
+            (book, innerDiagnostics) => ConvertBookAsync(bookContext, book, innerDiagnostics),
             book => book.BookMeta.FilePath,
             processContext,
             true,
@@ -44,19 +45,18 @@ public static class OptionExporter
             .WithDiagnostics(snapshot);
     }
 
+    private sealed record EventEntries(ConcurrentBag<Entry> WorldsEnd, ConcurrentBag<Entry> Ultima);
+
+    private sealed record BookExportContext(
+        MusicExportContext Services, OptionExportSettings Settings, ExportOutputPaths OutputPaths,
+        ReleaseTag ReleaseTag, Entry Genre, OptionExportProcessContext Process, EventEntries Events);
+
     private static async Task ConvertBookAsync(
-        MusicExportContext ctx,
-        OptionBook book,
-        OptionExportSettings settings,
-        ExportOutputPaths outputPaths,
-        ReleaseTag releaseTag,
-        Entry optionGenre,
-        string workingDirectory,
-        IDiagnosticSink diagnostics,
-        ConcurrentBag<Entry> weEntries,
-        ConcurrentBag<Entry> ultEntries,
-        CancellationToken ct)
+        BookExportContext context, OptionBook book, IDiagnosticSink diagnostics)
     {
+        var (ctx, settings, outputPaths, releaseTag, optionGenre, process, events) = context;
+        var ct = process.CancellationToken;
+        var workingDirectory = process.WorkingDirectory;
         var stage = await BuildStageAsync(ctx, book, settings, outputPaths, diagnostics, ct) ?? book.Stage;
         var genre = ResolveBookGenre(book, settings, optionGenre);
 
@@ -65,14 +65,20 @@ public static class OptionExporter
             var (xml, chartFolder) = await CreateMusicXmlAsync(book, stage, releaseTag, genre, outputPaths.MusicFolder);
 
             if (settings.ConvertChart)
-                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, weEntries, ultEntries, ct);
+            {
+                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, events, ct);
+            }
 
             if (settings.ConvertJacket)
+            {
                 await ConvertJacketAsync(book, xml, chartFolder, settings, ctx, diagnostics, ct);
+            }
         }
 
         if (settings.ConvertAudio)
+        {
             await ConvertAudioAsync(book, outputPaths.CueFileFolder, settings, ctx, diagnostics, ct);
+        }
     }
 
     private static async Task<Entry?> BuildStageAsync(
@@ -83,10 +89,20 @@ public static class OptionExporter
         IDiagnosticSink diagnostics,
         CancellationToken ct)
     {
-        if (!book.IsCustomStage || !settings.ConvertBackground) return null;
+        if (!book.IsCustomStage || !settings.ConvertBackground)
+        {
+            return null;
+        }
+
         if (string.IsNullOrWhiteSpace(book.BookMeta.FullBgiFilePath))
+        {
             throw new DiagnosticException(MsgKeys.Error_Background_file_is_not_set);
-        if (book.StageId is null) throw new DiagnosticException(MsgKeys.Error_Stage_id_is_not_set);
+        }
+
+        if (book.StageId is null)
+        {
+            throw new DiagnosticException(MsgKeys.Error_Stage_id_is_not_set);
+        }
 
         var stageXml = new StageXml(book.StageId.Value, book.NotesFieldLine);
         var cachedConversion = await OptionConversionCacheArtifacts.CreateStageAsync(
@@ -100,7 +116,9 @@ public static class OptionExporter
                 cachedConversion.State,
                 cachedConversion.Outputs,
                 ct))
+        {
             return stageXml.Name;
+        }
 
         var stageConverter = new StageConverter(
             new StageBuildRequest(
@@ -115,7 +133,10 @@ public static class OptionExporter
         var builtStage = await stageConverter.BuildAsync(ct);
         diagnostics.Report(builtStage.Diagnostics);
         if (!builtStage.Succeeded)
+        {
             return null;
+        }
+
         var stageEntry = builtStage.Value;
 
         await OptionConversionCacheValidator.StoreAsync(
@@ -152,8 +173,13 @@ public static class OptionExporter
         ConcurrentBag<Entry> weEntries, ConcurrentBag<Entry> ultEntries)
     {
         if (difficulty == Difficulty.WorldsEnd)
+        {
             weEntries.Add(new Entry(songId, book.Title));
-        else if (difficulty == Difficulty.Ultima) ultEntries.Add(new Entry(songId, book.Title));
+        }
+        else if (difficulty == Difficulty.Ultima)
+        {
+            ultEntries.Add(new Entry(songId, book.Title));
+        }
     }
 
     private static async Task ConvertChartsAsync(
@@ -162,15 +188,17 @@ public static class OptionExporter
         string chartFolder,
         string workingDirectory,
         IDiagnosticSink diagnostics,
-        ConcurrentBag<Entry> weEntries,
-        ConcurrentBag<Entry> ultEntries,
+        EventEntries events,
         CancellationToken ct)
     {
         foreach (var (difficulty, item) in book.Difficulties)
         {
-            if (item.SongId is not { } songId) throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
+            if (item.SongId is not { } songId)
+            {
+                throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
+            }
 
-            TrackEventEntry(book, difficulty, songId, weEntries, ultEntries);
+            TrackEventEntry(book, difficulty, songId, events.WorldsEnd, events.Ultima);
 
             var chartPath = Path.Combine(chartFolder, xml[difficulty].File);
             var chartDiagnostics = OptionExportBatch.CreateCollector();
@@ -194,7 +222,10 @@ public static class OptionExporter
             var writtenChart = await chartWriter.WriteAsync(ct);
             chartDiagnostics.Report(writtenChart.Diagnostics);
             FlushChartDiagnostics();
-            if (!writtenChart.Succeeded) return;
+            if (!writtenChart.Succeeded)
+            {
+                return;
+            }
 
             ct.ThrowIfCancellationRequested();
         }
@@ -230,14 +261,19 @@ public static class OptionExporter
                 cachedConversion.State,
                 cachedConversion.Outputs,
                 ct))
+        {
             return;
+        }
 
         var jacketConverter = new JacketConverter(
             new JacketConvertRequest(jacketPath, outputPath),
             ctx.MediaTool);
         var convertedJacket = await jacketConverter.ConvertAsync(ct);
         diagnostics.Report(convertedJacket.Diagnostics);
-        if (!convertedJacket.Succeeded) return;
+        if (!convertedJacket.Succeeded)
+        {
+            return;
+        }
 
         await OptionConversionCacheValidator.StoreAsync(
             settings.ConversionCache,
@@ -274,7 +310,9 @@ public static class OptionExporter
                 cachedConversion.State,
                 cachedConversion.Outputs,
                 ct))
+        {
             return;
+        }
 
         var audioConverter = new AudioConverter(
             new AudioConvertRequest(
@@ -286,15 +324,20 @@ public static class OptionExporter
             ctx.MediaTool);
         var convertedAudio = await audioConverter.ConvertAsync(ct);
         diagnostics.Report(convertedAudio.Diagnostics);
-        if (!convertedAudio.Succeeded) return;
+        if (!convertedAudio.Succeeded)
+        {
+            return;
+        }
 
         if (cachedConversion is not null)
+        {
             await OptionConversionCacheValidator.StoreAsync(
                 settings.ConversionCache,
                 cachedConversion.Key,
                 cachedConversion.State,
                 cachedConversion.Outputs,
                 ct);
+        }
 
         ct.ThrowIfCancellationRequested();
     }
@@ -307,7 +350,10 @@ public static class OptionExporter
         ReleaseTag releaseTag,
         CancellationToken ct)
     {
-        if (settings.CustomReleaseTagXml) await releaseTag.SaveDirectoryAsync(outputPaths.ReleaseTagPath);
+        if (settings.CustomReleaseTagXml)
+        {
+            await releaseTag.SaveDirectoryAsync(outputPaths.ReleaseTagPath);
+        }
 
         if (settings.GenerateEventXml && !ultEntries.IsEmpty)
         {
@@ -327,7 +373,9 @@ public static class OptionExporter
     private static ReleaseTag ResolveReleaseTag(AssetManager assets, OptionExportSettings settings)
     {
         if (settings.CustomReleaseTagXml)
+        {
             return new ReleaseTag(settings.CustomReleaseTagId, settings.CustomReleaseTagTitleName);
+        }
 
         var titleName = assets.ReleaseTagNames
             .FirstOrDefault(entry => entry.Id == settings.SelectedReleaseTagId)?.Str;
@@ -338,7 +386,9 @@ public static class OptionExporter
     private static Entry ResolveOptionGenre(AssetManager assets, OptionExportSettings settings)
     {
         if (settings.CustomGenre)
+        {
             return new Entry(settings.CustomGenreId, settings.CustomGenreName);
+        }
 
         var name = assets.GenreNames.FirstOrDefault(entry => entry.Id == settings.SelectedGenreId)?.Str;
         return new Entry(settings.SelectedGenreId, name ?? string.Empty);
@@ -350,7 +400,11 @@ public static class OptionExporter
         Entry optionGenre)
     {
         var chartGenre = book.BookMeta.Genre;
-        if (chartGenre is not null && !settings.OverrideChartGenre) return chartGenre;
+        if (chartGenre is not null && !settings.OverrideChartGenre)
+        {
+            return chartGenre;
+        }
+
         return optionGenre;
     }
 }

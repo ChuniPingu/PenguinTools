@@ -2,9 +2,9 @@ using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Media;
 
-namespace PenguinTools.Chart.Parser.mgxc;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Models.umgr;
+namespace PenguinTools.Chart.Parser.mgxc;
 
 public partial class MgxcParser
 {
@@ -30,7 +30,7 @@ public partial class MgxcParser
     private string Path { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
-    private umgr.Chart Mgxc { get; } = new();
+    private UmgrModel.Chart Mgxc { get; } = new();
 
     private void ReportAtPosition(Severity severity, MessageDescriptor message, long position, object? target = null)
     {
@@ -52,12 +52,14 @@ public partial class MgxcParser
     private void ThrowAtPosition(MessageDescriptor message, long position, object? target = null, int? tick = null)
     {
         if (tick is { } resolvedTick)
+        {
             throw new TimedLocationDiagnosticException(message, checked((int)position), resolvedTick, Path, target);
+        }
 
         throw new LocationDiagnosticException(message, checked((int)position), Path, target);
     }
 
-    public async Task<OperationResult<umgr.Chart>> ParseAsync(CancellationToken ct = default)
+    public async Task<OperationResult<UmgrModel.Chart>> ParseAsync(CancellationToken ct = default)
     {
         try
         {
@@ -68,7 +70,9 @@ public partial class MgxcParser
 
             var header = br.ReadUtf8String(4);
             if (header != HeaderMgxc)
+            {
                 ThrowAtPosition(Msg.Create(MsgKeys.Error_Invalid_Header, header, HeaderMgxc), fs.Position - 4);
+            }
 
             br.ReadInt32(); // MGXC Block Size
             br.ReadInt32(); // unknown
@@ -95,7 +99,11 @@ public partial class MgxcParser
                 var start = reader.BaseStream.Position;
                 parse(reader);
                 var end = reader.BaseStream.Position;
-                if (isEvent && _lastEventWasExtras) return;
+                if (isEvent && _lastEventWasExtras)
+                {
+                    return;
+                }
+
                 reader.BaseStream.Position = start;
                 payload.Write(reader.ReadBytes(checked((int)(end - start))));
             }
@@ -107,17 +115,28 @@ public partial class MgxcParser
             br.ReadBlock(HeaderDat2, reader => Capture(reader, ParseNote, false));
             Mgxc.Extras.BinarySnapshotValid = Mgxc.Extras.BinaryContentKey ==
                 Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload.ToArray()));
-            if (!Mgxc.Extras.BinarySnapshotValid) Mgxc.Extras.HasSpeedSnapshot = false;
+            if (!Mgxc.Extras.BinarySnapshotValid)
+            {
+                Mgxc.Extras.HasSpeedSnapshot = false;
+            }
 
             if (Mgxc.Extras.BinarySnapshotValid)
-                foreach (var crash in Mgxc.Notes.Children.OfType<umgr.AirCrash>())
-                    if (Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash)))
-                        crash.Attr = Models.AirLadderAttr.Trace;
+            {
+                foreach (var crash in Mgxc.Notes.Children.OfType<UmgrModel.AirCrash>()
+                             .Where(crash => Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash))))
+                {
+                    crash.Attr = Models.AirLadderAttr.Trace;
+                }
+            }
 
             Mgxc.Extras.CheckEventView(Mgxc);
             var post = new ChartPostProcessor(Mgxc, Diagnostic, Assets);
             post.Run();
-            if (Mgxc.Extras.BinarySnapshotValid) Mgxc.Extras.RestoreAppearance(Mgxc);
+            if (Mgxc.Extras.BinarySnapshotValid)
+            {
+                Mgxc.Extras.RestoreAppearance(Mgxc);
+            }
+
             Mgxc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Mgxc);
             Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
             Mgxc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Mgxc);
@@ -125,14 +144,14 @@ public partial class MgxcParser
             ProcessMeta();
 
             await Task.WhenAll(Tasks);
-            return OperationResult<umgr.Chart>.Success(Mgxc).WithDiagnostics(Diagnostic);
+            return OperationResult<UmgrModel.Chart>.Success(Mgxc).WithDiagnostics(Diagnostic);
         }
         catch (DiagnosticException ex)
         {
             Diagnostic.TimeCalculator ??= Mgxc.GetCalculator();
             Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
-            return OperationResult<umgr.Chart>.Failure().WithDiagnostics(Diagnostic);
+            return OperationResult<UmgrModel.Chart>.Failure().WithDiagnostics(Diagnostic);
         }
     }
 
@@ -145,6 +164,7 @@ public partial class MgxcParser
         }
 
         if (Mgxc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Mgxc.Meta.FullBgiFilePath))
+        {
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Mgxc.Meta.FullBgiFilePath),
                 Mgxc.Meta.FullBgiFilePath,
@@ -154,6 +174,7 @@ public partial class MgxcParser
                     Mgxc.Meta.IsCustomStage = false;
                     Mgxc.Meta.BgiFilePath = string.Empty;
                 });
+        }
     }
 
     private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,

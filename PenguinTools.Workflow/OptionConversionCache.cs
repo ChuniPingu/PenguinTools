@@ -27,7 +27,9 @@ public sealed class OptionConversionCache
     public void SetEntry(string key, OptionConversionCacheEntry entry)
     {
         if (!TryResolve(key, out var partition, out var currentVersion))
+        {
             throw new ArgumentException($"Unsupported conversion cache key: {key}", nameof(key));
+        }
 
         partition.SetEntry(currentVersion, key, entry);
     }
@@ -130,7 +132,10 @@ internal static class OptionConversionCacheValidator
 
         foreach (var (name, path) in inputFiles.OrderBy(kv => kv.Key, StringComparer.Ordinal))
         {
-            if (!File.Exists(path)) return null;
+            if (!File.Exists(path))
+            {
+                return null;
+            }
 
             inputHashes[name] = await HashFileAsync(path, ct);
         }
@@ -146,11 +151,26 @@ internal static class OptionConversionCacheValidator
         IReadOnlyList<OptionConversionArtifact> outputs,
         CancellationToken ct)
     {
-        if (cache is null || state is null) return false;
+        if (cache is null || state is null)
+        {
+            return false;
+        }
+
         var entry = cache.GetEntry(key);
-        if (entry is null) return false;
-        if (!string.Equals(entry.RecipeHash, state.RecipeHash, StringComparison.OrdinalIgnoreCase)) return false;
-        if (!Matches(entry.Inputs, state.Inputs)) return false;
+        if (entry is null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(entry.RecipeHash, state.RecipeHash, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!Matches(entry.Inputs, state.Inputs))
+        {
+            return false;
+        }
 
         var outputHashes = await HashExistingOutputsAsync(outputs, ct);
         return outputHashes is not null && Matches(entry.Outputs, outputHashes);
@@ -163,10 +183,16 @@ internal static class OptionConversionCacheValidator
         IReadOnlyList<OptionConversionArtifact> outputs,
         CancellationToken ct)
     {
-        if (cache is null || state is null) return;
+        if (cache is null || state is null)
+        {
+            return;
+        }
 
         var outputHashes = await HashExistingOutputsAsync(outputs, ct);
-        if (outputHashes is null) return;
+        if (outputHashes is null)
+        {
+            return;
+        }
 
         cache.SetEntry(key, new OptionConversionCacheEntry
         {
@@ -201,7 +227,10 @@ internal static class OptionConversionCacheValidator
 
         foreach (var output in outputs.OrderBy(o => o.Name, StringComparer.Ordinal))
         {
-            if (!File.Exists(output.Path)) return null;
+            if (!File.Exists(output.Path))
+            {
+                return null;
+            }
 
             outputHashes[output.Name] = await HashFileAsync(output.Path, ct);
         }
@@ -210,15 +239,25 @@ internal static class OptionConversionCacheValidator
     }
 
     private static bool Matches(
-        IReadOnlyDictionary<string, string> expected,
+        Dictionary<string, string> expected,
         IReadOnlyDictionary<string, string> actual)
     {
-        if (expected.Count != actual.Count) return false;
+        if (expected.Count != actual.Count)
+        {
+            return false;
+        }
 
         foreach (var (key, value) in expected)
         {
-            if (!actual.TryGetValue(key, out var actualValue)) return false;
-            if (!string.Equals(value, actualValue, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!actual.TryGetValue(key, out var actualValue))
+            {
+                return false;
+            }
+
+            if (!string.Equals(value, actualValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
         }
 
         return true;

@@ -1,4 +1,4 @@
-﻿using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Media;
 
@@ -17,13 +17,16 @@ public class AfbExtractor
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private string InPath { get; }
     private string OutFolder { get; }
 
     public async Task<OperationResult> ExtractAsync(CancellationToken ct = default)
     {
-        if (!Validate()) return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        if (!Validate())
+        {
+            return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        }
 
         await MediaTool.ExtractDdsAsync(InPath, OutFolder, ct);
         ct.ThrowIfCancellationRequested();
@@ -32,7 +35,10 @@ public class AfbExtractor
 
     private bool Validate()
     {
-        if (File.Exists(InPath)) return true;
+        if (File.Exists(InPath))
+        {
+            return true;
+        }
 
         Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_File_not_found), InPath));
         return false;

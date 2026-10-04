@@ -1,4 +1,4 @@
-﻿using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Media;
 
@@ -17,13 +17,16 @@ public class JacketConverter
     }
 
     private IMediaTool MediaTool { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private string InPath { get; }
     private string OutPath { get; }
 
     public async Task<OperationResult> ConvertAsync(CancellationToken ct = default)
     {
-        if (!Validate()) return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        if (!Validate())
+        {
+            return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        }
 
         ct.ThrowIfCancellationRequested();
         await MediaTool.ConvertJacketAsync(InPath, OutPath, ct);
@@ -33,7 +36,10 @@ public class JacketConverter
 
     private bool Validate()
     {
-        if (File.Exists(InPath)) return true;
+        if (File.Exists(InPath))
+        {
+            return true;
+        }
 
         Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Jacket_file_not_found), InPath));
         return false;

@@ -19,7 +19,7 @@ internal static class OptionCommands
         var discovery = CommandLineOptions.CreateChartFileDiscoveryOption("Ordered chart formats to discover.");
         var batchSize = new Option<int>("--batch-size") { DefaultValueFactory = _ => 8 };
         var saveConfig = new Option<bool>("--save-config")
-            { Description = "Save the scan settings to options.json before scanning." };
+        { Description = "Save the scan settings to options.json before scanning." };
         var command = new Command("scan", "Scan a directory and report chart metadata and diagnostics.");
         command.Arguments.Add(input);
         command.Options.Add(discovery);
@@ -61,19 +61,33 @@ internal static class OptionCommands
         return command;
     }
 
-    private static IReadOnlyList<ChartFormat>? ParseDiscovery(ParseResult result, Option<string?> option)
+    private static List<ChartFormat>? ParseDiscovery(ParseResult result, Option<string?> option)
     {
-        if (result.GetValue(option) is not { Length: > 0 } text) return null;
+        if (result.GetValue(option) is not { Length: > 0 } text)
+        {
+            return null;
+        }
+
         var trimmed = text.Trim().TrimStart('[').TrimEnd(']');
         var tokens = trimmed.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 0) throw new ArgumentException("At least one chart format is required.");
+        if (tokens.Length == 0)
+        {
+            throw new ArgumentException("At least one chart format is required.");
+        }
+
         List<ChartFormat> formats = [];
         foreach (var token in tokens)
         {
             var normalized = token.TrimStart('.');
             if (!Enum.TryParse<ChartFormat>(normalized, true, out var format))
+            {
                 throw new ArgumentException($"Unsupported chart format: {token}");
-            if (!formats.Contains(format)) formats.Add(format);
+            }
+
+            if (!formats.Contains(format))
+            {
+                formats.Add(format);
+            }
         }
 
         return formats;
@@ -84,10 +98,10 @@ internal static class OptionCommands
         internal Option<string?> Config { get; } = new("--config") { Description = "Explicit options JSON path." };
 
         internal Option<bool> NoConfig { get; } = new("--no-config")
-            { Description = "Ignore auto-discovered options.json." };
+        { Description = "Ignore auto-discovered options.json." };
 
         internal Option<bool> SaveConfig { get; } = new("--save-config")
-            { Description = "Write options.json to the input directory after a successful build." };
+        { Description = "Write options.json to the input directory after a successful build." };
 
         internal Option<bool> IgnoreCache { get; } = new("--ignore-cache")
         {
@@ -169,18 +183,27 @@ internal static class OptionCommands
                 ParseMainDifficulties(result.GetValue(MainDifficulties)));
         }
 
-        private static IReadOnlyList<OptionMainDifficultyOverride>? ParseMainDifficulties(string[]? values)
+        private static List<OptionMainDifficultyOverride>? ParseMainDifficulties(string[]? values)
         {
-            if (values is not { Length: > 0 }) return null;
+            if (values is not { Length: > 0 })
+            {
+                return null;
+            }
 
             List<OptionMainDifficultyOverride> overrides = [];
             foreach (var value in values)
             {
                 var separator = value.IndexOf(':');
                 if (separator <= 0 || separator >= value.Length - 1)
+                {
                     throw new ArgumentException($"Invalid main difficulty override: {value}");
+                }
+
                 if (!int.TryParse(value[..separator], out var songId))
+                {
                     throw new ArgumentException($"Invalid song ID in main difficulty override: {value}");
+                }
+
                 overrides.Add(new OptionMainDifficultyOverride(songId, value[(separator + 1)..]));
             }
 

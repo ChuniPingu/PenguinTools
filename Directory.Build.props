@@ -1,0 +1,6 @@
+<Project>
+    <!-- Build third-party dependencies without including them in Sonar analysis. -->
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SonicAudioLib' Or '$(MSBuildProjectName)' == 'VGAudio'">
+        <SonarQubeExclude>true</SonarQubeExclude>
+    </PropertyGroup>
+</Project>

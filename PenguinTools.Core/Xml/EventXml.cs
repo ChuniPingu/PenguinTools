@@ -1,10 +1,10 @@
-﻿using System.Xml.Serialization;
+using System.Xml.Serialization;
 using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Xml;
 
 [XmlRoot("EventData")]
-public class EventXml : XmlElement<EventXml>
+public class EventXml : XmlElement
 {
     public enum MusicType
     {

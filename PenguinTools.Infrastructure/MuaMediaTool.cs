@@ -43,7 +43,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         try
         {
             var analysisArgs = CreateAnalysisArguments(sourcePath, offset, statsFileName);
-            var analysis = await RunAsync(FfmpegExecutablePath, analysisArgs, ct, outputDirectory);
+            var analysis = await RunAsync(FfmpegExecutablePath, analysisArgs, outputDirectory, ct);
             analysis.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
 
             if (!TryReadLoudnessStats(statsPath, out var stats, out var parseError))
@@ -58,7 +58,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             }
 
             var conversionArgs = CreateConversionArguments(sourcePath, temporaryPath, offset, CalculateGainDb(stats));
-            var converted = await RunAsync(FfmpegExecutablePath, conversionArgs, ct, outputDirectory);
+            var converted = await RunAsync(FfmpegExecutablePath, conversionArgs, outputDirectory, ct);
             converted.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
             File.Move(temporaryPath, destinationPath, true);
             return converted;
@@ -86,13 +86,13 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             "-dn",
             "-f", "null",
             "-"
-        ], ct);
+        ], ct: ct);
     }
 
     public async Task<ProcessCommandResult> CheckImageValidAsync(string src, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        return await RunAsync(ImgExecutablePath, ["check", "-s", src], ct);
+        return await RunAsync(ImgExecutablePath, ["check", "-s", src], ct: ct);
     }
 
     public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
@@ -100,7 +100,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["jacket", "-s", src, "-d", dst], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_jk_image);
     }
 
@@ -124,13 +124,16 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         for (var i = 0; fxPaths is not null && i < fxPaths.Length && i < 4; i++)
         {
             var fxPath = fxPaths[i];
-            if (string.IsNullOrWhiteSpace(fxPath)) continue;
+            if (string.IsNullOrWhiteSpace(fxPath))
+            {
+                continue;
+            }
 
             args.Add($"--fx{i + 1}");
             args.Add(fxPath);
         }
 
-        var ret = await RunAsync(ImgExecutablePath, args, ct);
+        var ret = await RunAsync(ImgExecutablePath, args, ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
     }
 
@@ -139,7 +142,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
 
-        var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["extract-dds", "-s", src, "-d", dst], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
     }
 
@@ -147,7 +150,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
         ArgumentException.ThrowIfNullOrWhiteSpace(dst);
-        var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct);
+        var ret = await RunAsync(ImgExecutablePath, ["decode-dds", "-s", src, "-d", dst], ct: ct);
         ret.ThrowIfFailed(MsgKeys.Error_Invalid_bg_image);
         return new DdsDecodeResult(src, dst);
     }
@@ -169,15 +172,11 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     }
 
     public async Task ConvertCriAsync(
-        string wav,
-        string acb,
-        string awb,
-        string name,
-        long previewStartMs,
-        long previewStopMs,
-        ulong hcaKey,
+        CriConvertRequest request,
         CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        var (wav, acb, awb, name, previewStartMs, previewStopMs, hcaKey) = request;
         ArgumentException.ThrowIfNullOrWhiteSpace(wav);
         ArgumentException.ThrowIfNullOrWhiteSpace(acb);
         ArgumentException.ThrowIfNullOrWhiteSpace(awb);
@@ -186,7 +185,7 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         try
         {
             await Task.Run(() => ConvertService.Convert(
-                wav, acb, awb, name, previewStartMs, previewStopMs, hcaKey, cancellationToken: ct), ct);
+                wav, acb, awb, name, new CriEncodingOptions(previewStartMs, previewStopMs, hcaKey), ct), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -268,7 +267,11 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     private static List<string> CreateOffsetFilters(decimal offset)
     {
         var seconds = decimal.ToDouble(offset);
-        if (Math.Abs(seconds) < OffsetToleranceSeconds) return [];
+        if (Math.Abs(seconds) < OffsetToleranceSeconds)
+        {
+            return [];
+        }
+
         if (seconds > 0)
         {
             var milliseconds = Math.Round(seconds * 1_000.0, MidpointRounding.AwayFromZero);
@@ -290,7 +293,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             var inputTp = ReadJsonNumber(root, "input_tp");
             var inputLra = ReadJsonNumber(root, "input_lra");
             if (!double.IsFinite(inputI) || !double.IsFinite(inputTp) || !double.IsFinite(inputLra))
+            {
                 throw new InvalidDataException("FFmpeg returned non-finite loudness statistics.");
+            }
+
             stats = new FfmpegLoudnessStats(inputI, inputTp, inputLra);
             return true;
         }
@@ -333,18 +339,23 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     private static string RequireDirectory(string directoryPath, string paramName)
     {
         if (string.IsNullOrWhiteSpace(directoryPath))
+        {
             throw new ArgumentNullException(paramName);
+        }
+
         return directoryPath;
     }
 
     private static async Task<ProcessCommandResult> RunAsync(string executablePath, IEnumerable<string> args,
-        CancellationToken ct = default, string? workingDirectory = null)
+        string? workingDirectory = null, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         var startInfo = CreateStartInfo(executablePath, args, workingDirectory);
         if (!File.Exists(executablePath))
+        {
             return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty,
                 $"Executable was not found: {executablePath}");
+        }
 
         using var proc = new Process();
         proc.StartInfo = startInfo;
@@ -366,7 +377,11 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         }
         catch (OperationCanceledException)
         {
-            if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+            if (!proc.HasExited)
+            {
+                proc.Kill(entireProcessTree: true);
+            }
+
             await proc.WaitForExitAsync(CancellationToken.None);
             throw;
         }
@@ -405,9 +420,16 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             CreateNoWindow = true
         };
 
-        if (!string.IsNullOrWhiteSpace(workingDirectory)) psi.WorkingDirectory = workingDirectory;
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            psi.WorkingDirectory = workingDirectory;
+        }
 
-        foreach (var arg in argumentList) psi.ArgumentList.Add(arg);
+        foreach (var arg in argumentList)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
         return psi;
     }
 }

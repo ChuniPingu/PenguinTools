@@ -28,7 +28,10 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
     private static string Height(decimal height)
     {
         if (height != decimal.Truncate(height))
+        {
             throw new FormatException("UGC requires integral native height units.");
+        }
+
         var high = (int)Math.Floor(height / 36);
         return $"{Coordinate(high)}{Coordinate((int)height - high * 36)}";
     }
@@ -102,16 +105,12 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             _written.Clear();
             _effectCarriers.Clear();
             foreach (var carrier in chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
+            {
                 _effectCarriers.Add((carrier.Tick.Original, carrier.Lane, carrier.Width));
+            }
+
             var m = chart.Meta;
-            _lines.AddRange(["@VER\t8", "@TICKS\t480", $"@TITLE\t{Clean(m.Title)}", $"@ARTIST\t{Clean(m.Artist)}",
-                $"@DESIGN\t{Clean(m.Designer)}", $"@DIFF\t{(m.Difficulty == Difficulty.WorldsEnd ? 4 : m.Difficulty == Difficulty.Ultima ? 5 : (int)m.Difficulty)}", $"@CONST\t{m.Level}", $"@SONGID\t{m.Id ?? 0}",
-                $"@MAINBPM\t{m.MainBpm}", $"@FLAG\tSOFFSET\t{(m.BgmEnableBarOffset ? 1 : 0)}",
-                $"@FLAG\tCLICK\t{(chart.Extras.ClickEnabled ? 1 : 0)}", $"@CLKCNT\t{chart.Extras.Count(m.BgmInitialNumerator)}",
-                $"@FLAG\tDIFFTTL\t{(chart.Extras.Tutorial ? 1 : 0)}"]);
-            _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(m.BgmFilePath)}",
-                $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(m.JacketFilePath)}",
-                $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
+            AppendMetadata(m);
             foreach (var e in chart.Events.Children)
             {
                 var line = e switch
@@ -123,14 +122,25 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
                     _ => null
                 };
                 if (line is not null)
+                {
                     _lines.Add(line);
+                }
             }
             foreach (var n in chart.Notes.Children.Where(n => n is not U.NegativeNote and not U.SoflanArea).OrderBy(n => n.Tick.Original).ThenBy(n => n.Lane).ThenBy(n => n.Width))
+            {
                 WriteNote(n);
+            }
+
             foreach (var n in chart.Notes.Children.OfType<U.NegativeNote>())
+            {
                 WriteNote(n);
+            }
+
             foreach (var tick in chart.Extras.ClickTicks)
+            {
                 _lines.Add($"#{Position(tick)}:c");
+            }
+
             chart.Extras.CaptureSlideEffects(chart);
             chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             chart.Extras.UgcContentKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', _lines))));
@@ -143,19 +153,44 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
         finally { CultureInfo.CurrentCulture = prior; }
     }
 
-    private void WriteNote(U.Note n)
+    private static int DifficultyValue(Difficulty difficulty) => difficulty switch
     {
-        if (!_written.Add(n))
-            return;
-        if (n is U.NegativeNote negative && negative.PairNote is { } parent && !_written.Contains(parent))
-            WriteNote(parent.Parent is U.Note root ? root : parent);
-        _lines.Add($"@USETIL\t{n.Timeline}");
-        var xy = $"{Coordinate(n.Lane)}{Coordinate(n.Width)}";
-        if (n is U.ExTapableNote ex && ex.Effect is { } effect && _effectCarriers.Add((n.Tick.Original, n.Lane, n.Width)))
-            Head(n, $"x{xy}{Effect(effect)}~");
-        var payload = n switch
+        Difficulty.WorldsEnd => 4,
+        Difficulty.Ultima => 5,
+        _ => (int)difficulty
+    };
+
+    private void AppendMetadata(Meta m)
+    {
+        _lines.AddRange(["@VER\t8", "@TICKS\t480", $"@TITLE\t{Clean(m.Title)}", $"@ARTIST\t{Clean(m.Artist)}",
+            $"@DESIGN\t{Clean(m.Designer)}", $"@DIFF\t{DifficultyValue(m.Difficulty)}", $"@CONST\t{m.Level}", $"@SONGID\t{m.Id ?? 0}",
+            $"@MAINBPM\t{m.MainBpm}", $"@FLAG\tSOFFSET\t{(m.BgmEnableBarOffset ? 1 : 0)}",
+            $"@FLAG\tCLICK\t{(chart.Extras.ClickEnabled ? 1 : 0)}", $"@CLKCNT\t{chart.Extras.Count(m.BgmInitialNumerator)}",
+            $"@FLAG\tDIFFTTL\t{(chart.Extras.Tutorial ? 1 : 0)}"]);
+        _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(m.BgmFilePath)}",
+            $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(m.JacketFilePath)}",
+            $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
+    }
+
+    private static string ExTapRoleSuffix(U.ExTapRole role) => role switch
+    {
+        U.ExTapRole.Explicit => "!",
+        U.ExTapRole.SharedLongCarrier => "~",
+        _ => ""
+    };
+
+    private static string AirCrashAxisSuffix(AirLadderAttr attribute) => attribute switch
+    {
+        AirLadderAttr.AxisY => "Y",
+        AirLadderAttr.AxisZ => "Z",
+        _ => ""
+    };
+
+    private static string NotePayload(U.Note n, string xy)
+    {
+        return n switch
         {
-            U.ExTap x => $"x{xy}{Effect(x.Effect)}{(x.Role == U.ExTapRole.Explicit ? "!" : x.Role == U.ExTapRole.SharedLongCarrier ? "~" : "")}",
+            U.ExTap x => $"x{xy}{Effect(x.Effect)}{ExTapRoleSuffix(x.Role)}",
             U.Tap => "t" + xy,
             U.Flick => "f" + xy + "L",
             U.Damage => "d" + xy,
@@ -164,14 +199,13 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             U.Air a => $"a{xy}{Direction(a.Direction)}{AirColor(a.Color)}",
             U.AirHold a => "H" + xy + AirColor(a.Color),
             U.AirSlide a => "S" + xy + Height(a.Height) + AirColor(a.Color),
-            U.AirCrash a => "C" + xy + Height(a.Height) + CrashColor(a.Color) + (a.Attr == AirLadderAttr.AxisY ? "Y" : a.Attr == AirLadderAttr.AxisZ ? "Z" : "") + "," + (a.Density == int.MaxValue ? "$" : a.Density.Original.ToString(CultureInfo.InvariantCulture)),
+            U.AirCrash a => "C" + xy + Height(a.Height) + CrashColor(a.Color) + AirCrashAxisSuffix(a.Attr) + "," + (a.Density == int.MaxValue ? "$" : a.Density.Original.ToString(CultureInfo.InvariantCulture)),
             _ => throw new FormatException($"Unsupported UGC note: {n.GetType().Name}")
         };
-        if (n is U.AirHold ah)
-            Head(n, $"a{xy}{Direction(ah.Direction)}{AirColor(ah.Color)}");
-        if (n is U.AirSlide air)
-            Head(n, $"a{xy}{Direction(air.Direction)}{AirColor(air.Color)}");
-        Head(n, payload);
+    }
+
+    private void WriteChildren(U.Note n)
+    {
         var noLine = n is U.Slide slide && slide.NoLine;
         foreach (var child in n.Children)
         {
@@ -185,7 +219,10 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             };
             var marker = joint == Joint.C ? 'c' : 's';
             if (n is U.Slide && noLine)
+            {
                 marker = joint == Joint.C ? 'N' : 'n';
+            }
+
             var body = child switch
             {
                 U.HoldJoint => "s",
@@ -198,8 +235,46 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             _written.Add(child);
             noLine = child is U.SlideJoint slidePoint && slidePoint.NoLine;
         }
+    }
+
+    private void WriteNote(U.Note n)
+    {
+        if (!_written.Add(n))
+        {
+            return;
+        }
+
+        if (n is U.NegativeNote negative && negative.PairNote is { } parent && !_written.Contains(parent))
+        {
+            WriteNote(parent.Parent is U.Note root ? root : parent);
+        }
+
+        _lines.Add($"@USETIL\t{n.Timeline}");
+        var xy = $"{Coordinate(n.Lane)}{Coordinate(n.Width)}";
+        if (n is U.ExTapableNote ex && ex.Effect is { } effect && _effectCarriers.Add((n.Tick.Original, n.Lane, n.Width)))
+        {
+            Head(n, $"x{xy}{Effect(effect)}~");
+        }
+
+        var payload = NotePayload(n, xy);
+        if (n is U.AirHold ah)
+        {
+            Head(n, $"a{xy}{Direction(ah.Direction)}{AirColor(ah.Color)}");
+        }
+
+        if (n is U.AirSlide air)
+        {
+            Head(n, $"a{xy}{Direction(air.Direction)}{AirColor(air.Color)}");
+        }
+
+        Head(n, payload);
+        WriteChildren(n);
         foreach (var point in new[] { n }.Concat(n.Children))
+        {
             if (point is U.PositiveNote positive && positive.PairNote is { } paired)
+            {
                 WriteNote(paired);
+            }
+        }
     }
 }

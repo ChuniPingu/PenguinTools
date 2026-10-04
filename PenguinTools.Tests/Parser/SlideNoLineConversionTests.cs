@@ -5,13 +5,16 @@ using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Writer.c2s;
 using Xunit;
 
-namespace PenguinTools.Tests.Parser;
+using C2sModel = PenguinTools.Chart.Models.c2s;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using c2s = PenguinTools.Chart.Models.c2s;
-using umgr = PenguinTools.Chart.Models.umgr;
+namespace PenguinTools.Tests.Parser;
 
 public sealed class SlideNoLineConversionTests
 {
+    private static readonly bool[] ExpectedNoLineSegments = [true, false, true];
+    private static readonly string[] ExpectedSlideMarkers = ["NCL", "SLD", "NCL"];
+
     [Fact]
     public async Task MixedNoLineSegments_WriteExpectedC2sMarkers()
     {
@@ -23,14 +26,14 @@ public sealed class SlideNoLineConversionTests
         Assert.True(converted.Succeeded, converted.ToString());
 
         var segments = converted.Value!.Notes
-            .OfType<c2s.Slide>()
+            .OfType<C2sModel.Slide>()
             .OrderBy(x => x.Tick.Original)
             .ToArray();
 
         Assert.Equal(3, segments.Length);
 
         Assert.Equal(
-            new[] { true, false, true },
+            ExpectedNoLineSegments,
             segments.Select(x => x.NoLine).ToArray());
 
         var outputPath = Path.Combine(
@@ -48,13 +51,15 @@ public sealed class SlideNoLineConversionTests
             var header = (await File.ReadAllLinesAsync(outputPath, TestContext.Current.CancellationToken))[0];
             Assert.Equal("VERSION\t1.15.00\t1.15.00", header);
             Assert.Equal(
-                new[] { "NCL", "SLD", "NCL" },
+                ExpectedSlideMarkers,
                 await ReadSlideMarkersAsync(outputPath, TestContext.Current.CancellationToken));
         }
         finally
         {
             if (File.Exists(outputPath))
+            {
                 File.Delete(outputPath);
+            }
         }
     }
 
@@ -85,22 +90,22 @@ public sealed class SlideNoLineConversionTests
             Assert.True(parsed.Succeeded, parsed.ToString());
 
             var parsedSegments = parsed.Value!.Notes
-                .OfType<c2s.Slide>()
+                .OfType<C2sModel.Slide>()
                 .OrderBy(x => x.Tick.Original)
                 .ToArray();
 
             Assert.Equal(3, parsedSegments.Length);
             Assert.Equal(
-                new[] { true, false, true },
+                ExpectedNoLineSegments,
                 parsedSegments.Select(x => x.NoLine).ToArray());
 
             var toUmgr = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
             Assert.True(toUmgr.Succeeded, toUmgr.ToString());
 
-            var umgrSlide = Assert.Single(toUmgr.Value!.Notes.Children.OfType<umgr.Slide>());
+            var umgrSlide = Assert.Single(toUmgr.Value!.Notes.Children.OfType<UmgrModel.Slide>());
             Assert.True(umgrSlide.NoLine);
 
-            var joints = umgrSlide.Children.OfType<umgr.SlideJoint>().ToArray();
+            var joints = umgrSlide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
             Assert.Equal(3, joints.Length);
             Assert.False(joints[0].NoLine);
             Assert.True(joints[1].NoLine);
@@ -117,7 +122,7 @@ public sealed class SlideNoLineConversionTests
             Assert.True(rewritten.Succeeded, rewritten.ToString());
 
             Assert.Equal(
-                new[] { "NCL", "SLD", "NCL" },
+                ExpectedSlideMarkers,
                 await ReadSlideMarkersAsync(rewritePath, TestContext.Current.CancellationToken));
 
             File.Delete(rewritePath);
@@ -125,18 +130,20 @@ public sealed class SlideNoLineConversionTests
         finally
         {
             if (File.Exists(outputPath))
+            {
                 File.Delete(outputPath);
+            }
         }
     }
 
-    private static umgr.Chart CreateMixedNoLineSlideChart()
+    private static UmgrModel.Chart CreateMixedNoLineSlideChart()
     {
-        var chart = new umgr.Chart();
+        var chart = new UmgrModel.Chart();
 
         // A -> B : NCL
         // B -> C : SLD
         // C -> D : NCL
-        var slide = new umgr.Slide
+        var slide = new UmgrModel.Slide
         {
             Tick = 0,
             Lane = 0,
@@ -144,7 +151,7 @@ public sealed class SlideNoLineConversionTests
             NoLine = true
         };
 
-        slide.AppendChild(new umgr.SlideJoint
+        slide.AppendChild(new UmgrModel.SlideJoint
         {
             Tick = 480,
             Lane = 2,
@@ -153,7 +160,7 @@ public sealed class SlideNoLineConversionTests
             NoLine = false
         });
 
-        slide.AppendChild(new umgr.SlideJoint
+        slide.AppendChild(new UmgrModel.SlideJoint
         {
             Tick = 960,
             Lane = 4,
@@ -162,7 +169,7 @@ public sealed class SlideNoLineConversionTests
             NoLine = true
         });
 
-        slide.AppendChild(new umgr.SlideJoint
+        slide.AppendChild(new UmgrModel.SlideJoint
         {
             Tick = 1440,
             Lane = 6,

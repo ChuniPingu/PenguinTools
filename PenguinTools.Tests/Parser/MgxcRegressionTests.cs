@@ -5,25 +5,25 @@ using PenguinTools.Core.Asset;
 using PenguinTools.Media;
 using Xunit;
 
-namespace PenguinTools.Tests.Parser;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Chart.Models.umgr;
+namespace PenguinTools.Tests.Parser;
 
 public class MgxcRegressionTests
 {
     [Fact]
     public void GetCalculator_WithOnlyBarBasedBeatEvents_FormatsAfterTimeSignatureChanges()
     {
-        var chart = new umgr.Chart();
-        chart.Events.AppendChild(new umgr.BeatEvent { Bar = 38, Numerator = 6, Denominator = 4 });
-        chart.Events.AppendChild(new umgr.BeatEvent { Bar = 64, Numerator = 4, Denominator = 4 });
-        chart.Events.AppendChild(new umgr.BeatEvent { Bar = 80, Numerator = 6, Denominator = 4 });
+        var chart = new UmgrModel.Chart();
+        chart.Events.AppendChild(new UmgrModel.BeatEvent { Bar = 38, Numerator = 6, Denominator = 4 });
+        chart.Events.AppendChild(new UmgrModel.BeatEvent { Bar = 64, Numerator = 4, Denominator = 4 });
+        chart.Events.AppendChild(new UmgrModel.BeatEvent { Bar = 80, Numerator = 6, Denominator = 4 });
 
         var calculator = chart.GetCalculator();
 
         Assert.Equal("72:1.0", calculator.FormatTick(161280));
         Assert.Equal([0, 0, 0],
-            chart.Events.Children.OfType<umgr.BeatEvent>().Select(e => e.Tick.Original).ToArray());
+            chart.Events.Children.OfType<UmgrModel.BeatEvent>().Select(e => e.Tick.Original).ToArray());
     }
 
     [Fact]
@@ -31,7 +31,10 @@ public class MgxcRegressionTests
     {
         var masterMgxcPath = Path.Combine(ChartTestPaths.AssetsDirectory, "Ver seX.mgxc");
         if (!File.Exists(masterMgxcPath) && Directory.Exists(ChartTestPaths.AssetsDirectory))
+        {
             masterMgxcPath = Directory.EnumerateFiles(ChartTestPaths.AssetsDirectory, "*.mgxc").FirstOrDefault() ?? masterMgxcPath;
+        }
+
         Assert.SkipWhen(!File.Exists(masterMgxcPath), $"Optional chart sample is missing: {masterMgxcPath}");
 
         var assets = TestAssets.Load();

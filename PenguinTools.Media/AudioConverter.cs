@@ -21,25 +21,33 @@ public class AudioConverter
 
     private IMediaTool MediaTool { get; }
     private ulong HcaEncryptionKey { get; }
-    private IDiagnosticSink Diagnostic { get; } = new DiagnosticCollector();
+    private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private Meta Meta { get; }
     private string OutFolder { get; }
     private string WorkingAudioPath { get; }
 
     public async Task<OperationResult> ConvertAsync(CancellationToken ct = default)
     {
-        if (!Validate()) return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        if (!Validate())
+        {
+            return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        }
 
         var songId = Meta.Id ?? throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
 
         if (Meta.BgmPreviewStart > 120)
+        {
             Diagnostic.Report(new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_Preview_later_than_120)));
+        }
 
         var srcPath = Meta.FullBgmFilePath;
         var wavPath = WorkingAudioPath;
 
         var ret = await MediaTool.NormalizeAudioAsync(srcPath, wavPath, Meta.BgmRealOffset, ct);
-        if (ret.IsNoOperation) wavPath = srcPath;
+        if (ret.IsNoOperation)
+        {
+            wavPath = srcPath;
+        }
 
         ct.ThrowIfCancellationRequested();
 
@@ -78,13 +86,13 @@ public class AudioConverter
         var awbPath = Path.Combine(outputDir, xml.AwbFile);
 
         await MediaTool.ConvertCriAsync(
-            wavPath,
+            new CriConvertRequest(wavPath,
             acbPath,
             awbPath,
             xml.DataName,
             (long)(pvStart * 1000m),
             (long)(pvStop * 1000m),
-            HcaEncryptionKey,
+            HcaEncryptionKey),
             ct);
 
         return OperationResult.Success().WithDiagnostics(Diagnostic);

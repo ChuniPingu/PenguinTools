@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 using PenguinTools.Media;
 using SonicAudioLib.Archives;
@@ -45,7 +46,9 @@ public static class ExtractService
                 ? pairedInputPath
                 : Path.ChangeExtension(sourcePath, ".awb");
             if (!File.Exists(awbPath))
+            {
                 throw new FileNotFoundException($"Paired AWB was not found at '{awbPath}'.", awbPath);
+            }
         }
         else if (extension == ".awb")
         {
@@ -67,7 +70,9 @@ public static class ExtractService
             var track = decoded[index];
             var stem = SanitizeName(acbName);
             if (string.IsNullOrEmpty(stem))
-                stem = track.CueId.ToString();
+            {
+                stem = track.CueId.ToString(CultureInfo.InvariantCulture);
+            }
 
             var filename = $"{index:D4}_{stem}.wav";
             var wavPath = Path.Combine(outputDirectory, filename);
@@ -92,14 +97,27 @@ public static class ExtractService
     {
         try
         {
-            if (cueSheet.Rows.Count == 0) return (null, null);
-            if (cueSheet.Rows[0]["TrackEventTable"] is not byte[] trackEventBytes) return (null, null);
+            if (cueSheet.Rows.Count == 0)
+            {
+                return (null, null);
+            }
+
+            if (cueSheet.Rows[0]["TrackEventTable"] is not byte[] trackEventBytes)
+            {
+                return (null, null);
+            }
 
             var trackEventTable = new CriTable();
             trackEventTable.Load(trackEventBytes);
-            if (trackEventTable.Rows.Count < 2) return (null, null);
-            if (trackEventTable.Rows[1]["Command"] is not byte[] command || command.Length < 21)
+            if (trackEventTable.Rows.Count < 2)
+            {
                 return (null, null);
+            }
+
+            if (trackEventTable.Rows[1]["Command"] is not byte[] command || command.Length < 21)
+            {
+                return (null, null);
+            }
 
             var start = BinaryPrimitives.ReadUInt32BigEndian(command.AsSpan(3, 4));
             var stop = BinaryPrimitives.ReadUInt32BigEndian(command.AsSpan(17, 4));
@@ -151,21 +169,33 @@ public static class ExtractService
 
     internal static ulong ApplySubKey(ulong keyCode, ushort subKey)
     {
-        if (subKey == 0) return keyCode;
+        if (subKey == 0)
+        {
+            return keyCode;
+        }
+
         var multiplier = ((ulong)subKey << 16) | unchecked((ushort)(~subKey + 2));
         return keyCode * multiplier;
     }
 
     private static string SanitizeName(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
         var builder = new StringBuilder(value.Length);
         foreach (var c in value)
         {
             if (char.IsAsciiLetterOrDigit(c) || c is '-' or '_')
+            {
                 builder.Append(char.ToLowerInvariant(c));
+            }
             else if (builder.Length == 0 || builder[^1] != '-')
+            {
                 builder.Append('-');
+            }
         }
 
         return builder.ToString().Trim('-');

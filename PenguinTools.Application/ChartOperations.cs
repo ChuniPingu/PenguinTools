@@ -10,8 +10,8 @@ using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Media;
-using UmgrChart = PenguinTools.Chart.Models.umgr.Chart;
 using static PenguinTools.Application.RequestPaths;
+using UmgrChart = PenguinTools.Chart.Models.umgr.Chart;
 
 namespace PenguinTools.Application;
 
@@ -47,43 +47,23 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
             : sourceFormat is ChartFormat.Mgxc or ChartFormat.Ugc or ChartFormat.Sus &&
               targetFormat is ChartFormat.C2s or ChartFormat.Mgxc or ChartFormat.Ugc;
         if (!supported)
+        {
             return ApplicationDiagnostics.Failure<ChartConvertResult>(
                 Msg.Create(MsgKeys.Error_Chart_conversion_unsupported, $"{sourceFormat} -> {targetFormat}"));
+        }
+
         progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 0, Total: 1));
         if (sourceFormat == ChartFormat.C2s)
         {
-            var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
-            if (!parsedC2s.Succeeded)
-                return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsedC2s.Diagnostics);
-            var c2s = parsedC2s.Value;
-            ChartMetadata.ApplyChartOverrides(c2s.Meta, request.Overrides);
-            progress?.Report(new ProgressReport(
-                Item: Path.GetFileName(input),
-                Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
-                Completed: 0,
-                Total: 1));
-            var convertedUmgr = new UgcChartConverter(new UgcConvertRequest(c2s, request.Overrides?.DebugTil ?? false)).Convert();
-            if (!convertedUmgr.Succeeded)
-                return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
-                    parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics));
-            EnsureParentDirectory(output);
-            var writtenReverse = targetFormat == ChartFormat.Ugc
-                ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, convertedUmgr.Value).WriteAsync(cancellationToken)
-                : await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value)).WriteAsync(cancellationToken);
-            progress?.Report(new ProgressReport(
-                Item: Path.GetFileName(input),
-                Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
-                Completed: 1,
-                Total: 1));
-            var reverseValue = new ChartConvertResult(input, output, sourceFormat, targetFormat,
-                ChartMetadata.CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart." + targetFormat.ToString().ToLowerInvariant(), output)]);
-            return ApplicationDiagnostics.Merge(reverseValue,
-                parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics), writtenReverse);
+            return await ConvertC2sAsync(request, input, output, targetFormat, progress, cancellationToken);
         }
 
         var parsed = await ParseChartAsync(input, cancellationToken);
         if (!parsed.Succeeded)
+        {
             return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+        }
+
         var chart = parsed.Value;
 
         ChartMetadata.ApplyChartOverrides(chart.Meta, request.Overrides);
@@ -106,8 +86,10 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
 
         var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         if (!converted.Succeeded)
+        {
             return OperationResult<ChartConvertResult>.Failure()
                 .WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));
+        }
 
         EnsureParentDirectory(output);
         var written = await new C2SChartWriter(new C2SWriteRequest(output, converted.Value, chart.GetCalculator()))
@@ -122,25 +104,79 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         return ApplicationDiagnostics.Merge(value, parsed.Diagnostics.Merge(converted.Diagnostics), written);
     }
 
+    private static async Task<OperationResult<ChartConvertResult>> ConvertC2sAsync(
+        ChartConvertRequest request, string input, string output, ChartFormat targetFormat,
+        IProgress<ProgressReport>? progress, CancellationToken cancellationToken)
+    {
+        var parsedC2s = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
+        if (!parsedC2s.Succeeded)
+        {
+            return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(parsedC2s.Diagnostics);
+        }
+
+        var c2s = parsedC2s.Value;
+        ChartMetadata.ApplyChartOverrides(c2s.Meta, request.Overrides);
+        progress?.Report(new ProgressReport(
+            Item: Path.GetFileName(input),
+            Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
+            Completed: 0,
+            Total: 1));
+        var convertedUmgr = new UgcChartConverter(new UgcConvertRequest(c2s, request.Overrides?.DebugTil ?? false)).Convert();
+        if (!convertedUmgr.Succeeded)
+        {
+            return OperationResult<ChartConvertResult>.Failure().WithDiagnostics(
+                parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics));
+        }
+
+        EnsureParentDirectory(output);
+        var writtenReverse = targetFormat == ChartFormat.Ugc
+            ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, convertedUmgr.Value).WriteAsync(cancellationToken)
+            : await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value)).WriteAsync(cancellationToken);
+        progress?.Report(new ProgressReport(
+            Item: Path.GetFileName(input),
+            Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,
+            Completed: 1,
+            Total: 1));
+        var reverseValue = new ChartConvertResult(input, output, ChartFormat.C2s, targetFormat,
+            ChartMetadata.CreateChartSummary(c2s.Meta), [new ApplicationArtifact("chart." + targetFormat.ToString().ToLowerInvariant(), output)]);
+        return ApplicationDiagnostics.Merge(reverseValue,
+            parsedC2s.Diagnostics.Merge(convertedUmgr.Diagnostics), writtenReverse);
+    }
+
     internal async Task<OperationResult<UmgrChart>> ParseChartAsync(string input, CancellationToken cancellationToken)
     {
         if (!File.Exists(input))
+        {
             return ApplicationDiagnostics.Failure<UmgrChart>(Msg.Key(MsgKeys.App_Chart_file_not_found), input);
+        }
+
         var extension = Path.GetExtension(input);
         if (extension.Equals(".ugc", StringComparison.OrdinalIgnoreCase))
+        {
             return await new UgcParser(new UgcParseRequest(input, assets), mediaTool)
                 .ParseAsync(cancellationToken);
+        }
+
         if (extension.Equals(".mgxc", StringComparison.OrdinalIgnoreCase))
+        {
             return await new MgxcParser(new MgxcParseRequest(input, assets), mediaTool)
                 .ParseAsync(cancellationToken);
+        }
+
         if (extension.Equals(".sus", StringComparison.OrdinalIgnoreCase))
+        {
             return await new SusParser(new SusParseRequest(input, assets), mediaTool)
                 .ParseAsync(cancellationToken);
+        }
+
         if (extension.Equals(".c2s", StringComparison.OrdinalIgnoreCase))
         {
             var parsed = await new C2SParser(new C2SParseRequest(input)).ParseAsync(cancellationToken);
             if (!parsed.Succeeded)
+            {
                 return OperationResult<UmgrChart>.Failure().WithDiagnostics(parsed.Diagnostics);
+            }
+
             var converted = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
             return converted.WithDiagnostics(parsed.Diagnostics.Merge(converted.Diagnostics));
         }

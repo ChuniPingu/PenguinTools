@@ -13,7 +13,11 @@ public partial record Meta
 
     private string GetFullPath(string path)
     {
-        if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path)) return path;
+        if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path))
+        {
+            return path;
+        }
+
         var folder = Path.GetDirectoryName(FilePath);
         return string.IsNullOrWhiteSpace(folder) ? path : Path.GetFullPath(Path.Combine(folder, path));
     }

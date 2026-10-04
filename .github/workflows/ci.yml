@@ -32,7 +32,8 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', 'global.json') }}
           restore-keys: nuget-${{ runner.os }}-
       - run: dotnet restore PenguinTools.slnx
-      - run: dotnet format style PenguinTools.slnx --verify-no-changes --no-restore --exclude External
+      - name: Verify C# formatting and style
+        run: ./scripts/check-style.ps1
       - run: dotnet build PenguinTools.slnx -c Release --no-restore -p:Platform=x64 -warnaserror
       - run: dotnet test --project PenguinTools.Tests/PenguinTools.Tests.csproj -c Release --no-build --results-directory TestResults --report-xunit-trx
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

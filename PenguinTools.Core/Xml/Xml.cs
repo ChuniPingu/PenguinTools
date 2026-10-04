@@ -1,10 +1,10 @@
-﻿using System.Xml.Linq;
+using System.Xml.Linq;
 using System.Xml.Serialization;
 using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Xml;
 
-public abstract class XmlElement<T>
+public abstract class XmlElement
 {
     protected abstract string FileName { get; }
 

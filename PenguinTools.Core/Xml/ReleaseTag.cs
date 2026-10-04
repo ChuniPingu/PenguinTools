@@ -4,7 +4,7 @@ using PenguinTools.Core.Asset;
 namespace PenguinTools.Core.Xml;
 
 [XmlRoot("ReleaseTagData")]
-public class ReleaseTag : XmlElement<ReleaseTag>
+public class ReleaseTag : XmlElement
 {
     public const int DefaultId = 0;
     public const string DefaultTitleName = "CHUNITHM";

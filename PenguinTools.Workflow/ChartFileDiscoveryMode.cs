@@ -20,13 +20,7 @@ public static class ChartFileDiscoveryFormats
 
     public static IReadOnlyList<ChartFileFormat> Normalize(IEnumerable<ChartFileFormat>? formats)
     {
-        List<ChartFileFormat> ordered = [];
-        HashSet<ChartFileFormat> seen = [];
-
-        if (formats is not null)
-            foreach (var format in formats)
-                if (seen.Add(format))
-                    ordered.Add(format);
+        var ordered = formats?.Distinct().ToList() ?? [];
 
         return ordered.Count == 0 ? [.. Default] : ordered;
     }
@@ -150,41 +144,22 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
         JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null)
+        {
             return [.. ChartFileDiscoveryFormats.Default];
+        }
 
         if (reader.TokenType == JsonTokenType.StartArray)
         {
-            List<ChartFileFormat> formats = [];
-
-            while (reader.Read())
-            {
-                if (reader.TokenType == JsonTokenType.EndArray)
-                    return [.. ChartFileDiscoveryFormats.Normalize(formats)];
-
-                if (reader.TokenType == JsonTokenType.String)
-                {
-                    var token = reader.GetString();
-                    if (!ChartFileDiscoveryFormats.TryParseToken(token, out var format))
-                    {
-                        throw new JsonException(
-                            Msg.Create(MsgKeys.Error_Chart_format_unsupported, token).Key);
-                    }
-
-                    formats.Add(format);
-                    continue;
-                }
-
-                throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_must_be_array).Key);
-            }
-
-            throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_array_incomplete).Key);
+            return ReadArray(ref reader);
         }
 
         if (reader.TokenType == JsonTokenType.String)
         {
             var text = reader.GetString();
             if (ChartFileDiscoveryFormats.TryParse(text, out var formats, out var error))
+            {
                 return [.. formats];
+            }
 
             throw new JsonException(error?.Key);
         }
@@ -192,12 +167,44 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
         throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_must_be_string_or_array).Key);
     }
 
+    private static List<ChartFileFormat> ReadArray(ref Utf8JsonReader reader)
+    {
+        List<ChartFileFormat> formats = [];
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndArray)
+            {
+                return [.. ChartFileDiscoveryFormats.Normalize(formats)];
+            }
+
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                var token = reader.GetString();
+                if (!ChartFileDiscoveryFormats.TryParseToken(token, out var format))
+                {
+                    throw new JsonException(
+                        Msg.Create(MsgKeys.Error_Chart_format_unsupported, token).Key);
+                }
+
+                formats.Add(format);
+                continue;
+            }
+
+            throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_must_be_array).Key);
+        }
+
+        throw new JsonException(Msg.Key(MsgKeys.Error_Chart_discovery_array_incomplete).Key);
+    }
+
     public override void Write(Utf8JsonWriter writer, List<ChartFileFormat> value, JsonSerializerOptions options)
     {
         writer.WriteStartArray();
 
         foreach (var format in ChartFileDiscoveryFormats.Normalize(value))
+        {
             writer.WriteStringValue(ChartFileDiscoveryFormats.ToToken(format));
+        }
 
         writer.WriteEndArray();
     }

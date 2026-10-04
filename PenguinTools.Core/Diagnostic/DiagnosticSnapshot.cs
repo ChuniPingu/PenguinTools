@@ -18,8 +18,16 @@ public sealed class DiagnosticSnapshot
     {
         ArgumentNullException.ThrowIfNull(other);
 
-        if (!HasProblem) return other;
-        if (!other.HasProblem) return this;
+        if (!HasProblem)
+        {
+            return other;
+        }
+
+        if (!other.HasProblem)
+        {
+            return this;
+        }
+
         return Create(Diagnostics.Concat(other.Diagnostics));
     }
 

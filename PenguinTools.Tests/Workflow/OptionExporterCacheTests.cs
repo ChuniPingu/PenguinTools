@@ -86,7 +86,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -128,7 +131,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -172,7 +178,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -212,7 +221,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -271,7 +283,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -318,7 +333,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -370,7 +388,10 @@ public sealed class OptionExporterCacheTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -536,7 +557,11 @@ public sealed class OptionExporterCacheTests
         public async Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default)
         {
             JacketConversions++;
-            if (JacketFailure is not null) throw JacketFailure;
+            if (JacketFailure is not null)
+            {
+                throw JacketFailure;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
             await File.WriteAllTextAsync(dst, await File.ReadAllTextAsync(src, ct), ct);
         }
@@ -558,13 +583,7 @@ public sealed class OptionExporterCacheTests
         }
 
         public Task ConvertCriAsync(
-            string wav,
-            string acb,
-            string awb,
-            string name,
-            long previewStartMs,
-            long previewStopMs,
-            ulong hcaKey,
+        CriConvertRequest request,
             CancellationToken ct = default)
         {
             return Task.CompletedTask;

@@ -4,9 +4,9 @@ using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Media;
 
-namespace PenguinTools.Chart.Parser.ugc;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Models.umgr;
+namespace PenguinTools.Chart.Parser.ugc;
 
 public partial class UgcParser
 {
@@ -19,11 +19,14 @@ public partial class UgcParser
     {
         var scaled = (long)tick * 480;
         if (scaled % _sourceTicks != 0)
+        {
             ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, tick, "exact 1/1920 tick"));
+        }
+
         return checked((int)(scaled / _sourceTicks));
     }
-    private umgr.Note? _lastNote;
-    private umgr.Note? _lastParentNote;
+    private UmgrModel.Note? _lastNote;
+    private UmgrModel.Note? _lastParentNote;
 
     static UgcParser()
     {
@@ -47,9 +50,9 @@ public partial class UgcParser
     private string Path { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
-    private umgr.Chart Ugc { get; } = new();
+    private UmgrModel.Chart Ugc { get; } = new();
 
-    public async Task<OperationResult<umgr.Chart>> ParseAsync(CancellationToken ct = default)
+    public async Task<OperationResult<UmgrModel.Chart>> ParseAsync(CancellationToken ct = default)
     {
         try
         {
@@ -57,42 +60,22 @@ public partial class UgcParser
             var lines = await ReadLinesAsync(Path, ct);
 
             if (TryGetIgnoreLine(lines, out var ignoreLine))
+            {
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
-
-            // Restore extension defaults first; native fields take precedence
-            // even when an editor moves COPYRIGHT to the end of the header.
-            foreach (var line in lines.OrderBy(line =>
-                         line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
-            {
-                ct.ThrowIfCancellationRequested();
-                SetCurrentLine(line);
-                if (line.Text.StartsWith('@')) DispatchHeaderLine(line.Text);
             }
 
-            ClearCurrentLine();
-            BuildBarAxis();
-            Diagnostic.TimeCalculator = Ugc.GetCalculator();
-
-            _currentTimeline = 0;
-            // Restore extension defaults first; native fields take precedence
-            // even when an editor moves COPYRIGHT to the end of the header.
-            foreach (var line in lines.OrderBy(line =>
-                         line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
-            {
-                ct.ThrowIfCancellationRequested();
-                SetCurrentLine(line);
-                if (line.Text.StartsWith("@USETIL", StringComparison.Ordinal)) ApplyUseTil(line.Text);
-                else if (line.Text.StartsWith('#')) DispatchBodyLine(line.Text);
-            }
-
-            ClearCurrentLine();
+            ParseLines(lines, ct);
 
             Ugc.Extras.CheckEventView(Ugc);
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
             post.Run();
             Ugc.Extras.BinarySnapshotValid = Ugc.Extras.UgcContentKey == Convert.ToHexString(
                 System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', lines.Where(l => !l.Text.StartsWith("@COPYRIGHT", StringComparison.Ordinal)).Select(l => l.Text)))));
-            if (Ugc.Extras.BinarySnapshotValid) Ugc.Extras.RestoreAppearance(Ugc);
+            if (Ugc.Extras.BinarySnapshotValid)
+            {
+                Ugc.Extras.RestoreAppearance(Ugc);
+            }
+
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
             Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Ugc).Split('\n'));
             Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
@@ -100,15 +83,55 @@ public partial class UgcParser
             ProcessMeta();
 
             await Task.WhenAll(Tasks);
-            return OperationResult<umgr.Chart>.Success(Ugc).WithDiagnostics(Diagnostic);
+            return OperationResult<UmgrModel.Chart>.Success(Ugc).WithDiagnostics(Diagnostic);
         }
         catch (DiagnosticException ex)
         {
             Diagnostic.TimeCalculator ??= Ugc.GetCalculator();
             Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
-            return OperationResult<umgr.Chart>.Failure().WithDiagnostics(Diagnostic);
+            return OperationResult<UmgrModel.Chart>.Failure().WithDiagnostics(Diagnostic);
         }
+    }
+
+    private void ParseLines(SourceLine[] lines, CancellationToken ct)
+    {
+        // Restore extension defaults first; native fields take precedence
+        // even when an editor moves COPYRIGHT to the end of the header.
+        foreach (var line in lines.OrderBy(line =>
+                     line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+        {
+            ct.ThrowIfCancellationRequested();
+            SetCurrentLine(line);
+            if (line.Text.StartsWith('@'))
+            {
+                DispatchHeaderLine(line.Text);
+            }
+        }
+
+        ClearCurrentLine();
+        BuildBarAxis();
+        Diagnostic.TimeCalculator = Ugc.GetCalculator();
+
+        _currentTimeline = 0;
+        // Restore extension defaults first; native fields take precedence
+        // even when an editor moves COPYRIGHT to the end of the header.
+        foreach (var line in lines.OrderBy(line =>
+                     line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+        {
+            ct.ThrowIfCancellationRequested();
+            SetCurrentLine(line);
+            if (line.Text.StartsWith("@USETIL", StringComparison.Ordinal))
+            {
+                ApplyUseTil(line.Text);
+            }
+            else if (line.Text.StartsWith('#'))
+            {
+                DispatchBodyLine(line.Text);
+            }
+        }
+
+        ClearCurrentLine();
     }
 
     private static async Task<SourceLine[]> ReadLinesAsync(string path, CancellationToken ct)
@@ -126,11 +149,11 @@ public partial class UgcParser
 
         using var reader = new StringReader(text);
         var lines = new List<SourceLine>();
-        for (var lineNumber = 1;; lineNumber++)
+        var lineNumber = 1;
+        while (await reader.ReadLineAsync(ct) is { } line)
         {
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null) break;
             lines.Add(new SourceLine(lineNumber, line));
+            lineNumber++;
         }
 
         return [.. lines];
@@ -163,41 +186,32 @@ public partial class UgcParser
         });
     }
 
-    private void ReportAtCurrentLine(Severity severity, MessageDescriptor message, int tick, object? target = null)
-    {
-        if (_currentLineNumber is not { } line)
-        {
-            Diagnostic.Report(new TimedDiagnostic(severity, message, tick)
-            {
-                Target = target
-            });
-            return;
-        }
-
-        Diagnostic.Report(new TimedLocationDiagnostic(severity, message, line, tick, Path)
-        {
-            Target = target
-        });
-    }
-
     private void ThrowAtCurrentLine(MessageDescriptor message, object? target = null, int? tick = null)
     {
         if (_currentLineNumber is not { } line)
         {
-            if (tick is { } resolvedTick) throw new TimedDiagnosticException(message, resolvedTick, target);
+            if (tick is { } resolvedTick)
+            {
+                throw new TimedDiagnosticException(message, resolvedTick, target);
+            }
+
             throw new DiagnosticException(message, target);
         }
 
-        if (tick is { } timedTick) throw new TimedLocationDiagnosticException(message, line, timedTick, Path, target);
+        if (tick is { } timedTick)
+        {
+            throw new TimedLocationDiagnosticException(message, line, timedTick, Path, target);
+        }
+
         throw new LocationDiagnosticException(message, line, Path, target);
     }
 
     private void BuildBarAxis()
     {
-        var beats = Ugc.Events.Children.OfType<umgr.BeatEvent>().OrderBy(b => b.Bar).ToList();
+        var beats = Ugc.Events.Children.OfType<UmgrModel.BeatEvent>().OrderBy(b => b.Bar).ToList();
         if (beats.Count == 0 || beats[0].Bar != 0)
         {
-            var defaultBeat = new umgr.BeatEvent
+            var defaultBeat = new UmgrModel.BeatEvent
             {
                 Bar = 0,
                 Numerator = DefaultBeatNumerator,
@@ -208,28 +222,31 @@ public partial class UgcParser
             beats.Insert(0, defaultBeat);
         }
 
-        if (beats.Count > 0)
+        beats[0].Tick = 0;
+        var accum = 0;
+        for (var i = 0; i < beats.Count - 1; i++)
         {
-            beats[0].Tick = 0;
-            var accum = 0;
-            for (var i = 0; i < beats.Count - 1; i++)
-            {
-                var curr = beats[i];
-                var next = beats[i + 1];
-                accum += ChartResolution.UmiguriTick * curr.Numerator / curr.Denominator * (next.Bar - curr.Bar);
-                next.Tick = accum;
-            }
+            var curr = beats[i];
+            var next = beats[i + 1];
+            accum += ChartResolution.UmiguriTick * curr.Numerator / curr.Denominator * (next.Bar - curr.Bar);
+            next.Tick = accum;
         }
 
         foreach (var (bar, tick, bpm) in _pendingBpms)
-            Ugc.Events.AppendChild(new umgr.BpmEvent { Tick = BarTickToAbsTick(bar, tick), Bpm = bpm });
+        {
+            Ugc.Events.AppendChild(new UmgrModel.BpmEvent { Tick = BarTickToAbsTick(bar, tick), Bpm = bpm });
+        }
 
         foreach (var (bar, tick, spd) in _pendingSpdMods)
-            Ugc.Events.AppendChild(new umgr.NoteSpeedEvent { Tick = BarTickToAbsTick(bar, tick), Speed = spd });
+        {
+            Ugc.Events.AppendChild(new UmgrModel.NoteSpeedEvent { Tick = BarTickToAbsTick(bar, tick), Speed = spd });
+        }
 
         foreach (var (tilId, bar, tick, spd) in _pendingTils)
-            Ugc.Events.AppendChild(new umgr.ScrollSpeedEvent
-                { Timeline = tilId, Tick = BarTickToAbsTick(bar, tick), Speed = spd });
+        {
+            Ugc.Events.AppendChild(new UmgrModel.ScrollSpeedEvent
+            { Timeline = tilId, Tick = BarTickToAbsTick(bar, tick), Speed = spd });
+        }
     }
 
     private void ProcessMeta()
@@ -241,6 +258,7 @@ public partial class UgcParser
         }
 
         if (Ugc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Ugc.Meta.FullBgiFilePath))
+        {
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Ugc.Meta.FullBgiFilePath),
                 Ugc.Meta.FullBgiFilePath,
@@ -250,6 +268,7 @@ public partial class UgcParser
                     Ugc.Meta.IsCustomStage = false;
                     Ugc.Meta.BgiFilePath = string.Empty;
                 });
+        }
     }
 
     private void QueueValidation(Task<ProcessCommandResult> validationTask, string path, string messageKey,
@@ -263,12 +282,28 @@ public partial class UgcParser
         lineNumber = 0;
         foreach (var line in lines)
         {
-            if (!line.Text.StartsWith('@')) continue;
+            if (!line.Text.StartsWith('@'))
+            {
+                continue;
+            }
+
             var tokens = line.Text.Split('\t');
-            if (tokens.Length == 0) continue;
-            if (!tokens[0].TrimStart('@').Equals("CMT", StringComparison.OrdinalIgnoreCase)) continue;
+            if (tokens.Length == 0)
+            {
+                continue;
+            }
+
+            if (!tokens[0].TrimStart('@').Equals("CMT", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var comment = tokens.Length >= 2 ? tokens[1] : string.Empty;
-            if (!ChartMetaCommands.IsIgnored(comment)) continue;
+            if (!ChartMetaCommands.IsIgnored(comment))
+            {
+                continue;
+            }
+
             lineNumber = line.Number;
             return true;
         }

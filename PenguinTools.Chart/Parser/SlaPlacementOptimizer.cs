@@ -1,9 +1,9 @@
 using System.Numerics;
 using PenguinTools.Chart.Models;
 
-namespace PenguinTools.Chart.Parser;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Models.umgr;
+namespace PenguinTools.Chart.Parser;
 
 internal readonly record struct SlaPlacement(int Tick, int Timeline, int Lane, int Width, int Length)
 {
@@ -22,10 +22,13 @@ internal static class SlaPlacementOptimizer
     private const int ExactSearchNodeLimit = 250_000;
 
     public static IReadOnlyList<SlaPlacement> Optimize(
-        IReadOnlyList<umgr.Note> notes,
+        IReadOnlyList<UmgrModel.Note> notes,
         IReadOnlyList<SlaPlacement> legacyAreas)
     {
-        if (legacyAreas.Count == 0) return [];
+        if (legacyAreas.Count == 0)
+        {
+            return [];
+        }
 
         var noteInfos = notes.Select((note, index) => new NoteInfo(
             index,
@@ -43,7 +46,10 @@ internal static class SlaPlacementOptimizer
                 .ThenBy(x => x.Left)
                 .ThenBy(x => x.Right)
                 .ToArray();
-            if (targets.Length == 0) continue;
+            if (targets.Length == 0)
+            {
+                continue;
+            }
 
             var candidates = GenerateCandidates(noteInfos, effectiveTimelines, targets, timeline);
             selected.AddRange(SolveByComponent(targets.Length, candidates));
@@ -69,10 +75,18 @@ internal static class SlaPlacementOptimizer
         {
             // Legacy regions are exactly one serialized C2S tick long. Notes are
             // rounded to that same grid, so only this tick can be affected.
-            if (!notesByTick.TryGetValue(area.Tick, out var notesAtTick)) continue;
+            if (!notesByTick.TryGetValue(area.Tick, out var notesAtTick))
+            {
+                continue;
+            }
+
             foreach (var note in notesAtTick)
             {
-                if (!Contains(area, note)) continue;
+                if (!Contains(area, note))
+                {
+                    continue;
+                }
+
                 result[note.Index] = Math.Max(result[note.Index], area.Timeline);
             }
         }
@@ -82,7 +96,7 @@ internal static class SlaPlacementOptimizer
 
     private static List<SlaCandidate> GenerateCandidates(
         IReadOnlyList<NoteInfo> allNotes,
-        IReadOnlyList<int> effectiveTimelines,
+        int[] effectiveTimelines,
         IReadOnlyList<NoteInfo> targets,
         int timeline)
     {
@@ -91,48 +105,17 @@ internal static class SlaPlacementOptimizer
         var candidatesByCoverage = new Dictionary<string, SlaCandidate>(StringComparer.Ordinal);
 
         foreach (var left in leftBounds)
+        {
             foreach (var right in rightBounds)
             {
-                if (right <= left) continue;
-
-                var containedTargets = targets
-                    .Select((note, targetIndex) => (note, targetIndex))
-                    .Where(x => Contains(left, right, x.note))
-                    .ToArray();
-                if (containedTargets.Length == 0) continue;
-
-                var blockerTicks = allNotes
-                    .Where(x => effectiveTimelines[x.Index] < timeline && Contains(left, right, x))
-                    .Select(x => x.Tick)
-                    .Distinct()
-                    .Order()
-                    .ToArray();
-
-                var targetsBySegment = containedTargets
-                    .Where(x => Array.BinarySearch(blockerTicks, x.note.Tick) < 0)
-                    .GroupBy(x => LowerBound(blockerTicks, x.note.Tick));
-
-                foreach (var segment in targetsBySegment)
+                if (right <= left)
                 {
-                    var covered = segment.Select(x => x.targetIndex).Distinct().Order().ToArray();
-                    var firstTick = segment.Min(x => x.note.Tick);
-                    var lastTick = segment.Max(x => x.note.Tick);
-                    var endTick = lastTick + ChartResolution.SingleTick;
-
-                    // The next blocked tick normally lies at least one C2S tick after
-                    // the last target. Keep this guard for malformed/off-grid input.
-                    if (blockerTicks.Any(x => x >= firstTick && x < endTick)) continue;
-
-                    var candidate = new SlaCandidate(
-                        new SlaPlacement(firstTick, timeline, left, right - left, endTick - firstTick),
-                        covered);
-                    var key = string.Join(',', covered);
-
-                    if (!candidatesByCoverage.TryGetValue(key, out var existing) ||
-                        CompareGeometry(candidate.Placement, existing.Placement) < 0)
-                        candidatesByCoverage[key] = candidate;
+                    continue;
                 }
+
+                AddCandidatesForBounds(allNotes, effectiveTimelines, targets, timeline, left, right, candidatesByCoverage);
             }
+        }
 
         return candidatesByCoverage.Values
             .OrderByDescending(x => x.Targets.Length)
@@ -143,15 +126,69 @@ internal static class SlaPlacementOptimizer
             .ToList();
     }
 
-    private static IReadOnlyList<SlaCandidate> SolveByComponent(
+    private static void AddCandidatesForBounds(IReadOnlyList<NoteInfo> allNotes,
+        int[] effectiveTimelines, IReadOnlyList<NoteInfo> targets, int timeline,
+        int left, int right, Dictionary<string, SlaCandidate> candidatesByCoverage)
+    {
+        var containedTargets = targets
+            .Select((note, targetIndex) => (note, targetIndex))
+            .Where(x => Contains(left, right, x.note))
+            .ToArray();
+        if (containedTargets.Length == 0)
+        {
+            return;
+        }
+
+        var blockerTicks = allNotes
+            .Where(x => effectiveTimelines[x.Index] < timeline && Contains(left, right, x))
+            .Select(x => x.Tick)
+            .Distinct()
+            .Order()
+            .ToArray();
+
+        var targetsBySegment = containedTargets
+            .Where(x => Array.BinarySearch(blockerTicks, x.note.Tick) < 0)
+            .GroupBy(x => LowerBound(blockerTicks, x.note.Tick));
+
+        foreach (var segment in targetsBySegment)
+        {
+            var covered = segment.Select(x => x.targetIndex).Distinct().Order().ToArray();
+            var firstTick = segment.Min(x => x.note.Tick);
+            var lastTick = segment.Max(x => x.note.Tick);
+            var endTick = lastTick + ChartResolution.SingleTick;
+
+            // The next blocked tick normally lies at least one C2S tick after
+            // the last target. Keep this guard for malformed/off-grid input.
+            if (blockerTicks.Any(x => x >= firstTick && x < endTick))
+            {
+                continue;
+            }
+
+            var candidate = new SlaCandidate(
+                new SlaPlacement(firstTick, timeline, left, right - left, endTick - firstTick),
+                covered);
+            var key = string.Join(',', covered);
+
+            if (!candidatesByCoverage.TryGetValue(key, out var existing) ||
+                CompareGeometry(candidate.Placement, existing.Placement) < 0)
+            {
+                candidatesByCoverage[key] = candidate;
+            }
+        }
+    }
+
+    private static List<SlaCandidate> SolveByComponent(
         int targetCount,
         IReadOnlyList<SlaCandidate> candidates)
     {
         var dsu = new DisjointSet(targetCount);
-        foreach (var candidate in candidates)
+        foreach (var targets in candidates.Select(candidate => candidate.Targets))
         {
-            var first = candidate.Targets[0];
-            for (var i = 1; i < candidate.Targets.Length; i++) dsu.Union(first, candidate.Targets[i]);
+            var first = targets[0];
+            for (var i = 1; i < targets.Length; i++)
+            {
+                dsu.Union(first, targets[i]);
+            }
         }
 
         var targetsByRoot = Enumerable.Range(0, targetCount).GroupBy(dsu.Find);
@@ -168,95 +205,150 @@ internal static class SlaPlacementOptimizer
     }
 
     private static IReadOnlyList<SlaCandidate> SolveComponent(
-        IReadOnlyList<int> componentTargets,
+        int[] componentTargets,
         IReadOnlyList<SlaCandidate> candidates)
     {
-        if (componentTargets.Count <= ExactTargetLimit && candidates.Count <= ExactCandidateLimit)
+        if (componentTargets.Length <= ExactTargetLimit && candidates.Count <= ExactCandidateLimit)
         {
             var targetMap = componentTargets.Select((target, local) => (target, local))
                 .ToDictionary(x => x.target, x => x.local);
             var masks = candidates.Select(candidate => candidate.Targets.Aggregate(0UL,
                 (mask, target) => mask | 1UL << targetMap[target])).ToArray();
-            var exact = SolveExact(masks, componentTargets.Count);
+            var exact = SolveExact(masks, componentTargets.Length);
             return exact.Select(x => candidates[x]).ToArray();
         }
 
         return SolveGreedy(componentTargets, candidates);
     }
 
-    private static IReadOnlyList<int> SolveExact(IReadOnlyList<ulong> masks, int targetCount)
+    private static List<int> SolveExact(ulong[] masks, int targetCount) =>
+        new ExactCoverSearch(masks, targetCount).Solve();
+
+    private sealed class ExactCoverSearch
     {
-        var all = targetCount == 64 ? ulong.MaxValue : (1UL << targetCount) - 1;
-        var candidatesByTarget = new List<int>[targetCount];
-        for (var i = 0; i < targetCount; i++) candidatesByTarget[i] = [];
-        for (var candidate = 0; candidate < masks.Count; candidate++)
-            for (var target = 0; target < targetCount; target++)
-                if ((masks[candidate] & 1UL << target) != 0)
-                    candidatesByTarget[target].Add(candidate);
+        private readonly ulong[] _masks;
+        private readonly int _targetCount;
+        private readonly ulong _all;
+        private readonly List<int>[] _candidatesByTarget;
+        private List<int> _incumbent;
+        private readonly List<int> _current = [];
+        private readonly Dictionary<ulong, int> _bestDepthByCovered = [];
+        private int _visitedNodes;
 
-        var incumbent = SolveGreedyMasks(masks, all);
-        var current = new List<int>();
-        var bestDepthByCovered = new Dictionary<ulong, int>();
-        var visitedNodes = 0;
-
-        Search(0);
-        return incumbent;
-
-        void Search(ulong covered)
+        public ExactCoverSearch(ulong[] masks, int targetCount)
         {
-            if (++visitedNodes > ExactSearchNodeLimit) return;
-            if (covered == all)
+            _masks = masks;
+            _targetCount = targetCount;
+            _all = targetCount == 64 ? ulong.MaxValue : (1UL << targetCount) - 1;
+            _candidatesByTarget = new List<int>[targetCount];
+            for (var i = 0; i < targetCount; i++)
             {
-                if (current.Count < incumbent.Count) incumbent = current.ToList();
+                _candidatesByTarget[i] = [];
+            }
+
+            for (var candidate = 0; candidate < masks.Length; candidate++)
+            {
+                for (var target = 0; target < targetCount; target++)
+                {
+                    if ((masks[candidate] & 1UL << target) != 0)
+                    {
+                        _candidatesByTarget[target].Add(candidate);
+                    }
+                }
+            }
+
+            _incumbent = SolveGreedyMasks(masks, _all);
+        }
+
+        public List<int> Solve()
+        {
+            Search(0);
+            return _incumbent;
+        }
+
+        private void Search(ulong covered)
+        {
+            if (++_visitedNodes > ExactSearchNodeLimit)
+            {
                 return;
             }
 
-            if (current.Count >= incumbent.Count - 1) return;
-            if (bestDepthByCovered.TryGetValue(covered, out var previousDepth) && previousDepth <= current.Count) return;
-            bestDepthByCovered[covered] = current.Count;
+            if (covered == _all)
+            {
+                if (_current.Count < _incumbent.Count)
+                {
+                    _incumbent = _current.ToList();
+                }
 
-            var remaining = all & ~covered;
-            var maxGain = masks.Max(mask => BitOperations.PopCount(mask & remaining));
-            if (maxGain == 0) return;
+                return;
+            }
+
+            if (_current.Count >= _incumbent.Count - 1)
+            {
+                return;
+            }
+
+            if (_bestDepthByCovered.TryGetValue(covered, out var previousDepth) && previousDepth <= _current.Count)
+            {
+                return;
+            }
+
+            _bestDepthByCovered[covered] = _current.Count;
+
+            var remaining = _all & ~covered;
+            var maxGain = _masks.Max(mask => BitOperations.PopCount(mask & remaining));
+            if (maxGain == 0)
+            {
+                return;
+            }
+
             var lowerBound = (BitOperations.PopCount(remaining) + maxGain - 1) / maxGain;
-            if (current.Count + lowerBound >= incumbent.Count) return;
+            if (_current.Count + lowerBound >= _incumbent.Count)
+            {
+                return;
+            }
 
-            var target = Enumerable.Range(0, targetCount)
+            var target = Enumerable.Range(0, _targetCount)
                 .Where(x => (remaining & 1UL << x) != 0)
-                .MinBy(x => candidatesByTarget[x].Count(candidate => (masks[candidate] & remaining) != 0));
-            var branches = candidatesByTarget[target]
-                .Where(candidate => (masks[candidate] & remaining) != 0)
-                .OrderByDescending(candidate => BitOperations.PopCount(masks[candidate] & remaining))
+                .MinBy(x => _candidatesByTarget[x].Count(candidate => (_masks[candidate] & remaining) != 0));
+            var branches = _candidatesByTarget[target]
+                .Where(candidate => (_masks[candidate] & remaining) != 0)
+                .OrderByDescending(candidate => BitOperations.PopCount(_masks[candidate] & remaining))
                 .ThenBy(candidate => candidate);
 
             foreach (var candidate in branches)
             {
-                current.Add(candidate);
-                Search(covered | masks[candidate]);
-                current.RemoveAt(current.Count - 1);
-                if (visitedNodes > ExactSearchNodeLimit) return;
+                _current.Add(candidate);
+                Search(covered | _masks[candidate]);
+                _current.RemoveAt(_current.Count - 1);
+                if (_visitedNodes > ExactSearchNodeLimit)
+                {
+                    return;
+                }
             }
         }
-    }
-
-    private static List<int> SolveGreedyMasks(IReadOnlyList<ulong> masks, ulong all)
-    {
-        var selected = new List<int>();
-        var covered = 0UL;
-        while (covered != all)
+        private static List<int> SolveGreedyMasks(ulong[] masks, ulong all)
         {
-            var best = Enumerable.Range(0, masks.Count)
-                .MaxBy(x => BitOperations.PopCount(masks[x] & ~covered));
-            if ((masks[best] & ~covered) == 0)
-                throw new InvalidOperationException("No SLA candidate covers the remaining notes.");
-            selected.Add(best);
-            covered |= masks[best];
-        }
+            var selected = new List<int>();
+            var covered = 0UL;
+            while (covered != all)
+            {
+                var best = Enumerable.Range(0, masks.Length)
+                    .MaxBy(x => BitOperations.PopCount(masks[x] & ~covered));
+                if ((masks[best] & ~covered) == 0)
+                {
+                    throw new InvalidOperationException("No SLA candidate covers the remaining notes.");
+                }
 
-        return selected;
+                selected.Add(best);
+                covered |= masks[best];
+            }
+
+            return selected;
+        }
     }
 
-    private static IReadOnlyList<SlaCandidate> SolveGreedy(
+    private static List<SlaCandidate> SolveGreedy(
         IReadOnlyList<int> targets,
         IReadOnlyList<SlaCandidate> candidates)
     {
@@ -275,7 +367,9 @@ internal static class SlaPlacementOptimizer
                 .ThenBy(x => x.Index)
                 .First();
             if (best.Gain == 0)
+            {
                 throw new InvalidOperationException("No SLA candidate covers the remaining notes.");
+            }
 
             selected.Add(best.Candidate);
             uncovered.ExceptWith(best.Candidate.Targets);
@@ -287,22 +381,32 @@ internal static class SlaPlacementOptimizer
             var without = selected.Where((_, index) => index != i)
                 .SelectMany(x => x.Targets)
                 .ToHashSet();
-            if (!targets.All(without.Contains)) continue;
+            if (!targets.All(without.Contains))
+            {
+                continue;
+            }
+
             selected.RemoveAt(i);
         }
 
         return selected;
     }
 
-    private static int LowerBound(IReadOnlyList<int> values, int value)
+    private static int LowerBound(int[] values, int value)
     {
         var left = 0;
-        var right = values.Count;
+        var right = values.Length;
         while (left < right)
         {
             var middle = left + (right - left) / 2;
-            if (values[middle] < value) left = middle + 1;
-            else right = middle;
+            if (values[middle] < value)
+            {
+                left = middle + 1;
+            }
+            else
+            {
+                right = middle;
+            }
         }
 
         return left;
@@ -320,11 +424,23 @@ internal static class SlaPlacementOptimizer
         var leftArea = (long)left.Width * left.Length;
         var rightArea = (long)right.Width * right.Length;
         var result = leftArea.CompareTo(rightArea);
-        if (result != 0) return result;
+        if (result != 0)
+        {
+            return result;
+        }
+
         result = left.Length.CompareTo(right.Length);
-        if (result != 0) return result;
+        if (result != 0)
+        {
+            return result;
+        }
+
         result = left.Width.CompareTo(right.Width);
-        if (result != 0) return result;
+        if (result != 0)
+        {
+            return result;
+        }
+
         result = left.Tick.CompareTo(right.Tick);
         return result != 0 ? result : left.Lane.CompareTo(right.Lane);
     }
@@ -340,7 +456,11 @@ internal static class SlaPlacementOptimizer
 
         public int Find(int value)
         {
-            if (_parents[value] != value) _parents[value] = Find(_parents[value]);
+            if (_parents[value] != value)
+            {
+                _parents[value] = Find(_parents[value]);
+            }
+
             return _parents[value];
         }
 
@@ -348,10 +468,21 @@ internal static class SlaPlacementOptimizer
         {
             left = Find(left);
             right = Find(right);
-            if (left == right) return;
-            if (_ranks[left] < _ranks[right]) (left, right) = (right, left);
+            if (left == right)
+            {
+                return;
+            }
+
+            if (_ranks[left] < _ranks[right])
+            {
+                (left, right) = (right, left);
+            }
+
             _parents[right] = left;
-            if (_ranks[left] == _ranks[right]) _ranks[left]++;
+            if (_ranks[left] == _ranks[right])
+            {
+                _ranks[left]++;
+            }
         }
     }
 }

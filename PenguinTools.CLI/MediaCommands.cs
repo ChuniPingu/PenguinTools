@@ -5,6 +5,7 @@ namespace PenguinTools.CLI;
 
 internal static class MediaCommands
 {
+    private const string InputArgumentName = "input";
     internal static Command BuildJacketCommand()
     {
         var root = new Command("jacket", "Jacket operations.");
@@ -23,7 +24,7 @@ internal static class MediaCommands
                 value => Msg.Create(MsgKeys.Cli_Msg_jacket_written, value.OutputPath),
                 CliJsonSerializerContext.Default.JacketConvertResult, cancellationToken, parseResult));
         root.Subcommands.Add(command);
-        var fileInput = new Argument<string>("input") { Description = "Input image file." };
+        var fileInput = new Argument<string>(InputArgumentName) { Description = "Input image file." };
         var fileOutput = new Argument<string>("output") { Description = "Output DDS file." };
         var convertFile = new Command("convert-file", "Convert an image directly to a jacket DDS.");
         convertFile.Arguments.Add(fileInput);
@@ -40,7 +41,7 @@ internal static class MediaCommands
 
     private static Command BuildAudioExtractCommand()
     {
-        var input = new Argument<string>("input") { Description = "Input ACB or AWB file." };
+        var input = new Argument<string>(InputArgumentName) { Description = "Input ACB or AWB file." };
         var output = new Argument<string>("output") { Description = "Output directory for decoded WAV files." };
         var paired = new Option<string?>("--paired-input") { Description = "Explicit paired ACB/AWB path." };
         var key = new Option<ulong?>("--hca-key") { Description = "HCA decryption key override." };
@@ -86,7 +87,7 @@ internal static class MediaCommands
 
     private static Command BuildAudioConvertFileCommand()
     {
-        var input = new Argument<string>("input") { Description = "Input WAV, OGG, or MP3 file." };
+        var input = new Argument<string>(InputArgumentName) { Description = "Input WAV, OGG, or MP3 file." };
         var output = Output();
         var songId = new Option<int>("--song-id") { Description = "Song ID." };
         var previewStart = new Option<decimal>("--preview-start") { Description = "Preview start in seconds." };
@@ -98,15 +99,18 @@ internal static class MediaCommands
         };
         var initialBpm = new Option<decimal>("--initial-bpm")
         {
-            Description = "Initial BPM.", DefaultValueFactory = _ => 120m
+            Description = "Initial BPM.",
+            DefaultValueFactory = _ => 120m
         };
         var numerator = new Option<int>("--initial-numerator")
         {
-            Description = "Initial time-signature numerator.", DefaultValueFactory = _ => 4
+            Description = "Initial time-signature numerator.",
+            DefaultValueFactory = _ => 4
         };
         var denominator = new Option<int>("--initial-denominator")
         {
-            Description = "Initial time-signature denominator.", DefaultValueFactory = _ => 4
+            Description = "Initial time-signature denominator.",
+            DefaultValueFactory = _ => 4
         };
         var key = new Option<ulong?>("--hca-key") { Description = "HCA encryption key." };
         var command = new Command("convert-file", "Convert an audio file using explicit song metadata.");
@@ -168,7 +172,7 @@ internal static class MediaCommands
                 CliJsonSerializerContext.Default.StageBuildResult, cancellationToken, parseResult));
         root.Subcommands.Add(buildFiles);
 
-        var afbInput = new Argument<string>("input") { Description = "Input AFB file." };
+        var afbInput = new Argument<string>(InputArgumentName) { Description = "Input AFB file." };
         var afbOutput = Output();
         var extract = new Command("extract", "Extract stage textures from an AFB file.");
         extract.Arguments.Add(afbInput);
@@ -188,7 +192,7 @@ internal static class MediaCommands
 
     private static Argument<string> InputChart()
     {
-        return new Argument<string>("input") { Description = "Input chart file." };
+        return new Argument<string>(InputArgumentName) { Description = "Input chart file." };
     }
 
     private static Argument<string> Output()

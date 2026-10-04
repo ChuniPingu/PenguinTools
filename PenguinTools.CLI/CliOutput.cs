@@ -82,7 +82,10 @@ internal static class CliOutput
     {
         var detail = string.Join("; ", errors);
         if (string.IsNullOrWhiteSpace(detail))
+        {
             detail = "unknown error";
+        }
+
         WriteFailure("parse", Msg.Create(MsgKeys.Cli_Msg_command_line_parsing_failed, detail),
             CliExitCodes.SyntaxError);
     }

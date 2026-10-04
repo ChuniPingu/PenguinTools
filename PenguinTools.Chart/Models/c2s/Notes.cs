@@ -51,7 +51,7 @@ public class Slide : ExTapableLongNote
 
 public interface IPairable
 {
-    public Note? Parent { get; set; }
+    Note? Parent { get; set; }
 }
 
 public class Air : Note, IPairable

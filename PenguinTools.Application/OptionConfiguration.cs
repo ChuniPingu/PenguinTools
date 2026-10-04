@@ -13,7 +13,10 @@ internal static class OptionConfiguration
         LoadForScanAsync(string input, CancellationToken cancellationToken)
     {
         var candidate = Path.Combine(input, "options.json");
-        if (!File.Exists(candidate)) return (null, null, DiagnosticSnapshot.Empty);
+        if (!File.Exists(candidate))
+        {
+            return (null, null, DiagnosticSnapshot.Empty);
+        }
 
         try
         {
@@ -31,22 +34,42 @@ internal static class OptionConfiguration
 
     internal static string? ResolveLoadPath(OptionBuildRequest request, string input)
     {
-        if (request.SkipConfig) return null;
-        if (!string.IsNullOrWhiteSpace(request.ConfigPath)) return Path.GetFullPath(request.ConfigPath.Trim());
+        if (request.SkipConfig)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ConfigPath))
+        {
+            return Path.GetFullPath(request.ConfigPath.Trim());
+        }
+
         var candidate = Path.Combine(input, "options.json");
         return File.Exists(candidate) ? candidate : null;
     }
 
     internal static string ResolveSavePath(OptionBuildRequest request, string input, string? loadedConfigPath)
     {
-        if (!string.IsNullOrWhiteSpace(request.ConfigPath)) return Path.GetFullPath(request.ConfigPath.Trim());
-        if (loadedConfigPath is not null) return loadedConfigPath;
+        if (!string.IsNullOrWhiteSpace(request.ConfigPath))
+        {
+            return Path.GetFullPath(request.ConfigPath.Trim());
+        }
+
+        if (loadedConfigPath is not null)
+        {
+            return loadedConfigPath;
+        }
+
         return Path.Combine(input, "options.json");
     }
 
     internal static async Task<OptionDocument> LoadAsync(string path, CancellationToken cancellationToken)
     {
-        if (!File.Exists(path)) throw new FileNotFoundException("Option configuration file was not found.", path);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("Option configuration file was not found.", path);
+        }
+
         await using var stream = File.OpenRead(path);
         return await JsonSerializer.DeserializeAsync(stream, ApplicationJsonContext.Default.OptionDocument,
                    cancellationToken)

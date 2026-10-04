@@ -1,4 +1,4 @@
-﻿/*
+/*
    This model is based on the original implementation from:
    https://github.com/inonote/MargreteOnline
 */

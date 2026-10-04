@@ -62,7 +62,9 @@ public class UgcNoteTests
         finally
         {
             if (File.Exists(path))
+            {
                 File.Delete(path);
+            }
         }
     }
 

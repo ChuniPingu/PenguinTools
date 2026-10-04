@@ -1,4 +1,4 @@
-﻿namespace PenguinTools.Core.Metadata;
+namespace PenguinTools.Core.Metadata;
 
 public partial record Meta
 {
@@ -9,7 +9,11 @@ public partial record Meta
     {
         get
         {
-            if (!BgmEnableBarOffset) return BgmManualOffset;
+            if (!BgmEnableBarOffset)
+            {
+                return BgmManualOffset;
+            }
+
             return BgmManualOffset + BgmBarOffset;
         }
     }

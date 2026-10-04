@@ -2,7 +2,7 @@ using System.Globalization;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
 using Xunit;
-using umgr = PenguinTools.Chart.Models.umgr;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Tests.Parser;
 
@@ -30,27 +30,41 @@ public class UgcSampleParityTests
         Assert.Equal(mgxcSet.Beats.OrderBy(x => x).ToArray(), ugcSet.Beats.OrderBy(x => x).ToArray());
     }
 
-    private static ChartSummary Summarize(umgr.Chart c)
+    private static ChartSummary Summarize(UmgrModel.Chart c)
     {
         var summary = new ChartSummary();
         foreach (var n in c.Notes.Children)
         {
             // TIL → SoflanArea synthesis still diverges from reference MGXC on some charts; compare gameplay notes only.
-            if (n is umgr.SoflanArea or umgr.SoflanAreaJoint) continue;
+            if (n is UmgrModel.SoflanArea or UmgrModel.SoflanAreaJoint)
+            {
+                continue;
+            }
+
             summary.Notes.Add($"{n.GetType().Name}|{n.Tick.Original}|{n.Lane}|{n.Width}|{n.Timeline}");
         }
 
-        foreach (var b in c.Events.Children.OfType<umgr.BpmEvent>())
+        foreach (var b in c.Events.Children.OfType<UmgrModel.BpmEvent>())
+        {
             summary.Bpms.Add($"{b.Tick.Original}|{FormatBpm(b.Bpm)}");
-        foreach (var b in c.Events.Children.OfType<umgr.BeatEvent>())
+        }
+
+        foreach (var b in c.Events.Children.OfType<UmgrModel.BeatEvent>())
+        {
             summary.Beats.Add($"{b.Bar}|{b.Numerator}|{b.Denominator}");
+        }
+
         return summary;
     }
 
     private static string FormatBpm(decimal bpm)
     {
         var s = bpm.ToString(CultureInfo.InvariantCulture);
-        if (!s.Contains('.')) return s;
+        if (!s.Contains('.'))
+        {
+            return s;
+        }
+
         return s.TrimEnd('0').TrimEnd('.');
     }
 
