@@ -103,6 +103,51 @@ function Test-RequiredFiles {
     return $true
 }
 
+function Read-ArchiveEntry {
+    param(
+        [IO.Compression.ZipArchiveEntry]$Entry,
+        [string]$Destination,
+        [bool]$Extract,
+        [Collections.Generic.HashSet[string]]$Names
+    )
+
+    $name = $Entry.FullName.Replace('\', '/')
+
+    if ($name.EndsWith('/')) {
+        $null = Get-ChildPath $Destination $name.TrimEnd('/')
+        return $true
+    }
+
+    $path = Get-ChildPath $Destination $name
+
+    if (-not $Names.Add($name) -or (($Entry.ExternalAttributes -shr 16) -band 0xf000) -eq 0xa000) {
+        throw "Duplicate path or symbolic link in native-tool archive: $name"
+    }
+
+    $inputStream = $Entry.Open()
+
+    try {
+        if ($Extract) {
+            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
+            $outputStream = [IO.File]::Open($path, 'CreateNew', 'Write', 'None')
+
+            try {
+                $inputStream.CopyTo($outputStream)
+            }
+            finally {
+                $outputStream.Dispose()
+            }
+
+            return $true
+        }
+
+        return [IO.File]::Exists($path) -and (Get-Sha256 $path) -eq (Get-StreamHash $inputStream)
+    }
+    finally {
+        $inputStream.Dispose()
+    }
+}
+
 function Read-Archive {
     param(
         [string]$Path,
@@ -116,40 +161,7 @@ function Read-Archive {
 
     try {
         foreach ($entry in $zip.Entries) {
-            $name = $entry.FullName.Replace('\', '/')
-
-            if ($name.EndsWith('/')) {
-                $null = Get-ChildPath $Destination $name.TrimEnd('/')
-                continue
-            }
-
-            $path = Get-ChildPath $Destination $name
-
-            if (-not $names.Add($name) -or (($entry.ExternalAttributes -shr 16) -band 0xf000) -eq 0xa000) {
-                throw "Duplicate path or symbolic link in native-tool archive: $name"
-            }
-
-            $inputStream = $entry.Open()
-
-            try {
-                if ($Extract) {
-                    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
-                    $outputStream = [IO.File]::Open($path, 'CreateNew', 'Write', 'None')
-
-                    try {
-                        $inputStream.CopyTo($outputStream)
-                    }
-                    finally {
-                        $outputStream.Dispose()
-                    }
-                }
-                elseif (-not [IO.File]::Exists($path) -or (Get-Sha256 $path) -ne (Get-StreamHash $inputStream)) {
-                    $isValid = $false
-                }
-            }
-            finally {
-                $inputStream.Dispose()
-            }
+            $isValid = (Read-ArchiveEntry $entry $Destination $Extract $names) -and $isValid
         }
 
         if ($names.Count -eq 0) {
@@ -168,6 +180,100 @@ function Read-Archive {
     }
 }
 
+function Save-VerifiedDownload {
+    param(
+        $Tool,
+        [string]$Download
+    )
+
+    Write-Information "Downloading $($Tool.id) $($Tool.release)..." -InformationAction Continue
+    Invoke-WebRequest -Uri $Tool.url -OutFile $Download -UseBasicParsing -TimeoutSec 120
+    $actual = Get-Sha256 $Download
+
+    if ($actual -ne $Tool.sha256) {
+        throw "SHA-256 mismatch: expected $($Tool.sha256), received $actual."
+    }
+}
+
+function Initialize-FileTool {
+    param(
+        $Tool,
+        [string]$Destination,
+        [string]$Stage,
+        [string]$Download
+    )
+
+    $installed = Get-ChildPath $Destination $Tool.fileName
+
+    if ([IO.File]::Exists($installed) -and (Get-Sha256 $installed) -eq $Tool.sha256 -and (Test-RequiredFiles $Tool $Destination)) {
+        return $false
+    }
+
+    Save-VerifiedDownload $Tool $Download
+    $stagedFile = Get-ChildPath $Stage $Tool.fileName
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($stagedFile)) | Out-Null
+    [IO.File]::Move($Download, $stagedFile)
+    return $true
+}
+
+function Initialize-ArchiveTool {
+    param(
+        $Tool,
+        [string]$Destination,
+        [string]$Stage,
+        [string]$Download
+    )
+
+    $downloads = Join-Path $cachePath 'downloads'
+    [IO.Directory]::CreateDirectory($downloads) | Out-Null
+    $archive = Join-Path $downloads ($Tool.id + '-' + $Tool.sha256 + '.zip')
+
+    if (-not [IO.File]::Exists($archive) -or (Get-Sha256 $archive) -ne $Tool.sha256) {
+        Save-VerifiedDownload $Tool $Download
+        Replace-File $Download $archive
+    }
+
+    if ((Read-Archive $archive $Destination $false) -and (Test-RequiredFiles $Tool $Destination)) {
+        return $false
+    }
+
+    [IO.Directory]::CreateDirectory($Stage) | Out-Null
+    $null = Read-Archive $archive $Stage $true
+    return $true
+}
+
+function Install-StagedTool {
+    param(
+        $Tool,
+        [string]$Stage,
+        [string]$Destination,
+        [string]$Backup
+    )
+
+    foreach ($required in $Tool.requiredFiles) {
+        if (-not [IO.File]::Exists((Get-ChildPath $Stage $required))) {
+            throw "Required native-tool file is missing: $required"
+        }
+    }
+
+    if ([IO.Directory]::Exists($Destination)) {
+        [IO.Directory]::Move($Destination, $Backup)
+    }
+
+    try {
+        [IO.Directory]::Move($Stage, $Destination)
+    }
+    catch {
+        if ([IO.Directory]::Exists($Backup)) {
+            [IO.Directory]::Move($Backup, $Destination)
+        }
+
+        throw
+    }
+
+    Remove-StagingDirectory $Backup
+}
+
 function Prepare-Tool {
     param($Tool)
 
@@ -184,71 +290,15 @@ function Prepare-Tool {
 
     try {
         if ($Tool.type -eq 'file') {
-            $installed = Get-ChildPath $destination $Tool.fileName
-
-            if ([IO.File]::Exists($installed) -and (Get-Sha256 $installed) -eq $Tool.sha256 -and (Test-RequiredFiles $Tool $destination)) {
-                return
-            }
-
-            Write-Host "Downloading $($Tool.id) $($Tool.release)..."
-            Invoke-WebRequest -Uri $Tool.url -OutFile $download -UseBasicParsing -TimeoutSec 120
-            $actual = Get-Sha256 $download
-
-            if ($actual -ne $Tool.sha256) {
-                throw "SHA-256 mismatch: expected $($Tool.sha256), received $actual."
-            }
-
-            $stagedFile = Get-ChildPath $stage $Tool.fileName
-            [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($stagedFile)) | Out-Null
-            [IO.File]::Move($download, $stagedFile)
+            $changed = Initialize-FileTool $Tool $destination $stage $download
         }
         else {
-            $downloads = Join-Path $cachePath 'downloads'
-            [IO.Directory]::CreateDirectory($downloads) | Out-Null
-            $archive = Join-Path $downloads ($Tool.id + '-' + $Tool.sha256 + '.zip')
-
-            if (-not [IO.File]::Exists($archive) -or (Get-Sha256 $archive) -ne $Tool.sha256) {
-                Write-Host "Downloading $($Tool.id) $($Tool.release)..."
-                Invoke-WebRequest -Uri $Tool.url -OutFile $download -UseBasicParsing -TimeoutSec 120
-                $actual = Get-Sha256 $download
-
-                if ($actual -ne $Tool.sha256) {
-                    throw "SHA-256 mismatch: expected $($Tool.sha256), received $actual."
-                }
-
-                Replace-File $download $archive
-            }
-
-            if ((Read-Archive $archive $destination $false) -and (Test-RequiredFiles $Tool $destination)) {
-                return
-            }
-
-            [IO.Directory]::CreateDirectory($stage) | Out-Null
-            $null = Read-Archive $archive $stage $true
+            $changed = Initialize-ArchiveTool $Tool $destination $stage $download
         }
 
-        foreach ($required in $Tool.requiredFiles) {
-            if (-not [IO.File]::Exists((Get-ChildPath $stage $required))) {
-                throw "Required native-tool file is missing: $required"
-            }
+        if ($changed) {
+            Install-StagedTool $Tool $stage $destination $backup
         }
-
-        if ([IO.Directory]::Exists($destination)) {
-            [IO.Directory]::Move($destination, $backup)
-        }
-
-        try {
-            [IO.Directory]::Move($stage, $destination)
-        }
-        catch {
-            if ([IO.Directory]::Exists($backup)) {
-                [IO.Directory]::Move($backup, $destination)
-            }
-
-            throw
-        }
-
-        Remove-StagingDirectory $backup
     }
     catch {
         throw "Unable to prepare pinned $($Tool.id) $($Tool.release): $($_.Exception.Message)"

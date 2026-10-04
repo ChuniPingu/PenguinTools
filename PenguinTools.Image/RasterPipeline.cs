@@ -41,9 +41,13 @@ internal static class RasterPipeline
         var linear = images.Own(srgb.Colourspace(Enums.Interpretation.Scrgb));
         // scRGB uses 0..1 for both colors and alpha, including alpha converted from 8/16-bit input.
         // Black compositing commutes with linear filtering. Drop alpha before resizing opaque outputs.
-        var filterInput = linear.HasAlpha()
-            ? images.Own(opaque ? linear.Flatten(background: [0, 0, 0], maxAlpha: 1) : linear.Premultiply(maxAlpha: 1))
-            : linear;
+        var filterInput = linear;
+        if (linear.HasAlpha())
+        {
+            filterInput = images.Own(opaque
+                ? linear.Flatten(background: [0, 0, 0], maxAlpha: 1)
+                : linear.Premultiply(maxAlpha: 1));
+        }
         var resized = images.Own(filterInput.Resize((double)width / filterInput.Width,
             kernel: Enums.Kernel.Lanczos3, vscale: (double)height / filterInput.Height));
         var straight = !opaque && linear.HasAlpha() ? images.Own(resized.Unpremultiply(maxAlpha: 1)) : resized;
@@ -61,7 +65,7 @@ internal static class RasterPipeline
     {
         if ((long)offset >= image.Height || (long)offset <= -image.Height)
         {
-            return image.NewFromImage([0, 0, 0, 255]);
+            return image.NewFromImage(0, 0, 0, 255);
         }
 
         if (offset == 0)

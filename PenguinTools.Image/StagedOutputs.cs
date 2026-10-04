@@ -36,43 +36,12 @@ internal static class StagedOutputs
             // Do not introduce a cancellation point between commits of one stage's related files.
             foreach (var (temporary, destination) in staged)
             {
-                string? backup = null;
-                if (File.Exists(destination))
-                {
-                    backup = destination + "." + Guid.NewGuid().ToString("N") + ".bak";
-                    File.Replace(temporary, destination, backup);
-                }
-                else
-                {
-                    File.Move(temporary, destination);
-                }
-
-                committed.Add((destination, backup));
+                committed.Add((destination, CommitOutput(temporary, destination)));
             }
         }
         catch (Exception failure)
         {
-            List<Exception> errors = [failure];
-            for (var i = committed.Count - 1; i >= 0; i--)
-            {
-                var (destination, backup) = committed[i];
-                try
-                {
-                    if (backup is null)
-                    {
-                        File.Delete(destination);
-                    }
-                    else
-                    {
-                        File.Replace(backup, destination, null);
-                    }
-                }
-                catch (Exception rollbackFailure)
-                {
-                    // Retain a backup if restoring it fails; never discard the user's previous file.
-                    errors.Add(new IOException($"Could not restore {destination}; the previous file remains at {backup}.", rollbackFailure));
-                }
-            }
+            var errors = Rollback(committed, failure);
             if (errors.Count > 1)
             {
                 throw new AggregateException("Image output commit and rollback failed.", errors);
@@ -94,5 +63,45 @@ internal static class StagedOutputs
                 File.Delete(backup);
             }
         }
+    }
+
+    private static string? CommitOutput(string temporary, string destination)
+    {
+        if (!File.Exists(destination))
+        {
+            File.Move(temporary, destination);
+            return null;
+        }
+
+        var backup = destination + "." + Guid.NewGuid().ToString("N") + ".bak";
+        File.Replace(temporary, destination, backup);
+        return backup;
+    }
+
+    private static List<Exception> Rollback(List<(string Destination, string? Backup)> committed, Exception failure)
+    {
+        List<Exception> errors = [failure];
+        for (var i = committed.Count - 1; i >= 0; i--)
+        {
+            var (destination, backup) = committed[i];
+            try
+            {
+                if (backup is null)
+                {
+                    File.Delete(destination);
+                }
+                else
+                {
+                    File.Replace(backup, destination, null);
+                }
+            }
+            catch (Exception rollbackFailure)
+            {
+                // Retain a backup if restoring it fails; never discard the user's previous file.
+                errors.Add(new IOException($"Could not restore {destination}; the previous file remains at {backup}.", rollbackFailure));
+            }
+        }
+
+        return errors;
     }
 }

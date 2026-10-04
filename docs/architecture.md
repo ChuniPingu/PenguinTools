@@ -13,7 +13,7 @@ The CLI is a command adapter around application services. Chart and media projec
 | `PenguinTools.Workflow`       | Scan charts and coordinate music/option exports and caches         |
 | `PenguinTools.Infrastructure` | Asset storage, paths, and native tool execution                    |
 | `PenguinTools.Assets`         | Asset build/copy configuration                                     |
-| `PenguinTools.CRI`            | Helper executable for CRI audio operations                         |
+| `PenguinTools.CRI`            | In-process CRI audio conversion and extraction                     |
 | `PenguinTools.Tests`          | Unit tests and optional sample/native integration tests            |
 
 Treat application request/result records and CLI JSON output as interfaces for callers. Preserve message keys and named arguments, diagnostic locations, cancellation, exit codes, and numeric identifier representation when changing them.

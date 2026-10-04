@@ -4,7 +4,7 @@
 
 Install Git, the .NET SDK selected by [global.json](../global.json), and Visual Studio C++ x64 build tools. Managed target frameworks and package versions are declared in [Common.props](../Common.props) and the project files.
 
-FFmpeg builds need a Microsoft vcpkg checkout; set `VCPKG_ROOT` to it. Image builds automatically prepare the pinned tools from [native-tools.json](../PenguinTools.Assets/native-tools.json), verifying hashes and reusing `artifacts/tools` offline.
+Builds automatically prepare the pinned FFmpeg and texconv binaries from [native-tools.json](../PenguinTools.Assets/native-tools.json), verifying hashes and reusing `artifacts/tools` offline.
 
 Initialize the pinned dependencies:
 
@@ -13,6 +13,14 @@ git submodule update --init --recursive
 ```
 
 ## Managed builds
+
+Managed builds, style checks, tests, and Sonar analysis need only the two managed codec dependencies:
+
+```powershell
+git submodule update --init External/SonicAudioTools External/vgaudio
+```
+
+CI initializes these explicitly. Native tools are needed for native media integration and complete release payloads.
 
 ```powershell
 dotnet restore PenguinTools.slnx
@@ -24,23 +32,15 @@ Managed CLI output is under `PenguinTools.CLI/bin/<Configuration>/<TargetFramewo
 
 ## Native tools and publishing
 
-From the repository root:
-
-```powershell
-.\External\ffmpeg\scripts\build.ps1
-```
-
-FFmpeg publishes under `External/ffmpeg/bin/`. Its release workflow is maintained in [ffmpeg-build](https://github.com/ChuniPingu/ffmpeg-build); the binary dependency switch awaits the first published, verified release.
-
 For the complete Windows payload:
 
 ```powershell
 .\build.ps1
 ```
 
-The script builds FFmpeg and publishes the CRI helper and CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime.
+The script publishes the CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime.
 
-CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the complete folder, including libvips, `assets/`, the CRI helper, and license notices. Runtime needs no network.
+CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the complete folder, including libvips, `assets/`, and license notices. Runtime needs no network.
 
 ## Checks and contributions
 

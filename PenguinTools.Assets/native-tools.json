@@ -8,6 +8,20 @@
       "url": "https://github.com/microsoft/DirectXTex/releases/download/may2026/texconv.exe",
       "sha256": "dcfdec10244e02cf5037fba089c55fb7e1326b1c8181742d77d15fa5cb5eef06",
       "fileName": "texconv.exe"
+    },
+    {
+      "id": "ffmpeg",
+      "release": "v9.0.2",
+      "type": "zip",
+      "url": "https://github.com/ChuniPingu/ffmpeg-build/releases/download/v9.0.2/ffmpeg-win-x64.zip",
+      "sha256": "c045a9d3e9f57f2f76000a0d6865d22716795509276afe82034f729572912fd8",
+      "requiredFiles": [
+        "ffmpeg.exe",
+        "build-metadata.json",
+        "legal/FFMPEG-COPYRIGHT.txt",
+        "legal/NOTICE.md",
+        "legal/FFMPEG-SOURCE-OFFER.md"
+      ]
     }
   ]
 }

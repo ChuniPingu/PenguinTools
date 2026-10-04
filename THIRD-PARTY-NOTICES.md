@@ -53,6 +53,4 @@ MIT License. Copyright (c) Alex Barney.
 
 ## [FFmpeg](https://ffmpeg.org/)
 
-FFmpeg is distributed as a standalone executable built from a custom LGPL vcpkg overlay. Redistribution obligations
-are documented in [FFmpeg notice](External/ffmpeg/legal/NOTICE.md), [source information](External/ffmpeg/legal/FFMPEG-SOURCE-OFFER.md), and the FFmpeg
-copyright notice copied during `External/ffmpeg/scripts/build.ps1`.
+FFmpeg is distributed as a standalone LGPL executable from [ffmpeg-build v9.0.2](https://github.com/ChuniPingu/ffmpeg-build/releases/tag/v9.0.2), which includes matching sources and build metadata. Its copyright, notice, and source offer are packaged under `assets/ffmpeg/legal/`.

@@ -7,8 +7,7 @@ internal static class ResourceStoreHelpers
     private static readonly HashSet<string> ExternalExecutables = new(StringComparer.Ordinal)
     {
         "ffmpeg",
-        "texconv",
-        "PenguinTools.CRI"
+        "texconv"
     };
 
     public static void EnsureExecutableIfNeeded(string path, string resourceName)

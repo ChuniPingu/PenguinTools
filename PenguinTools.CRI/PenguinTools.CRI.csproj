@@ -3,7 +3,6 @@
 
     <PropertyGroup>
         <TargetFramework>$(DotNetVersion)</TargetFramework>
-        <OutputType>Exe</OutputType>
         <RootNamespace>PenguinTools.CRI</RootNamespace>
         <AssemblyName>PenguinTools.CRI</AssemblyName>
         <IsAotCompatible>true</IsAotCompatible>
@@ -12,7 +11,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.CommandLine" Version="2.0.12" />
+        <ProjectReference Include="..\PenguinTools.Media\PenguinTools.Media.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

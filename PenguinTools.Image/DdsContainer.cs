@@ -50,8 +50,24 @@ internal static class DdsContainer
             throw new InvalidDataException("Invalid DDS dimensions or mip count.");
         }
 
-        var headerSize = 128;
+        var storage = ReadStorage(data);
+        var length = checked(storage.HeaderSize + CalculatePayload(data, width, height, mips, storage) * storage.Surfaces);
+        if (length > data.Length)
+        {
+            throw new InvalidDataException("Truncated DDS pixel data.");
+        }
+
+        return new DdsChunk(0, checked((int)length), width, height, mips, storage.Format);
+    }
+
+    private static DdsStorage ReadStorage(ReadOnlySpan<byte> data)
+    {
         var format = Encoding.ASCII.GetString(data.Slice(84, 4));
+        if (format == "DX10")
+        {
+            return ReadDx10Storage(data);
+        }
+
         var caps = U32(data, 112);
         var depth = (caps & 0x200000) != 0 ? Math.Max(1, checked((int)U32(data, 24))) : 1;
         var surfaces = (caps & 0x200) != 0 ? System.Numerics.BitOperations.PopCount(caps & 0xfc00) : 1;
@@ -67,78 +83,83 @@ internal static class DdsContainer
             _ => 0
         };
         var bits = (int)U32(data, 88);
-        if (format == "DX10")
-        {
-            if (data.Length < 148)
-            {
-                throw new InvalidDataException("Truncated DDS DX10 header.");
-            }
-
-            headerSize = 148;
-            var dxgi = U32(data, 128);
-            blockBytes = dxgi switch { >= 70 and <= 72 or >= 79 and <= 81 => 8, >= 73 and <= 78 or >= 82 and <= 84 or >= 94 and <= 99 => 16, _ => 0 };
-            bits = dxgi switch
-            {
-                >= 1 and <= 4 => 128,
-                >= 5 and <= 8 => 96,
-                >= 9 and <= 22 => 64,
-                >= 23 and <= 47 or >= 87 and <= 93 => 32,
-                >= 48 and <= 59 or 85 or 86 or 115 => 16,
-                >= 60 and <= 65 => 8,
-                66 => 1,
-                _ => 0
-            };
-            var dimension = U32(data, 132);
-            surfaces = checked((int)U32(data, 140));
-            if (surfaces < 1 || dimension is < 2 or > 4)
-            {
-                throw new InvalidDataException("Invalid DDS DX10 resource description.");
-            }
-
-            if ((U32(data, 136) & 4) != 0)
-            {
-                surfaces = checked(surfaces * 6);
-            }
-
-            depth = dimension == 4 ? Math.Max(1, checked((int)U32(data, 24))) : 1;
-            format = $"DXGI:{dxgi}";
-        }
-        else if (blockBytes == 0 && (U32(data, 80) & 4) != 0)
+        if (blockBytes == 0 && (U32(data, 80) & 4) != 0)
         {
             // Legacy D3DFORMAT numeric FourCC values.
             bits = U32(data, 84) switch { 36 or 110 or 113 or 115 => 64, 111 => 16, 112 or 114 => 32, 116 => 128, _ => 0 };
         }
 
-        if (blockBytes == 0 && bits is not (1 or 8 or 16 or 24 or 32 or 64 or 96 or 128))
+        return new DdsStorage(128, format, blockBytes, bits, depth, surfaces);
+    }
+
+    private static DdsStorage ReadDx10Storage(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 148)
         {
-            throw new InvalidDataException($"Unsupported DDS storage format: {format}.");
+            throw new InvalidDataException("Truncated DDS DX10 header.");
+        }
+
+        var dxgi = U32(data, 128);
+        var blockBytes = dxgi switch
+        {
+            >= 70 and <= 72 or >= 79 and <= 81 => 8,
+            >= 73 and <= 78 or >= 82 and <= 84 or >= 94 and <= 99 => 16,
+            _ => 0
+        };
+        var bits = dxgi switch
+        {
+            >= 1 and <= 4 => 128,
+            >= 5 and <= 8 => 96,
+            >= 9 and <= 22 => 64,
+            >= 23 and <= 47 or >= 87 and <= 93 => 32,
+            >= 48 and <= 59 or 85 or 86 or 115 => 16,
+            >= 60 and <= 65 => 8,
+            66 => 1,
+            _ => 0
+        };
+        var dimension = U32(data, 132);
+        var surfaces = checked((int)U32(data, 140));
+        if (surfaces < 1 || dimension is < 2 or > 4)
+        {
+            throw new InvalidDataException("Invalid DDS DX10 resource description.");
+        }
+
+        if ((U32(data, 136) & 4) != 0)
+        {
+            surfaces = checked(surfaces * 6);
+        }
+
+        var depth = dimension == 4 ? Math.Max(1, checked((int)U32(data, 24))) : 1;
+        return new DdsStorage(148, $"DXGI:{dxgi}", blockBytes, bits, depth, surfaces);
+    }
+
+    private static long CalculatePayload(ReadOnlySpan<byte> data, int width, int height, int mips, DdsStorage storage)
+    {
+        if (storage.BlockBytes == 0 && storage.Bits is not (1 or 8 or 16 or 24 or 32 or 64 or 96 or 128))
+        {
+            throw new InvalidDataException($"Unsupported DDS storage format: {storage.Format}.");
         }
 
         long payload = 0;
         var w = width;
         var h = height;
+        var depth = storage.Depth;
         for (var level = 0; level < mips; level++)
         {
-            var row = blockBytes != 0 ? ((long)w + 3) / 4 * blockBytes : ((long)w * bits + 7) / 8;
+            var row = storage.BlockBytes != 0 ? ((long)w + 3) / 4 * storage.BlockBytes : ((long)w * storage.Bits + 7) / 8;
             // Preserve explicitly padded legacy top-level scanlines.
-            if (level == 0 && blockBytes == 0 && (U32(data, 8) & 8) != 0)
+            if (level == 0 && storage.BlockBytes == 0 && (U32(data, 8) & 8) != 0)
             {
                 row = Math.Max(row, U32(data, 20));
             }
 
-            payload = checked(payload + row * (blockBytes != 0 ? ((long)h + 3) / 4 : h) * depth);
+            payload = checked(payload + row * (storage.BlockBytes != 0 ? ((long)h + 3) / 4 : h) * depth);
             w = Math.Max(1, w / 2);
             h = Math.Max(1, h / 2);
             depth = Math.Max(1, depth / 2);
         }
 
-        var length = checked(headerSize + payload * surfaces);
-        if (length > data.Length)
-        {
-            throw new InvalidDataException("Truncated DDS pixel data.");
-        }
-
-        return new DdsChunk(0, checked((int)length), width, height, mips, format);
+        return payload;
     }
 
     public static byte[] ReplaceStage(byte[] template, byte[] background, byte[] effects)
@@ -169,4 +190,6 @@ internal static class DdsContainer
     }
 
     private static uint U32(ReadOnlySpan<byte> data, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(data[offset..]);
+
+    private readonly record struct DdsStorage(int HeaderSize, string Format, int BlockBytes, int Bits, int Depth, int Surfaces);
 }

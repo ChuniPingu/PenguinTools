@@ -28,6 +28,6 @@ The sample theories enumerate during discovery, so empty optional sample sets ar
 
 ## Native and asset tests
 
-Media and CRI integration tests need the corresponding native tool output and local assets. Build tools using the [development commands](development.md#native-tools-and-publishing), then check the paths resolved by `TestAssets` and `TestMediaTool`.
+Native media integration tests need the corresponding tool output and local assets. Build tools using the [development commands](development.md#native-tools-and-publishing), then check the paths resolved by `TestAssets` and `TestMediaTool`. CRI round-trip, error, cancellation, and console-logging tests use generated WAV fixtures and the in-process library; they do not require a separate CRI executable.
 
 Prefer a synthetic fixture for parser regressions. If a real sample is needed, keep it local and describe the missing coverage in the validation result.

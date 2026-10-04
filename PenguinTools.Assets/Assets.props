@@ -1,20 +1,13 @@
 <Project>
     <PropertyGroup>
         <PenguinToolsTexconvDirectory>$(MSBuildThisFileDirectory)..\artifacts\tools\texconv</PenguinToolsTexconvDirectory>
-        <PenguinToolsFfmpegRoot>$(MSBuildThisFileDirectory)..\External\ffmpeg</PenguinToolsFfmpegRoot>
-        <PenguinToolsFfmpegPublishDir>$(PenguinToolsFfmpegRoot)\bin</PenguinToolsFfmpegPublishDir>
-        <PenguinToolsCriPublishProfile Condition="'$(PenguinToolsCriPublishProfile)' == ''">WinX64-NativeAOT</PenguinToolsCriPublishProfile>
-        <PenguinToolsCriPublishDir>$(MSBuildThisFileDirectory)..\PenguinTools.CRI\bin\Release\net10.0\publish\$(PenguinToolsCriPublishProfile)</PenguinToolsCriPublishDir>
+        <PenguinToolsFfmpegPublishDir>$(MSBuildThisFileDirectory)..\artifacts\tools\ffmpeg</PenguinToolsFfmpegPublishDir>
     </PropertyGroup>
 
     <ItemGroup>
         <PenguinToolsTexconvContent Include="$(PenguinToolsTexconvDirectory)\texconv.exe;$(MSBuildThisFileDirectory)Licenses\DirectXTex.txt">
             <PublishPath>assets\texconv\%(Filename)%(Extension)</PublishPath>
         </PenguinToolsTexconvContent>
-        <_CriPublishFile Include="$(PenguinToolsCriPublishDir)\PenguinTools.CRI.exe" Condition="Exists('$(PenguinToolsCriPublishDir)\PenguinTools.CRI.exe')"/>
-        <PenguinToolsCriContent Include="@(_CriPublishFile)">
-            <PublishPath>assets\cri\%(Filename)%(Extension)</PublishPath>
-        </PenguinToolsCriContent>
         <PenguinToolsInfrastructureAsset Include="$(MSBuildThisFileDirectory)..\Assets\assets.json">
             <ResourceName>assets.json</ResourceName>
             <ManifestKey>AssetsJson</ManifestKey>
@@ -30,12 +23,6 @@
             <Link>assets\licenses\%(Filename)%(Extension)</Link>
         </Content>
         <Content Include="@(PenguinToolsTexconvContent)">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            <TargetPath>%(PublishPath)</TargetPath>
-            <Link>%(PublishPath)</Link>
-        </Content>
-        <Content Include="@(PenguinToolsCriContent)">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             <TargetPath>%(PublishPath)</TargetPath>
