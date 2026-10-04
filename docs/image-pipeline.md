@@ -1,7 +1,6 @@
 # Image pipeline
 
-`PenguinTools.Image` runs in-process on Windows x64 and supports NativeAOT.
-NetVips 3.2.0 / native 8.18.7 handles rasters; pinned texconv handles DDS codecs.
+`PenguinTools.Image` uses NetVips for rasters and pinned texconv for DDS on Windows x64, including NativeAOT.
 
 | Output | Size | Format | Child processes |
 | --- | --- | --- | --- |
@@ -10,21 +9,9 @@ NetVips 3.2.0 / native 8.18.7 handles rasters; pinned texconv handles DDS codecs
 | DDS decode | Original size, first surface | RGBA8 PNG | 1 |
 | Validation / extraction | Unchanged | No encoding | 0 |
 
-- Content-based raster loading; first frame/page; SVG excluded.
-- EXIF orientation, ICC-to-sRGB conversion, linear-light filtering and premultiplied alpha.
-- Opaque black jackets/backgrounds; straight-alpha effects in top-left, top-right, bottom-left, bottom-right order.
-- Background offset defaults to 160; positive moves upward and exposed rows are black.
-- Legacy DDS headers, one mip, BGRA TGA handoff; container size and nontexture bytes preserved.
-- Shared job limit: `max(1, min(4, ProcessorCount / 2))`. Temporary directories are isolated; cancellation kills child processes.
-- Image cache version **5** invalidates older image entries while preserving audio entries.
-
-Builds verify and cache pinned native tools automatically. Publish the complete output folder;
-runtime needs no network. `ImageService` takes the texconv path and temporary directory in its constructor.
-
-```powershell
-dotnet test --project PenguinTools.Tests/PenguinTools.Tests.csproj -c Release
-dotnet publish PenguinTools.CLI/PenguinTools.CLI.csproj -p:PublishProfile=WinX64-NativeAOT
-```
+Rasters use the first frame/page, EXIF orientation, ICC-to-sRGB conversion, and linear-light resizing.
+Jackets/backgrounds are opaque; effects retain alpha. Background offset defaults to 160 pixels upward.
+DDS output uses legacy headers and one mip. Image cache version 5 invalidates older image entries.
 
 ## Synthetic benchmark
 
@@ -39,8 +26,6 @@ eight callers; the library limits active jobs to four.
 | Stage | 207 ms | 356 ms |
 | 16 stages | 920 ms | 2,130 ms |
 
-The remaining slowdown includes linear-light processing, subprocess and temporary-file costs,
-and bounded concurrency. Repeated upstream raster evaluation was removed during profiling.
-Intermediate I/O is 405,146 bytes per jacket and 10,642,212 per stage.
-[Measurements](benchmarks/image-migration-win-x64.json) include sampled process-tree memory and
-logical I/O; 10 ms sampling can miss short-lived processes and is not physical disk I/O.
+Linear-light processing, child processes, temporary I/O, and bounded concurrency add cost.
+Repeated raster evaluation was removed during profiling. [Measurements](benchmarks/image-migration-win-x64.json)
+include process-tree memory and logical I/O sampled every 10 ms; short-lived processes may be missed.

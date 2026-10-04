@@ -40,12 +40,15 @@ jobs:
         run: ./scripts/check-style.ps1
       - run: dotnet build PenguinTools.slnx -c Release --no-restore -p:Platform=x64 -warnaserror
       - run: dotnet test --project PenguinTools.Tests/PenguinTools.Tests.csproj -c Release --no-build --results-directory TestResults --report-xunit-trx
-      - name: Publish standard and NativeAOT CLI
+      - name: Publish CLI
         shell: pwsh
         run: |
           foreach ($profile in @('WinX64', 'WinX64-NativeAOT')) {
             dotnet publish PenguinTools.CLI/PenguinTools.CLI.csproj -p:PublishProfile=$profile -p:DebugType=None -p:DebugSymbols=false
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
           }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
