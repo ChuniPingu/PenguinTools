@@ -24,6 +24,8 @@ Parsers and writers live in `PenguinTools.Chart/Parser/` and `Writer/`. Shared m
 
 Conversion tests cover metadata, timing, note relationships, payloads, and C2S round-trip information stored in MGXC bookmarks. A change to parsing or writing needs tests for the affected behavior and round-trip preservation where relevant.
 
+For native MGXC/UGC charts with `sofs`/`SOFFSET` enabled, audio export adds one initial measure of silence. C2S conversion shifts notes, long-note endpoints, speed intervals, and later tempo/meter events by the same measure; the initial tempo and meter stay at tick zero. The measure length uses the initial time signature, independently of the manual audio offset. C2S imports retain their existing coordinates, including after edits invalidate saved snapshots. This origin is recorded in `ChartExtras.C2sCoordinateOrigin` and persists in MGXC/UGC round-trip metadata; older imports are recognized by their source key or source snapshot.
+
 [Format references](formats/README.md) describe syntax and provenance. A source specification does not imply that every command is implemented; check the parser and its tests.
 
 ## Messages
