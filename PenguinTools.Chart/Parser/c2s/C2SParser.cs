@@ -3,9 +3,9 @@ using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
-namespace PenguinTools.Chart.Parser.c2s;
+using c2sModel = PenguinTools.Chart.Models.c2s;
 
-using c2sModel = Models.c2s;
+namespace PenguinTools.Chart.Parser.c2s;
 
 public sealed class C2SParser
 {
@@ -59,7 +59,9 @@ public sealed class C2SParser
         }
 
         if (string.IsNullOrWhiteSpace(_version))
+        {
             Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.C2s_Version_line_not_found), Path));
+        }
 
         C2s.Extras.InferClickCount(C2s);
         C2s.Extras.Tutorial = C2s.Extras.Headers.GetValueOrDefault("TUTORIAL", "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() == "1";
@@ -67,7 +69,9 @@ public sealed class C2SParser
         C2s.Extras.SourceMetaKey = ChartExtras.MetaKey(C2s);
         ResolvePairings();
         if (!DiagnosticSnapshot.Create(Diagnostic).HasError)
+        {
             C2s.Extras.SourceKey = Writer.c2s.C2SChartWriter.GetContentKey(C2s);
+        }
 
         var diagnostics = DiagnosticSnapshot.Create(Diagnostic);
         return diagnostics.HasError
@@ -82,18 +86,34 @@ public sealed class C2SParser
         {
             var fields = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             if (fields.Length != 3 || !int.TryParse(fields[1], out var count) || count < 0 || fields[2] is not ("0" or "1"))
+            {
                 ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "metronome extension"), line.Number);
-            else { C2s.Extras.ClickCount = count; C2s.Extras.ClickEnabled = fields[2] == "1"; }
+            }
+            else
+            { C2s.Extras.ClickCount = count; C2s.Extras.ClickEnabled = fields[2] == "1"; }
             return;
         }
-        if (text.Length == 0 || text.StartsWith("//", StringComparison.Ordinal)) return;
+        if (text.Length == 0 || text.StartsWith("//", StringComparison.Ordinal))
+        {
+            return;
+        }
 
         var tokens = Tokenize(text);
-        if (tokens.Length == 0) return;
+        if (tokens.Length == 0)
+        {
+            return;
+        }
 
-        if (tokens[0].StartsWith("T_", StringComparison.Ordinal)) C2s.Extras.SourceStatistics.Add(text);
+        if (tokens[0].StartsWith("T_", StringComparison.Ordinal))
+        {
+            C2s.Extras.SourceStatistics.Add(text);
+        }
+
         if (tokens[0] is "VERSION" or "MUSIC" or "DIFFICULT" or "LEVEL" or "CREATOR" or "BPM_DEF" or "MET_DEF")
+        {
             C2s.Extras.Headers[tokens[0]] = text;
+        }
+
         ParseTokens(tokens, text, line.Number);
     }
 
@@ -185,19 +205,30 @@ public sealed class C2SParser
             case "TUTORIAL":
                 C2s.Extras.Headers[tokens[0]] = text;
                 if (tokens[0] == "CLK_DEF" && !C2s.Extras.ClickCount.HasValue && tokens.Length > 1)
+                {
                     C2s.Extras.ClickEnabled = tokens[1] != "0";
+                }
+
                 break;
             case "CLK":
                 if (TryGetInt(tokens, 1, lineNumber, "CLK measure", out var bar) &&
                     TryGetInt(tokens, 2, lineNumber, "CLK offset", out var offset))
+                {
                     C2s.Extras.ClickTicks.Add(ScalePosition(bar, offset).Original);
+                }
+
                 break;
             default:
                 if (tokens[0].Length == 3)
+                {
                     ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
                         lineNumber);
+                }
+
                 if (tokens[0].Length > 3 && !tokens[0].StartsWith("T_", StringComparison.Ordinal))
+                {
                     C2s.Extras.Headers[tokens[0]] = text;
+                }
                 // Unknown metadata is carried through without changing modeled fields.
                 break;
         }
@@ -206,7 +237,9 @@ public sealed class C2SParser
     private void ParseJudgeSummary(string[] tokens, int lineNumber)
     {
         if (!TryGetInt(tokens, 1, lineNumber, tokens[0], out var value))
+        {
             return;
+        }
 
         if (value < 0)
         {
@@ -243,45 +276,79 @@ public sealed class C2SParser
 
     private void ParseVersion(string[] tokens, int lineNumber)
     {
-        if (!TryGetToken(tokens, 1, lineNumber, "VERSION", out var version)) return;
+        if (!TryGetToken(tokens, 1, lineNumber, "VERSION", out var version))
+        {
+            return;
+        }
 
         _version = version;
         if (!SupportedVersions.Contains(version))
+        {
             ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Unsupported_version, version), lineNumber);
+        }
     }
 
     private void ParseMusic(string[] tokens)
     {
-        if (tokens.Length < 2) return;
+        if (tokens.Length < 2)
+        {
+            return;
+        }
 
         C2s.Meta.MgxcId = tokens[1];
-        if (int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)) C2s.Meta.Id = id;
+        if (int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            C2s.Meta.Id = id;
+        }
     }
 
     private void ParseDifficulty(string[] tokens)
     {
-        if (tokens.Length < 2) return;
+        if (tokens.Length < 2)
+        {
+            return;
+        }
+
         if (int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
             C2s.Meta.Difficulty = UmiguriParserCommon.DifficultyFromValue(value);
+        }
     }
 
     private void ParseLevel(string[] tokens)
     {
-        if (tokens.Length < 2) return;
+        if (tokens.Length < 2)
+        {
+            return;
+        }
+
         if (decimal.TryParse(tokens[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var level))
+        {
             C2s.Meta.Level = level;
+        }
     }
 
     private void ParseCreator(string[] tokens)
     {
-        if (tokens.Length < 2) return;
+        if (tokens.Length < 2)
+        {
+            return;
+        }
+
         C2s.Meta.Designer = string.Join('\t', tokens.Skip(1));
     }
 
     private void ParseBpmDefinition(string[] tokens)
     {
-        if (tokens.Length < 2) return;
-        if (!decimal.TryParse(tokens[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var bpm)) return;
+        if (tokens.Length < 2)
+        {
+            return;
+        }
+
+        if (!decimal.TryParse(tokens[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var bpm))
+        {
+            return;
+        }
 
         C2s.Meta.MainBpm = tokens.Length > 2 && decimal.TryParse(tokens[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var mainBpm) ? mainBpm : bpm;
         C2s.Meta.BgmInitialBpm = bpm;
@@ -289,16 +356,29 @@ public sealed class C2SParser
 
     private void ParseMeterDefinition(string[] tokens)
     {
-        if (tokens.Length < 3) return;
+        if (tokens.Length < 3)
+        {
+            return;
+        }
+
         if (int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var denominator))
+        {
             C2s.Meta.BgmInitialDenominator = denominator;
+        }
+
         if (int.TryParse(tokens[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var numerator))
+        {
             C2s.Meta.BgmInitialNumerator = numerator;
+        }
     }
 
     private void ParseResolution(string[] tokens, int lineNumber)
     {
-        if (!TryGetInt(tokens, 1, lineNumber, "resolution", out var resolution)) return;
+        if (!TryGetInt(tokens, 1, lineNumber, "resolution", out var resolution))
+        {
+            return;
+        }
+
         if (resolution <= 0)
         {
             ReportAtLine(Severity.Error, Msg.Key(MsgKeys.C2s_Resolution_must_be_positive), lineNumber);
@@ -313,7 +393,9 @@ public sealed class C2SParser
     {
         if (!TryParseNode(tokens, lineNumber, out var tick) ||
             !TryGetDecimal(tokens, 3, lineNumber, "BPM value", out var value))
+        {
             return;
+        }
 
         C2s.Events.Add(new c2sModel.Bpm
         {
@@ -327,7 +409,9 @@ public sealed class C2SParser
         if (!TryParseNode(tokens, lineNumber, out var tick) ||
             !TryGetInt(tokens, 3, lineNumber, "MET denominator", out var denominator) ||
             !TryGetInt(tokens, 4, lineNumber, "MET numerator", out var numerator))
+        {
             return;
+        }
 
         if (numerator < 0 || denominator < 0)
         {
@@ -340,7 +424,9 @@ public sealed class C2SParser
         // Some existing charts use a terminal MET with denominator zero.
         // Preserve its record; it is not used to construct the editor's bar axis.
         if (denominator == 0)
+        {
             ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Invalid_field, "MET denominator"), lineNumber);
+        }
 
         C2s.Events.Add(new c2sModel.Met
         {
@@ -352,8 +438,15 @@ public sealed class C2SParser
 
     private void ParseSlp(string[] tokens, int lineNumber)
     {
-        if (!TryParseSpeedEvent(tokens, lineNumber, out var tick, out var length, out var speed)) return;
-        if (!TryGetInt(tokens, 5, lineNumber, "SLP timeline", out var timeline)) return;
+        if (!TryParseSpeedEvent(tokens, lineNumber, out var tick, out var length, out var speed))
+        {
+            return;
+        }
+
+        if (!TryGetInt(tokens, 5, lineNumber, "SLP timeline", out var timeline))
+        {
+            return;
+        }
 
         C2s.Events.Add(new c2sModel.Slp
         {
@@ -366,7 +459,10 @@ public sealed class C2SParser
 
     private void ParseSfl(string[] tokens, int lineNumber)
     {
-        if (!TryParseSpeedEvent(tokens, lineNumber, out var tick, out var length, out var speed)) return;
+        if (!TryParseSpeedEvent(tokens, lineNumber, out var tick, out var length, out var speed))
+        {
+            return;
+        }
 
 #pragma warning disable CS0612
         C2s.Events.Add(new c2sModel.Sfl
@@ -382,7 +478,9 @@ public sealed class C2SParser
     {
         if (!TryParseNode(tokens, lineNumber, out var tick) ||
             !TryGetInt(tokens, 3, lineNumber, "STP length", out var length))
+        {
             return;
+        }
 
 #pragma warning disable CS0612
         C2s.Events.Add(new c2sModel.Stop
@@ -396,7 +494,10 @@ public sealed class C2SParser
 
     private void ParseDcm(string[] tokens, int lineNumber)
     {
-        if (!TryParseSpeedEvent(tokens, lineNumber, out var tick, out var length, out var speed)) return;
+        if (!TryParseSpeedEvent(tokens, lineNumber, out var tick, out var length, out var speed))
+        {
+            return;
+        }
 
         C2s.Events.Add(new c2sModel.Dcm
         {
@@ -455,7 +556,11 @@ public sealed class C2SParser
 
     private void ParseShortNote<T>(string[] tokens, int lineNumber) where T : c2sModel.Note, new()
     {
-        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase)) return;
+        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase))
+        {
+            return;
+        }
+
         C2s.Notes.Add(new T
         {
             Tick = noteBase.Tick,
@@ -466,7 +571,10 @@ public sealed class C2SParser
 
     private void ParseExTap(string[] tokens, int lineNumber)
     {
-        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase)) return;
+        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase))
+        {
+            return;
+        }
 
         var note = new c2sModel.ExTap
         {
@@ -476,9 +584,13 @@ public sealed class C2SParser
         };
 
         if (TryReadEffect(tokens, 5, lineNumber, out var effect))
+        {
             note.Effect = effect;
+        }
         else if (UsesLegacyDefaultExTapEffect())
+        {
             note.Effect = ExEffect.UP;
+        }
 
         C2s.Notes.Add(note);
     }
@@ -487,7 +599,9 @@ public sealed class C2SParser
     {
         if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
             !TryGetInt(tokens, 5, lineNumber, "HOLD length", out var length))
+        {
             return;
+        }
 
         var type = tokens[0].ToUpperInvariant();
 
@@ -502,9 +616,13 @@ public sealed class C2SParser
         };
 
         if (TryReadEffect(tokens, 6, lineNumber, out var effect))
+        {
             note.Effect = effect;
+        }
         else if (type == "HXD")
+        {
             note.Effect = ExEffect.UP;
+        }
 
         C2s.Notes.Add(note);
     }
@@ -514,7 +632,9 @@ public sealed class C2SParser
         if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
             !TryGetInt(tokens, 5, lineNumber, "SLA length", out var length) ||
             !TryGetInt(tokens, 6, lineNumber, "SLA timeline", out var timeline))
+        {
             return;
+        }
 
         C2s.Notes.Add(new c2sModel.Sla
         {
@@ -531,13 +651,17 @@ public sealed class C2SParser
         if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
             !TryGetInt(tokens, 5, lineNumber, "SLIDE length", out var length) ||
             !TryGetInt(tokens, 6, lineNumber, "SLIDE end lane", out var endLane))
+        {
             return;
+        }
 
         int endWidth;
         if (HasToken(tokens, 7))
         {
             if (!TryGetInt(tokens, 7, lineNumber, "SLIDE end width", out endWidth))
+            {
                 return;
+            }
         }
         else
         {
@@ -571,17 +695,28 @@ public sealed class C2SParser
         }
 
         if (TryReadEffect(tokens, effectIndex, lineNumber, out var effect))
+        {
             note.Effect = effect;
+        }
         else if (type is "SXD" or "SXC")
+        {
             note.Effect = ExEffect.UP;
+        }
 
         C2s.Notes.Add(note);
     }
 
     private void ParseAir(string[] tokens, int lineNumber)
     {
-        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase)) return;
-        if (!TryGetToken(tokens, 5, lineNumber, "AIR parent", out var parentId)) return;
+        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase))
+        {
+            return;
+        }
+
+        if (!TryGetToken(tokens, 5, lineNumber, "AIR parent", out var parentId))
+        {
+            return;
+        }
 
         var note = new c2sModel.Air
         {
@@ -591,7 +726,10 @@ public sealed class C2SParser
             Direction = AirDirectionFromId(tokens[0])
         };
 
-        if (TryReadColor(tokens, 6, lineNumber, out var color)) note.Color = color;
+        if (TryReadColor(tokens, 6, lineNumber, out var color))
+        {
+            note.Color = color;
+        }
 
         C2s.Notes.Add(note);
         _pendingPairs.Add(new PendingPair(note, parentId, lineNumber));
@@ -606,7 +744,9 @@ public sealed class C2SParser
             !TryGetInt(tokens, 8, lineNumber, "AIR-SLIDE end lane", out var endLane) ||
             !TryGetInt(tokens, 9, lineNumber, "AIR-SLIDE end width", out var endWidth) ||
             !TryGetDecimal(tokens, 10, lineNumber, "AIR-SLIDE end height", out var endHeight))
+        {
             return;
+        }
 
         var note = new c2sModel.AirSlide
         {
@@ -621,7 +761,10 @@ public sealed class C2SParser
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
-        if (TryReadColor(tokens, 11, lineNumber, out var color)) note.Color = color;
+        if (TryReadColor(tokens, 11, lineNumber, out var color))
+        {
+            note.Color = color;
+        }
 
         C2s.Notes.Add(note);
         _pendingPairs.Add(new PendingPair(note, parentId, lineNumber));
@@ -632,7 +775,9 @@ public sealed class C2SParser
         if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
             !TryGetToken(tokens, 5, lineNumber, "AIR-HOLD parent", out var parentId) ||
             !TryGetInt(tokens, 6, lineNumber, "AIR-HOLD length", out var length))
+        {
             return;
+        }
 
         var note = new c2sModel.AirHold
         {
@@ -645,7 +790,10 @@ public sealed class C2SParser
             EndWidth = noteBase.Width
         };
 
-        if (TryReadColor(tokens, 7, lineNumber, out var color)) note.Color = color;
+        if (TryReadColor(tokens, 7, lineNumber, out var color))
+        {
+            note.Color = color;
+        }
 
         C2s.Notes.Add(note);
         _pendingPairs.Add(new PendingPair(note, parentId, lineNumber));
@@ -660,7 +808,9 @@ public sealed class C2SParser
             !TryGetInt(tokens, 8, lineNumber, "AIR-CRASH end lane", out var endLane) ||
             !TryGetInt(tokens, 9, lineNumber, "AIR-CRASH end width", out var endWidth) ||
             !TryGetDecimal(tokens, 10, lineNumber, "AIR-CRASH end height", out var endHeight))
+        {
             return;
+        }
 
         var note = new c2sModel.AirCrash
         {
@@ -675,8 +825,16 @@ public sealed class C2SParser
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
-        if (TryReadColor(tokens, 11, lineNumber, out var color)) note.Color = color;
-        if (TryReadAirLadderAttr(tokens, 12, lineNumber, out var attr)) note.Attr = attr;
+        if (TryReadColor(tokens, 11, lineNumber, out var color))
+        {
+            note.Color = color;
+        }
+
+        if (TryReadAirLadderAttr(tokens, 12, lineNumber, out var attr))
+        {
+            note.Attr = attr;
+        }
+
         C2s.Notes.Add(note);
     }
 
@@ -689,7 +847,9 @@ public sealed class C2SParser
         if (!TryParseNode(tokens, lineNumber, out tick) ||
             !TryGetInt(tokens, 3, lineNumber, "event length", out var rawLength) ||
             !TryGetDecimal(tokens, 4, lineNumber, "event speed", out speed))
+        {
             return false;
+        }
 
         length = ScaleLength(rawLength);
         return true;
@@ -700,7 +860,9 @@ public sealed class C2SParser
         tick = default;
         if (!TryGetInt(tokens, 1, lineNumber, "measure", out var measure) ||
             !TryGetInt(tokens, 2, lineNumber, "offset", out var offset))
+        {
             return false;
+        }
 
         tick = ScalePosition(measure, offset);
         return true;
@@ -712,7 +874,9 @@ public sealed class C2SParser
         if (!TryParseNode(tokens, lineNumber, out var tick) ||
             !TryGetInt(tokens, 3, lineNumber, "lane", out var lane) ||
             !TryGetInt(tokens, 4, lineNumber, "width", out var width))
+        {
             return false;
+        }
 
         noteBase = new NoteBase(tick, lane, width);
         return true;
@@ -751,11 +915,20 @@ public sealed class C2SParser
         // C2S writers use SLD as the generic parent marker even when the
         // attach-point segment itself is a control (SLC/SXC) segment.
         if (parentId.Equals("SLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Slide)
+        {
             return true;
+        }
+
         if (parentId.Equals("HLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Hold)
+        {
             return true;
+        }
+
         if (parentId.Equals("AHD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.AirHold)
+        {
             return true;
+        }
+
         return string.Equals(candidate.Id, parentId, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -767,13 +940,17 @@ public sealed class C2SParser
             heightNote.EndWidth == note.Width &&
             note is c2sModel.LongHeightNote targetHeight &&
             heightNote.EndHeight.Result == targetHeight.Height.Result)
+        {
             return true;
+        }
 
         if (candidate is c2sModel.LongNote longNote &&
             longNote.EndTick.Original == note.Tick.Original &&
             longNote.EndLane == note.Lane &&
             longNote.EndWidth == note.Width)
+        {
             return true;
+        }
 
         return candidate.Tick.Original == note.Tick.Original &&
                candidate.Lane == note.Lane &&
@@ -783,7 +960,9 @@ public sealed class C2SParser
     private static int PairDistance(c2sModel.Note candidate, c2sModel.Note note)
     {
         if (candidate is c2sModel.LongNote longNote)
+        {
             return Math.Abs(longNote.EndTick.Original - note.Tick.Original);
+        }
 
         return Math.Abs(candidate.Tick.Original - note.Tick.Original);
     }
@@ -801,8 +980,15 @@ public sealed class C2SParser
         TEnum defaultValue, out TEnum value) where TEnum : struct, Enum
     {
         value = defaultValue;
-        if (!HasToken(tokens, index)) return false;
-        if (Enum.TryParse(tokens[index], true, out value) && Enum.IsDefined(value)) return true;
+        if (!HasToken(tokens, index))
+        {
+            return false;
+        }
+
+        if (Enum.TryParse(tokens[index], true, out value) && Enum.IsDefined(value))
+        {
+            return true;
+        }
 
         ReportAtLine(Severity.Warning, Msg.Create(unknownKey, tokens[index]), lineNumber);
         return false;
@@ -871,7 +1057,9 @@ public sealed class C2SParser
         value = default;
         if (index < tokens.Length &&
             int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
             return true;
+        }
 
         ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
             index < tokens.Length ? tokens[index] : null);
@@ -883,7 +1071,9 @@ public sealed class C2SParser
         value = default;
         if (index < tokens.Length &&
             decimal.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        {
             return true;
+        }
 
         ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
             index < tokens.Length ? tokens[index] : null);
@@ -921,7 +1111,9 @@ public sealed class C2SParser
         using var reader = new StringReader(text);
         List<SourceLine> lines = [];
         while (await reader.ReadLineAsync(ct) is { } line)
+        {
             lines.Add(new SourceLine(lines.Count + 1, line));
+        }
 
         return [.. lines];
     }

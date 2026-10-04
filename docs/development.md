@@ -46,13 +46,13 @@ CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publ
 ## Checks and contributions
 
 ```powershell
-dotnet format PenguinTools.slnx --verify-no-changes
-dotnet run --project PenguinTools.Tests
+dotnet restore PenguinTools.slnx
+./scripts/check-style.ps1
+dotnet build PenguinTools.slnx -c Release -p:Platform=x64 --no-restore
+dotnet test --project PenguinTools.Tests/PenguinTools.Tests.csproj -c Release --no-build
 ```
 
 Follow [the project boundaries](architecture.md) and `.editorconfig`. Keep contributions focused and include reproduction steps for bug fixes. Discuss larger changes in an issue before implementing them. Contributions use the [MIT license](../LICENSE).
-
-The older `scripts/format-all.sh` default list does not cover the current solution; use the solution command above or pass existing project paths explicitly.
 
 Tests using local sample files may skip. See [testing](testing.md) for fixture configuration and native tool requirements.
 

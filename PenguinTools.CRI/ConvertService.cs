@@ -33,7 +33,9 @@ internal static class ConvertService
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         if (previewStopMs < previewStartMs)
+        {
             throw new InvalidOperationException("preview stop must not be earlier than preview start");
+        }
 
         var previewStart = ClampPreview(previewStartMs);
         var previewStop = ClampPreview(previewStopMs);
@@ -41,7 +43,9 @@ internal static class ConvertService
         var waveReader = new WaveReader();
         var wav = waveReader.ReadFormat(wavPath);
         if (wav.ChannelCount != 2 || wav.SampleRate != 48000)
+        {
             throw new InvalidOperationException("WAV must be stereo 48 kHz PCM");
+        }
 
         var hcaWriter = new HcaWriter();
         var config = new HcaConfiguration
@@ -58,7 +62,9 @@ internal static class ConvertService
 
         var cueSheetTable = new CriTable();
         using (var dummyAcb = OpenDummyAcb())
+        {
             cueSheetTable.Load(dummyAcb);
+        }
 
         cueSheetTable.Rows[0]["Name"] = name;
 
@@ -97,7 +103,10 @@ internal static class ConvertService
 
             var streamAwbHashTbl = new CriTable();
             streamAwbHashTbl.Load(cueSheetTable.Rows[0]["StreamAwbHash"] as byte[]);
+            // CRI's StreamAwbHash field requires SHA-1 for format compatibility, not authentication.
+#pragma warning disable CA5350
             var sha = SHA1.HashData(awbStream);
+#pragma warning restore CA5350
             streamAwbHashTbl.Rows[0]["Name"] = name;
             streamAwbHashTbl.Rows[0]["Hash"] = sha;
             cueSheetTable.Rows[0]["StreamAwbHash"] = streamAwbHashTbl.Save();
@@ -116,8 +125,16 @@ internal static class ConvertService
 
     private static uint ClampPreview(long value)
     {
-        if (value < 0) return 0;
-        if (value > uint.MaxValue) return uint.MaxValue;
+        if (value < 0)
+        {
+            return 0;
+        }
+
+        if (value > uint.MaxValue)
+        {
+            return uint.MaxValue;
+        }
+
         return (uint)value;
     }
 
@@ -126,7 +143,10 @@ internal static class ConvertService
         var assembly = Assembly.GetExecutingAssembly();
         var stream = assembly.GetManifestResourceStream("PenguinTools.CRI.Assets.dummy.acb");
         if (stream is null)
+        {
             throw new InvalidOperationException("Embedded dummy.acb resource is missing");
+        }
+
         return stream;
     }
 }

@@ -1,14 +1,14 @@
+using System.Text;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
-using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
-using PenguinTools.Core.Metadata;
+using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
-using System.Text;
+using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
 
@@ -21,11 +21,20 @@ public sealed class C2sSlideConversionTests
     {
         var source = new C2sChart();
         for (var i = 0; i < 4; i++)
+        {
             source.Notes.Add(new Slide
             {
-                Tick = 0, Lane = 4, Width = 8, EndTick = 1920, EndLane = 0, EndWidth = 2,
-                Joint = Joint.D, Effect = ExEffect.UP
+                Tick = 0,
+                Lane = 4,
+                Width = 8,
+                EndTick = 1920,
+                EndLane = 0,
+                EndWidth = 2,
+                Joint = Joint.D,
+                Effect = ExEffect.UP
             });
+        }
+
         source.Notes.Add(new Slide { Tick = 1920, Lane = 0, Width = 2, EndTick = 2400, EndLane = 0, EndWidth = 5, Joint = Joint.D, Effect = ExEffect.UP });
         source.Notes.Add(new Slide { Tick = 1920, Lane = 0, Width = 2, EndTick = 2880, EndLane = 0, EndWidth = 6, Joint = Joint.D, Effect = ExEffect.UP });
         source.Notes.Add(new Slide { Tick = 1920, Lane = 0, Width = 2, EndTick = 3360, EndLane = 0, EndWidth = 7, Joint = Joint.D, Effect = ExEffect.UP });
@@ -51,12 +60,24 @@ public sealed class C2sSlideConversionTests
         var source = new C2sChart();
         source.Notes.Add(new Slide
         {
-            Tick = 0, Lane = 0, Width = 4, EndTick = 60, EndLane = 4, EndWidth = 4,
-            Joint = Joint.C, Effect = ExEffect.UP
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 60,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.C,
+            Effect = ExEffect.UP
         });
         source.Notes.Add(new Slide
         {
-            Tick = 60, Lane = 4, Width = 4, EndTick = 120, EndLane = 6, EndWidth = 4, Joint = Joint.D
+            Tick = 60,
+            Lane = 4,
+            Width = 4,
+            EndTick = 120,
+            EndLane = 6,
+            EndWidth = 4,
+            Joint = Joint.D
         });
 
         var slide = Assert.IsType<PenguinTools.Chart.Models.umgr.Slide>(

@@ -1,10 +1,10 @@
 using PenguinTools.Core.Metadata;
-using umgr = PenguinTools.Chart.Models.umgr;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Workflow;
 
 /// <summary>A difficulty view over the parsed chart, including its current metadata.</summary>
-public sealed record OptionDifficulty(umgr.Chart Chart)
+public sealed record OptionDifficulty(UmgrModel.Chart Chart)
 {
     public Meta Meta => Chart.Meta;
     public Difficulty Difficulty => Meta.Difficulty;

@@ -6,8 +6,15 @@ public static class DiagnosticTime
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
 
-        if (diagnostic.Time is not { } tick) return null;
-        if (diagnostic.TimeCalculator is null) return null;
+        if (diagnostic.Time is not { } tick)
+        {
+            return null;
+        }
+
+        if (diagnostic.TimeCalculator is null)
+        {
+            return null;
+        }
 
         return diagnostic.TimeCalculator.GetPosition(tick);
     }

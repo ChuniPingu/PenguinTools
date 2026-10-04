@@ -40,7 +40,9 @@ public class SusParserTests
     {
         var samplesDir = ChartTestPaths.AssetsDirectory;
         if (!Directory.Exists(samplesDir))
+        {
             return [];
+        }
 
         return Directory.EnumerateFiles(samplesDir, "*.sus")
             .OrderBy(Path.GetFileName)

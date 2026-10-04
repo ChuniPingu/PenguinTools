@@ -45,7 +45,9 @@ public static class C2sRoundTripComment
         var bookmarks = new List<string>();
 
         if (meta.TryGetC2sJudgeSummary(out var tap, out var hld, out var sld, out var air, out var flk, out var all))
+        {
             AppendBookmark(bookmarks, JudgeTag, $"{tap} {hld} {sld} {air} {flk} {all}");
+        }
 
         if (meta.C2sJudgeHldProxyBaseline is >= 0 ||
             meta.C2sJudgeSldProxyBaseline is >= 0 ||
@@ -61,7 +63,9 @@ public static class C2sRoundTripComment
 
         if (meta.C2sMeterDefDenominator is >= 0 and var denominator &&
             meta.C2sMeterDefNumerator is >= 0 and var numerator)
+        {
             AppendBookmark(bookmarks, MeterTag, $"{denominator} {numerator}");
+        }
 
         AppendBookmark(bookmarks, SlpEditTag, meta.C2sSlpEditKey);
         AppendBookmark(bookmarks, SlaEditTag, meta.C2sSlaEditKey);
@@ -81,7 +85,9 @@ public static class C2sRoundTripComment
         foreach (var line in lines)
         {
             if (!TryParseRoundTripLine(line, out var tag, out var payload))
+            {
                 continue;
+            }
 
             var args = payload.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             Handle(meta, tag, args);
@@ -91,7 +97,9 @@ public static class C2sRoundTripComment
     public static string Strip(string comment)
     {
         if (string.IsNullOrEmpty(comment))
+        {
             return string.Empty;
+        }
 
         var lines = comment.Split(["\r\n", "\n", "\r"], StringSplitOptions.None);
         var kept = new List<string>(lines.Length);
@@ -109,7 +117,9 @@ public static class C2sRoundTripComment
         }
 
         while (kept.Count > 0 && string.IsNullOrWhiteSpace(kept[^1]))
+        {
             kept.RemoveAt(kept.Count - 1);
+        }
 
         return string.Join('\n', kept);
     }
@@ -151,7 +161,9 @@ public static class C2sRoundTripComment
     private static void AppendBookmark(List<string> bookmarks, string tag, string? args)
     {
         if (args is null)
+        {
             return;
+        }
 
         bookmarks.Add(args.Length == 0
             ? MetaPrefix + tag
@@ -165,13 +177,17 @@ public static class C2sRoundTripComment
 
         var trimmed = line.Trim();
         if (!trimmed.StartsWith(MetaPrefix, StringComparison.Ordinal))
+        {
             return false;
+        }
 
         var rest = trimmed[MetaPrefix.Length..];
         var space = rest.IndexOf(' ');
         var name = space < 0 ? rest : rest[..space];
         if (!TagNames.Contains(name))
+        {
             return false;
+        }
 
         tag = name;
         payload = space < 0 ? string.Empty : rest[(space + 1)..];
@@ -181,18 +197,24 @@ public static class C2sRoundTripComment
     private static void ParseJudge(Meta meta, string[] args)
     {
         if (args.Length != 6)
+        {
             return;
+        }
 
         var values = new int[6];
         for (var i = 0; i < 6; i++)
         {
             if (!int.TryParse(args[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out values[i]) ||
                 values[i] < 0)
+            {
                 return;
+            }
         }
 
         if ((long)values[0] + values[1] + values[2] + values[3] + values[4] != values[5])
+        {
             return;
+        }
 
         meta.C2sJudgeTap = values[0];
         meta.C2sJudgeHld = values[1];
@@ -205,12 +227,16 @@ public static class C2sRoundTripComment
     private static void ParseJudgeProxy(Meta meta, string[] args)
     {
         if (args.Length != 3)
+        {
             return;
+        }
 
         if (!TryParseProxy(args[0], out var hld) ||
             !TryParseProxy(args[1], out var sld) ||
             !TryParseProxy(args[2], out var air))
+        {
             return;
+        }
 
         meta.C2sJudgeHldProxyBaseline = hld;
         meta.C2sJudgeSldProxyBaseline = sld;
@@ -220,13 +246,17 @@ public static class C2sRoundTripComment
     private static void ParseMeter(Meta meta, string[] args)
     {
         if (args.Length != 2)
+        {
             return;
+        }
 
         if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var denominator) ||
             !int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var numerator) ||
             denominator < 0 ||
             numerator < 0)
+        {
             return;
+        }
 
         meta.C2sMeterDefDenominator = denominator;
         meta.C2sMeterDefNumerator = numerator;

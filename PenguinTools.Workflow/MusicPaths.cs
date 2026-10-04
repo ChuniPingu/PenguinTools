@@ -17,12 +17,18 @@ internal static class MusicPaths
     internal static void EnsureParentDirectory(string path)
     {
         var parent = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(parent)) Directory.CreateDirectory(parent);
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
     }
 
     internal static Entry CreateEntry(Entry current, int? id, string? name, string? data)
     {
-        if (id is null && name is null && data is null) return current;
+        if (id is null && name is null && data is null)
+        {
+            return current;
+        }
 
         return new Entry(id ?? current.Id, name ?? current.Str, data ?? current.Data);
     }

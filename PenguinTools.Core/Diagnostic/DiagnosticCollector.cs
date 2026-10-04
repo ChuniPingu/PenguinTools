@@ -44,12 +44,17 @@ public class DiagnosticCollector : IDiagnosticSink
     /// </summary>
     public void BackfillTimeCalculator()
     {
-        if (TimeCalculator is null) return;
+        if (TimeCalculator is null)
+        {
+            return;
+        }
 
         var existing = _diagnostics.ToArray();
         _diagnostics.Clear();
         foreach (var diagnostic in existing)
+        {
             _diagnostics.Add(diagnostic.WithTimeCalculator(TimeCalculator));
+        }
     }
 
 }

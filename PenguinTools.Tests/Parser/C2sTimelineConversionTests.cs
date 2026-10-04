@@ -1,14 +1,14 @@
+using System.Text;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
-using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
-using PenguinTools.Core.Metadata;
+using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
-using System.Text;
+using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
 
@@ -157,8 +157,15 @@ public sealed class C2sTimelineConversionTests
         source.Notes.Add(new Flick { Tick = 480, Lane = 1, Width = 2 });
         source.Notes.Add(new AirCrash
         {
-            Tick = 480, Lane = 2, Width = 2, EndTick = 960, EndLane = 3, EndWidth = 2,
-            Height = 80m, EndHeight = 60m, Density = 20
+            Tick = 480,
+            Lane = 2,
+            Width = 2,
+            EndTick = 960,
+            EndLane = 3,
+            EndWidth = 2,
+            Height = 80m,
+            EndHeight = 60m,
+            Density = 20
         });
         source.Notes.Add(new Sla { Tick = 0, Length = 10, Lane = 1, Width = 2, Timeline = 4 });
         var chart = new UgcChartConverter(new UgcConvertRequest(source)).Convert().Value!;

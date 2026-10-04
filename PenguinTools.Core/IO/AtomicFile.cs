@@ -13,7 +13,9 @@ public static class AtomicFile
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath);
         if (string.IsNullOrWhiteSpace(directory))
+        {
             throw new ArgumentException("Path must include a directory.", nameof(path));
+        }
 
         Directory.CreateDirectory(directory);
         var tempPath = Path.Combine(directory, $"{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
@@ -30,7 +32,10 @@ public static class AtomicFile
         }
         finally
         {
-            if (File.Exists(tempPath)) File.Delete(tempPath);
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
         }
     }
 

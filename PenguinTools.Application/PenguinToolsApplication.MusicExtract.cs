@@ -1,4 +1,4 @@
-using static PenguinTools.Application.RequestPaths;
+using System.Globalization;
 using System.Xml.Linq;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Parser.c2s;
@@ -6,6 +6,7 @@ using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Media;
+using static PenguinTools.Application.RequestPaths;
 
 namespace PenguinTools.Application;
 
@@ -25,7 +26,9 @@ public sealed partial class PenguinToolsApplication
         var xmlPath = FullPath(request.MusicXmlPath);
         var output = FullPath(request.OutputDirectory);
         if (!File.Exists(xmlPath))
+        {
             return ApplicationDiagnostics.Failure<MusicExtractResult>(Msg.Key(MsgKeys.Error_File_not_found), xmlPath);
+        }
 
         var document = await LoadXmlAsync(xmlPath, cancellationToken);
         var root = document.Root ?? throw new InvalidDataException("Music.xml has no root element.");
@@ -35,7 +38,7 @@ public sealed partial class PenguinToolsApplication
         var cueId = EntryId(root.Element("cueFileName"));
         var cueName = EntryString(root.Element("cueFileName"));
         var xmlDirectory = Path.GetDirectoryName(xmlPath)!;
-        var songFolder = Path.Combine(output, songId.ToString());
+        var songFolder = Path.Combine(output, songId.ToString(CultureInfo.InvariantCulture));
         var outputParent = Path.GetDirectoryName(output) ?? output;
         Directory.CreateDirectory(outputParent);
         var stage = Path.Combine(outputParent, $".PenguinTools-reverse-{Guid.NewGuid():N}");
@@ -48,7 +51,10 @@ public sealed partial class PenguinToolsApplication
         {
             var fumenRows = root.Element("fumens")?.Elements("MusicFumenData")
                 .Where(x => Bool(x.Element("enable"))).ToArray() ?? [];
-            if (fumenRows.Length == 0) throw new InvalidDataException("Music.xml contains no enabled fumens.");
+            if (fumenRows.Length == 0)
+            {
+                throw new InvalidDataException("Music.xml contains no enabled fumens.");
+            }
 
             var totalSteps = (request.NoAudio ? 0 : 1) + (request.NoJacket ? 0 : 1) + fumenRows.Length;
             var completed = 0;
@@ -98,7 +104,10 @@ public sealed partial class PenguinToolsApplication
                     new MusicExtractionContext(request, root, xmlDirectory, stage, songFolder, audio, jacketPng is not null),
                     cancellationToken);
                 if (!extracted.Succeeded)
+                {
                     return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(extracted.Diagnostics);
+                }
+
                 chartSummaries.Add(extracted.Value);
                 completed++;
                 progress?.Report(new ProgressReport(
@@ -115,7 +124,10 @@ public sealed partial class PenguinToolsApplication
                 File.Move(file, destination, true);
                 var kind = Path.GetExtension(file).ToLowerInvariant() switch
                 {
-                    ".mgxc" => "chart.mgxc", ".wav" => "audio.wav", ".png" => "jacket.png", _ => "music.file"
+                    ".mgxc" => "chart.mgxc",
+                    ".wav" => "audio.wav",
+                    ".png" => "jacket.png",
+                    _ => "music.file"
                 };
                 artifacts.Add(new ApplicationArtifact(kind, destination));
             }
@@ -124,18 +136,28 @@ public sealed partial class PenguinToolsApplication
         }
         finally
         {
-            if (Directory.Exists(stage)) Directory.Delete(stage, true);
+            if (Directory.Exists(stage))
+            {
+                Directory.Delete(stage, true);
+            }
         }
     }
 
     private async Task ExtractMusicJacketAsync(string? jacket, string destination, CancellationToken cancellationToken)
     {
         if (jacket is null || !File.Exists(jacket))
+        {
             throw new FileNotFoundException("Required jacket media was not found.", jacket);
+        }
+
         if (Path.GetExtension(jacket).Equals(".dds", StringComparison.OrdinalIgnoreCase))
+        {
             await _dependencies.MediaTool.DecodeDdsAsync(jacket, destination, cancellationToken);
+        }
         else
+        {
             File.Copy(jacket, destination, true);
+        }
     }
 
     private sealed record MusicExtractionContext(
@@ -159,20 +181,30 @@ public sealed partial class PenguinToolsApplication
                         ?? throw new InvalidDataException("Enabled fumen has no file path.");
         var parsed = await new C2SParser(new C2SParseRequest(chartPath)).ParseAsync(cancellationToken);
         if (!parsed.Succeeded)
+        {
             return OperationResult<MusicExtractChartSummary>.Failure().WithDiagnostics(parsed.Diagnostics);
+        }
+
         var chart = parsed.Value;
         chart.Meta.Id = songId;
-        chart.Meta.MgxcId = songId.ToString();
+        chart.Meta.MgxcId = songId.ToString(CultureInfo.InvariantCulture);
         chart.Meta.Title = title;
         chart.Meta.Artist = artist;
         chart.Meta.Difficulty = DifficultyFromMusicId(difficultyId);
         if (chart.Meta.Difficulty == Difficulty.WorldsEnd &&
             Enum.IsDefined((StarDifficulty)starDifficulty))
+        {
             chart.Meta.WeDifficulty = (StarDifficulty)starDifficulty;
+        }
+
         chart.Meta.Level = Int(row.Element("level")) + Int(row.Element("levelDecimal")) / 100m;
         chart.Meta.Designer = Value(row.Element("notesDesigner"), chart.Meta.Designer);
         var xmlBpm = Decimal(row.Element("defaultBpm"));
-        if (xmlBpm > 0) chart.Meta.MainBpm = xmlBpm;
+        if (xmlBpm > 0)
+        {
+            chart.Meta.MainBpm = xmlBpm;
+        }
+
         chart.Meta.BgmFilePath = audio is null ? string.Empty : musicFileName;
         chart.Meta.JacketFilePath = hasJacket ? jacketFileName : string.Empty;
         if (audio is not null)
@@ -183,7 +215,10 @@ public sealed partial class PenguinToolsApplication
         }
         var converted = new UgcChartConverter(new UgcConvertRequest(chart, request.DebugTil)).Convert();
         if (!converted.Succeeded)
+        {
             return OperationResult<MusicExtractChartSummary>.Failure().WithDiagnostics(converted.Diagnostics);
+        }
+
         var filename = $"{songId}_{difficultyId}.mgxc";
         var staged = Path.Combine(stage, filename);
         await new MgxcChartWriter(new MgxcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);
@@ -201,9 +236,17 @@ public sealed partial class PenguinToolsApplication
     private static CriCue SelectCue(IReadOnlyList<CriCue> cues, string cueName)
     {
         var named = cues.Where(x => string.Equals(x.Name, cueName, StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (named.Length == 1) return named[0];
+        if (named.Length == 1)
+        {
+            return named[0];
+        }
+
         var zero = cues.Where(x => x.CueId == 0).ToArray();
-        if (zero.Length == 1) return zero[0];
+        if (zero.Length == 1)
+        {
+            return zero[0];
+        }
+
         throw new InvalidDataException("Audio cue selection is ambiguous.");
     }
 
@@ -212,30 +255,53 @@ public sealed partial class PenguinToolsApplication
     {
         var acb = OptionalFullPath(request.AcbPath);
         var awb = OptionalFullPath(request.AwbPath);
-        if (acb is not null || awb is not null) return (acb, awb);
+        if (acb is not null || awb is not null)
+        {
+            return (acb, awb);
+        }
+
         var root = Directory.GetParent(Path.GetDirectoryName(xmlPath)!)?.Parent?.FullName ?? Path.GetDirectoryName(xmlPath)!;
         var expectedDirectory = Path.Combine(root, "cueFile", $"cueFile{cueId:000000}");
         var dirs = Directory.Exists(expectedDirectory)
             ? [expectedDirectory]
             : Directory.EnumerateDirectories(root, $"cueFile{cueId:000000}", SearchOption.AllDirectories).ToArray();
-        if (dirs.Length != 1) return (null, null);
+        if (dirs.Length != 1)
+        {
+            return (null, null);
+        }
+
         var expectedAcb = Path.Combine(dirs[0], $"{cueName}.acb");
         acb = File.Exists(expectedAcb) ? expectedAcb
             : Directory.EnumerateFiles(dirs[0], "*.acb").OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault();
         var expectedAwb = Path.Combine(dirs[0], $"{cueName}.awb");
         if (File.Exists(expectedAwb))
+        {
             awb = expectedAwb;
+        }
         else if (acb is not null)
+        {
             awb = Path.ChangeExtension(acb, ".awb");
+        }
         else
+        {
             awb = Directory.EnumerateFiles(dirs[0], "*.awb").OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault();
-        if (awb is not null && !File.Exists(awb)) awb = null;
+        }
+
+        if (awb is not null && !File.Exists(awb))
+        {
+            awb = null;
+        }
+
         return (acb, awb);
     }
 
     private static string? ResolveRelative(string root, string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
         return Path.GetFullPath(Path.IsPathRooted(value) ? value : Path.Combine(root, value));
     }
     private static int EntryId(XElement? value) => Int(value?.Element("id"));
@@ -246,8 +312,12 @@ public sealed partial class PenguinToolsApplication
     private static string Value(XElement? value, string fallback) => string.IsNullOrWhiteSpace(value?.Value) ? fallback : value.Value;
     private static Difficulty DifficultyFromMusicId(int value) => value switch
     {
-        0 => Difficulty.Basic, 1 => Difficulty.Advanced, 2 => Difficulty.Expert,
-        3 => Difficulty.Master, 4 => Difficulty.Ultima, 5 => Difficulty.WorldsEnd,
+        0 => Difficulty.Basic,
+        1 => Difficulty.Advanced,
+        2 => Difficulty.Expert,
+        3 => Difficulty.Master,
+        4 => Difficulty.Ultima,
+        5 => Difficulty.WorldsEnd,
         _ => Difficulty.Master
     };
 }

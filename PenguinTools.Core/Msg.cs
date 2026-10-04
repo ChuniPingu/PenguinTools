@@ -11,11 +11,16 @@ public static class Msg
     public static MessageDescriptor Create(string key, params object?[] args)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        if (args.Length == 0) return Key(key);
+        if (args.Length == 0)
+        {
+            return Key(key);
+        }
 
         var dictionary = new Dictionary<string, object?>(args.Length, StringComparer.Ordinal);
         for (var index = 0; index < args.Length; index++)
+        {
             dictionary[$"arg{index}"] = args[index];
+        }
 
         return Key(key, dictionary);
     }
@@ -23,7 +28,10 @@ public static class Msg
     public static MessageDescriptor Create(string key, params (string Name, object? Value)[] args)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        if (args.Length == 0) return Key(key);
+        if (args.Length == 0)
+        {
+            return Key(key);
+        }
 
         return Key(key, args.ToDictionary(arg => arg.Name, arg => arg.Value, StringComparer.Ordinal));
     }

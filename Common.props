@@ -5,6 +5,8 @@
         <Nullable>enable</Nullable>
         <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
         <ImplicitUsings>enable</ImplicitUsings>
+        <AnalysisMode>Recommended</AnalysisMode>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
         <PlatformTarget>x64</PlatformTarget>
         <Version>2.3.11</Version>
         <FileVersion>$(Version)</FileVersion>

@@ -1,10 +1,9 @@
 using System.Globalization;
 using PenguinTools.Chart.Models;
 
+using UmgrModel = PenguinTools.Chart.Models.umgr;
+
 namespace PenguinTools.Chart;
-
-using umgr = Models.umgr;
-
 /// <summary>
 /// Canonical fingerprints of UMGR soflan state. C2S SLA/SLP snapshots are restored
 /// only while these keys still match the chart that produced them.
@@ -44,7 +43,7 @@ internal static class C2sRoundTripKeys
             _ => parent.Id
         };
 
-    public static string FormatSlaEditKey(umgr.Chart chart)
+    public static string FormatSlaEditKey(UmgrModel.Chart chart)
     {
         ArgumentNullException.ThrowIfNull(chart);
 
@@ -53,20 +52,20 @@ internal static class C2sRoundTripKeys
             Flatten(chart.Notes.Children)
                 .Where(note =>
                     note.Timeline != 0 &&
-                    note is not umgr.SoflanArea and not umgr.SoflanAreaJoint)
+                    note is not UmgrModel.SoflanArea and not UmgrModel.SoflanAreaJoint)
                 .Select(note =>
                     $"{note.Tick.Original},{note.Lane},{note.Width},{note.Timeline}")
                 .OrderBy(key => key, StringComparer.Ordinal));
     }
 
-    public static string FormatSlpEditKey(umgr.Chart chart)
+    public static string FormatSlpEditKey(UmgrModel.Chart chart)
     {
         ArgumentNullException.ThrowIfNull(chart);
 
         return string.Join(
             ";",
             chart.Events.Children
-                .OfType<umgr.ScrollSpeedEvent>()
+                .OfType<UmgrModel.ScrollSpeedEvent>()
                 .OrderBy(x => x.Timeline)
                 .ThenBy(x => x.Tick.Original)
                 .Select(x =>
@@ -76,7 +75,7 @@ internal static class C2sRoundTripKeys
                         CultureInfo.InvariantCulture)));
     }
 
-    public static string FormatAirEditKey(umgr.Chart chart)
+    public static string FormatAirEditKey(UmgrModel.Chart chart)
     {
         ArgumentNullException.ThrowIfNull(chart);
 
@@ -84,38 +83,38 @@ internal static class C2sRoundTripKeys
             ";",
             Flatten(chart.Notes.Children)
                 .Where(note =>
-                    note is umgr.Air
-                        or umgr.AirSlide
-                        or umgr.AirSlideJoint
-                        or umgr.AirHold
-                        or umgr.AirHoldJoint)
+                    note is UmgrModel.Air
+                        or UmgrModel.AirSlide
+                        or UmgrModel.AirSlideJoint
+                        or UmgrModel.AirHold
+                        or UmgrModel.AirHoldJoint)
                 .Select(note => note switch
                 {
-                    umgr.Air air =>
+                    UmgrModel.Air air =>
                         $"AIR,{air.Tick.Original},{air.Timeline}," +
                         $"{air.Lane},{air.Width},{air.Direction},{air.Color}," +
                         $"{AirParentType(air.PairNote)}",
 
-                    umgr.AirSlide airSlide =>
+                    UmgrModel.AirSlide airSlide =>
                         $"AS,{airSlide.Tick.Original},{airSlide.Timeline}," +
                         $"{airSlide.Lane},{airSlide.Width}," +
                         $"{airSlide.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
                         $"{airSlide.Direction},{airSlide.Color}," +
                         $"{AirParentType(airSlide.PairNote)}",
 
-                    umgr.AirSlideJoint joint =>
+                    UmgrModel.AirSlideJoint joint =>
                         $"ASJ,{joint.Tick.Original},{joint.Timeline}," +
                         $"{joint.Lane},{joint.Width}," +
                         $"{joint.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
                         $"{joint.Joint}",
 
-                    umgr.AirHold airHold =>
+                    UmgrModel.AirHold airHold =>
                         $"AH,{airHold.Tick.Original},{airHold.Timeline}," +
                         $"{airHold.Lane},{airHold.Width}," +
                         $"{airHold.Direction},{airHold.Color}," +
                         $"{AirParentType(airHold.PairNote)}",
 
-                    umgr.AirHoldJoint joint =>
+                    UmgrModel.AirHoldJoint joint =>
                         $"AHJ,{joint.Tick.Original},{joint.Timeline}," +
                         $"{joint.Lane},{joint.Width},{joint.Joint}",
 
@@ -124,26 +123,28 @@ internal static class C2sRoundTripKeys
                 .OrderBy(key => key, StringComparer.Ordinal));
     }
 
-    private static string AirParentType(umgr.PositiveNote? parent) =>
+    private static string AirParentType(UmgrModel.PositiveNote? parent) =>
         parent switch
         {
-            umgr.Tap => "TAP",
-            umgr.ExTap => "CHR",
-            umgr.Flick => "FLK",
-            umgr.Damage => "MNE",
-            umgr.HoldJoint => "HLD",
-            umgr.SlideJoint => "SLD",
+            UmgrModel.Tap => "TAP",
+            UmgrModel.ExTap => "CHR",
+            UmgrModel.Flick => "FLK",
+            UmgrModel.Damage => "MNE",
+            UmgrModel.HoldJoint => "HLD",
+            UmgrModel.SlideJoint => "SLD",
             null => string.Empty,
             _ => parent.GetType().Name
         };
 
-    private static IEnumerable<umgr.Note> Flatten(IEnumerable<umgr.Note> notes)
+    private static IEnumerable<UmgrModel.Note> Flatten(IEnumerable<UmgrModel.Note> notes)
     {
         foreach (var note in notes)
         {
             yield return note;
             foreach (var child in Flatten(note.Children))
+            {
                 yield return child;
+            }
         }
     }
 }

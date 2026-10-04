@@ -83,7 +83,11 @@ internal static class CommandLineOptions
     internal static void AddStageCommandOptions(Command command, StageCommandOptions options,
         bool includeBackground = true)
     {
-        if (includeBackground) command.Options.Add(options.BackgroundPath);
+        if (includeBackground)
+        {
+            command.Options.Add(options.BackgroundPath);
+        }
+
         command.Options.Add(options.Effect1Path);
         command.Options.Add(options.Effect2Path);
         command.Options.Add(options.Effect3Path);

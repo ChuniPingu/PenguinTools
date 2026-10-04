@@ -1,14 +1,14 @@
+using System.Text;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
-using PenguinTools.Chart.Writer.c2s;
-using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
-using PenguinTools.Core.Metadata;
+using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
-using System.Text;
+using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
 
@@ -345,8 +345,17 @@ public sealed class C2sFormatCompatibilityTests
         source.Events.Add(new Bpm { Tick = 0, Value = 120m });
         source.Notes.Add(new AirCrash
         {
-            Tick = 0, Lane = 0, Width = 4, EndTick = 480, EndLane = 0, EndWidth = 4,
-            Height = 0m, EndHeight = 0m, Density = 0, Color = Color.CYN, Attr = AirLadderAttr.DEF
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 0,
+            EndWidth = 4,
+            Height = 0m,
+            EndHeight = 0m,
+            Density = 0,
+            Color = Color.CYN,
+            Attr = AirLadderAttr.DEF
         });
 
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -378,18 +387,39 @@ public sealed class C2sFormatCompatibilityTests
         source.Events.Add(new Bpm { Tick = 0, Value = 120m });
         source.Notes.Add(new Slide
         {
-            Tick = 0, Lane = 0, Width = 4, EndTick = 480, EndLane = 2, EndWidth = 4,
-            Joint = Joint.D, NoLine = true
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 4,
+            Joint = Joint.D,
+            NoLine = true
         });
         source.Notes.Add(new Slide
         {
-            Tick = 480, Lane = 2, Width = 4, EndTick = 960, EndLane = 4, EndWidth = 4,
-            Joint = Joint.D, NoLine = false
+            Tick = 480,
+            Lane = 2,
+            Width = 4,
+            EndTick = 960,
+            EndLane = 4,
+            EndWidth = 4,
+            Joint = Joint.D,
+            NoLine = false
         });
         source.Notes.Add(new AirCrash
         {
-            Tick = 0, Lane = 4, Width = 2, EndTick = 96, EndLane = 4, EndWidth = 2,
-            Height = 0m, EndHeight = 0m, Density = 0, Color = Color.DEF, Attr = AirLadderAttr.DEF
+            Tick = 0,
+            Lane = 4,
+            Width = 2,
+            EndTick = 96,
+            EndLane = 4,
+            EndWidth = 2,
+            Height = 0m,
+            EndHeight = 0m,
+            Density = 0,
+            Color = Color.DEF,
+            Attr = AirLadderAttr.DEF
         });
 
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -421,8 +451,14 @@ public sealed class C2sFormatCompatibilityTests
         source.Events.Add(new Bpm { Tick = 0, Value = 120m });
         source.Notes.Add(new Slide
         {
-            Tick = 0, Lane = 0, Width = 4, EndTick = 480, EndLane = 2, EndWidth = 4,
-            Joint = Joint.D, Effect = ExEffect.UP
+            Tick = 0,
+            Lane = 0,
+            Width = 4,
+            EndTick = 480,
+            EndLane = 2,
+            EndWidth = 4,
+            Joint = Joint.D,
+            Effect = ExEffect.UP
         });
 
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));

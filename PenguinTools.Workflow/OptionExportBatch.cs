@@ -34,17 +34,25 @@ public static class OptionExportBatch
         var completed = 0;
         var total = itemList.Count;
         if (total > 0)
+        {
             main.Progress?.Report(new ProgressReport(Completed: 0, Total: total));
+        }
 
         if (parallel)
+        {
             await Parallel.ForEachAsync(itemList, new ParallelOptions
             {
                 CancellationToken = main.CancellationToken,
                 MaxDegreeOfParallelism = main.BatchSize
             }, ProcessItemAsync);
+        }
         else
+        {
             foreach (var item in itemList)
+            {
                 await ProcessItemAsync(item, main.CancellationToken);
+            }
+        }
 
         return DiagnosticSnapshot.Create(diagnostics.SelectMany(snapshot => snapshot.Diagnostics));
 

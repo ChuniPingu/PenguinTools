@@ -55,11 +55,16 @@ internal static class CliDiagnostics
 
     internal static MessageDescriptor SanitizeMessage(MessageDescriptor message)
     {
-        if (message.Args is not { Count: > 0 } args) return message;
+        if (message.Args is not { Count: > 0 } args)
+        {
+            return message;
+        }
 
         var sanitized = new Dictionary<string, object?>(args.Count, StringComparer.Ordinal);
         foreach (var (key, value) in args)
+        {
             sanitized[key] = SanitizeArg(value);
+        }
 
         return message with { Args = sanitized };
     }

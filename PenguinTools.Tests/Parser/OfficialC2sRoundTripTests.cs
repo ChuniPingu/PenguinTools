@@ -1,3 +1,4 @@
+using System.Globalization;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Parser.c2s;
@@ -5,7 +6,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
 using Xunit;
-using c2s = PenguinTools.Chart.Models.c2s;
+using C2sModel = PenguinTools.Chart.Models.c2s;
 
 namespace PenguinTools.Tests.Parser;
 
@@ -53,7 +54,9 @@ public sealed class OfficialC2sRoundTripTests
     public static IEnumerable<TheoryDataRow<string, string>> OfficialChartFiles()
     {
         if (!TryGetAssetDirectory(out var assetDirectory))
+        {
             return [];
+        }
 
         var tracked = TrackedFailedCharts.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -220,7 +223,7 @@ public sealed class OfficialC2sRoundTripTests
                             return
                                 $"{diagnostic.Severity}: " +
                                 $"{diagnostic.Message.Key}; " +
-                                $"time={diagnostic.Time?.ToString() ?? "-"}; " +
+                                $"time={diagnostic.Time?.ToString(CultureInfo.InvariantCulture) ?? "-"}; " +
                                 $"location={diagnostic.FormattedLocation ?? "-"}; " +
                                 $"args=[{args}]; " +
                                 $"target={target}";
@@ -350,7 +353,7 @@ public sealed class OfficialC2sRoundTripTests
 
     private static void AssertSnapshotEqual(string[] expected, string[] actual, string name, int round, string kind) =>
         Assert.True(expected.SequenceEqual(actual), $"{name}: round {round} {kind} records changed.");
-    private static string MetaSnapshot(c2s.Chart chart, bool normalizeGameSelection = false)
+    private static string MetaSnapshot(C2sModel.Chart chart, bool normalizeGameSelection = false)
     {
         var meta = chart.Meta;
 
@@ -375,45 +378,45 @@ public sealed class OfficialC2sRoundTripTests
             meta.BgmInitialNumerator.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
-    private static string[] EventSnapshot(c2s.Chart chart) =>
+    private static string[] EventSnapshot(C2sModel.Chart chart) =>
         chart.Events
             .Select(EventKey)
             .OrderBy(x => x, StringComparer.Ordinal)
             .ToArray();
 
-    private static string EventKey(c2s.Event e)
+    private static string EventKey(C2sModel.Event e)
     {
         var head =
             $"{e.GetType().Name}|{e.Tick.Original}";
 
         return e switch
         {
-            c2s.Bpm x =>
+            C2sModel.Bpm x =>
                 $"{head}|{x.Value}",
 
-            c2s.Met x =>
+            C2sModel.Met x =>
                 $"{head}|{x.Numerator}|{x.Denominator}",
 
-            c2s.Slp x =>
+            C2sModel.Slp x =>
                 $"{head}|{x.Timeline}|{x.Length.Original}|{x.Speed}",
 
-            c2s.Dcm x =>
+            C2sModel.Dcm x =>
                 $"{head}|{x.Length.Original}|{x.Speed}",
 
-            c2s.SpeedEventBase x =>
+            C2sModel.SpeedEventBase x =>
                 $"{head}|{x.Length.Original}|{x.Speed}",
 
             _ => head
         };
     }
 
-    private static string[] NoteSnapshot(c2s.Chart chart) =>
+    private static string[] NoteSnapshot(C2sModel.Chart chart) =>
         chart.Notes
             .Select(NoteKey)
             .OrderBy(x => x, StringComparer.Ordinal)
             .ToArray();
 
-    private static string NoteKey(c2s.Note note)
+    private static string NoteKey(C2sModel.Note note)
     {
         var head =
             $"{note.GetType().Name}|{note.Tick.Original}|{note.Timeline}|" +
@@ -421,32 +424,32 @@ public sealed class OfficialC2sRoundTripTests
 
         return note switch
         {
-            c2s.ExTap x =>
+            C2sModel.ExTap x =>
                 $"{head}|{x.Effect}",
 
-            c2s.Hold x =>
+            C2sModel.Hold x =>
                 $"{head}|{x.EndTick.Original}|{x.EndLane}|{x.EndWidth}|{x.Effect}",
 
-            c2s.Sla x =>
+            C2sModel.Sla x =>
                 $"{head}|{x.Length.Original}",
 
-            c2s.Slide x =>
+            C2sModel.Slide x =>
                 $"{head}|{x.EndTick.Original}|{x.EndLane}|{x.EndWidth}|" +
                 $"{x.Joint}|{x.NoLine}|{x.Effect}",
 
-            c2s.Air x =>
+            C2sModel.Air x =>
                 $"{head}|{x.Direction}|{x.Color}|{ParentKey(x.Parent)}",
 
-            c2s.AirSlide x =>
+            C2sModel.AirSlide x =>
                 $"{head}|{x.EndTick.Original}|{x.EndLane}|{x.EndWidth}|" +
                 $"{x.Height.Original}|{x.EndHeight.Original}|{x.Joint}|" +
                 $"{x.Color}|{ParentKey(x.Parent)}",
 
-            c2s.AirHold x =>
+            C2sModel.AirHold x =>
                 $"{head}|{x.EndTick.Original}|{x.EndLane}|{x.EndWidth}|" +
                 $"{x.Joint}|{x.Color}|{ParentKey(x.Parent)}",
 
-            c2s.AirCrash x =>
+            C2sModel.AirCrash x =>
                 $"{head}|{x.EndTick.Original}|{x.EndLane}|{x.EndWidth}|" +
                 $"{x.Height.Original}|{x.EndHeight.Original}|" +
                 $"{x.Density.Original}|{x.Color}|{x.Attr}",
@@ -457,10 +460,10 @@ public sealed class OfficialC2sRoundTripTests
 
     // C2S encodes a parent type and attach position, not a unique root ID.
     // Compare that serialized identity; root allocation is tested separately.
-    private static string ParentKey(c2s.Note? note) => note switch
+    private static string ParentKey(C2sModel.Note? note) => note switch
     {
         null => "null",
-        c2s.LongNote n => $"{n.Id}@{n.EndTick.Original}:{n.EndLane}:{n.EndWidth}",
+        C2sModel.LongNote n => $"{n.Id}@{n.EndTick.Original}:{n.EndLane}:{n.EndWidth}",
         _ => $"{note.Id}@{note.Tick.Original}:{note.Lane}:{note.Width}"
     };
 }

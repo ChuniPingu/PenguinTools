@@ -5,7 +5,7 @@ using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core.Xml;
 using PenguinTools.Media;
-using umgr = PenguinTools.Chart.Models.umgr;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Workflow;
 
@@ -33,7 +33,9 @@ public static class MusicExporter
     {
         var backgroundPath = overrides.BackgroundPath ?? meta.FullBgiFilePath;
         if (string.IsNullOrWhiteSpace(backgroundPath))
+        {
             return MusicPaths.CreateFailureResultOf<Entry>(Msg.Key(MsgKeys.Error_Stage_background_required));
+        }
 
         var noteFieldLane = MusicPaths.CreateEntry(
             meta.NotesFieldLine,
@@ -71,7 +73,7 @@ public static class MusicExporter
 
     public static async Task<OperationResult> ExportAsync(
         MusicExportContext ctx,
-        umgr.Chart chart,
+        UmgrModel.Chart chart,
         string output,
         MusicExportOverrides overrides,
         CancellationToken cancellationToken,
@@ -93,7 +95,9 @@ public static class MusicExporter
             var builtStage = await BuildStageAsync(ctx, meta, output, stageOverrides, cancellationToken);
             diagnostics = diagnostics.Merge(builtStage.Diagnostics);
             if (!builtStage.Succeeded)
+            {
                 return OperationResult.Failure().WithDiagnostics(diagnostics);
+            }
 
             stage = builtStage.Value;
         }
@@ -123,13 +127,18 @@ public static class MusicExporter
         var convertedChart = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         diagnostics = diagnostics.Merge(convertedChart.Diagnostics);
         if (!convertedChart.Succeeded)
+        {
             return OperationResult.Failure().WithDiagnostics(diagnostics);
+        }
 
         var writtenChart =
             await new C2SChartWriter(new C2SWriteRequest(chartPath, convertedChart.Value, chart.GetCalculator()))
                 .WriteAsync(cancellationToken);
         diagnostics = diagnostics.Merge(writtenChart.Diagnostics);
-        if (!writtenChart.Succeeded) return OperationResult.Failure().WithDiagnostics(diagnostics);
+        if (!writtenChart.Succeeded)
+        {
+            return OperationResult.Failure().WithDiagnostics(diagnostics);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -138,7 +147,10 @@ public static class MusicExporter
             new JacketConvertRequest(jacketInput ?? meta.FullJacketFilePath, jacketPath),
             ctx.MediaTool).ConvertAsync(cancellationToken);
         diagnostics = diagnostics.Merge(convertedJacket.Diagnostics);
-        if (!convertedJacket.Succeeded) return OperationResult.Failure().WithDiagnostics(diagnostics);
+        if (!convertedJacket.Succeeded)
+        {
+            return OperationResult.Failure().WithDiagnostics(diagnostics);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 

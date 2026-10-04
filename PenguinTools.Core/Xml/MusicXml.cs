@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Serialization;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -38,7 +39,7 @@ public class MusicXml : XmlElement
         };
         JaketFile = $"CHU_UI_Jacket_{songId:0000}.dds";
         EnableUltima = main.Difficulty == Difficulty.Ultima;
-        ReleaseDate = main.ReleaseDate.ToString("yyyyMMdd");
+        ReleaseDate = main.ReleaseDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         CueFileName = new Entry(songId, $"music{songId:0000}");
         WorldsEndTagName = main.WeTag;
         StarDifType = (int)main.WeDifficulty;
@@ -116,10 +117,18 @@ public class MusicXml : XmlElement
 
     private static (int whole, int frac) SplitLevel(decimal level)
     {
-        if (level <= 0) return (0, 0);
+        if (level <= 0)
+        {
+            return (0, 0);
+        }
+
         var w = (int)decimal.Truncate(level);
         var f = (int)((level - w) * 100);
-        if (f < 100) return (w, f);
+        if (f < 100)
+        {
+            return (w, f);
+        }
+
         w += 1;
         f -= 100;
         return (w, f);

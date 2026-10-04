@@ -7,15 +7,15 @@ using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 
+using UmgrModel = PenguinTools.Chart.Models.umgr;
+
 namespace PenguinTools.Chart.Parser;
 
-using umgr = Models.umgr;
-
-internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSink diag, AssetManager assets)
+internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnosticSink diag, AssetManager assets)
 {
     private bool _hasMetaBackground;
-    private readonly Dictionary<int, List<umgr.Note>> _noteGroups = [];
-    private readonly Dictionary<int, List<umgr.ScrollSpeedEvent>> _tilGroups = [];
+    private readonly Dictionary<int, List<UmgrModel.Note>> _noteGroups = [];
+    private readonly Dictionary<int, List<UmgrModel.ScrollSpeedEvent>> _tilGroups = [];
 
     public void Run()
     {
@@ -28,7 +28,11 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     public static string GetSortName(string? s)
     {
-        if (s is null) return string.Empty;
+        if (s is null)
+        {
+            return string.Empty;
+        }
+
         var t = s.ToUpperInvariant().Normalize(NormalizationForm.FormKC);
         t = WhitespaceRegex().Replace(t, "_");
         t = SpecialCharacterRegex().Replace(t, "");
@@ -37,15 +41,17 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void ProcessEvent()
     {
-        var bpmEvents = chart.Events.Children.OfType<umgr.BpmEvent>().OrderBy(e => e.Tick).ToArray();
+        var bpmEvents = chart.Events.Children.OfType<UmgrModel.BpmEvent>().OrderBy(e => e.Tick).ToArray();
         if (bpmEvents.Length <= 0 || bpmEvents[0].Tick.Original != 0)
+        {
             throw new DiagnosticException(MsgKeys.Mg_Head_BPM_not_found);
+        }
 
-        var beatEvents = chart.Events.Children.OfType<umgr.BeatEvent>().OrderBy(e => e.Bar).ToList();
+        var beatEvents = chart.Events.Children.OfType<UmgrModel.BeatEvent>().OrderBy(e => e.Bar).ToList();
         var firstBeatEvent = beatEvents.FirstOrDefault();
         if (firstBeatEvent is not { Bar: 0 })
         {
-            var newEvent = new umgr.BeatEvent { Bar = 0, Numerator = 4, Denominator = 4 };
+            var newEvent = new UmgrModel.BeatEvent { Bar = 0, Numerator = 4, Denominator = 4 };
             chart.Events.InsertBefore(newEvent, firstBeatEvent);
             beatEvents.Insert(0, newEvent);
             diag.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_Head_Time_Signature_event_not_found)));
@@ -56,23 +62,26 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         chart.Meta.BgmInitialNumerator = initBeat.Numerator;
         chart.Meta.BgmInitialDenominator = initBeat.Denominator;
 
-        umgr.Chart.CalculateBeatEventTicks(beatEvents);
+        UmgrModel.Chart.CalculateBeatEventTicks(beatEvents);
 
         chart.Events.Sort();
     }
 
     private void ProcessNote()
     {
-        if (chart.Notes.Children.Count <= 0) return;
+        if (chart.Notes.Children.Count <= 0)
+        {
+            return;
+        }
 
         var noteGroup = chart.Notes.Children
-            .OfType<umgr.ExTapableNote>()
+            .OfType<UmgrModel.ExTapableNote>()
             .GroupBy(note => note.Tick)
             .ToDictionary(g => g.Key, g => g.ToArray());
 
         var exEffects = new Dictionary<Time, HashSet<ExEffect>>();
 
-        foreach (var exTap in chart.Notes.Children.OfType<umgr.ExTap>())
+        foreach (var exTap in chart.Notes.Children.OfType<UmgrModel.ExTap>())
         {
             noteGroup.TryGetValue(exTap.Tick, out var notesAtTick);
 
@@ -80,11 +89,11 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 exTap.Lane <= note.Lane &&
                 exTap.Lane + exTap.Width >= note.Lane + note.Width) == true;
 
-            if (exTap.Role == umgr.ExTapRole.Auto)
+            if (exTap.Role == UmgrModel.ExTapRole.Auto)
             {
                 exTap.Role = coversLongNote
-                    ? umgr.ExTapRole.SharedLongCarrier
-                    : umgr.ExTapRole.Explicit;
+                    ? UmgrModel.ExTapRole.SharedLongCarrier
+                    : UmgrModel.ExTapRole.Explicit;
             }
 
             if (!exEffects.TryGetValue(exTap.Tick, out var effectSet))
@@ -95,8 +104,10 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
             effectSet.Add(exTap.Effect);
 
-            if (exTap.Role == umgr.ExTapRole.Explicit || notesAtTick is null)
+            if (exTap.Role == UmgrModel.ExTapRole.Explicit || notesAtTick is null)
+            {
                 continue;
+            }
 
             ApplyLongNoteEffect(exTap, notesAtTick);
         }
@@ -105,25 +116,34 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
         foreach (var (tick, effects) in exEffects)
         {
-            if (effects.Count <= 1) continue;
+            if (effects.Count <= 1)
+            {
+                continue;
+            }
+
             var str = string.Join(", ", effects.Select(e => e.ToString()));
             MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Concurrent_ex_effects, str);
             diag.Report(new TimedDiagnostic(Severity.Information, msg, tick.Original));
         }
     }
 
-    private static void ApplyLongNoteEffect(umgr.ExTap exTap, umgr.ExTapableNote[] notesAtTick)
+    private static void ApplyLongNoteEffect(UmgrModel.ExTap exTap, UmgrModel.ExTapableNote[] notesAtTick)
     {
         foreach (var note in notesAtTick)
         {
-            if (exTap.Role == umgr.ExTapRole.HoldOnlyCarrier && note is not umgr.Hold)
+            if (exTap.Role == UmgrModel.ExTapRole.HoldOnlyCarrier && note is not UmgrModel.Hold)
+            {
                 continue;
+            }
 
             var covering =
                 exTap.Lane <= note.Lane &&
                 exTap.Lane + exTap.Width >= note.Lane + note.Width;
 
-            if (!covering) continue;
+            if (!covering)
+            {
+                continue;
+            }
 
             note.Effect = exTap.Effect;
         }
@@ -146,12 +166,17 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void FinalizeEvent()
     {
-        var noteSpeedMods = chart.Events.Children.OfType<umgr.NoteSpeedEvent>().ToArray();
-        foreach (var e in chart.Events.Children.OfType<umgr.SpeedEventBase>().ToArray()) chart.Events.RemoveChild(e);
+        var noteSpeedMods = chart.Events.Children.OfType<UmgrModel.NoteSpeedEvent>().ToArray();
+        foreach (var e in chart.Events.Children.OfType<UmgrModel.SpeedEventBase>().ToArray())
+        {
+            chart.Events.RemoveChild(e);
+        }
+
         foreach (var (tilId, events) in _tilGroups)
+        {
             foreach (var e in events)
             {
-                var newEvent = new umgr.ScrollSpeedEvent
+                var newEvent = new UmgrModel.ScrollSpeedEvent
                 {
                     Tick = e.Tick,
                     Timeline = tilId,
@@ -159,31 +184,48 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 };
                 chart.Events.AppendChild(newEvent);
             }
+        }
 
         foreach (var e in noteSpeedMods)
+        {
             chart.Events.AppendChild(e);
+        }
     }
 
-    private HashSet<umgr.Note> PlaceSoflanArea()
+    private HashSet<UmgrModel.Note> PlaceSoflanArea()
     {
-        foreach (var tils in _tilGroups.Values.ToArray()) tils.Sort((a, b) => a.Tick.CompareTo(b.Tick));
+        foreach (var tils in _tilGroups.Values.ToArray())
+        {
+            tils.Sort((a, b) => a.Tick.CompareTo(b.Tick));
+        }
+
         var slaSet = new HashSet<(int Tick, int Timeline, int Lane, int Width)>();
-        var slaSources = new HashSet<umgr.Note>();
+        var slaSources = new HashSet<UmgrModel.Note>();
         var legacyAreas = new List<SlaPlacement>();
         foreach (var (id, notes) in _noteGroups)
         {
-            if (id == 0) continue;
+            if (id == 0)
+            {
+                continue;
+            }
+
             foreach (var note in notes)
             {
                 note.Timeline = id;
 
                 // magic optimization: when the crash is transparent, it is not necessary to add the SLA on the control joint
-                if (note is umgr.AirCrashJoint
+                if (note is UmgrModel.AirCrashJoint
                     {
-                        Parent: umgr.AirCrash { Color: Color.NON }, Density.Original: 0x7FFFFFFF or 0
-                    }) continue;
+                        Parent: UmgrModel.AirCrash { Color: Color.NON }, Density.Original: 0x7FFFFFFF or 0
+                    })
+                {
+                    continue;
+                }
 
-                if (slaSet.Contains((note.Tick.Original, id, note.Lane, note.Width))) continue;
+                if (slaSet.Contains((note.Tick.Original, id, note.Lane, note.Width)))
+                {
+                    continue;
+                }
 
                 slaSet.Add((note.Tick.Original, id, note.Lane, note.Width));
                 slaSources.Add(note);
@@ -199,14 +241,14 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         var allNotes = _noteGroups.Values.SelectMany(x => x).ToArray();
         foreach (var area in SlaPlacementOptimizer.Optimize(allNotes, legacyAreas))
         {
-            var head = new umgr.SoflanArea
+            var head = new UmgrModel.SoflanArea
             {
                 Tick = area.Tick,
                 Timeline = area.Timeline,
                 Lane = area.Lane,
                 Width = area.Width
             };
-            var tail = new umgr.SoflanAreaJoint { Tick = area.EndTick };
+            var tail = new UmgrModel.SoflanAreaJoint { Tick = area.EndTick };
 
             head.AppendChild(tail);
             chart.Notes.AppendChild(head);
@@ -215,9 +257,9 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         return slaSources;
     }
 
-    private void GroupEventByTimeline(umgr.Event events)
+    private void GroupEventByTimeline(UmgrModel.Event events)
     {
-        foreach (var til in events.Children.OfType<umgr.ScrollSpeedEvent>())
+        foreach (var til in events.Children.OfType<UmgrModel.ScrollSpeedEvent>())
         {
             var timelineId = til.Timeline;
             CreateGroup(timelineId);
@@ -225,9 +267,13 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         }
     }
 
-    private void GroupNoteByTimeline(umgr.Note parent)
+    private void GroupNoteByTimeline(UmgrModel.Note parent)
     {
-        if (parent.Children.Count == 0) return;
+        if (parent.Children.Count == 0)
+        {
+            return;
+        }
+
         foreach (var note in parent.Children)
         {
             GroupNoteByTimeline(note);
@@ -255,25 +301,45 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         {
             var mappedNotes = _noteGroups[id];
             var maxTick = mappedNotes.Select(p => p.Tick).Append(0).Max();
-            if (mappedNotes.Count == 0 && chart.Notes.Children.Count > 0) _tilGroups.Remove(id);
+            if (mappedNotes.Count == 0 && chart.Notes.Children.Count > 0)
+            {
+                _tilGroups.Remove(id);
+            }
             else if (events.Count > 0 && maxTick.Original > 0)
+            {
                 events.RemoveAll(p => p.Tick.Original > maxTick.Original + ChartResolution.SingleTick);
+            }
         }
 
         foreach (var (id, notes) in _noteGroups.ToArray())
+        {
             if (notes.Count == 0)
+            {
                 _noteGroups.Remove(id);
+            }
+        }
     }
 
     private void CreateGroup(int id)
     {
-        if (!_tilGroups.ContainsKey(id)) _tilGroups[id] = [];
-        if (!_noteGroups.ContainsKey(id)) _noteGroups[id] = [];
+        if (!_tilGroups.ContainsKey(id))
+        {
+            _tilGroups[id] = [];
+        }
+
+        if (!_noteGroups.ContainsKey(id))
+        {
+            _noteGroups[id] = [];
+        }
     }
 
     private void SwapGroup(int aId, int bId)
     {
-        if (aId == bId) return;
+        if (aId == bId)
+        {
+            return;
+        }
+
         CreateGroup(aId);
         CreateGroup(bId);
 
@@ -281,15 +347,30 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         var bEvents = _tilGroups[bId];
         _tilGroups.Remove(aId);
         _tilGroups.Remove(bId);
-        foreach (var e in aEvents) e.Timeline = bId;
-        foreach (var e in bEvents) e.Timeline = aId;
+        foreach (var e in aEvents)
+        {
+            e.Timeline = bId;
+        }
+
+        foreach (var e in bEvents)
+        {
+            e.Timeline = aId;
+        }
+
         _tilGroups[aId] = bEvents;
         _tilGroups[bId] = aEvents;
 
         var aNotes = _noteGroups[aId];
         var bNotes = _noteGroups[bId];
-        foreach (var n in aNotes) n.Timeline = bId;
-        foreach (var n in bNotes) n.Timeline = aId;
+        foreach (var n in aNotes)
+        {
+            n.Timeline = bId;
+        }
+
+        foreach (var n in bNotes)
+        {
+            n.Timeline = aId;
+        }
 
         _noteGroups.Remove(aId);
         _noteGroups.Remove(bId);
@@ -297,7 +378,7 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
         _noteGroups[bId] = aNotes;
     }
 
-    private void FindNoteViolations(HashSet<umgr.Note> slaSources)
+    private void FindNoteViolations(HashSet<UmgrModel.Note> slaSources)
     {
         var notes = _noteGroups.Values
             .SelectMany(n => n)
@@ -313,7 +394,11 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 {
                     var left = notesInGroup[i];
                     var right = notesInGroup[j];
-                    if (!left.IsViolate(right, slaSources.Contains(left), slaSources.Contains(right))) continue;
+                    if (!left.IsViolate(right, slaSources.Contains(left), slaSources.Contains(right)))
+                    {
+                        continue;
+                    }
+
                     diag.Report(new TimedDiagnostic(Severity.Warning,
                         Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), left.Tick.Original)
                     {
@@ -382,7 +467,11 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void MetaStageHandler(string[] args)
     {
-        if (_hasMetaBackground) return;
+        if (_hasMetaBackground)
+        {
+            return;
+        }
+
         MetaEntryHandler("stage", args, Setter, AssetType.StageNames);
 
         void Setter(Entry entry)
@@ -394,7 +483,11 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void MetaBackgroundHandler(string[] args)
     {
-        if (!HasSingleArgument("bg", args)) return;
+        if (!HasSingleArgument("bg", args))
+        {
+            return;
+        }
+
         chart.Meta.BgiFilePath = args[0];
         chart.Meta.IsCustomStage = !string.IsNullOrWhiteSpace(args[0]);
         _hasMetaBackground = true;
@@ -402,15 +495,26 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
 
     private void MetaBackgroundOffsetHandler(string[] args)
     {
-        if (!HasSingleArgument("bg_offset", args)) return;
+        if (!HasSingleArgument("bg_offset", args))
+        {
+            return;
+        }
+
         if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
+        {
             throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
+        }
+
         chart.Meta.BackgroundOffset = offset;
     }
 
     private bool HasSingleArgument(string name, string[] args)
     {
-        if (args.Length == 1) return true;
+        if (args.Length == 1)
+        {
+            return true;
+        }
+
         diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Argument_count_min_one, name))
         {
             Target = args
@@ -514,18 +618,26 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             var trimmedLine = line.Trim();
 
             if (C2sRoundTripComment.IsRoundTripLine(trimmedLine))
+            {
                 continue;
+            }
 
             if (!trimmedLine.StartsWith('#'))
+            {
                 continue;
+            }
 
             var parts = ChartMetaCommands.Tokenize(trimmedLine[1..]);
-            if (parts.Length == 0) continue;
+            if (parts.Length == 0)
+            {
+                continue;
+            }
 
             var tagName = parts[0];
             var tagArgs = parts.Skip(1).ToArray();
 
             if (config.TryGetValue(tagName, out var handler))
+            {
                 try
                 {
                     handler(tagArgs);
@@ -534,11 +646,14 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
                 {
                     diag.Report(ex);
                 }
+            }
             else
+            {
                 diag.Report(new Diagnostic(Severity.Warning, Msg.Create(MsgKeys.Mg_Meta_Unknown_tag, tagName))
                 {
                     Target = parts
                 });
+            }
         }
     }
 
@@ -550,13 +665,15 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
             .ToList();
 
         var bookmarks = chart.Events.Children
-            .OfType<umgr.BookmarkEvent>()
+            .OfType<UmgrModel.BookmarkEvent>()
             .ToArray();
 
         foreach (var bookmark in bookmarks)
         {
             if (!C2sRoundTripComment.IsRoundTripLine(bookmark.Tag))
+            {
                 continue;
+            }
 
             lines.Add(bookmark.Tag);
             chart.Events.RemoveChild(bookmark);
@@ -569,8 +686,16 @@ internal sealed partial class ChartPostProcessor(umgr.Chart chart, IDiagnosticSi
     private static bool ParseBool(string str)
     {
         var value = str.ToLowerInvariant();
-        if (value is "true" or "1" or "yes") return true;
-        if (value is "false" or "0" or "no") return false;
+        if (value is "true" or "1" or "yes")
+        {
+            return true;
+        }
+
+        if (value is "false" or "0" or "no")
+        {
+            return false;
+        }
+
         var test = string.IsNullOrWhiteSpace(str);
         return test;
     }

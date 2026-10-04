@@ -13,7 +13,9 @@ public partial class C2SChartWriter
             .Where(p => p.Length > 1 && p[0] == "RESOLUTION")
             .Select(p => decimal.Parse(p[1], CultureInfo.InvariantCulture)).Single();
         if (sourceResolution <= 0)
+        {
             throw new FormatException("C2S resolution must be positive.");
+        }
 
         var timingChanged = false;
         for (var i = 0; i < lines.Length; i++)
@@ -24,7 +26,10 @@ public partial class C2SChartWriter
         // Saved judge/progress summaries describe the pre-quantization chart.
         // Keep them only when all note and event positions remain exact.
         if (timingChanged)
+        {
             lines = lines.Where(line => !(C2SRoundTrip.Parts(line).FirstOrDefault() ?? "").StartsWith("T_", StringComparison.Ordinal)).ToArray();
+        }
+
         var result = string.Join('\n', lines);
         return timingChanged ? result + ChartStatistics.Calculate(result) : result;
     }
@@ -36,7 +41,11 @@ public partial class C2SChartWriter
     private static string FormatGameLine(string line, decimal sourceResolution, ref bool timingChanged)
     {
         var p = C2SRoundTrip.Parts(line);
-        if (p.Length < 2) return line;
+        if (p.Length < 2)
+        {
+            return line;
+        }
+
         if (p[0] == "RESOLUTION")
         {
             return $"RESOLUTION\t{GameResolution}";
@@ -45,7 +54,10 @@ public partial class C2SChartWriter
         {
             return "CLK_DEF\t" + Integer(Round(Number(p[1]) * GameResolution / sourceResolution));
         }
-        if (!C2SRoundTrip.IsRecord(p[0])) return line;
+        if (!C2SRoundTrip.IsRecord(p[0]))
+        {
+            return line;
+        }
 
         var start = Number(p[1]) * GameResolution + Number(p[2]) * GameResolution / sourceResolution;
         var roundedStart = Round(start);

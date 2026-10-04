@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace PenguinTools.Core.Asset;
@@ -16,9 +16,14 @@ public class AssetManager : INotifyPropertyChanged
         HardAssets = new AssetDictionary(hardAssets);
         if (!string.IsNullOrWhiteSpace(userAssetsPath) &&
             AssetDictionary.TryLoadPlusAssetsFromFile(userAssetsPath, out var plus))
+        {
             PlusAssets = plus;
+        }
         else
+        {
             PlusAssets = new AssetDictionary();
+        }
+
         UserAssets = new AssetDictionary();
         Merge();
         NotifyAssetChanged();
@@ -56,14 +61,20 @@ public class AssetManager : INotifyPropertyChanged
         ArgumentException.ThrowIfNullOrWhiteSpace(gameRoot);
         ArgumentNullException.ThrowIfNull(hardAssets);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        if (!Directory.Exists(gameRoot)) return;
+        if (!Directory.Exists(gameRoot))
+        {
+            return;
+        }
 
         var collected = new AssetDictionary();
         collected.MergeWith(await AssetDictionary.CollectAsync(gameRoot, ct));
         collected.SubtractWith(new AssetDictionary(hardAssets));
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
-        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
 
         await collected.SaveAsync(outputPath, ct);
     }

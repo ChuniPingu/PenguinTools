@@ -24,19 +24,27 @@ public sealed partial class ChartExtras
     public void CheckEventView(PenguinTools.Chart.Models.umgr.Chart chart)
     {
         if (SourceSnapshot.Length == 0)
+        {
             return;
+        }
+
         string Canon(string line) => string.Join("\t", C2SRoundTrip.Parts(line).Select(p => decimal.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n.ToString("0.############################", CultureInfo.InvariantCulture) : p));
-        var saved = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEW\t")).Select(s => Canon(s.Substring(5))).ToArray();
-        var hashes = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEWHASH\t")).Select(C2SRoundTrip.Parts).ToDictionary(p => p[1], p => p[2]);
+        var saved = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEW\t", StringComparison.Ordinal)).Select(s => Canon(s.Substring(5))).ToArray();
+        var hashes = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEWHASH\t", StringComparison.Ordinal)).Select(C2SRoundTrip.Parts).ToDictionary(p => p[1], p => p[2]);
         if (saved.Length == 0 && hashes.Count == 0)
+        {
             return;
+        }
+
         var current = EventView(chart).Split('\n');
         foreach (string kind in new[] { "BEAT", "BPM", "TIL", "SPDMOD" })
         {
-            var a = saved.Where(s => s.StartsWith(kind + "\t")).OrderBy(s => s, StringComparer.Ordinal);
-            var b = current.Select(Canon).Where(s => s.StartsWith(kind + "\t")).OrderBy(s => s, StringComparer.Ordinal);
+            var a = saved.Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).OrderBy(s => s, StringComparer.Ordinal);
+            var b = current.Select(Canon).Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).OrderBy(s => s, StringComparer.Ordinal);
             if (hashes.TryGetValue(kind, out var hash) ? C2SRoundTrip.ViewHash(b) == hash : a.SequenceEqual(b))
+            {
                 UnchangedEventKinds.Add(kind);
+            }
         }
     }
     public string FinalizeText(C.Chart chart, string text)
@@ -49,11 +57,17 @@ public sealed partial class ChartExtras
         {
             var tag = line.Split('\t')[0];
             if (EventTags.Contains(tag))
+            {
                 events.Add(line);
+            }
             else if (NoteTags.Contains(tag))
+            {
                 notes.Add(line);
-            else if (!tag.StartsWith("T_"))
+            }
+            else if (!tag.StartsWith("T_", StringComparison.Ordinal))
+            {
                 headers.Add(line);
+            }
         }
         RestoreHeaders(headers);
         events = SortEvents(events);
@@ -62,11 +76,17 @@ public sealed partial class ChartExtras
         var snapshot = RestoreSnapshot(chart, headers, ref events, ref notes);
         var result = string.Join("\r\n", headers) + "\r\n\r\n" + string.Join("\r\n", events) + "\r\n\r\n" + string.Join("\r\n", notes) + "\r\n";
         if (snapshot.Hash.Length > 0 && snapshot.SlaCompatible && snapshot.JudgeOptionsUnchanged && C2SRoundTrip.Fingerprint(result) == snapshot.Hash && snapshot.Statistics.Count > 0)
+        {
             return result + "\r\n" + string.Join("\r\n", snapshot.Statistics) + "\r\n";
+        }
+
         var outputRecords = events.Concat(notes).Select(line => string.Join("\t", P(line))).OrderBy(s => s, StringComparer.Ordinal);
         bool unchanged = FromC2S && SourceRecords.OrderBy(s => s, StringComparer.Ordinal).SequenceEqual(outputRecords);
-        if (unchanged && SourceStatistics.Any(s => s.StartsWith("T_JUDGE_ALL")))
+        if (unchanged && SourceStatistics.Any(s => s.StartsWith("T_JUDGE_ALL", StringComparison.Ordinal)))
+        {
             return result + "\r\n" + string.Join("\r\n", SourceStatistics) + "\r\n";
+        }
+
         return result + ChartStatistics.Calculate(result);
     }
 
@@ -78,14 +98,18 @@ public sealed partial class ChartExtras
         {
             var tag = headers[i].Split('\t')[0];
             if (tag is not ("VERSION" or "RESOLUTION" or "CLK_DEF" or "MUSIC" or "SEQUENCEID" or "DIFFICULT" or "LEVEL") && Headers.TryGetValue(tag, out var saved))
+            {
                 headers[i] = saved;
+            }
         }
         if (FromC2S)
         {
-            headers.RemoveAll(s => s.StartsWith("//MGR_CLICK_V1"));
+            headers.RemoveAll(s => s.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal));
 
             foreach (var h in Headers.Where(h => !headers.Any(s => s.Split('\t')[0] == h.Key)))
+            {
                 headers.Add(h.Value);
+            }
         }
     }
 
@@ -97,23 +121,26 @@ public sealed partial class ChartExtras
 
     private void UpdateDefaultBpm(C.Chart chart, List<string> headers, List<string> events)
     {
-        headers.RemoveAll(s => s.StartsWith("//MGR_CLICK_V1"));
+        headers.RemoveAll(s => s.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal));
         var bpms = events.Select(P).Where(p => p[0] == "BPM").Select(p => decimal.Parse(p[3], CultureInfo.InvariantCulture)).ToArray();
         if (bpms.Length > 0 && !FromC2S)
         {
-            int h = headers.FindIndex(s => s.StartsWith("BPM_DEF\t"));
+            int h = headers.FindIndex(s => s.StartsWith("BPM_DEF\t", StringComparison.Ordinal));
             decimal main = chart.Meta.MainBpm > 0 ? chart.Meta.MainBpm : bpms[0];
-            headers[h] = $"BPM_DEF\t{bpms[0]:F3}\t{main:F3}\t{bpms.Max():F3}\t{bpms.Min():F3}";
+            headers[h] = FormattableString.Invariant($"BPM_DEF\t{bpms[0]:F3}\t{main:F3}\t{bpms.Max():F3}\t{bpms.Min():F3}");
         }
     }
 
     private SnapshotState RestoreSnapshot(C.Chart chart, List<string> headers, ref List<string> events, ref List<string> notes)
     {
         if (SourceSnapshot.Length == 0)
+        {
             return new("", [], true, true);
+        }
+
         var snapshot = SourceSnapshot.Split('\n').Select(P).Where(p => p.Length > 0).ToArray();
         var sourceHash = snapshot.First(p => p[0] == "HASH")[1];
-        int sourceRes = int.Parse(snapshot.First(p => p[0] == "RESOLUTION")[1]);
+        int sourceRes = int.Parse(snapshot.First(p => p[0] == "RESOLUTION")[1], CultureInfo.InvariantCulture);
         var judgeOptionsUnchanged = (snapshot.FirstOrDefault(p => p[0] == "TUTORIAL")?.ElementAtOrDefault(1) == "1") == Tutorial;
         RestoreJudgeHeaders(snapshot, headers);
         var usedExceptions = new HashSet<int>();
@@ -123,9 +150,12 @@ public sealed partial class ChartExtras
         var regions = snapshot.Where(p => p[0] == "SLA").ToArray();
         bool slaCompatible = MatchesSlaTimelines(chart, regions, sourceRes) || MatchesSlaRegions(chart, regions, sourceRes);
         if (slaCompatible)
+        {
             notes = RestoreSlaRegions(notes, regions, sourceRes);
+        }
+
         notes = RestoreNoteOrder(notes, snapshot, sourceRes);
-        var savedStats = snapshot.Where(p => p[0].StartsWith("T_")).Select(p => string.Join("\t", p)).ToList();
+        var savedStats = snapshot.Where(p => p[0].StartsWith("T_", StringComparison.Ordinal)).Select(p => string.Join("\t", p)).ToList();
         return new(sourceHash, savedStats, slaCompatible, judgeOptionsUnchanged);
     }
 
@@ -133,9 +163,11 @@ public sealed partial class ChartExtras
     {
         foreach (var p in snapshot.Where(p => p[0] is "PROGJUDGE_BPM" or "PROGJUDGE_AER" || p[0] == "MET_DEF" && UnchangedEventKinds.Contains("BEAT")))
         {
-            int h = headers.FindIndex(s => s.StartsWith(p[0] + "\t"));
+            int h = headers.FindIndex(s => s.StartsWith(p[0] + "\t", StringComparison.Ordinal));
             if (h >= 0)
+            {
                 headers[h] = string.Join("\t", p);
+            }
         }
     }
 
@@ -159,13 +191,24 @@ public sealed partial class ChartExtras
             var expected = original.ToList();
             expected[0] = expected[0].EndsWith('D') ? "SXD" : "SXC";
             if (expected.Count == 7)
+            {
                 expected.Add(expected[4]);
+            }
+
             if (expected.Count == 8)
+            {
                 expected.Add("SLD");
+            }
+
             if (expected.Count == 9)
+            {
                 expected.Add(exception[1]);
+            }
             else
+            {
                 expected[9] = exception[1];
+            }
+
             string key = C2SRoundTrip.Normalize(string.Join("\t", expected), sourceRes);
             RestoreException(notes, usedExceptions, original, key, sourceRes, 5);
         }
@@ -176,10 +219,16 @@ public sealed partial class ChartExtras
         for (int i = 0; i < notes.Count; i++)
         {
             if (usedExceptions.Contains(i) || C2SRoundTrip.Normalize(notes[i], Resolution) != key)
+            {
                 continue;
+            }
+
             ScaleField(original, 2, sourceRes);
             if (durationIndex >= 0)
+            {
                 ScaleField(original, durationIndex, sourceRes);
+            }
+
             notes[i] = string.Join("\t", original);
             usedExceptions.Add(i);
             return;
@@ -205,7 +254,10 @@ public sealed partial class ChartExtras
             var p = (string[])original.Clone();
             p[2] = ((decimal)I(p, 2) * Resolution / sourceRes).ToString(CultureInfo.InvariantCulture);
             if (p[0] is "SLP" or "SFL" or "DCM" or "STP")
+            {
                 p[3] = ((decimal)I(p, 3) * Resolution / sourceRes).ToString(CultureInfo.InvariantCulture);
+            }
+
             events.Add(string.Join("\t", p));
         }
         return SortEvents(events);
@@ -220,7 +272,9 @@ public sealed partial class ChartExtras
             {
                 decimal start = (decimal)I(p, 1) * 1920 + (decimal)I(p, 2) * 1920 / sourceRes, end = start + (decimal)I(p, 5) * 1920 / sourceRes;
                 if (n.Tick.Original >= start && n.Tick.Original < end && n.Lane >= I(p, 3) && n.Lane + n.Width <= I(p, 3) + I(p, 4))
+                {
                     timeline = I(p, 6);
+                }
             }
             if (n.Timeline != timeline)
             {
@@ -244,7 +298,7 @@ public sealed partial class ChartExtras
 
     private List<string> RestoreSlaRegions(List<string> notes, string[][] regions, int sourceRes)
     {
-        notes.RemoveAll(s => s.StartsWith("SLA\t"));
+        notes.RemoveAll(s => s.StartsWith("SLA\t", StringComparison.Ordinal));
         foreach (var p in regions)
         {
             p[2] = ((decimal)I(p, 2) * Resolution / sourceRes).ToString(CultureInfo.InvariantCulture);
@@ -262,7 +316,10 @@ public sealed partial class ChartExtras
         {
             string key = C2SRoundTrip.Normalize(string.Join("\t", p.Skip(1)), sourceRes);
             if (!sourceOrder.TryGetValue(key, out var queue))
+            {
                 sourceOrder[key] = queue = new Queue<int>();
+            }
+
             queue.Enqueue(sourceIndex++);
         }
         return notes.Select((s, i) =>
