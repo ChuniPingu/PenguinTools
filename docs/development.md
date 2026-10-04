@@ -14,6 +14,14 @@ git submodule update --init --recursive
 
 ## Managed builds
 
+Managed builds, style checks, tests, and Sonar analysis need only the two managed codec dependencies:
+
+```powershell
+git submodule update --init External/SonicAudioTools External/vgaudio
+```
+
+CI initializes these explicitly. Native tools are needed for native media integration and complete release payloads.
+
 ```powershell
 dotnet restore PenguinTools.slnx
 dotnet build PenguinTools.slnx -c Release
