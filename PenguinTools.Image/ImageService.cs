@@ -7,6 +7,7 @@ public sealed class ImageService
 {
     private readonly ITexconvRunner _texconv;
     private readonly string _temporaryRoot;
+    private readonly ImageOperationScheduler _scheduler = ImageOperationScheduler.Shared;
 
     public ImageService(string texconvPath, string temporaryWorkDirectory)
         : this(new TexconvRunner(Path.GetFullPath(texconvPath)), temporaryWorkDirectory)
@@ -34,7 +35,10 @@ public sealed class ImageService
             var bytes = await File.ReadAllBytesAsync(dds, token).ConfigureAwait(false);
             var header = DdsContainer.Read(bytes);
             if (header.Width != 300 || header.Height != 300 || header.Format != "DXT1" || header.MipLevels != 1 || bytes.Length != 45_128)
+            {
                 throw new InvalidDataException("texconv produced an incompatible jacket DDS.");
+            }
+
             await PublishBytesAsync(destination, bytes, token).ConfigureAwait(false);
         }, ct);
 
@@ -45,7 +49,11 @@ public sealed class ImageService
         var templateBytes = template is null ? ReadTemplate("st_dummy.afb") : await File.ReadAllBytesAsync(template, token).ConfigureAwait(false);
         // Validate before starting expensive image work or writing outputs.
         var chunks = DdsContainer.Locate(templateBytes);
-        if (chunks.Count < 2) throw new InvalidDataException("A stage template requires two DDS textures.");
+        if (chunks.Count < 2)
+        {
+            throw new InvalidDataException("A stage template requires two DDS textures.");
+        }
+
         using var resized = RasterPipeline.Resize(background, 1920, 1080, true, token);
         using var shifted = RasterPipeline.OffsetBackground(resized, backgroundOffset);
         var backgroundDds = await EncodeAsync(shifted, "background", "BC1_UNORM", workspace, token).ConfigureAwait(false);
@@ -56,17 +64,25 @@ public sealed class ImageService
             await File.ReadAllBytesAsync(effectsDds, token).ConfigureAwait(false));
         var notesField = notesFieldDestination is null ? null : ReadTemplate("nf_dummy.afb");
         var outputs = new List<(string Path, ReadOnlyMemory<byte> Data)> { (destination, output) };
-        if (notesField is not null) outputs.Add((notesFieldDestination!, notesField));
+        if (notesField is not null)
+        {
+            outputs.Add((notesFieldDestination!, notesField));
+        }
+
         await StagedOutputs.WriteAsync(outputs, token).ConfigureAwait(false);
     }, ct);
 
     public Task<IReadOnlyList<string>> ExtractDdsAsync(string source, string outputDirectory, CancellationToken ct = default) =>
-        ImageOperationScheduler.Shared.RunAsync<IReadOnlyList<string>>(async token =>
+        _scheduler.RunAsync<IReadOnlyList<string>>(async token =>
         {
             var data = await File.ReadAllBytesAsync(source, token).ConfigureAwait(false);
             var chunks = DdsContainer.Locate(data);
             var stem = Path.GetFileNameWithoutExtension(source);
-            if (string.IsNullOrWhiteSpace(stem)) stem = "chunk";
+            if (string.IsNullOrWhiteSpace(stem))
+            {
+                stem = "chunk";
+            }
+
             var paths = new List<string>(chunks.Count);
             for (var i = 0; i < chunks.Count; i++)
             {
@@ -99,7 +115,7 @@ public sealed class ImageService
         return Path.Combine(workspace, name + ".dds");
     }
 
-    private Task WithWorkspaceAsync(Func<string, CancellationToken, Task> action, CancellationToken ct) => RunAsync(async token =>
+    private Task<bool> WithWorkspaceAsync(Func<string, CancellationToken, Task> action, CancellationToken ct) => RunAsync(async token =>
     {
         var workspace = Path.Combine(_temporaryRoot, "image-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workspace);
@@ -113,8 +129,8 @@ public sealed class ImageService
         }
     }, ct);
 
-    private static Task RunAsync(Func<CancellationToken, Task> action, CancellationToken ct) =>
-        ImageOperationScheduler.Shared.RunAsync(async token =>
+    private Task<bool> RunAsync(Func<CancellationToken, Task> action, CancellationToken ct) =>
+        _scheduler.RunAsync(async token =>
         {
             await action(token).ConfigureAwait(false);
             return true;

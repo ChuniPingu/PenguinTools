@@ -19,7 +19,11 @@ internal sealed class TexconvRunner(string executablePath) : ITexconvRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        foreach (var argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
+
         var command = $"{executablePath} {string.Join(' ', arguments)}";
         using var process = new Process { StartInfo = start };
         try
@@ -32,15 +36,19 @@ internal sealed class TexconvRunner(string executablePath) : ITexconvRunner
         }
 
         // Drain without cancellation so both pipes can finish after the child is killed.
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
+        var stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
         try
         {
             await process.WaitForExitAsync(ct).ConfigureAwait(false);
         }
         catch
         {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
             throw;
@@ -49,6 +57,8 @@ internal sealed class TexconvRunner(string executablePath) : ITexconvRunner
         await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         if (process.ExitCode != 0)
+        {
             throw new TexconvException(command, process.ExitCode, await stdout, await stderr);
+        }
     }
 }

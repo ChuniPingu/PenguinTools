@@ -7,7 +7,10 @@ internal static class StagedOutputs
     {
         var destinations = outputs.Select(output => Path.GetFullPath(output.Path)).ToArray();
         if (destinations.Distinct(StringComparer.OrdinalIgnoreCase).Count() != destinations.Length)
+        {
             throw new ArgumentException("Image output paths must be different.");
+        }
+
         var staged = new List<(string Temporary, string Destination)>();
         var committed = new List<(string Destination, string? Backup)>();
         try
@@ -17,7 +20,11 @@ internal static class StagedOutputs
                 ct.ThrowIfCancellationRequested();
                 var destination = destinations[i];
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                if (Directory.Exists(destination)) throw new IOException($"Output is a directory: {destination}");
+                if (Directory.Exists(destination))
+                {
+                    throw new IOException($"Output is a directory: {destination}");
+                }
+
                 var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 staged.Add((temporary, destination));
                 await using var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
@@ -35,7 +42,11 @@ internal static class StagedOutputs
                     backup = destination + "." + Guid.NewGuid().ToString("N") + ".bak";
                     File.Replace(temporary, destination, backup);
                 }
-                else File.Move(temporary, destination);
+                else
+                {
+                    File.Move(temporary, destination);
+                }
+
                 committed.Add((destination, backup));
             }
         }
@@ -47,8 +58,14 @@ internal static class StagedOutputs
                 var (destination, backup) = committed[i];
                 try
                 {
-                    if (backup is null) File.Delete(destination);
-                    else File.Replace(backup, destination, null);
+                    if (backup is null)
+                    {
+                        File.Delete(destination);
+                    }
+                    else
+                    {
+                        File.Replace(backup, destination, null);
+                    }
                 }
                 catch (Exception rollbackFailure)
                 {
@@ -56,14 +73,26 @@ internal static class StagedOutputs
                     errors.Add(new IOException($"Could not restore {destination}; the previous file remains at {backup}.", rollbackFailure));
                 }
             }
-            if (errors.Count > 1) throw new AggregateException("Image output commit and rollback failed.", errors);
+            if (errors.Count > 1)
+            {
+                throw new AggregateException("Image output commit and rollback failed.", errors);
+            }
+
             throw;
         }
         finally
         {
-            foreach (var (temporary, _) in staged) File.Delete(temporary);
+            foreach (var (temporary, _) in staged)
+            {
+                File.Delete(temporary);
+            }
         }
         foreach (var (_, backup) in committed)
-            if (backup is not null) File.Delete(backup);
+        {
+            if (backup is not null)
+            {
+                File.Delete(backup);
+            }
+        }
     }
 }

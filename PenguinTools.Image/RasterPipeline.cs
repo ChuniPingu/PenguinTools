@@ -9,7 +9,10 @@ internal static class RasterPipeline
     private static readonly Lazy<bool> Initialized = new(() =>
     {
         if (!ModuleInitializer.VipsInitialized)
+        {
             throw new InvalidOperationException("The bundled libvips runtime could not be initialized.");
+        }
+
         NetVips.NetVips.Concurrency = Math.Max(1, Environment.ProcessorCount / ImageOperationScheduler.DefaultConcurrency);
         // Retaining operation graphs also retains open input files and decoded pixels between jobs.
         Cache.Max = 0;
@@ -47,15 +50,25 @@ internal static class RasterPipeline
         var output = images.Own(straight.Colourspace(Enums.Interpretation.Srgb));
         var withAlpha = output.HasAlpha() ? output : images.Own(output.AddAlpha());
         if (withAlpha.Width != width || withAlpha.Height != height)
+        {
             throw new InvalidDataException("Image resize produced unexpected dimensions.");
+        }
+
         return withAlpha.Cast(Enums.BandFormat.Uchar);
     }
 
     public static VImage OffsetBackground(VImage image, int offset)
     {
         if ((long)offset >= image.Height || (long)offset <= -image.Height)
+        {
             return image.NewFromImage([0, 0, 0, 255]);
-        if (offset == 0) return image.Copy();
+        }
+
+        if (offset == 0)
+        {
+            return image.Copy();
+        }
+
         var shift = Math.Abs(offset);
         using var cropped = image.Crop(0, offset > 0 ? shift : 0, image.Width, image.Height - shift);
         return cropped.Embed(0, offset > 0 ? 0 : shift, image.Width, image.Height,
@@ -80,7 +93,9 @@ internal static class RasterPipeline
     public static async Task WriteTgaAsync(VImage image, string destination, CancellationToken ct)
     {
         if (image.Bands != 4 || image.Width > ushort.MaxValue || image.Height > ushort.MaxValue)
+        {
             throw new InvalidDataException("TGA handoff requires a four-channel image with 16-bit dimensions.");
+        }
         // A single-input channel transform keeps the lazy decode/resize graph from branching.
         // All channel processing stays in libvips; only final-size BGRA pixels cross into .NET.
         using var matrix = VImage.NewFromArray(new double[,]
@@ -111,7 +126,9 @@ internal static class RasterPipeline
             ? loader["VipsForeignLoad".Length..] : loader;
         string[] rasterLoaders = ["jpeg", "png", "webp", "tiff", "gif", "heif", "jxl", "ppm", "rad", "jp2k", "bmp", "fits", "nifti", "vips"];
         if (!rasterLoaders.Any(name => codec.StartsWith(name, StringComparison.OrdinalIgnoreCase)))
+        {
             throw new InvalidDataException($"Unsupported raster image: {source}");
+        }
         // These loaders default to page/frame zero and a single page. Do not request n=-1.
         return VImage.NewFromFile(source, access: Enums.Access.Sequential, failOn: Enums.FailOn.Warning, revalidate: true);
     }
@@ -144,7 +161,10 @@ internal static class RasterPipeline
 
         public void Dispose()
         {
-            for (var i = _images.Count - 1; i >= 0; i--) _images[i].Dispose();
+            for (var i = _images.Count - 1; i >= 0; i--)
+            {
+                _images[i].Dispose();
+            }
         }
     }
 }

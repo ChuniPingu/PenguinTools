@@ -9,7 +9,7 @@ namespace PenguinTools.Tests.Image;
 public sealed class ImageServiceTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "penguintools-image-tests", "透明 images " + Guid.NewGuid().ToString("N"));
-    private CancellationToken Ct => TestContext.Current.CancellationToken;
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public ImageServiceTests()
     {
@@ -123,7 +123,10 @@ public sealed class ImageServiceTests : IDisposable
             Assert.Equal(20, shifted.Getpoint(0, 2)[0]);
             Assert.Equal([0d, 0d, 0d, 255d], shifted.Getpoint(0, 0));
         }
-        else Assert.Equal([0d, 0d, 0d, 255d], shifted.Getpoint(0, 1));
+        else
+        {
+            Assert.Equal([0d, 0d, 0d, 255d], shifted.Getpoint(0, 1));
+        }
     }
 
     [Fact]
@@ -186,7 +189,7 @@ public sealed class ImageServiceTests : IDisposable
         var paths = await service.ExtractDdsAsync(source, Path.Combine(_root, "extracted"), Ct);
         Assert.Equal(2, paths.Count);
         Assert.Equal(data.AsSpan(chunks[0].Offset, chunks[0].Length).ToArray(), await File.ReadAllBytesAsync(paths[0], Ct));
-        Assert.Throws<InvalidDataException>(() => DdsContainer.Locate(data[..(chunks[1].Offset + 150)]));
+        Assert.Throws<InvalidDataException>(() => DdsContainer.Locate(data.AsSpan()[..(chunks[1].Offset + 150)]));
         Assert.Empty(runner.Calls);
     }
 
@@ -222,13 +225,17 @@ public sealed class ImageServiceTests : IDisposable
     [Fact]
     public async Task Scheduler_BoundsJobsAndReleasesSlotAfterCancellation()
     {
-        var scheduler = new ImageOperationScheduler(2);
+        using var scheduler = new ImageOperationScheduler(2);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var twoStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = 0;
         async Task<bool> Job(CancellationToken token)
         {
-            if (Interlocked.Increment(ref started) == 2) twoStarted.SetResult();
+            if (Interlocked.Increment(ref started) == 2)
+            {
+                twoStarted.SetResult();
+            }
+
             await release.Task.WaitAsync(token);
             return true;
         }
@@ -383,8 +390,12 @@ public sealed class ImageServiceTests : IDisposable
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(Ct);
             deadline.CancelAfter(TimeSpan.FromSeconds(10));
-            while (!File.Exists(marker)) await Task.Delay(25, deadline.Token);
-            var pid = int.Parse(await File.ReadAllTextAsync(marker, Ct));
+            while (!File.Exists(marker))
+            {
+                await Task.Delay(25, deadline.Token);
+            }
+
+            var pid = int.Parse(await File.ReadAllTextAsync(marker, Ct), System.Globalization.CultureInfo.InvariantCulture);
             await cancellation.CancelAsync();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task.WaitAsync(TimeSpan.FromSeconds(10), Ct));
             Assert.Throws<ArgumentException>(() => System.Diagnostics.Process.GetProcessById(pid));
@@ -392,7 +403,9 @@ public sealed class ImageServiceTests : IDisposable
         finally
         {
             await cancellation.CancelAsync();
-            try { await task; } catch (OperationCanceledException) { }
+            try
+            { await task; }
+            catch (OperationCanceledException) { }
         }
     }
 
