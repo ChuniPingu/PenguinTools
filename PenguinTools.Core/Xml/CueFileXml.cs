@@ -1,4 +1,4 @@
-﻿using System.Xml.Serialization;
+using System.Xml.Serialization;
 using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Xml;

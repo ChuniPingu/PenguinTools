@@ -78,7 +78,10 @@ public class TimeCalculator : ITickFormatter
             if (_timeSignatures[mid].Tick <= tick)
             {
                 if (mid == _timeSignatures.Length - 1 || _timeSignatures[mid + 1].Tick > tick)
+                {
                     return mid;
+                }
+
                 low = mid + 1;
             }
             else

@@ -13,7 +13,10 @@ public record LocationDiagnostic(
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(PathValue)) return $"0x{LineValue:X2}";
+            if (string.IsNullOrWhiteSpace(PathValue))
+            {
+                return $"0x{LineValue:X2}";
+            }
 
             return string.Equals(System.IO.Path.GetExtension(PathValue), ".mgxc", StringComparison.OrdinalIgnoreCase)
                 ? $"{PathValue}(0x{LineValue:X2})"
@@ -23,7 +26,10 @@ public record LocationDiagnostic(
 
     public override Diagnostic WithPathFallback(string path)
     {
-        if (!string.IsNullOrWhiteSpace(PathValue)) return this;
+        if (!string.IsNullOrWhiteSpace(PathValue))
+        {
+            return this;
+        }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 

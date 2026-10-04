@@ -7,9 +7,9 @@ using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Media;
 
-namespace PenguinTools.Workflow;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Chart.Models.umgr;
+namespace PenguinTools.Workflow;
 
 public static class ChartScanner
 {
@@ -77,13 +77,17 @@ public static class ChartScanner
     {
         ct.ThrowIfCancellationRequested();
         var ext = Path.GetExtension(filePath);
-        umgr.Chart? chart = null;
+        UmgrModel.Chart? chart = null;
         if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Ugc),
                 StringComparison.OrdinalIgnoreCase))
         {
             var r = await new UgcParser(new UgcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
-            if (!r.Succeeded) return;
+            if (!r.Succeeded)
+            {
+                return;
+            }
+
             chart = r.Value;
         }
         else if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Mgxc),
@@ -91,7 +95,11 @@ public static class ChartScanner
         {
             var r = await new MgxcParser(new MgxcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
-            if (!r.Succeeded) return;
+            if (!r.Succeeded)
+            {
+                return;
+            }
+
             chart = r.Value;
         }
         else if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Sus),
@@ -99,7 +107,11 @@ public static class ChartScanner
         {
             var r = await new SusParser(new SusParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
-            if (!r.Succeeded) return;
+            if (!r.Succeeded)
+            {
+                return;
+            }
+
             chart = r.Value;
         }
         else
@@ -114,12 +126,17 @@ public static class ChartScanner
 
         lock (book.Gate)
         {
-            if (skipIfDifficultyFilled && book.Items.ContainsKey(meta.Difficulty)) return;
+            if (skipIfDifficultyFilled && book.Items.ContainsKey(meta.Difficulty))
+            {
+                return;
+            }
 
             if (book.Items.ContainsKey(meta.Difficulty))
+            {
                 diagnostics.Report(new PathDiagnostic(Severity.Warning,
                     Msg.Key(MsgKeys.Warn_Duplicate_id_and_difficulty),
                     filePath));
+            }
 
             book.Items[meta.Difficulty] = item;
         }
@@ -138,27 +155,36 @@ public static class ChartScanner
             ct.ThrowIfCancellationRequested();
             var items = bookItems.Values.ToArray();
 
-            if (items.Length == 0) continue;
+            if (items.Length == 0)
+            {
+                continue;
+            }
 
             if (bookItems.ContainsKey(Difficulty.WorldsEnd) && items.Length != 1)
+            {
                 diagnostics.Report(
                     new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_We_chart_must_be_unique_id))
                     {
                         Target = CreateDiagnosticTargets(items)
                     });
+            }
 
             var mainItems = items.Where(i => i.Meta.IsMain).ToArray();
             if (mainItems.Length > 1)
+            {
                 diagnostics.Report(
                     new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_More_than_one_chart_marked_main))
                     {
                         Target = CreateDiagnosticTargets(mainItems)
                     });
+            }
             else if (mainItems.Length == 0 && items.Length > 1)
+            {
                 diagnostics.Report(new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_No_chart_marked_main))
                 {
                     Target = CreateDiagnosticTargets(items)
                 });
+            }
 
             var mainItem = mainItems.FirstOrDefault() ?? items.OrderByDescending(i => i.Difficulty).First();
 
@@ -180,6 +206,6 @@ public static class ChartScanner
     private sealed class BookAccumulator
     {
         public readonly object Gate = new();
-        public readonly Dictionary<Difficulty, OptionDifficulty> Items = new();
+        public readonly Dictionary<Difficulty, OptionDifficulty> Items = [];
     }
 }

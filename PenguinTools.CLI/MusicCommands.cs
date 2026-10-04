@@ -17,9 +17,9 @@ internal static class MusicCommands
     {
         var input = new Argument<string>("input") { Description = "Path to the source chart (.mgxc, .ugc, or .sus)." };
         var output = new Argument<string>("output")
-            { Description = "Base folder for the exported music bundle files." };
+        { Description = "Base folder for the exported music bundle files." };
         var jacket = new Option<string?>("--jacket-input")
-            { Description = "Override the jacket source path used for export." };
+        { Description = "Override the jacket source path used for export." };
         var audio = CommandLineOptions.CreateAudioCommandOptions();
         var stage = CommandLineOptions.CreateStageCommandOptions();
         var meta = CommandLineOptions.CreateMusicBuildMetaOptions();

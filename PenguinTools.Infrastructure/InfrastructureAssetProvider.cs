@@ -33,8 +33,10 @@ public sealed class InfrastructureAssetProvider(IAssetStore assets) : IInfrastru
     {
         var path = Path.Combine(Assets.AssetDirectory, "mua");
         if (!Directory.Exists(path))
+        {
             throw new DirectoryNotFoundException(
                 $"mua publish directory was not found in asset directory '{Assets.AssetDirectory}'.");
+        }
 
         return path;
     }

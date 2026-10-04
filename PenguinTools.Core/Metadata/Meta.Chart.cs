@@ -10,8 +10,16 @@ public partial record Meta
         get;
         set
         {
-            if (StageId - 1000000 == Id) StageId = value + 1000000;
-            if (UnlockEventId - 1000000 == Id) UnlockEventId = value + 1000000;
+            if (StageId - 1000000 == Id)
+            {
+                StageId = value + 1000000;
+            }
+
+            if (UnlockEventId - 1000000 == Id)
+            {
+                UnlockEventId = value + 1000000;
+            }
+
             field = value;
         }
     }
@@ -67,7 +75,9 @@ public partial record Meta
         all = C2sJudgeAll ?? -1;
 
         if (tap < 0 || hld < 0 || sld < 0 || air < 0 || flk < 0 || all < 0)
+        {
             return false;
+        }
 
         return (long)tap + hld + sld + air + flk == all;
     }

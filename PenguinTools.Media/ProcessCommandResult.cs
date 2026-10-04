@@ -29,7 +29,10 @@ public class ProcessCommandResult
 
     public void ThrowIfFailed(string messageKey)
     {
-        if (!IsFailure) return;
+        if (!IsFailure)
+        {
+            return;
+        }
 
         throw new DiagnosticException(messageKey, this);
     }

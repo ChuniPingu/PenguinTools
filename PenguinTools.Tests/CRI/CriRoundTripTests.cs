@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using PenguinTools.CRI;
@@ -39,9 +40,9 @@ public class CriRoundTripTests
         var cueTable = new CriTable();
         cueTable.Load(cueSheet.Rows[0]["CueTable"] as byte[]);
         Assert.Equal(2, cueTable.Rows.Count);
-        Assert.Equal(0, Convert.ToInt32(cueTable.Rows[0]["CueId"]));
-        Assert.Equal(1, Convert.ToInt32(cueTable.Rows[1]["CueId"]));
-        Assert.Equal(50, Convert.ToInt32(cueTable.Rows[0]["Length"]));
+        Assert.Equal(0, Convert.ToInt32(cueTable.Rows[0]["CueId"], CultureInfo.InvariantCulture));
+        Assert.Equal(1, Convert.ToInt32(cueTable.Rows[1]["CueId"], CultureInfo.InvariantCulture));
+        Assert.Equal(50, Convert.ToInt32(cueTable.Rows[0]["Length"], CultureInfo.InvariantCulture));
 
         var decodedDir = Path.Combine(dir.Path, "decoded");
         var manifest = ExtractService.Extract(acbPath, decodedDir, awbPath, ConvertService.DefaultHcaKey);
@@ -115,7 +116,9 @@ public class CriRoundTripTests
             try
             {
                 if (Directory.Exists(Path))
+                {
                     Directory.Delete(Path, recursive: true);
+                }
             }
             catch
             {

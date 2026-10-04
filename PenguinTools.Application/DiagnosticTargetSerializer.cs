@@ -38,7 +38,9 @@ public static class DiagnosticTargetSerializer
     private static NotePairDiagnosticTarget EnrichPair(NotePairDiagnosticTarget pair, Diagnostic? diagnostic)
     {
         if (diagnostic?.TimeCalculator is not { } calculator || diagnostic.Time is not { } tick)
+        {
             return pair;
+        }
 
         return pair.WithTime(calculator, tick);
     }

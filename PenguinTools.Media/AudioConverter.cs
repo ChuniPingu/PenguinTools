@@ -28,18 +28,26 @@ public class AudioConverter
 
     public async Task<OperationResult> ConvertAsync(CancellationToken ct = default)
     {
-        if (!Validate()) return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        if (!Validate())
+        {
+            return OperationResult.Failure().WithDiagnostics(Diagnostic);
+        }
 
         var songId = Meta.Id ?? throw new DiagnosticException(MsgKeys.Error_Song_id_is_not_set);
 
         if (Meta.BgmPreviewStart > 120)
+        {
             Diagnostic.Report(new Diagnostic(Severity.Warning, Msg.Key(MsgKeys.Warn_Preview_later_than_120)));
+        }
 
         var srcPath = Meta.FullBgmFilePath;
         var wavPath = WorkingAudioPath;
 
         var ret = await MediaTool.NormalizeAudioAsync(srcPath, wavPath, Meta.BgmRealOffset, ct);
-        if (ret.IsNoOperation) wavPath = srcPath;
+        if (ret.IsNoOperation)
+        {
+            wavPath = srcPath;
+        }
 
         ct.ThrowIfCancellationRequested();
 

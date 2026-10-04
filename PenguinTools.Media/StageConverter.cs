@@ -1,4 +1,4 @@
-﻿using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Media;
 
@@ -35,9 +35,14 @@ public class StageConverter
     public async Task<OperationResult<Entry>> BuildAsync(CancellationToken ct = default)
     {
         if (!await ValidateAsync(ct))
+        {
             return OperationResult<Entry>.Failure().WithDiagnostics(Diagnostic);
+        }
+
         if (StageId is not { } stageId)
+        {
             return OperationResult<Entry>.Failure().WithDiagnostics(Diagnostic);
+        }
 
         var xml = new StageXml(stageId, NoteFieldLane);
         var outputDir = await xml.SaveDirectoryAsync(OutFolder);
@@ -54,8 +59,10 @@ public class StageConverter
         var hasError = false;
         var duplicates = Assets.StageNames.Where(p => p.Id == StageId);
         foreach (var d in duplicates)
+        {
             Diagnostic.Report(new Diagnostic(Severity.Warning,
                 Msg.Create(MsgKeys.Warn_Stage_already_exists, d.Str, StageId)));
+        }
 
         if (StageId is null)
         {
@@ -91,9 +98,13 @@ public class StageConverter
     {
         var hasError = false;
         if (EffectPaths is not null)
+        {
             foreach (var p in EffectPaths)
             {
-                if (string.IsNullOrWhiteSpace(p)) continue;
+                if (string.IsNullOrWhiteSpace(p))
+                {
+                    continue;
+                }
 
                 if (!File.Exists(p))
                 {
@@ -113,6 +124,7 @@ public class StageConverter
                     hasError = true;
                 }
             }
+        }
 
         return !hasError;
     }

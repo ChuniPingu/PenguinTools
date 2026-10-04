@@ -12,7 +12,11 @@ internal static class MediaValidation
         try
         {
             var result = await validation;
-            if (result.IsSuccess) return;
+            if (result.IsSuccess)
+            {
+                return;
+            }
+
             failure = result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

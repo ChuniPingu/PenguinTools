@@ -1,3 +1,4 @@
+using System.Globalization;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 
@@ -72,13 +73,13 @@ public partial class MgxcParser
                 Mgxc.Meta.MainBpm = data.Round();
                 break;
             case "ttrl":
-                Mgxc.Extras.Tutorial = Convert.ToBoolean(data);
+                Mgxc.Extras.Tutorial = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
                 break;
             case "sofs":
                 Mgxc.Meta.BgmEnableBarOffset = Convert.ToBoolean((int)data);
                 break;
             case "uclk":
-                Mgxc.Extras.ClickEnabled = Convert.ToBoolean(data);
+                Mgxc.Extras.ClickEnabled = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
                 break;
             case "lcpy":
                 _copyright = (string)data;
@@ -118,21 +119,34 @@ public partial class MgxcParser
     private void ApplyGenre(string genre)
     {
         var entry = Assets.GenreNames.FirstOrDefault(e => e.Str.Equals(genre, StringComparison.Ordinal));
-        if (entry != null) Mgxc.Meta.Genre = entry;
+        if (entry != null)
+        {
+            Mgxc.Meta.Genre = entry;
+        }
     }
 
     private void ApplyDifficulty(int difficulty)
     {
         Mgxc.Meta.Difficulty = UmiguriParserCommon.DifficultyFromValue(difficulty);
         if (Mgxc.Meta.Difficulty == Difficulty.WorldsEnd)
+        {
             Mgxc.Meta.Stage = UmiguriParserCommon.CreateWorldsEndStage();
+        }
     }
 
     private void ApplyWorldsEndLevel(object value)
     {
-        if (Mgxc.Meta.Difficulty != Difficulty.WorldsEnd) return;
+        if (Mgxc.Meta.Difficulty != Difficulty.WorldsEnd)
+        {
+            return;
+        }
+
         var trimmed = ((string)value).Trim('+');
-        if (!int.TryParse(trimmed, out var num)) return;
+        if (!int.TryParse(trimmed, out var num))
+        {
+            return;
+        }
+
         Mgxc.Meta.WeDifficulty = num switch
         {
             1 => StarDifficulty.S1,
@@ -147,54 +161,73 @@ public partial class MgxcParser
     private void ApplyWorldsEndTag(string tag)
     {
         var attr = Assets.WeTagNames.FirstOrDefault(x => x.Str == tag);
-        if (attr != null) Mgxc.Meta.WeTag = attr;
+        if (attr != null)
+        {
+            Mgxc.Meta.WeTag = attr;
+        }
     }
 
     private void ApplyLevel(object value)
     {
-        if (Mgxc.Meta.Difficulty == Difficulty.WorldsEnd) return;
+        if (Mgxc.Meta.Difficulty == Difficulty.WorldsEnd)
+        {
+            return;
+        }
+
         Mgxc.Meta.Level = value.Round(2);
     }
 
     private void ApplySongId(string songId)
     {
         Mgxc.Meta.MgxcId = songId;
-        if (int.TryParse(Mgxc.Meta.MgxcId, out var id)) Mgxc.Meta.Id = id;
+        if (int.TryParse(Mgxc.Meta.MgxcId, out var id))
+        {
+            Mgxc.Meta.Id = id;
+        }
     }
 
     private void ApplyBgmFile(string path)
     {
         Mgxc.Meta.BgmFilePath = path;
         if (!string.IsNullOrWhiteSpace(Mgxc.Meta.BgmFilePath))
+        {
             QueueValidation(
                 MediaTool.CheckAudioValidAsync(Mgxc.Meta.FullBgmFilePath),
                 Mgxc.Meta.FullBgmFilePath,
                 MsgKeys.Error_Invalid_audio,
                 () => Mgxc.Meta.BgmFilePath = string.Empty);
+        }
     }
 
     private void ApplyJacketFile(string path)
     {
         Mgxc.Meta.JacketFilePath = path;
         if (!string.IsNullOrWhiteSpace(Mgxc.Meta.JacketFilePath))
+        {
             QueueValidation(
                 MediaTool.CheckImageValidAsync(Mgxc.Meta.FullJacketFilePath),
                 Mgxc.Meta.FullJacketFilePath,
                 MsgKeys.Error_Invalid_jk_image,
                 () => Mgxc.Meta.JacketFilePath = string.Empty);
+        }
     }
 
     private void ApplyBackgroundFile(string path)
     {
         Mgxc.Meta.BgiFilePath = path;
-        if (!string.IsNullOrWhiteSpace(path)) Mgxc.Meta.IsCustomStage = true;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            Mgxc.Meta.IsCustomStage = true;
+        }
     }
 
     private void ApplyFieldLine(int index)
     {
         var col = UmiguriParserCommon.FieldLineNameFromIndex(index);
         if (col != null)
+        {
             Mgxc.Meta.NotesFieldLine =
                 Assets.FieldLines.FirstOrDefault(x => x.Str == col) ?? Mgxc.Meta.NotesFieldLine;
+        }
     }
 }

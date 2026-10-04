@@ -1,6 +1,7 @@
-namespace PenguinTools.Chart.Parser.mgxc;
 
-using umgr = Models.umgr;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
+
+namespace PenguinTools.Chart.Parser.mgxc;
 
 public partial class MgxcParser
 {
@@ -9,11 +10,11 @@ public partial class MgxcParser
     {
         _lastEventWasExtras = false;
         var name = br.ReadUtf8String(4);
-        umgr.Event? e = null;
+        UmgrModel.Event? e = null;
 
         if (name == "beat")
         {
-            e = new umgr.BeatEvent
+            e = new UmgrModel.BeatEvent
             {
                 Bar = (int)br.ReadField(),
                 Numerator = (int)br.ReadField(),
@@ -22,7 +23,7 @@ public partial class MgxcParser
         }
         else if (name == "bpm ")
         {
-            e = new umgr.BpmEvent
+            e = new UmgrModel.BpmEvent
             {
                 Tick = (int)br.ReadField(),
                 Bpm = br.ReadField().Round()
@@ -30,7 +31,7 @@ public partial class MgxcParser
         }
         else if (name == "smod")
         {
-            e = new umgr.NoteSpeedEvent
+            e = new UmgrModel.NoteSpeedEvent
             {
                 Tick = (int)br.ReadField(),
                 Speed = br.ReadField().Round()
@@ -38,7 +39,7 @@ public partial class MgxcParser
         }
         else if (name == "til ")
         {
-            e = new umgr.ScrollSpeedEvent
+            e = new UmgrModel.ScrollSpeedEvent
             {
                 Timeline = (int)br.ReadField(),
                 Tick = (int)br.ReadField(),
@@ -47,7 +48,7 @@ public partial class MgxcParser
         }
         else if (name == "bmrk")
         {
-            e = new umgr.BookmarkEvent
+            e = new UmgrModel.BookmarkEvent
             {
                 Id = (string)br.ReadWideField(),
                 Tick = (int)br.ReadField(),
@@ -57,7 +58,7 @@ public partial class MgxcParser
         }
         else if (name == "mbkm")
         {
-            e = new umgr.BreakingMarker
+            e = new UmgrModel.BreakingMarker
             {
                 Tick = (int)br.ReadField()
             };
@@ -78,7 +79,7 @@ public partial class MgxcParser
             ThrowAtPosition(msg, br.BaseStream.Position, Mgxc);
         }
 
-        if (e is umgr.BookmarkEvent bookmark && ChartExtras.IsExtrasBookmark(bookmark.Tag))
+        if (e is UmgrModel.BookmarkEvent bookmark && ChartExtras.IsExtrasBookmark(bookmark.Tag))
         {
             _lastEventWasExtras = true;
             var clickEnabled = Mgxc.Extras.ClickEnabled;
@@ -88,9 +89,14 @@ public partial class MgxcParser
             Mgxc.Extras.ClickEnabled = clickEnabled;
             Mgxc.Extras.Tutorial = tutorial;
             if (Mgxc.Extras.SourceSnapshot.Length == 0)
+            {
                 Mgxc.Extras.SourceSnapshot = sourceSnapshot;
+            }
         }
-        else Mgxc.Events.AppendChild(e);
+        else
+        {
+            Mgxc.Events.AppendChild(e);
+        }
 
         br.ReadInt32(); // 00 00 00 00
     }

@@ -38,15 +38,26 @@ internal static class Extensions
 
             using var ms = new MemoryStream(bytes);
             using var nr = new BinaryReader(ms);
-            while (nr.BaseStream.Position < nr.BaseStream.Length) action(nr);
+            while (nr.BaseStream.Position < nr.BaseStream.Length)
+            {
+                action(nr);
+            }
         }
 
         public string ReadUtf8String(int length)
         {
-            if (length > 128) return Encoding.UTF8.GetString(br.ReadBytes(length));
+            if (length > 128)
+            {
+                return Encoding.UTF8.GetString(br.ReadBytes(length));
+            }
+
             Span<byte> buffer = stackalloc byte[length];
             var read = br.Read(buffer);
-            if (read == length) return Encoding.UTF8.GetString(buffer);
+            if (read == length)
+            {
+                return Encoding.UTF8.GetString(buffer);
+            }
+
             MessageDescriptor msg = Msg.Create(MsgKeys.Error_Size_Incompatible, length, "UTF8", read);
             throw new DiagnosticException(msg);
         }
@@ -72,7 +83,11 @@ internal static class Extensions
         {
             var type = br.ReadInt32();
             var attr = br.ReadInt32();
-            if (type == 4) return br.ReadUtf8String(attr);
+            if (type == 4)
+            {
+                return br.ReadUtf8String(attr);
+            }
+
             MessageDescriptor msg = Msg.Create(MsgKeys.MgCrit_Unrecognized_data_type, type);
             throw new LocationDiagnosticException(msg, checked((int)br.BaseStream.Position));
         }

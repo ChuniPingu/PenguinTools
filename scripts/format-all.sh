@@ -5,9 +5,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 DEFAULT_PROJECTS=(
-  PenguinTools/PenguinTools.csproj
-  PenguinTools.Core/PenguinTools.Core.csproj
-  PenguinTools.Infrastructure/PenguinTools.Infrastructure.csproj
+  PenguinTools.slnx
 )
 
 if [[ "${#@}" -gt 0 ]]; then
@@ -22,7 +20,7 @@ for proj in "${projects[@]}"; do
     exit 1
   fi
   echo "==> dotnet format $proj"
-  dotnet format "$proj" --verbosity minimal
+  dotnet format "$proj" --severity warn --exclude External --verbosity minimal
 done
 
 echo "format-all: finished (${#projects[@]} project(s))."

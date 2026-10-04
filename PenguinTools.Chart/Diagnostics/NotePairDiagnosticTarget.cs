@@ -15,7 +15,9 @@ public sealed record NotePairDiagnosticTarget(
 
         TickPosition? timePosition = null;
         if (timeCalculator is not null)
+        {
             timePosition = timeCalculator.GetPosition(left.Tick.Original);
+        }
 
         return new NotePairDiagnosticTarget(
             NoteDiagnosticTarget.From(left),
@@ -27,7 +29,10 @@ public sealed record NotePairDiagnosticTarget(
     {
         ArgumentNullException.ThrowIfNull(timeCalculator);
 
-        if (TimePosition is not null) return this;
+        if (TimePosition is not null)
+        {
+            return this;
+        }
 
         return this with { TimePosition = timeCalculator.GetPosition(tick) };
     }

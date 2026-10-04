@@ -7,6 +7,9 @@ public static class DiagnosticSinkExtensions
         ArgumentNullException.ThrowIfNull(sink);
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        foreach (var diagnostic in snapshot.Diagnostics) sink.Report(diagnostic.Copy());
+        foreach (var diagnostic in snapshot.Diagnostics)
+        {
+            sink.Report(diagnostic.Copy());
+        }
     }
 }

@@ -1,20 +1,20 @@
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
-namespace PenguinTools.Chart.Converter.c2s;
+using C2sModel = PenguinTools.Chart.Models.c2s;
+using UmgrModel = PenguinTools.Chart.Models.umgr;
 
-using umgr = Models.umgr;
-using c2s = Models.c2s;
+namespace PenguinTools.Chart.Converter.c2s;
 
 public partial class C2SChartConverter
 {
-    private readonly Dictionary<umgr.NegativeNote, c2s.IPairable> _negativePairRoots = [];
-    private readonly Dictionary<umgr.PositiveNote, c2s.Note> _positivePairTargets = [];
-    private readonly Dictionary<umgr.PositiveNote, c2s.Note> _positivePairRealTargets = [];
-    private readonly Dictionary<c2s.Slide, C2sSlideSegmentSource> _slideSegmentSources = [];
+    private readonly Dictionary<UmgrModel.NegativeNote, C2sModel.IPairable> _negativePairRoots = [];
+    private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairTargets = [];
+    private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairRealTargets = [];
+    private readonly Dictionary<C2sModel.Slide, C2sSlideSegmentSource> _slideSegmentSources = [];
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
-        where TSource : umgr.Note where T : c2s.Note, new()
+        where TSource : UmgrModel.Note where T : C2sModel.Note, new()
     {
         var note = new T
         {
@@ -31,65 +31,67 @@ public partial class C2SChartConverter
     }
 
     private void CreatePositiveNote<TSource, T>(TSource source, Action<T>? action = null)
-        where TSource : umgr.PositiveNote where T : c2s.Note, new()
+        where TSource : UmgrModel.PositiveNote where T : C2sModel.Note, new()
     {
         var note = CreateNote(source, action);
         RegisterPositivePairTarget(source, note);
     }
 
-    private void RegisterPositivePairTarget(umgr.PositiveNote source, c2s.Note target)
+    private void RegisterPositivePairTarget(UmgrModel.PositiveNote source, C2sModel.Note target)
     {
         _positivePairRealTargets[source] = target;
         _positivePairTargets[source] = CreateGenericAirParent(target);
     }
 
     private void RegisterNegativePairRoot(
-        umgr.NegativeNote source,
-        c2s.IPairable target)
+        UmgrModel.NegativeNote source,
+        C2sModel.IPairable target)
     {
         _negativePairRoots[source] = target;
     }
 
     // C2S AIR parent tokens are generic HLD/SLD even when the attach point is
     // an EX or control segment. Keep one dummy shape so pairing and writing agree.
-    private static c2s.Note CreateGenericAirParent(c2s.Note target) => target switch
+    private static C2sModel.Note CreateGenericAirParent(C2sModel.Note target) => target switch
     {
-        c2s.Hold => new c2s.Hold(),
-        c2s.Slide => new c2s.Slide { Joint = Joint.D },
+        C2sModel.Hold => new C2sModel.Hold(),
+        C2sModel.Slide => new C2sModel.Slide { Joint = Joint.D },
         _ => target
     };
 
     private void RegisterAirActionCarrier(
-        umgr.ExTap carrier)
+        UmgrModel.ExTap carrier)
     {
-        c2s.Note? parent = carrier.AirActionParent switch
+        C2sModel.Note? parent = carrier.AirActionParent switch
         {
-            umgr.AirActionCarrierParent.Tap =>
-                new c2s.Tap(),
+            UmgrModel.AirActionCarrierParent.Tap =>
+                new C2sModel.Tap(),
 
-            umgr.AirActionCarrierParent.ExTap =>
-                new c2s.ExTap
+            UmgrModel.AirActionCarrierParent.ExTap =>
+                new C2sModel.ExTap
                 {
                     Effect = carrier.Effect
                 },
 
-            umgr.AirActionCarrierParent.Flick =>
-                new c2s.Flick(),
+            UmgrModel.AirActionCarrierParent.Flick =>
+                new C2sModel.Flick(),
 
-            umgr.AirActionCarrierParent.Damage =>
-                new c2s.Damage(),
+            UmgrModel.AirActionCarrierParent.Damage =>
+                new C2sModel.Damage(),
 
-            umgr.AirActionCarrierParent.Hold =>
-                CreateGenericAirParent(new c2s.Hold()),
+            UmgrModel.AirActionCarrierParent.Hold =>
+                CreateGenericAirParent(new C2sModel.Hold()),
 
-            umgr.AirActionCarrierParent.Slide =>
-                CreateGenericAirParent(new c2s.Slide()),
+            UmgrModel.AirActionCarrierParent.Slide =>
+                CreateGenericAirParent(new C2sModel.Slide()),
 
             _ => null
         };
 
         if (parent is not null)
+        {
             _positivePairTargets[carrier] = parent;
+        }
     }
 
     private void ResolvePairings()
@@ -97,12 +99,14 @@ public partial class C2SChartConverter
         foreach (var (source, root) in _negativePairRoots)
         {
             if (source.PairNote is null)
+            {
                 continue;
+            }
 
             if (!_positivePairTargets.ContainsKey(source.PairNote) &&
-                source.PairNote is umgr.ExTap
+                source.PairNote is UmgrModel.ExTap
                 {
-                    Role: umgr.ExTapRole.AirActionCarrier
+                    Role: UmgrModel.ExTapRole.AirActionCarrier
                 } carrier)
             {
                 RegisterAirActionCarrier(carrier);
@@ -122,98 +126,105 @@ public partial class C2SChartConverter
     // stay as CHR (one extra TAP). Track cells already consumed this convert.
     private readonly HashSet<(int Tick, int Lane, int Width)> _consumedExLongCarrierCells = [];
 
-    private bool ShouldConsumeExLongCarrier(umgr.ExTap exTap)
+    private bool ShouldConsumeExLongCarrier(UmgrModel.ExTap exTap)
     {
         if (exTap.PairNote is not null)
+        {
             return false;
+        }
 
         var eligible = exTap.Role switch
         {
-            umgr.ExTapRole.HoldOnlyCarrier =>
-                (Func<umgr.ExTapableNote, bool>)(note => note is umgr.Hold),
-            umgr.ExTapRole.SharedLongCarrier =>
+            UmgrModel.ExTapRole.HoldOnlyCarrier =>
+                (Func<UmgrModel.ExTapableNote, bool>)(note => note is UmgrModel.Hold),
+            UmgrModel.ExTapRole.SharedLongCarrier =>
                 _ => true,
             _ => null
         };
 
         if (eligible is null || !HasExactLongHead(exTap, eligible))
+        {
             return false;
+        }
 
         return _consumedExLongCarrierCells.Add(
             (exTap.Tick.Original, exTap.Lane, exTap.Width));
     }
 
-    private bool HasExactLongHead(umgr.ExTap exTap, Func<umgr.ExTapableNote, bool> eligible) =>
+    private bool HasExactLongHead(UmgrModel.ExTap exTap, Func<UmgrModel.ExTapableNote, bool> eligible) =>
         Mgxc.Notes.Children
-            .OfType<umgr.ExTapableNote>()
+            .OfType<UmgrModel.ExTapableNote>()
             .Any(note =>
                 eligible(note) &&
                 note.Tick == exTap.Tick &&
                 note.Lane == exTap.Lane &&
                 note.Width == exTap.Width);
 
-    private void ConvertNote(umgr.Note e)
+    private void ConvertNote(UmgrModel.Note e)
     {
         switch (e)
         {
-            case umgr.SoflanArea sla:
+            case UmgrModel.SoflanArea sla:
                 ProcessSoflanArea(sla);
                 break;
-            case umgr.Tap tap:
-                CreatePositiveNote<umgr.Tap, c2s.Tap>(tap);
+            case UmgrModel.Tap tap:
+                CreatePositiveNote<UmgrModel.Tap, C2sModel.Tap>(tap);
                 break;
-            case umgr.ExTap { Role: umgr.ExTapRole.AirActionCarrier }:
+            case UmgrModel.ExTap { Role: UmgrModel.ExTapRole.AirActionCarrier }:
                 break;
             // UMIGURI paints EX longs with a covering ExTap. Consume only the
             // first exact bare carrier per (tick, lane, width); later duplicates
             // stay as CHR. A strictly larger covering ExTap also stays as CHR
             // while still converting the covered heads.
-            case umgr.ExTap exTap when ShouldConsumeExLongCarrier(exTap):
+            case UmgrModel.ExTap exTap when ShouldConsumeExLongCarrier(exTap):
                 break;
-            case umgr.ExTap exTap:
-                CreatePositiveNote<umgr.ExTap, c2s.ExTap>(
+            case UmgrModel.ExTap exTap:
+                CreatePositiveNote<UmgrModel.ExTap, C2sModel.ExTap>(
                     exTap,
                     x => x.Effect = exTap.Effect);
                 break;
-            case umgr.Flick flick:
-                CreatePositiveNote<umgr.Flick, c2s.Flick>(flick);
+            case UmgrModel.Flick flick:
+                CreatePositiveNote<UmgrModel.Flick, C2sModel.Flick>(flick);
                 break;
-            case umgr.Damage damage:
-                CreatePositiveNote<umgr.Damage, c2s.Damage>(damage);
+            case UmgrModel.Damage damage:
+                CreatePositiveNote<UmgrModel.Damage, C2sModel.Damage>(damage);
                 break;
-            case umgr.Hold hold:
+            case UmgrModel.Hold hold:
                 ProcessHold(hold);
                 break;
-            case umgr.Slide slide:
+            case UmgrModel.Slide slide:
                 ProcessSlide(slide);
                 break;
-            case umgr.Air airNote:
+            case UmgrModel.Air airNote:
                 ProcessAir(airNote);
                 break;
-            case umgr.AirSlide airSlide:
+            case UmgrModel.AirSlide airSlide:
                 ProcessAirSlide(airSlide);
                 break;
-            case umgr.AirHold airHold:
+            case UmgrModel.AirHold airHold:
                 ProcessAirHold(airHold);
                 break;
-            case umgr.AirCrash airCrash:
+            case UmgrModel.AirCrash airCrash:
                 ProcessAirCrash(airCrash);
                 break;
         }
     }
 
-    private void ProcessAirCrash(umgr.AirCrash airCrash)
+    private void ProcessAirCrash(UmgrModel.AirCrash airCrash)
     {
-        var joints = airCrash.Children.OfType<umgr.AirCrashJoint>().Prepend(airCrash.AsChild()).ToArray();
+        var joints = airCrash.Children.OfType<UmgrModel.AirCrashJoint>().Prepend(airCrash.AsChild()).ToArray();
 
         var density = airCrash.Density;
-        if (density.Original >= 0x7FFFFFFF) density = (airCrash.GetLastTick() - airCrash.Tick.Original) * 2;
+        if (density.Original >= 0x7FFFFFFF)
+        {
+            density = (airCrash.GetLastTick() - airCrash.Tick.Original) * 2;
+        }
 
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
             var next = joints[i + 1];
-            CreateNote<umgr.AirCrashJoint, c2s.AirCrash>(curr, x =>
+            CreateNote<UmgrModel.AirCrashJoint, C2sModel.AirCrash>(curr, x =>
             {
                 x.EndTick = next.Tick;
                 x.EndLane = next.Lane;
@@ -228,22 +239,24 @@ public partial class C2SChartConverter
     }
 
     // C2S AirSlide already includes its arrow. A sibling AIR is only emitted
-    // from a real umgr.Air (including an overlapping note that owns AIR).
-    private void ProcessAirSlide(umgr.AirSlide airSlide)
+    // from a real UmgrModel.Air (including an overlapping note that owns AIR).
+    private void ProcessAirSlide(UmgrModel.AirSlide airSlide)
     {
         if (airSlide.PairNote?.PairNote != airSlide)
+        {
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airSlide.Tick.Original,
                 airSlide);
+        }
 
-        var joints = airSlide.Children.OfType<umgr.AirSlideJoint>().Prepend(airSlide.AsChild()).ToArray();
-        c2s.AirSlide? firstSegment = null;
-        c2s.Note? previousSegment = null;
+        var joints = airSlide.Children.OfType<UmgrModel.AirSlideJoint>().Prepend(airSlide.AsChild()).ToArray();
+        C2sModel.AirSlide? firstSegment = null;
+        C2sModel.Note? previousSegment = null;
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
             var next = joints[i + 1];
             var prevSeg = previousSegment;
-            var segment = CreateNote<umgr.AirSlideJoint, c2s.AirSlide>(curr, x =>
+            var segment = CreateNote<UmgrModel.AirSlideJoint, C2sModel.AirSlide>(curr, x =>
             {
                 x.Parent = prevSeg;
                 x.Color = airSlide.Color;
@@ -258,24 +271,29 @@ public partial class C2SChartConverter
             previousSegment = segment;
         }
 
-        if (firstSegment != null) RegisterNegativePairRoot(airSlide, firstSegment);
+        if (firstSegment != null)
+        {
+            RegisterNegativePairRoot(airSlide, firstSegment);
+        }
     }
 
-    private void ProcessAirHold(umgr.AirHold airHold)
+    private void ProcessAirHold(UmgrModel.AirHold airHold)
     {
         if (airHold.PairNote?.PairNote != airHold)
+        {
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_AirSlide_parent, airHold.Tick.Original,
                 airHold);
+        }
 
-        var joints = airHold.Children.OfType<umgr.AirHoldJoint>().Prepend(airHold.AsChild()).ToArray();
-        c2s.AirHold? firstSegment = null;
-        c2s.Note? previousSegment = null;
+        var joints = airHold.Children.OfType<UmgrModel.AirHoldJoint>().Prepend(airHold.AsChild()).ToArray();
+        C2sModel.AirHold? firstSegment = null;
+        C2sModel.Note? previousSegment = null;
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
             var next = joints[i + 1];
             var prevSeg = previousSegment;
-            var segment = CreateNote<umgr.AirHoldJoint, c2s.AirHold>(curr, x =>
+            var segment = CreateNote<UmgrModel.AirHoldJoint, C2sModel.AirHold>(curr, x =>
             {
                 x.Parent = prevSeg;
                 x.Color = airHold.Color;
@@ -288,15 +306,20 @@ public partial class C2SChartConverter
             previousSegment = segment;
         }
 
-        if (firstSegment != null) RegisterNegativePairRoot(airHold, firstSegment);
+        if (firstSegment != null)
+        {
+            RegisterNegativePairRoot(airHold, firstSegment);
+        }
     }
 
-    private void ProcessAir(umgr.Air airNote)
+    private void ProcessAir(UmgrModel.Air airNote)
     {
         if (airNote.PairNote?.PairNote != airNote)
+        {
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Invalid_Air_parent, airNote.Tick.Original, airNote);
+        }
 
-        var note = CreateNote<umgr.Air, c2s.Air>(airNote, x =>
+        var note = CreateNote<UmgrModel.Air, C2sModel.Air>(airNote, x =>
         {
             x.Direction = airNote.Direction;
             x.Color = airNote.Color;
@@ -304,14 +327,14 @@ public partial class C2SChartConverter
         RegisterNegativePairRoot(airNote, note);
     }
 
-    private void ProcessSlide(umgr.Slide slide)
+    private void ProcessSlide(UmgrModel.Slide slide)
     {
-        var joints = slide.Children.OfType<umgr.SlideJoint>().Prepend(slide.AsChild()).ToArray();
+        var joints = slide.Children.OfType<UmgrModel.SlideJoint>().Prepend(slide.AsChild()).ToArray();
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
             var next = joints[i + 1];
-            var note = CreateNote<umgr.SlideJoint, c2s.Slide>(curr, x =>
+            var note = CreateNote<UmgrModel.SlideJoint, C2sModel.Slide>(curr, x =>
             {
                 x.Joint = next.Joint;
                 x.EndTick = next.Tick;
@@ -326,24 +349,30 @@ public partial class C2SChartConverter
                 i == 0);
             // pair the last joint with air
             if (i == joints.Length - 2)
+            {
                 RegisterPositivePairTarget(next, note);
+            }
         }
     }
 
-    private void ProcessSoflanArea(umgr.SoflanArea sla)
+    private void ProcessSoflanArea(UmgrModel.SoflanArea sla)
     {
-        if (sla.LastChild is not umgr.SoflanAreaJoint tail)
+        if (sla.LastChild is not UmgrModel.SoflanAreaJoint tail)
+        {
             throw new TimedDiagnosticException(MsgKeys.MgCrit_SoflanArea_has_no_tail, sla.Tick.Original, sla);
+        }
 
-        CreateNote<umgr.SoflanArea, c2s.Sla>(sla, x => { x.Length = tail.Tick.Round - sla.Tick.Round; });
+        CreateNote<UmgrModel.SoflanArea, C2sModel.Sla>(sla, x => { x.Length = tail.Tick.Round - sla.Tick.Round; });
     }
 
-    private void ProcessHold(umgr.Hold hold)
+    private void ProcessHold(UmgrModel.Hold hold)
     {
-        if (hold.LastChild is not umgr.HoldJoint tail)
+        if (hold.LastChild is not UmgrModel.HoldJoint tail)
+        {
             throw new TimedDiagnosticException(MsgKeys.MgCrit_Hold_has_no_tail, hold.Tick.Original, hold);
+        }
 
-        var note = CreateNote<umgr.Hold, c2s.Hold>(hold, x =>
+        var note = CreateNote<UmgrModel.Hold, C2sModel.Hold>(hold, x =>
         {
             x.EndTick = tail.Tick;
             x.Effect = hold.Effect;

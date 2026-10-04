@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -38,7 +38,11 @@ public class AssetDictionary()
 
     public AssetDictionary(string path) : this()
     {
-        if (!File.Exists(path)) return;
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
         var json = File.ReadAllText(path);
         Load(json);
     }
@@ -65,7 +69,11 @@ public class AssetDictionary()
     private void Load(string json)
     {
         var dict = JsonSerializer.Deserialize(json, JsonContext.AssetDatabase);
-        if (dict == null) return;
+        if (dict == null)
+        {
+            return;
+        }
+
         MergeWith(dict);
     }
 
@@ -76,7 +84,10 @@ public class AssetDictionary()
     public static bool TryLoadPlusAssetsFromFile(string path, out AssetDictionary dictionary)
     {
         dictionary = new AssetDictionary();
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return false;
+        }
 
         string json;
         try
@@ -92,12 +103,18 @@ public class AssetDictionary()
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(json)) return false;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
 
         try
         {
             var dict = JsonSerializer.Deserialize(json, JsonContext.AssetDatabase);
-            if (dict is null) return false;
+            if (dict is null)
+            {
+                return false;
+            }
 
             dictionary.MergeWith(dict);
             return true;
@@ -110,7 +127,10 @@ public class AssetDictionary()
 
     public void MergeWith(Dictionary<AssetType, SortedSet<Entry>> databases)
     {
-        foreach (var (assetType, sourceSet) in databases) _database[assetType].UnionWith(sourceSet);
+        foreach (var (assetType, sourceSet) in databases)
+        {
+            _database[assetType].UnionWith(sourceSet);
+        }
     }
 
     public void MergeWith(params AssetDictionary[] databases)
@@ -118,7 +138,9 @@ public class AssetDictionary()
         foreach (var db in databases)
         {
             foreach (var (assetType, sourceSet) in db._database)
+            {
                 _database[assetType].UnionWith(sourceSet);
+            }
         }
     }
 
@@ -127,7 +149,9 @@ public class AssetDictionary()
         foreach (var db in databases)
         {
             foreach (var (assetType, sourceSet) in db._database)
+            {
                 _database[assetType].ExceptWith(sourceSet);
+            }
         }
     }
 
@@ -139,7 +163,10 @@ public class AssetDictionary()
 
     public void Clear()
     {
-        foreach (var set in _database.Values) set.Clear();
+        foreach (var set in _database.Values)
+        {
+            set.Clear();
+        }
     }
 
     private const string MusicXmlFileName = "Music.xml";
@@ -183,7 +210,10 @@ public class AssetDictionary()
         ct.ThrowIfCancellationRequested();
 
         var node = doc.Root?.Element(entryName);
-        if (node is null) return entries;
+        if (node is null)
+        {
+            return entries;
+        }
 
         var listNode = node.Element("list");
         if (listNode != null)
@@ -196,7 +226,10 @@ public class AssetDictionary()
                 var id = (stringIdNode.Element("id")?.Value ?? string.Empty).Trim();
                 var str = (stringIdNode.Element("str")?.Value ?? string.Empty).Trim();
                 var data = (stringIdNode.Element("data")?.Value ?? string.Empty).Trim();
-                if (int.TryParse(id, out var val)) entries.Add(new Entry(val, str, data));
+                if (int.TryParse(id, out var val))
+                {
+                    entries.Add(new Entry(val, str, data));
+                }
             }
         }
         else
@@ -204,7 +237,10 @@ public class AssetDictionary()
             var id = (node.Element("id")?.Value ?? string.Empty).Trim();
             var str = (node.Element("str")?.Value ?? string.Empty).Trim();
             var data = (node.Element("data")?.Value ?? string.Empty).Trim();
-            if (int.TryParse(id, out var val)) entries.Add(new Entry(val, str, data));
+            if (int.TryParse(id, out var val))
+            {
+                entries.Add(new Entry(val, str, data));
+            }
         }
 
         return entries;
@@ -221,7 +257,10 @@ public class AssetDictionary()
             {
                 ct.ThrowIfCancellationRequested();
                 var entries = await ReadEntriesAsync(xmlFile, entryName, ct);
-                foreach (var entry in entries) result.Add(entry);
+                foreach (var entry in entries)
+                {
+                    result.Add(entry);
+                }
             }
         }
 
@@ -247,7 +286,11 @@ public class AssetDictionary()
     private static Dictionary<AssetType, SortedSet<Entry>> CreateDatabase()
     {
         var database = new Dictionary<AssetType, SortedSet<Entry>>();
-        foreach (var type in Enum.GetValues<AssetType>()) database[type] = [];
+        foreach (var type in Enum.GetValues<AssetType>())
+        {
+            database[type] = [];
+        }
+
         return database;
     }
 
@@ -279,7 +322,10 @@ public class AssetDictionary()
         while (queue.Count > 0)
         {
             var (path, depth) = queue.Dequeue();
-            if (depth >= maxDepth) continue;
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
 
             var children = GetAccessibleDirectories(path);
 
@@ -291,7 +337,10 @@ public class AssetDictionary()
                     continue;
                 }
 
-                if (depth + 1 < maxDepth) queue.Enqueue((directory, depth + 1));
+                if (depth + 1 < maxDepth)
+                {
+                    queue.Enqueue((directory, depth + 1));
+                }
             }
         }
     }
@@ -315,7 +364,11 @@ public class AssetDictionary()
     private static bool IsAllowedAssetFolder(string path)
     {
         var folderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
-        if (folderName.Length != 4 || folderName[0] != 'A') return false;
+        if (folderName.Length != 4 || folderName[0] != 'A')
+        {
+            return false;
+        }
+
         return int.TryParse(folderName.AsSpan(1), out var value) && value is >= 0 and <= 300;
     }
 

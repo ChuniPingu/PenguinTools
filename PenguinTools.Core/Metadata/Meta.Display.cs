@@ -1,4 +1,4 @@
-﻿using PenguinTools.Core.Asset;
+using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Metadata;
 

@@ -125,7 +125,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         for (var i = 0; fxPaths is not null && i < fxPaths.Length && i < 4; i++)
         {
             var fxPath = fxPaths[i];
-            if (string.IsNullOrWhiteSpace(fxPath)) continue;
+            if (string.IsNullOrWhiteSpace(fxPath))
+            {
+                continue;
+            }
 
             args.Add($"--fx{i + 1}");
             args.Add(fxPath);
@@ -279,7 +282,11 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     private static List<string> CreateOffsetFilters(decimal offset)
     {
         var seconds = decimal.ToDouble(offset);
-        if (Math.Abs(seconds) < OffsetToleranceSeconds) return [];
+        if (Math.Abs(seconds) < OffsetToleranceSeconds)
+        {
+            return [];
+        }
+
         if (seconds > 0)
         {
             var milliseconds = Math.Round(seconds * 1_000.0, MidpointRounding.AwayFromZero);
@@ -301,7 +308,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             var inputTp = ReadJsonNumber(root, "input_tp");
             var inputLra = ReadJsonNumber(root, "input_lra");
             if (!double.IsFinite(inputI) || !double.IsFinite(inputTp) || !double.IsFinite(inputLra))
+            {
                 throw new InvalidDataException("FFmpeg returned non-finite loudness statistics.");
+            }
+
             stats = new FfmpegLoudnessStats(inputI, inputTp, inputLra);
             return true;
         }
@@ -344,7 +354,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
     private static string RequireDirectory(string directoryPath, string paramName)
     {
         if (string.IsNullOrWhiteSpace(directoryPath))
+        {
             throw new ArgumentNullException(paramName);
+        }
+
         return directoryPath;
     }
 
@@ -354,8 +367,10 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         ct.ThrowIfCancellationRequested();
         var startInfo = CreateStartInfo(executablePath, args, workingDirectory);
         if (!File.Exists(executablePath))
+        {
             return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty,
                 $"Executable was not found: {executablePath}");
+        }
 
         using var proc = new Process();
         proc.StartInfo = startInfo;
@@ -377,7 +392,11 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
         }
         catch (OperationCanceledException)
         {
-            if (!proc.HasExited) proc.Kill(entireProcessTree: true);
+            if (!proc.HasExited)
+            {
+                proc.Kill(entireProcessTree: true);
+            }
+
             await proc.WaitForExitAsync(CancellationToken.None);
             throw;
         }
@@ -416,9 +435,16 @@ public sealed class MuaMediaTool(string assetDirectory) : IMediaTool
             CreateNoWindow = true
         };
 
-        if (!string.IsNullOrWhiteSpace(workingDirectory)) psi.WorkingDirectory = workingDirectory;
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            psi.WorkingDirectory = workingDirectory;
+        }
 
-        foreach (var arg in argumentList) psi.ArgumentList.Add(arg);
+        foreach (var arg in argumentList)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
         return psi;
     }
 }

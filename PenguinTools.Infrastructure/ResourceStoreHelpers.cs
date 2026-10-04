@@ -13,8 +13,15 @@ internal static class ResourceStoreHelpers
 
     public static void EnsureExecutableIfNeeded(string path, string resourceName)
     {
-        if (OperatingSystem.IsWindows()) return;
-        if (!ExternalExecutables.Contains(resourceName)) return;
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        if (!ExternalExecutables.Contains(resourceName))
+        {
+            return;
+        }
 
         try
         {
@@ -32,22 +39,34 @@ internal static class ResourceStoreHelpers
 
     public static void ClearDirectory(string directoryPath, bool deleteRoot)
     {
-        if (!Directory.Exists(directoryPath)) return;
+        if (!Directory.Exists(directoryPath))
+        {
+            return;
+        }
 
         foreach (var entryPath in Directory.GetFileSystemEntries(directoryPath))
+        {
             try
             {
                 if (Directory.Exists(entryPath))
+                {
                     Directory.Delete(entryPath, true);
+                }
                 else
+                {
                     File.Delete(entryPath);
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine(ex);
             }
+        }
 
-        if (!deleteRoot) return;
+        if (!deleteRoot)
+        {
+            return;
+        }
 
         try
         {

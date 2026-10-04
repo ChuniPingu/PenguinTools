@@ -458,7 +458,10 @@ public sealed class PenguinToolsApplicationTests
         await File.WriteAllBytesAsync(audio, [1], TestContext.Current.CancellationToken);
         var effects = Enumerable.Range(1, 4).Select(index => Path.Combine(root, $"effect{index}.png")).ToArray();
         foreach (var effect in effects)
+        {
             await File.WriteAllBytesAsync(effect, [1], TestContext.Current.CancellationToken);
+        }
+
         var store = new TrackingAssetStore(root);
         using var application = CreateInjectedApplication(root, store);
         try

@@ -1,3 +1,4 @@
+using System.Globalization;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Core.Xml;
 using PenguinTools.Media;
@@ -17,7 +18,9 @@ internal static class OptionConversionCacheArtifacts
         CancellationToken ct)
     {
         if (book.StageId is not { } stageId)
+        {
             throw new ArgumentException("Stage id is required for stage cache artifacts.", nameof(book));
+        }
 
         var stageXml = new StageXml(stageId, book.NotesFieldLine);
         var stageFolder = Path.Combine(stageOutputFolder, stageXml.DataName);
@@ -79,7 +82,9 @@ internal static class OptionConversionCacheArtifacts
         CancellationToken ct)
     {
         if (meta.Id is not { } songId)
+        {
             throw new ArgumentException("Song id is required for audio cache artifacts.", nameof(meta));
+        }
 
         var cueXml = new CueFileXml(songId);
         var outputDir = Path.Combine(cueFileFolder, cueXml.DataName);
@@ -118,9 +123,9 @@ internal static class OptionConversionCacheArtifacts
         {
             ["kind"] = "stage",
             ["recipeVersion"] = "3",
-            ["stageId"] = book.StageId?.ToString(),
+            ["stageId"] = book.StageId?.ToString(CultureInfo.InvariantCulture),
             ["backgroundOffset"] = OptionConversionCacheValidator.FormatInvariant(book.BookMeta.BackgroundOffset),
-            ["notesFieldLine.id"] = book.NotesFieldLine.Id.ToString(),
+            ["notesFieldLine.id"] = book.NotesFieldLine.Id.ToString(CultureInfo.InvariantCulture),
             ["notesFieldLine.str"] = book.NotesFieldLine.Str,
             ["notesFieldLine.data"] = book.NotesFieldLine.Data,
             ["effect.count"] = "0"
@@ -133,13 +138,13 @@ internal static class OptionConversionCacheArtifacts
         {
             ["kind"] = "audio",
             ["recipeVersion"] = "2",
-            ["songId"] = meta.Id?.ToString(),
+            ["songId"] = meta.Id?.ToString(CultureInfo.InvariantCulture),
             ["bgmRealOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmRealOffset),
             ["bgmPreviewStart"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStart),
             ["bgmPreviewStop"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStop),
             ["bgmEnableBarOffset"] = meta.BgmEnableBarOffset.ToString(),
             ["bgmBarOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmBarOffset),
-            ["hcaEncryptionKey"] = hcaEncryptionKey.ToString()
+            ["hcaEncryptionKey"] = hcaEncryptionKey.ToString(CultureInfo.InvariantCulture)
         };
     }
 }

@@ -99,15 +99,18 @@ internal static class MediaCommands
         };
         var initialBpm = new Option<decimal>("--initial-bpm")
         {
-            Description = "Initial BPM.", DefaultValueFactory = _ => 120m
+            Description = "Initial BPM.",
+            DefaultValueFactory = _ => 120m
         };
         var numerator = new Option<int>("--initial-numerator")
         {
-            Description = "Initial time-signature numerator.", DefaultValueFactory = _ => 4
+            Description = "Initial time-signature numerator.",
+            DefaultValueFactory = _ => 4
         };
         var denominator = new Option<int>("--initial-denominator")
         {
-            Description = "Initial time-signature denominator.", DefaultValueFactory = _ => 4
+            Description = "Initial time-signature denominator.",
+            DefaultValueFactory = _ => 4
         };
         var key = new Option<ulong?>("--hca-key") { Description = "HCA encryption key." };
         var command = new Command("convert-file", "Convert an audio file using explicit song metadata.");

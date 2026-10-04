@@ -9,7 +9,10 @@ public static class TempFileNames
         var safeName = Path.GetFileName(fileName);
         var stem = Path.GetFileNameWithoutExtension(safeName);
         var extension = Path.GetExtension(safeName);
-        if (string.IsNullOrWhiteSpace(stem)) stem = "tmp";
+        if (string.IsNullOrWhiteSpace(stem))
+        {
+            stem = "tmp";
+        }
 
         return $"{stem}.{Guid.NewGuid():N}{extension}";
     }

@@ -144,16 +144,22 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
         JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null)
+        {
             return [.. ChartFileDiscoveryFormats.Default];
+        }
 
         if (reader.TokenType == JsonTokenType.StartArray)
+        {
             return ReadArray(ref reader);
+        }
 
         if (reader.TokenType == JsonTokenType.String)
         {
             var text = reader.GetString();
             if (ChartFileDiscoveryFormats.TryParse(text, out var formats, out var error))
+            {
                 return [.. formats];
+            }
 
             throw new JsonException(error?.Key);
         }
@@ -168,7 +174,9 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
         while (reader.Read())
         {
             if (reader.TokenType == JsonTokenType.EndArray)
+            {
                 return [.. ChartFileDiscoveryFormats.Normalize(formats)];
+            }
 
             if (reader.TokenType == JsonTokenType.String)
             {
@@ -194,7 +202,9 @@ public sealed class ChartFileDiscoveryJsonConverter : JsonConverter<List<ChartFi
         writer.WriteStartArray();
 
         foreach (var format in ChartFileDiscoveryFormats.Normalize(value))
+        {
             writer.WriteStringValue(ChartFileDiscoveryFormats.ToToken(format));
+        }
 
         writer.WriteEndArray();
     }

@@ -74,7 +74,10 @@ public sealed class OptionExporterReleaseTagTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -143,7 +146,10 @@ public sealed class OptionExporterReleaseTagTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -208,7 +214,10 @@ public sealed class OptionExporterReleaseTagTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -275,7 +284,10 @@ public sealed class OptionExporterReleaseTagTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 
@@ -340,7 +352,10 @@ public sealed class OptionExporterReleaseTagTests
         }
         finally
         {
-            if (Directory.Exists(workPath)) Directory.Delete(workPath, true);
+            if (Directory.Exists(workPath))
+            {
+                Directory.Delete(workPath, true);
+            }
         }
     }
 

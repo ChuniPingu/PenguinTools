@@ -29,7 +29,10 @@ public sealed class ApplicationPaths : IApplicationPaths
     private static string ResolveTempWorkPath()
     {
         var fromEnv = Environment.GetEnvironmentVariable(TempEnvironmentVariable);
-        if (!string.IsNullOrWhiteSpace(fromEnv)) return Path.GetFullPath(fromEnv.Trim());
+        if (!string.IsNullOrWhiteSpace(fromEnv))
+        {
+            return Path.GetFullPath(fromEnv.Trim());
+        }
 
         return Path.Combine(Path.GetTempPath(), DefaultTempSubfolder);
     }

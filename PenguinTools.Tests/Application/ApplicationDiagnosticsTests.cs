@@ -1,8 +1,8 @@
+using System.Diagnostics;
 using PenguinTools.Application;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Media;
-using System.Diagnostics;
 using Xunit;
 
 namespace PenguinTools.Tests.Application;

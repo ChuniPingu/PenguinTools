@@ -16,6 +16,9 @@ internal static class RequestPaths
     internal static void EnsureParentDirectory(string path)
     {
         var parent = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(parent)) Directory.CreateDirectory(parent);
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
     }
 }

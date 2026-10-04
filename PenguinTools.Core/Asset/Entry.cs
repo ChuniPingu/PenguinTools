@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 
 namespace PenguinTools.Core.Asset;
@@ -40,8 +40,16 @@ public sealed class Entry : IComparable<Entry>, IEquatable<Entry>
 
     public bool Equals(Entry? other)
     {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
+        if (other is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
         return Id == other.Id;
     }
 
@@ -72,8 +80,15 @@ public sealed class Entry : IComparable<Entry>, IEquatable<Entry>
 
     public int CompareTo(Entry? other)
     {
-        if (ReferenceEquals(this, other)) return 0;
-        if (other is null) return 1;
+        if (ReferenceEquals(this, other))
+        {
+            return 0;
+        }
+
+        if (other is null)
+        {
+            return 1;
+        }
 
         return Id.CompareTo(other.Id);
     }

@@ -28,7 +28,10 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
     private static string Height(decimal height)
     {
         if (height != decimal.Truncate(height))
+        {
             throw new FormatException("UGC requires integral native height units.");
+        }
+
         var high = (int)Math.Floor(height / 36);
         return $"{Coordinate(high)}{Coordinate((int)height - high * 36)}";
     }
@@ -102,7 +105,10 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             _written.Clear();
             _effectCarriers.Clear();
             foreach (var carrier in chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
+            {
                 _effectCarriers.Add((carrier.Tick.Original, carrier.Lane, carrier.Width));
+            }
+
             var m = chart.Meta;
             AppendMetadata(m);
             foreach (var e in chart.Events.Children)
@@ -116,14 +122,25 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
                     _ => null
                 };
                 if (line is not null)
+                {
                     _lines.Add(line);
+                }
             }
             foreach (var n in chart.Notes.Children.Where(n => n is not U.NegativeNote and not U.SoflanArea).OrderBy(n => n.Tick.Original).ThenBy(n => n.Lane).ThenBy(n => n.Width))
+            {
                 WriteNote(n);
+            }
+
             foreach (var n in chart.Notes.Children.OfType<U.NegativeNote>())
+            {
                 WriteNote(n);
+            }
+
             foreach (var tick in chart.Extras.ClickTicks)
+            {
                 _lines.Add($"#{Position(tick)}:c");
+            }
+
             chart.Extras.CaptureSlideEffects(chart);
             chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             chart.Extras.UgcContentKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', _lines))));
@@ -202,7 +219,10 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             };
             var marker = joint == Joint.C ? 'c' : 's';
             if (n is U.Slide && noLine)
+            {
                 marker = joint == Joint.C ? 'N' : 'n';
+            }
+
             var body = child switch
             {
                 U.HoldJoint => "s",
@@ -220,22 +240,41 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
     private void WriteNote(U.Note n)
     {
         if (!_written.Add(n))
+        {
             return;
+        }
+
         if (n is U.NegativeNote negative && negative.PairNote is { } parent && !_written.Contains(parent))
+        {
             WriteNote(parent.Parent is U.Note root ? root : parent);
+        }
+
         _lines.Add($"@USETIL\t{n.Timeline}");
         var xy = $"{Coordinate(n.Lane)}{Coordinate(n.Width)}";
         if (n is U.ExTapableNote ex && ex.Effect is { } effect && _effectCarriers.Add((n.Tick.Original, n.Lane, n.Width)))
+        {
             Head(n, $"x{xy}{Effect(effect)}~");
+        }
+
         var payload = NotePayload(n, xy);
         if (n is U.AirHold ah)
+        {
             Head(n, $"a{xy}{Direction(ah.Direction)}{AirColor(ah.Color)}");
+        }
+
         if (n is U.AirSlide air)
+        {
             Head(n, $"a{xy}{Direction(air.Direction)}{AirColor(air.Color)}");
+        }
+
         Head(n, payload);
         WriteChildren(n);
         foreach (var point in new[] { n }.Concat(n.Children))
+        {
             if (point is U.PositiveNote positive && positive.PairNote is { } paired)
+            {
                 WriteNote(paired);
+            }
+        }
     }
 }

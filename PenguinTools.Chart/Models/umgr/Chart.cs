@@ -23,7 +23,10 @@ public class Chart
 
     public static void CalculateBeatEventTicks(IReadOnlyList<BeatEvent> beatEvents)
     {
-        if (beatEvents.Count <= 0) return;
+        if (beatEvents.Count <= 0)
+        {
+            return;
+        }
 
         var ticks = 0;
         beatEvents[0].Tick = ticks;
