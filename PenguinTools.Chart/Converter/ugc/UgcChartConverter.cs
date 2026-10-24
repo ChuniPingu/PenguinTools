@@ -75,8 +75,10 @@ public sealed class UgcChartConverter
     public OperationResult<UmgrModel.Chart> Convert()
     {
         _target.Meta = _source.Meta;
+        _target.Meta.BgmFixedZeroOrigin = true;
         _target.Extras = _source.Extras;
         _target.Extras.C2sCoordinateOrigin = true;
+        _target.Extras.FixedZeroOrigin = true;
 
         CaptureSourceSnapshots();
 

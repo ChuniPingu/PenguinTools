@@ -280,6 +280,11 @@ public class Note : TimeNode<Note>
             return result;
         }
 
+        // Preserve the stored order of path points at the same tick.
+        if (x.Parent?.Parent is not null && ReferenceEquals(x.Parent, y.Parent))
+        {
+            return 0;
+        }
         result = x.Lane.CompareTo(y.Lane);
         if (result != 0)
         {

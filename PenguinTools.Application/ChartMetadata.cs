@@ -82,6 +82,7 @@ internal static class ChartMetadata
         if (overrides.SongId is { } songId)
         {
             meta.Id = songId;
+            meta.MgxcId = songId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         if (overrides.Title is not null)

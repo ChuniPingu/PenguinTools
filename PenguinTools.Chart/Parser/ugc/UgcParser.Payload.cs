@@ -148,8 +148,17 @@ internal static class UgcPayload
         return int.TryParse(s, out var density) ? density : 0;
     }
 
-    public static Color CrushColorChar(char c)
+    public static Color CrushColorChar(char c, bool extended = true)
     {
+        if (!extended)
+        {
+            return c switch
+            {
+                'B' => Color.VLT,
+                'Y' => Color.PNK,
+                _ => CrushColorChar(c)
+            };
+        }
         return c switch
         {
             '0' => Color.DEF,

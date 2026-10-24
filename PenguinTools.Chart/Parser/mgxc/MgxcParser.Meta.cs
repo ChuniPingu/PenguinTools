@@ -83,6 +83,7 @@ public partial class MgxcParser
                 break;
             case "lcpy":
                 _copyright = (string)data;
+                Mgxc.Meta.Copyright = ChartExtras.CopyrightText(_copyright);
                 Mgxc.Extras.ReadCopyright(_copyright);
                 break;
             case "ptmd":
@@ -91,19 +92,45 @@ public partial class MgxcParser
             case "cmmt":
                 Mgxc.Meta.Comment = (string)data;
                 break;
+            case "ltyp":
+                Mgxc.Meta.License = (string)data;
+                break;
+            case "lurl":
+                Mgxc.Meta.LicenseUrl = (string)data;
+                break;
+            case "xlng":
+                Mgxc.Meta.ExLongEnabled = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
+                break;
+            case "xver":
+                Mgxc.Meta.ExVersion = (int)data;
+                break;
+            case "bgmw":
+                Mgxc.Meta.WaitBgmEnd = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
+                break;
             case "bgsc": // BGSCENE
+                Mgxc.Meta.BackgroundScene = (string)data;
+                break;
             case "bgsy": // BGSYNC
+                Mgxc.Meta.BackgroundSync = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
+                break;
             case "flcl": // FIELDCOL
+                Mgxc.Meta.FieldColorName = (string)data;
+                break;
             case "flbg": // FIELDBG
+                Mgxc.Meta.FieldImage = (string)data;
+                break;
             case "flsc": // FIELDSCENE
-            case "xlng": // EXLONG
-            case "bgmw": // BGMWAITEND
+                Mgxc.Meta.FieldScene = (string)data;
+                break;
             case "atls": // AUTHOR LIST
+                Mgxc.Meta.Authors = (string)data;
+                break;
             case "atst": // AUTHOR SITES
+                Mgxc.Meta.AuthorSites = (string)data;
+                break;
             case "durl": // DLURL
-            case "ltyp": // LICENSE
-            case "lurl": // LICENSE URL
-            case "xver": // XVER
+                Mgxc.Meta.DownloadUrl = (string)data;
+                break;
             case "CTCK": // last cursor position?
             case "LXFN": // .ugc location?
             case "HSCL": // idk
@@ -119,10 +146,7 @@ public partial class MgxcParser
     private void ApplyGenre(string genre)
     {
         var entry = Assets.GenreNames.FirstOrDefault(e => e.Str.Equals(genre, StringComparison.Ordinal));
-        if (entry != null)
-        {
-            Mgxc.Meta.Genre = entry;
-        }
+        Mgxc.Meta.Genre = entry ?? new PenguinTools.Core.Asset.Entry(-1, genre);
     }
 
     private void ApplyDifficulty(int difficulty)
@@ -161,10 +185,7 @@ public partial class MgxcParser
     private void ApplyWorldsEndTag(string tag)
     {
         var attr = Assets.WeTagNames.FirstOrDefault(x => x.Str == tag);
-        if (attr != null)
-        {
-            Mgxc.Meta.WeTag = attr;
-        }
+        Mgxc.Meta.WeTag = attr ?? new PenguinTools.Core.Asset.Entry(-1, tag);
     }
 
     private void ApplyLevel(object value)
@@ -223,6 +244,7 @@ public partial class MgxcParser
 
     private void ApplyFieldLine(int index)
     {
+        Mgxc.Meta.FieldColorIndex = index;
         var col = UmiguriParserCommon.FieldLineNameFromIndex(index);
         if (col != null)
         {

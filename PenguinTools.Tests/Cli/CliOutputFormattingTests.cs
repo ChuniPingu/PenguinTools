@@ -129,6 +129,26 @@ public class CliOutputFormattingTests
     }
 
     [Theory]
+    [InlineData("inspect input.mgxc")]
+    [InlineData("convert input.mgxc output.c2s")]
+    public void ChartCommands_UseOriginalByDefaultAndAcceptExplicitModes(string command)
+    {
+        var root = RootCommands.BuildRootCommand();
+        var parsed = root.Parse("chart " + command);
+        Assert.Empty(parsed.Errors);
+        var option = Assert.Single(parsed.CommandResult.Command.Options
+            .OfType<System.CommandLine.Option<Core.Metadata.ChartDialect>>(),
+            o => o.Name == "--input-dialect");
+        Assert.Equal(Core.Metadata.ChartDialect.Original, parsed.GetValue(option));
+        foreach (var mode in new[] { Core.Metadata.ChartDialect.Original, Core.Metadata.ChartDialect.Extended })
+        {
+            var explicitMode = root.Parse("chart " + command + " --input-dialect " + mode);
+            Assert.Empty(explicitMode.Errors);
+            Assert.Equal(mode, explicitMode.GetValue(option));
+        }
+    }
+
+    [Theory]
     [InlineData("info --format json")]
     [InlineData("info --no-pretty")]
     [InlineData("scan .")]

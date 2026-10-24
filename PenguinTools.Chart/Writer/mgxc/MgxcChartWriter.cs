@@ -19,6 +19,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private const sbyte NoLineVariation = 0x7F;
 
     private readonly UmgrModel.Chart _chart = request.Chart ?? throw new ArgumentNullException(nameof(request));
+    private bool _timingBookmarksRequired;
 
     private readonly record struct EffectCarrierKey(
         int Tick,
@@ -33,6 +34,14 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     public async Task<OperationResult> WriteAsync(CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
+        var dialect = EditorCompatibility.OutputDialect(request.Dialect, _chart.Extras);
+        EditorCompatibility.Validate(_chart, dialect, ugc: false);
+        _chart.Extras.ApplyEditorMode(request.Dialect, _chart.Meta);
+        _chart.Extras.EncodingDialect = dialect;
+        _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
+        _timingBookmarksRequired = (_chart.Extras.FixedZeroOrigin || _chart.Extras.PrerollBar1Applied) &&
+            Encoding.UTF8.GetByteCount(_chart.Extras.CopyrightWithTiming(_chart.Meta.Copyright)) > short.MaxValue;
+        _chart.Extras.CarrierEncodingVersion = 1;
         await AtomicFile.WriteAsync(request.Path, async (stream, token) =>
         {
             await using var buffer = new MemoryStream();
@@ -129,26 +138,28 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteDoubleField(bw, "wvp1", (double)m.BgmPreviewStop);
         WriteStringField(bw, "jack", m.JacketFilePath);
         WriteStringField(bw, "bgfn", m.IsCustomStage ? m.BgiFilePath : "");
-        WriteStringField(bw, "bgsc", "");
-        WriteIntField(bw, "bgsy", 1);
-        WriteStringField(bw, "flcl", "");
-        WriteIntField(bw, "flcx", -1);
-        WriteStringField(bw, "flbg", "");
-        WriteStringField(bw, "flsc", "");
+        WriteStringField(bw, "bgsc", m.BackgroundScene);
+        WriteIntField(bw, "bgsy", m.BackgroundSync ? 1 : 0);
+        WriteStringField(bw, "flcl", m.FieldColorName);
+        WriteIntField(bw, "flcx", m.FieldColorIndex);
+        WriteStringField(bw, "flbg", m.FieldImage);
+        WriteStringField(bw, "flsc", m.FieldScene);
         WriteIntField(bw, "mtil", m.MainTil);
         WriteDoubleField(bw, "mbpm", (double)m.MainBpm);
         WriteIntField(bw, "ttrl", _chart.Extras.Tutorial ? 1 : 0);
         WriteIntField(bw, "sofs", m.BgmEnableBarOffset ? 1 : 0);
         WriteIntField(bw, "uclk", _chart.Extras.ClickEnabled ? 1 : 0);
-        WriteIntField(bw, "xlng", 1);
-        WriteIntField(bw, "bgmw", 0);
-        WriteStringField(bw, "atls", "");
-        WriteStringField(bw, "atst", "");
-        WriteStringField(bw, "durl", "");
-        WriteStringField(bw, "lcpy", "");
-        WriteStringField(bw, "ltyp", "");
-        WriteStringField(bw, "lurl", "");
-        WriteIntField(bw, "xver", 1);
+        WriteIntField(bw, "xlng", m.ExLongEnabled ? 1 : 0);
+        WriteIntField(bw, "bgmw", m.WaitBgmEnd ? 1 : 0);
+        WriteStringField(bw, "atls", m.Authors);
+        WriteStringField(bw, "atst", m.AuthorSites);
+        WriteStringField(bw, "durl", m.DownloadUrl);
+        WriteStringField(bw, "lcpy", _timingBookmarksRequired
+            ? ChartExtras.CopyrightText(m.Copyright)
+            : _chart.Extras.CopyrightWithTiming(m.Copyright));
+        WriteStringField(bw, "ltyp", m.License);
+        WriteStringField(bw, "lurl", m.LicenseUrl);
+        WriteIntField(bw, "xver", m.ExVersion);
         WriteStringField(bw, "cmmt", C2sRoundTripComment.Strip(m.Comment));
         WriteIntField(bw, "CTCK", 0);
         WriteStringField(bw, "LXFN", "");
@@ -162,6 +173,17 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     {
         if (includeExtras)
         {
+            if (_timingBookmarksRequired)
+            {
+                if (_chart.Extras.FixedZeroOrigin)
+                {
+                    WriteBookmark(bw, 0, ChartExtras.FixedZeroOriginMarker, "FFFFFF");
+                }
+                if (_chart.Extras.PrerollBar1Applied)
+                {
+                    WriteBookmark(bw, 0, ChartExtras.PrerollBar1Marker, "FFFFFF");
+                }
+            }
             WriteBookmark(bw, 0, _chart.Extras.ToBookmark(), "FFFFFF");
         }
 
@@ -220,6 +242,16 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             WriteDoubleFieldValue(bw, (double)til.Speed);
             bw.Write(0);
         }
+        foreach (var marker in _chart.Events.Children.OfType<UmgrModel.BreakingMarker>())
+        {
+            bw.Write("mbkm"u8);
+            WriteIntFieldValue(bw, marker.Tick.Original);
+            bw.Write(0);
+        }
+        foreach (var image in _chart.Extras.EditorImageEvents)
+        {
+            bw.Write(image);
+        }
     }
 
     private void WriteNotes(BinaryWriter bw)
@@ -252,7 +284,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                     WriteExTapNote(bw, ex);
                     break;
                 case UmgrModel.Flick flick:
-                    WriteNote(bw, new NoteFormat(NoteType.Flick, LongAttr.None, Direction.None, ExAttr.None, 0),
+                    WriteNote(bw, new NoteFormat(NoteType.Flick, LongAttr.None,
+                            flick.AutoplayDirection switch { 'L' => Direction.Left, 'R' => Direction.Right, _ => Direction.Auto }, ExAttr.None, 0),
                         new NotePosition(flick.Lane, flick.Width, DefaultHeight, flick.Tick.Original, flick.Timeline));
                     WritePairedAirActionIfNeeded(bw, flick);
                     break;
@@ -729,7 +762,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         _ => (int)d
     };
 
-    private static string WeLevel(StarDifficulty star) => star switch
+    internal static string WeLevel(StarDifficulty star) => star switch
     {
         StarDifficulty.S1 => "1",
         StarDifficulty.S2 => "2",
@@ -849,6 +882,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private enum Direction : sbyte
     {
         None = 0x00,
+        Auto = 0x01,
         Up = 0x02,
         Down = 0x03,
         Center = 0x04,

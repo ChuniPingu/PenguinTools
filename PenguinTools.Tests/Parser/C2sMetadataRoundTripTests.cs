@@ -5,8 +5,10 @@ using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.c2s;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
+using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
+using PenguinTools.Chart.Writer.ugc;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
 using Xunit;
@@ -16,6 +18,56 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sMetadataRoundTripTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReencodedNativeSpeeds_RestoreIntervalsOnlyWhileTheirViewMatches(bool edited)
+    {
+        var input = TestTempPaths.Create(".c2s");
+        var ugc = TestTempPaths.Create(".ugc");
+        var output = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(input, "VERSION\t1.15.00\t1.15.00\nBPM_DEF\t120\t120\t120\t120\n" +
+                "MET_DEF\t4\t4\nRESOLUTION\t384\nCLK_DEF\t384\nBPM\t0\t0\t120\n" +
+                "DCM\t0\t0\t48\t2\nDCM\t0\t48\t48\t3\nTAP\t1\t0\t0\t4\n", ct);
+            var source = await new C2SParser(new C2SParseRequest(input)).ParseAsync(ct);
+            Assert.True(source.Succeeded, source.ToString());
+            var converted = new UgcChartConverter(new UgcConvertRequest(source.Value!)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            converted.Value!.Extras.HasSpeedSnapshot = false; // Native saves invalidate the binary snapshot.
+            Assert.True((await new UgcChartWriter(ugc, converted.Value).WriteAsync(ct)).Succeeded);
+            var parsed = await new UgcParser(new UgcParseRequest(ugc, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.True(parsed.Value!.Extras.BinarySnapshotValid);
+            if (edited)
+            {
+                parsed.Value.Events.Children.OfType<PenguinTools.Chart.Models.umgr.NoteSpeedEvent>()
+                    .First(e => e.Tick.Original == 0).Speed = 4;
+            }
+            var c2s = new C2SChartConverter(new C2SConvertRequest(parsed.Value)).Convert();
+            Assert.True(c2s.Succeeded, c2s.ToString());
+            Assert.True((await new C2SChartWriter(new C2SWriteRequest(output, c2s.Value!)).WriteAsync(ct)).Succeeded);
+            var restored = await new C2SParser(new C2SParseRequest(output)).ParseAsync(ct);
+            Assert.True(restored.Succeeded, restored.ToString());
+            var events = restored.Value!.Events.OfType<Dcm>().OrderBy(e => e.Tick).ToArray();
+            if (edited)
+            {
+                Assert.Contains(events, e => e.Tick.Original == 0 && e.Speed == 4);
+                Assert.DoesNotContain(events, e => e.Tick.Original == 0 && e.Speed == 2);
+            }
+            else
+            {
+                Assert.Equal(2, events.Length);
+                Assert.Equal([0, 240], events.Select(e => e.Tick.Original));
+                Assert.All(events, e => Assert.Equal(240, e.Length.Original));
+                Assert.Equal([2m, 3m], events.Select(e => e.Speed));
+            }
+        }
+        finally { File.Delete(input); File.Delete(ugc); File.Delete(output); }
+    }
+
     [Theory]
     [InlineData(0, "")]
     [InlineData(13.0, "13")]

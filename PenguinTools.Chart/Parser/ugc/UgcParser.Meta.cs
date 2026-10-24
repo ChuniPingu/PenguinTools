@@ -79,13 +79,17 @@ public partial class UgcParser
                 HandleBgImg(args);
                 break;
             case "BGMODE":
+                Ugc.Extras.EditorBackgroundMode = Str(args);
+                Ugc.Meta.BackgroundSync = args.Length < 2 || !ParseBool(args[1]);
                 break;
             case "FLDCOL":
                 HandleFldCol(args);
                 break;
             case "FLDIMG":
+                Ugc.Meta.FieldImage = Str(args);
                 break;
             case "FLDSCENE":
+                Ugc.Meta.FieldScene = Str(args);
                 break;
             case "MAINBPM":
                 HandleMainBpm(args);
@@ -101,7 +105,17 @@ public partial class UgcParser
                 break;
 
             case "ATINFO":
+                if (args.Length > 1 && args[0].Equals("AUTHORS", StringComparison.OrdinalIgnoreCase))
+                {
+                    Ugc.Meta.Authors = string.Join('\t', args.Skip(1));
+                }
+                else if (args.Length > 1 && args[0].Equals("SITES", StringComparison.OrdinalIgnoreCase))
+                {
+                    Ugc.Meta.AuthorSites = string.Join('\t', args.Skip(1));
+                }
+                break;
             case "DLURL":
+                Ugc.Meta.DownloadUrl = Str(args);
                 break;
             case "COPYRIGHT":
                 HandleCopyright(args);
@@ -110,6 +124,8 @@ public partial class UgcParser
             case "C2S_BASECOUNT":
                 break;
             case "LICENSE":
+                Ugc.Meta.License = Str(args);
+                Ugc.Meta.LicenseUrl = args.Length > 1 ? args[1] : string.Empty;
                 break;
 
             case "BPM":
@@ -122,10 +138,13 @@ public partial class UgcParser
                 HandleSpdMod(args);
                 break;
             case "SPDDEF":
+                Ugc.Extras.EditorHeaders.Add(line);
                 break;
             case "SPDFLD":
+                Ugc.Extras.EditorHeaders.Add(line);
                 break;
             case "BGSCENE":
+                Ugc.Meta.BackgroundScene = Str(args);
                 break;
             case "WEATTR":
                 HandleWeAttribute(args);
@@ -140,6 +159,10 @@ public partial class UgcParser
                 break;
 
             default:
+                if (!name.StartsWith("T_JUDGE_", StringComparison.Ordinal))
+                {
+                    Ugc.Extras.EditorHeaders.Add(line);
+                }
                 HandleUnknownHeader(name, args);
                 break;
         }
@@ -173,6 +196,7 @@ public partial class UgcParser
 
     private void HandleCopyright(string[] args)
     {
+        Ugc.Meta.Copyright = ChartExtras.CopyrightText(Str(args));
         if (Str(args).Contains("PT_C2S_", StringComparison.Ordinal))
         {
             Ugc.Extras = ChartExtras.FromCopyright(Str(args));
@@ -183,6 +207,8 @@ public partial class UgcParser
         }
 
         C2sRoundTripComment.Absorb(Ugc.Meta, Ugc.Extras.RoundTripBookmarks);
+        // Explicit UGC header lines are authoritative over their retained copies.
+        Ugc.Extras.EditorHeaders.Clear();
     }
 
     private void HandleWeAttribute(string[] args)
@@ -194,10 +220,7 @@ public partial class UgcParser
         }
 
         var attr = Assets.WeTagNames.FirstOrDefault(x => x.Str == args[0]);
-        if (attr != null)
-        {
-            Ugc.Meta.WeTag = attr;
-        }
+        Ugc.Meta.WeTag = attr ?? new Entry(-1, args[0]);
     }
 
     private void HandleUnknownHeader(string name, string[] args)
@@ -238,6 +261,7 @@ public partial class UgcParser
     {
         if (args.Length >= 1 && int.TryParse(args[0], out var v) && v is 0 or 1)
         {
+            Ugc.Meta.ExVersion = v;
             return;
         }
 
@@ -338,6 +362,7 @@ public partial class UgcParser
         if (DateTime.TryParseExact(args[0], "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
         {
             Ugc.Meta.ReleaseDate = date;
+            Ugc.Extras.EditorHeaders.Add("@RLDATE\t" + args[0]);
         }
     }
 
@@ -407,11 +432,12 @@ public partial class UgcParser
 
     private void HandleFldCol(string[] args)
     {
-        if (args.Length < 1 || !int.TryParse(args[0], out var idx) || idx < 0)
+        if (args.Length < 1 || !int.TryParse(args[0], out var idx))
         {
             return;
         }
 
+        Ugc.Meta.FieldColorIndex = idx;
         var col = UmiguriParserCommon.FieldLineNameFromIndex(idx);
         if (col != null)
         {
@@ -444,10 +470,16 @@ public partial class UgcParser
                 Ugc.Extras.Tutorial = boolVal;
                 break;
             case "EXLONG":
+                Ugc.Meta.ExLongEnabled = boolVal;
+                break;
             case "BGMWCMP":
+                Ugc.Meta.WaitBgmEnd = boolVal;
+                break;
             case "HIPRECISION":
+                _highPrecision = boolVal;
                 break;
             default:
+                Ugc.Extras.EditorHeaders.Add("@FLAG\t" + string.Join('\t', args));
                 Log("FLAG:" + key, args);
                 break;
         }
