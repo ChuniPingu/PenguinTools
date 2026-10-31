@@ -131,7 +131,7 @@ public class CliOutputFormattingTests
     [Theory]
     [InlineData("inspect input.mgxc")]
     [InlineData("convert input.mgxc output.c2s")]
-    public void ChartCommands_UseOriginalByDefaultAndAcceptExplicitModes(string command)
+    public void ChartCommands_UseAutoByDefaultAndAcceptExplicitModes(string command)
     {
         var root = RootCommands.BuildRootCommand();
         var parsed = root.Parse("chart " + command);
@@ -139,8 +139,8 @@ public class CliOutputFormattingTests
         var option = Assert.Single(parsed.CommandResult.Command.Options
             .OfType<System.CommandLine.Option<Core.Metadata.ChartDialect>>(),
             o => o.Name == "--input-dialect");
-        Assert.Equal(Core.Metadata.ChartDialect.Original, parsed.GetValue(option));
-        foreach (var mode in new[] { Core.Metadata.ChartDialect.Original, Core.Metadata.ChartDialect.Extended })
+        Assert.Equal(Core.Metadata.ChartDialect.Auto, parsed.GetValue(option));
+        foreach (var mode in new[] { Core.Metadata.ChartDialect.Auto, Core.Metadata.ChartDialect.Original, Core.Metadata.ChartDialect.Extended })
         {
             var explicitMode = root.Parse("chart " + command + " --input-dialect " + mode);
             Assert.Empty(explicitMode.Errors);

@@ -160,7 +160,7 @@ public sealed class C2sAudioOffsetTests
             Assert.All(chart.Events.OfType<C.SpeedEventBase>(), e =>
             {
                 Assert.Equal(0, e.Tick.Original);
-                Assert.Equal(1920, e.Length.Original);
+                Assert.Equal(1920 + offset, e.Length.Original);
             });
             Assert.Equal(.25m + (enabled ? initialMeasure / 960m : 0m), chart.Meta.BgmRealOffset);
             Assert.Equal(0, parsed.Value!.Notes.Children[0].Tick.Original);
@@ -182,6 +182,64 @@ public sealed class C2sAudioOffsetTests
             File.Delete(mgxcPath);
             File.Delete(c2sPath);
         }
+    }
+
+    [Theory]
+    [InlineData(4, 4, 1920, true)]
+    [InlineData(4, 4, 1920, false)]
+    [InlineData(3, 8, 720, true)]
+    [InlineData(3, 8, 720, false)]
+    [InlineData(3, 7, 823, true)]
+    [InlineData(3, 7, 823, false)]
+    public async Task OriginalInitialSpeeds_EndAtTheShiftedBoundary(
+        int numerator, int denominator, int offset, bool explicitEnd)
+    {
+        var source = new U.Chart();
+        source.Meta.BgmEnableBarOffset = true;
+        source.Meta.BgmInitialNumerator = numerator;
+        source.Meta.BgmInitialDenominator = denominator;
+        source.Extras.EncodingDialect = ChartDialect.Original;
+        source.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
+        source.Events.AppendChild(new U.BeatEvent { Tick = 0, Bar = 0, Numerator = numerator, Denominator = denominator });
+        source.Events.AppendChild(new U.ScrollSpeedEvent { Tick = 0, Timeline = 0, Speed = 2 });
+        source.Events.AppendChild(new U.NoteSpeedEvent { Tick = 0, Speed = .5m });
+        if (explicitEnd)
+        {
+            source.Events.AppendChild(new U.ScrollSpeedEvent { Tick = 1921, Timeline = 0, Speed = 1 });
+            source.Events.AppendChild(new U.NoteSpeedEvent { Tick = 1921, Speed = 1 });
+        }
+        source.Notes.AppendChild(new U.Tap { Tick = 960, Lane = 0, Width = 2 });
+        source.Notes.AppendChild(new U.Tap { Tick = 1921, Lane = 4, Width = 2 });
+
+        var converted = new C2SChartConverter(new C2SConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        var chart = converted.Value!;
+        var tap = Assert.Single(chart.Notes.OfType<C.Tap>(), n => n.Lane == 0);
+        Assert.Equal(960 + offset, tap.Tick.Original);
+        var speeds = chart.Events.OfType<C.SpeedEventBase>().ToArray();
+        Assert.Equal(2, speeds.Length);
+        Assert.All(speeds, speed =>
+        {
+            Assert.Equal(0, speed.Tick.Original);
+            Assert.Equal(1921 + offset, speed.Tick.Original + speed.Length.Original);
+            Assert.InRange(tap.Tick.Original, speed.Tick.Original, speed.Tick.Original + speed.Length.Original - 1);
+        });
+
+        var output = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.True((await new C2SChartWriter(new C2SWriteRequest(output, chart)).WriteAsync(ct)).Succeeded);
+            var parsed = await new C2SParser(new C2SParseRequest(output)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var expectedEnd = (int)Math.Round((1921 + offset) / 5m) * 5;
+            Assert.All(parsed.Value!.Events.OfType<C.SpeedEventBase>(), speed =>
+            {
+                Assert.Equal(0, speed.Tick.Original);
+                Assert.Equal(expectedEnd, speed.Tick.Original + speed.Length.Original);
+            });
+        }
+        finally { File.Delete(output); }
     }
 
     [Theory]
