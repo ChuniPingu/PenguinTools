@@ -50,6 +50,7 @@
       "chart_format_brackets_mismatch": "谱面格式列表的 [ 与 ] 括号必须成对匹配。",
       "chart_format_specify_at_least_one": "请至少指定一种谱面格式，例如 [mgxc, ugc, sus] 或 [ugc, sus]。",
       "chart_format_unsupported": "不支持的谱面格式“{0}”。支持的值为 mgxc、ugc 和 sus。",
+      "chart_version_too_new": "暂不支持谱面 {0} 的版本 {1}，当前最高支持的版本为 {2}。",
       "command_failed": "命令执行失败。",
       "effect_file_not_found": "未找到指定的背景效果文件。",
       "file_ignored_due_to_id_missing": "该文件因缺少歌曲 ID 已被忽略。请在 Margrete 中为歌曲 ID 设置一个数字。",

@@ -50,6 +50,7 @@
       "chart_format_brackets_mismatch": "Chart format lists must use matching [ and ] brackets.",
       "chart_format_specify_at_least_one": "Specify at least one chart format, for example [mgxc, ugc, sus] or [ugc, sus].",
       "chart_format_unsupported": "Unsupported chart format '{0}'. Supported values are mgxc, ugc, and sus.",
+      "chart_version_too_new": "{0} chart version {1} is not supported yet. The maximum supported format version is {2}.",
       "command_failed": "Command execution failed.",
       "effect_file_not_found": "The specified background effect file was not found.",
       "file_ignored_due_to_id_missing": "This file was ignored because Song ID is missing. Set a numeric Song ID in Margrete.",

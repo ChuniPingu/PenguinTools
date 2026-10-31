@@ -81,7 +81,11 @@ public partial class MgxcParser
             }
 
             br.ReadInt32(); // MGXC Block Size
-            br.ReadInt32(); // unknown
+            var version = br.ReadInt32();
+            if (version > 2)
+            {
+                ThrowAtPosition(Msg.Create(MsgKeys.Error_Chart_version_too_new, "MGXC", version, 2), fs.Position - 4);
+            }
 
             br.ReadBlock(HeaderMeta, ParseMeta);
             if (_privateMetadata.Length > 0 || _copyright.Contains("PT_C2S_", StringComparison.Ordinal))

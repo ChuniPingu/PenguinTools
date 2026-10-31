@@ -251,7 +251,11 @@ public partial class UgcParser
             return;
         }
 
-        if (!int.TryParse(args[0], out var v) || v != 8)
+        if (int.TryParse(args[0], out var v) && v > 8)
+        {
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Chart_version_too_new, "UGC", v, 8));
+        }
+        if (v != 8)
         {
             ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "UGC v8"));
         }

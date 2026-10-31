@@ -131,6 +131,15 @@ public partial class UgcParser
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
             }
 
+            // Check the file version before creator/dialect detection, so a newer
+            // format reports the same actionable error even with an explicit dialect.
+            foreach (var line in lines.Where(l => l.Text.StartsWith("@VER\t", StringComparison.OrdinalIgnoreCase)))
+            {
+                SetCurrentLine(line);
+                HandleVer(line.Text.Split('\t').Skip(1).ToArray());
+            }
+            ClearCurrentLine();
+
             SelectDialect(lines);
             foreach (var pending in lines.Where(l => l.Text.Trim().StartsWith("'" + ChartExtras.PendingSnapshotShiftPrefix, StringComparison.Ordinal)))
             {
