@@ -256,6 +256,7 @@ public partial class C2SChartConverter
         try
         {
             C2s.Meta = Mgxc.Meta;
+            C2s.Meta.BgmFixedZeroOrigin |= Mgxc.Extras.UsesFixedCoordinateOrigin;
             if (Mgxc.Extras.ParsedEventModelKey != C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n')))
             {
                 Mgxc.Extras.UnchangedEventKinds.Clear();
@@ -330,18 +331,20 @@ public partial class C2SChartConverter
     {
         // C2S imports already use the game's coordinate origin, even after edits
         // invalidate their snapshots. Recognize older saved imports as well.
-        if (!Mgxc.Meta.BgmEnableBarOffset || C2s.Extras.C2sCoordinateOrigin ||
-            C2s.Extras.SourceKey is not null || C2s.Extras.SourceSnapshot.Length > 0)
+        if (!Mgxc.Meta.BgmEnableBarOffset || C2s.Extras.UsesFixedCoordinateOrigin)
         {
             return;
         }
 
         var offset = (int)Math.Round((decimal)ChartResolution.UmiguriTick /
             Mgxc.Meta.BgmInitialDenominator * Mgxc.Meta.BgmInitialNumerator);
+        C2s.Extras = C2s.Extras.WithClickOffset(offset);
+        C2s.Extras.PrerollBar1Applied |= offset > 0;
         foreach (var e in Events)
         {
             // Keep the initial tempo and meter active throughout the preroll.
-            if (e.Tick.Original != 0 || e is C2sModel.SpeedEventBase)
+            if (e.Tick.Original != 0 || e is C2sModel.SpeedEventBase &&
+                Mgxc.Extras.EncodingDialect != PenguinTools.Core.Metadata.ChartDialect.Original)
             {
                 e.Tick = checked(e.Tick.Original + offset);
             }

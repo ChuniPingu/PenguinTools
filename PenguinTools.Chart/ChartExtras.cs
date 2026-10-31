@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using PenguinTools.Core.Diagnostic;
 using C2sModel = PenguinTools.Chart.Models.c2s;
 using UmgrModel = PenguinTools.Chart.Models.umgr;
 
@@ -12,6 +13,11 @@ namespace PenguinTools.Chart;
 /// <summary>Editor extensions that have no equivalent in the basic note models.</summary>
 public sealed partial class ChartExtras
 {
+    public PenguinTools.Core.Metadata.ChartDialect EncodingDialect { get; set; }
+    public int CarrierEncodingVersion { get; set; }
+    [JsonIgnore]
+    internal bool HasCarrierMarkers =>
+        CarrierEncodingVersion == 1 || !string.IsNullOrEmpty(SourceKey) || SourceSnapshot.Length > 0;
     [GeneratedRegex(@"(?:^|;)(PT_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)", RegexOptions.None, 1000)]
     private static partial Regex CopyrightMetadataRegex();
 
@@ -28,10 +34,74 @@ public sealed partial class ChartExtras
     public string? SourceClockMeterKey { get; set; }
     public bool ClickEnabled { get; set; } = true;
     public List<int> ClickTicks { get; set; } = [];
+
+    internal ChartExtras WithClickOffset(int offset)
+    {
+        var result = (ChartExtras)MemberwiseClone();
+        result.ClickTicks = ClickTicks.Select(tick => checked(tick + offset)).ToList();
+        return result;
+    }
+
+    public string EditorBackgroundMode { get; set; } = "PASSIVE";
+    public string EditorFieldColorName { get; set; } = string.Empty;
+    public List<string> EditorHeaders { get; set; } = [];
+    public List<string> EditorComments { get; set; } = [];
+    public List<EditorBookmark> EditorBookmarks { get; set; } = [];
+    public List<int> EditorBreakingMarkers { get; set; } = [];
+    public List<byte[]> EditorImageEvents { get; set; } = [];
     public Dictionary<string, string> Headers { get; set; } = [];
     public List<string> SourceStatistics { get; set; } = [];
     public string? SourceKey { get; set; }
     public bool C2sCoordinateOrigin { get; set; }
+    public const string FixedZeroOriginMarker = "MGR_ORIGIN=ZERO_V1";
+    public bool FixedZeroOrigin { get; set; }
+    public const string PrerollBar1Marker = "MGR_PREROLL=BAR1_V1";
+    internal const string PendingSnapshotShiftPrefix = "MGR_PREROLL_SNAPSHOT_SHIFT=";
+    public bool PrerollBar1Applied { get; set; }
+    [JsonIgnore]
+    internal bool UsesFixedCoordinateOrigin => FixedZeroOrigin || PrerollBar1Applied || C2sCoordinateOrigin ||
+        SourceKey is not null || SourceSnapshot.Length > 0;
+
+    internal void ApplyEditorMode(PenguinTools.Core.Metadata.ChartDialect requested,
+        PenguinTools.Core.Metadata.Meta meta)
+    {
+        if (!Enum.IsDefined(requested))
+        {
+            throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, requested, "Original or Extended editor format"));
+        }
+        // The extended editor writes absolute zero-based coordinates. Original
+        // charts retain their sofs setting; conversion applies its preroll once.
+        FixedZeroOrigin |= requested == PenguinTools.Core.Metadata.ChartDialect.Extended;
+        meta.BgmFixedZeroOrigin = UsesFixedCoordinateOrigin;
+    }
+    internal static bool HasFixedZeroOrigin(string? value) =>
+        HasTimingMarker(value, "MGR_ORIGIN=", FixedZeroOriginMarker);
+
+    internal static bool HasPrerollBar1(string? value) =>
+        HasTimingMarker(value, "MGR_PREROLL=", PrerollBar1Marker);
+
+    private static bool HasTimingMarker(string? value, string prefix, string marker)
+    {
+        var tokens = (value ?? "").Split(';').Select(token => token.Trim()).ToArray();
+        var unknown = tokens.FirstOrDefault(token => token.StartsWith(prefix, StringComparison.Ordinal) &&
+            token != marker);
+        if (unknown is not null)
+        {
+            throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, unknown, marker));
+        }
+        return tokens.Contains(marker, StringComparer.Ordinal);
+    }
+
+    internal static void RejectPendingSnapshotShift(string? value)
+    {
+        var token = (value ?? "").Split(';').Select(t => t.Trim())
+            .FirstOrDefault(t => t.StartsWith(PendingSnapshotShiftPrefix, StringComparison.Ordinal));
+        if (token is not null)
+        {
+            throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header,
+                token, "chart without pending snapshot translation"));
+        }
+    }
     public string? UgcContentKey { get; set; }
     [JsonIgnore] public string? ParsedEventModelKey { get; set; }
     public List<MeterSnapshot> Meters { get; set; } = [];
@@ -61,6 +131,20 @@ public sealed partial class ChartExtras
         var json = JsonSerializer.Serialize(this, ChartExtrasJsonContext.Default.ChartExtras);
         return C2SRoundTrip.Pack(json, true).Replace("MGR_C2S_", "PT_C2S_", StringComparison.Ordinal);
     }
+
+    internal static string CopyrightText(string value)
+    {
+        var text = Regex.Replace(value,
+            @"(?:MGR_SYNC_REV=[A-Za-z0-9]+;|MGR_CLKCNT=\d+;|MGR_CLK_DEF=[\d.]+;|(?:MGR|PT)_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)",
+            string.Empty, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        return string.Join(';', text.Split(';').Where(token =>
+            token.Trim() != FixedZeroOriginMarker && token.Trim() != PrerollBar1Marker));
+    }
+
+    internal string CopyrightWithTiming(string value) => FixedZeroOrigin || PrerollBar1Applied
+        ? (FixedZeroOrigin ? FixedZeroOriginMarker + ";" : "") +
+          (PrerollBar1Applied ? PrerollBar1Marker + ";" : "") + CopyrightText(value)
+        : value;
 
     internal string RestoreSourceOrder(string text, int resolution)
     {
@@ -132,6 +216,9 @@ public sealed partial class ChartExtras
 
     public void ReadCopyright(string? value)
     {
+        RejectPendingSnapshotShift(value);
+        FixedZeroOrigin |= HasFixedZeroOrigin(value);
+        PrerollBar1Applied |= HasPrerollBar1(value);
         SourceSnapshot = C2SRoundTrip.Decode(value ?? "");
         var match = ClickCountRegex().Match(value ?? "");
         if (match.Success)

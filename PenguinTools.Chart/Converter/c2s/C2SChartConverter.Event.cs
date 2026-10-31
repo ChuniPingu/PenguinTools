@@ -54,7 +54,7 @@ public partial class C2SChartConverter
             var note = new C2sModel.Dcm
             {
                 Tick = curr.Tick,
-                Length = next.Tick.Round - curr.Tick.Round,
+                Length = next.Tick.Original - curr.Tick.Original,
                 Speed = curr.Speed
             };
             Events.Add(note);
@@ -69,7 +69,7 @@ public partial class C2SChartConverter
         var e = new C2sModel.Dcm
         {
             Tick = lastEvent.Tick,
-            Length = Math.Max(lastTick.Round - lastEvent.Tick.Round, ChartResolution.SingleTick),
+            Length = Math.Max(lastTick.Original - lastEvent.Tick.Original, ChartResolution.SingleTick),
             Speed = lastEvent.Speed
         };
         Events.Add(e);
@@ -102,7 +102,7 @@ public partial class C2SChartConverter
                 {
                     Timeline = id,
                     Tick = curr.Tick,
-                    Length = next.Tick.Round - curr.Tick.Round,
+                    Length = next.Tick.Original - curr.Tick.Original,
                     Speed = curr.Speed
                 });
             }
@@ -112,7 +112,7 @@ public partial class C2SChartConverter
             {
                 Timeline = id,
                 Tick = lastEvent.Tick,
-                Length = Math.Max(lastTilTick.Round - lastEvent.Tick.Round, ChartResolution.SingleTick),
+                Length = Math.Max(lastTilTick.Original - lastEvent.Tick.Original, ChartResolution.SingleTick),
                 Speed = lastEvent.Speed
             });
         }

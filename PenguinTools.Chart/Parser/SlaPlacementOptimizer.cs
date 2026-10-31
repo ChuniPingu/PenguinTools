@@ -11,9 +11,8 @@ internal readonly record struct SlaPlacement(int Tick, int Timeline, int Lane, i
 }
 
 /// <summary>
-/// Reduces one-note SLA regions to a safe rectangle cover. The optimizer first
-/// computes the timeline assignment produced by the legacy regions, then only
-/// creates rectangles that cannot raise a note above that assignment.
+/// Reduces one-note SLA regions to a rectangle cover, retaining the original
+/// regions if serialization would change any note's timeline assignment.
 /// </summary>
 internal static class SlaPlacementOptimizer
 {
@@ -55,7 +54,7 @@ internal static class SlaPlacementOptimizer
             selected.AddRange(SolveByComponent(targets.Length, candidates));
         }
 
-        return selected
+        var optimizedAreas = selected
             .Select(x => x.Placement)
             .OrderBy(x => x.Tick)
             .ThenBy(x => x.Timeline)
@@ -63,6 +62,64 @@ internal static class SlaPlacementOptimizer
             .ThenBy(x => x.Width)
             .ThenBy(x => x.Length)
             .ToArray();
+
+        return PreservesSerializedTimelines(notes, legacyAreas, optimizedAreas)
+            ? optimizedAreas
+            : legacyAreas;
+    }
+
+    private static bool PreservesSerializedTimelines(
+        IReadOnlyList<UmgrModel.Note> notes,
+        IReadOnlyList<SlaPlacement> legacyAreas,
+        IReadOnlyList<SlaPlacement> optimizedAreas)
+    {
+        // The opening measure can shift off-grid notes before C2S rounding.
+        // All integer offsets have one of these five rounding phases.
+        for (var phase = 0; phase < ChartResolution.SingleTick; phase++)
+        {
+            var serializedNotes = notes.Select((note, index) => new NoteInfo(
+                    index, SerializeTick(note.Tick.Original, phase), note.Lane, note.Lane + note.Width))
+                .OrderBy(note => note.Tick)
+                .ToArray();
+            var ticks = serializedNotes.Select(note => note.Tick).ToArray();
+            var legacyTimelines = SerializedTimelines(serializedNotes, ticks, legacyAreas, phase);
+            var optimizedTimelines = SerializedTimelines(serializedNotes, ticks, optimizedAreas, phase);
+            if (!legacyTimelines.SequenceEqual(optimizedTimelines))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static int SerializeTick(int tick, int phase) =>
+        (int)Math.Round(((decimal)tick + phase) / ChartResolution.SingleTick);
+
+    private static int[] SerializedTimelines(
+        IReadOnlyList<NoteInfo> notes, int[] ticks, IReadOnlyList<SlaPlacement> areas, int phase)
+    {
+        var result = new int[notes.Count];
+        // Match C2SChartWriter's stable Tick/Lane/Width order. The last matching
+        // SLA wins, even when its timeline number is lower than an earlier one.
+        foreach (var area in areas.OrderBy(area => area.Tick).ThenBy(area => area.Lane).ThenBy(area => area.Width))
+        {
+            var start = SerializeTick(area.Tick, phase);
+            var end = SerializeTick(area.EndTick, phase);
+            for (var index = LowerBound(ticks, start); index < notes.Count && notes[index].Tick < end; index++)
+            {
+                var note = notes[index];
+                var contains = note.Right <= note.Left || area.Width <= 0
+                    ? note.Left == area.Lane && note.Right - note.Left == area.Width
+                    : Contains(area.Lane, area.Lane + area.Width, note);
+                if (contains)
+                {
+                    result[note.Index] = area.Timeline;
+                }
+            }
+        }
+
+        return result;
     }
 
     private static int[] ComputeEffectiveTimelines(

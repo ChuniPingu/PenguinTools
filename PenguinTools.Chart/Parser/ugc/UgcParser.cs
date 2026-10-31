@@ -14,6 +14,70 @@ public partial class UgcParser
 
     private int _currentTimeline;
     private int _sourceTicks = 480;
+    private readonly PenguinTools.Core.Metadata.ChartDialect _requestedDialect;
+    private PenguinTools.Core.Metadata.ChartDialect _dialect;
+    private bool _highPrecision;
+    private bool _legacyColors;
+    private bool _inferredFixedOrigin;
+    private bool Extended => _dialect == PenguinTools.Core.Metadata.ChartDialect.Extended;
+
+    private void SelectDialect(SourceLine[] lines)
+    {
+        var marker = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal));
+        var marked = marker?[EditorCompatibility.UgcMarker.Length..].Trim().ToLowerInvariant() switch
+        {
+            "original" or "margrete-1.8.0" => PenguinTools.Core.Metadata.ChartDialect.Original,
+            "extended" or "margrete-2.3.2" => PenguinTools.Core.Metadata.ChartDialect.Extended,
+            null => PenguinTools.Core.Metadata.ChartDialect.Auto,
+            _ => throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, marker!, "chart dialect"))
+        };
+        var copyright = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith("@COPYRIGHT\t", StringComparison.OrdinalIgnoreCase));
+        var copyrightValue = copyright is null ? "" : copyright[11..];
+        var retainedExtras = ChartExtras.FromCopyright(copyrightValue);
+        // Older writers used MGR_CLKCNT plus a source snapshot before MGR_CLK_DEF existed.
+        // A decoded C2S snapshot distinguishes that encoding from a clock-count annotation alone.
+        var legacySnapshot = retainedExtras.SourceSnapshot.StartsWith("HASH\t", StringComparison.Ordinal) &&
+            retainedExtras.SourceSnapshot.Contains("\nRESOLUTION\t", StringComparison.Ordinal);
+        var legacyWriter = lines.Any(l => l.Text.StartsWith("@COPYRIGHT\t", StringComparison.Ordinal) &&
+            ((l.Text.Contains("MGR_SYNC_REV=", StringComparison.Ordinal) && l.Text.Contains("PT_C2S_", StringComparison.Ordinal)) ||
+             (l.Text.Contains("MGR_CLKCNT=", StringComparison.Ordinal) && legacySnapshot)));
+        var retained = retainedExtras.EncodingDialect;
+        _legacyColors = _requestedDialect == PenguinTools.Core.Metadata.ChartDialect.Auto &&
+            marked == PenguinTools.Core.Metadata.ChartDialect.Auto && retained == PenguinTools.Core.Metadata.ChartDialect.Auto && legacyWriter;
+        // These frozen fallbacks read files written before stable format markers existed.
+        // Unknown editor releases must not silently select an incompatible time axis.
+        var creator = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith("' Created with Margrete ", StringComparison.Ordinal));
+        var legacyFixedAxis = creator?.StartsWith("' Created with Margrete v2.3.", StringComparison.Ordinal) == true;
+        var generatedFixedAxis = creator is null && lines.Any(l =>
+            l.Text.StartsWith("@C2S_BASECOUNT\t", StringComparison.OrdinalIgnoreCase));
+        _inferredFixedOrigin = legacyFixedAxis || generatedFixedAxis;
+        var legacyMusicalAxis = creator is null || creator.StartsWith("' Created with Margrete v1.7.", StringComparison.Ordinal) ||
+            creator.StartsWith("' Created with Margrete v1.8.", StringComparison.Ordinal);
+        if (_requestedDialect == PenguinTools.Core.Metadata.ChartDialect.Auto &&
+            marked == PenguinTools.Core.Metadata.ChartDialect.Auto && retained == PenguinTools.Core.Metadata.ChartDialect.Auto &&
+            !legacyWriter && !legacyFixedAxis && !legacyMusicalAxis)
+        {
+            throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, creator!,
+                "UGC format marker or --input-dialect Original/Extended"));
+        }
+        _dialect = _requestedDialect != PenguinTools.Core.Metadata.ChartDialect.Auto ? _requestedDialect :
+            marked != PenguinTools.Core.Metadata.ChartDialect.Auto ? marked :
+            retained != PenguinTools.Core.Metadata.ChartDialect.Auto ? retained :
+            legacyWriter || legacyFixedAxis || generatedFixedAxis ? PenguinTools.Core.Metadata.ChartDialect.Extended : PenguinTools.Core.Metadata.ChartDialect.Original;
+        _highPrecision = Extended;
+    }
+
+    private int Lane(char value)
+    {
+        if (!Extended && UgcPayload.Base36(value) < 0)
+        {
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value.ToString(), "base UGC coordinate"));
+        }
+        return UgcPayload.Lane(value);
+    }
+
+    private decimal Height(ReadOnlySpan<char> value) => UgcPayload.Height36(value) * (_highPrecision ? 1 : 10);
+
 
     private int ScaleTick(int tick)
     {
@@ -43,6 +107,9 @@ public partial class UgcParser
         MediaTool = mediaTool;
         Path = request.Path;
         Assets = request.Assets;
+        _requestedDialect = request.Dialect;
+        Ugc.Meta.ExVersion = 0;
+        Ugc.Meta.ExLongEnabled = false;
     }
 
     private IMediaTool MediaTool { get; }
@@ -64,7 +131,34 @@ public partial class UgcParser
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
             }
 
+            SelectDialect(lines);
+            foreach (var pending in lines.Where(l => l.Text.Trim().StartsWith("'" + ChartExtras.PendingSnapshotShiftPrefix, StringComparison.Ordinal)))
+            {
+                ChartExtras.RejectPendingSnapshotShift(pending.Text.Trim()[1..]);
+            }
             ParseLines(lines, ct);
+            foreach (var origin in lines.Where(l => l.Text.Trim().StartsWith("'MGR_ORIGIN=", StringComparison.Ordinal)))
+            {
+                Ugc.Extras.FixedZeroOrigin |= ChartExtras.HasFixedZeroOrigin(origin.Text.Trim()[1..]);
+            }
+            foreach (var preroll in lines.Where(l => l.Text.Trim().StartsWith("'MGR_PREROLL=", StringComparison.Ordinal)))
+            {
+                Ugc.Extras.PrerollBar1Applied |= ChartExtras.HasPrerollBar1(preroll.Text.Trim()[1..]);
+            }
+            if (_requestedDialect == PenguinTools.Core.Metadata.ChartDialect.Auto && _inferredFixedOrigin)
+            {
+                Ugc.Extras.FixedZeroOrigin = true;
+            }
+            Ugc.Extras.ApplyEditorMode(_requestedDialect, Ugc.Meta);
+            Ugc.Extras.RestoreUserText(Ugc.Meta);
+            Ugc.Extras.EncodingDialect = _dialect;
+            Ugc.Meta.FieldColorName = Ugc.Extras.EditorFieldColorName;
+            Ugc.Extras.RestoreEditorEvents(Ugc);
+            Ugc.Extras.EditorComments = lines.Select(l => l.Text).Where(l => l.StartsWith('\'') &&
+                !l.StartsWith("' Created with Margrete ", StringComparison.Ordinal) &&
+                l.Trim() != "'" + ChartExtras.FixedZeroOriginMarker &&
+                l.Trim() != "'" + ChartExtras.PrerollBar1Marker &&
+                !l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal)).ToList();
 
             Ugc.Extras.CheckEventView(Ugc);
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
@@ -99,7 +193,12 @@ public partial class UgcParser
         // Restore extension defaults first; native fields take precedence
         // even when an editor moves COPYRIGHT to the end of the header.
         foreach (var line in lines.OrderBy(line =>
-                     line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+                     line.Text.Split('\t')[0].ToUpperInvariant() switch
+                     {
+                         "@COPYRIGHT" => 0,
+                         "@DIFF" => 1,
+                         _ => 2
+                     }))
         {
             ct.ThrowIfCancellationRequested();
             SetCurrentLine(line);
@@ -147,7 +246,7 @@ public partial class UgcParser
             text = Encoding.GetEncoding(932).GetString(bytes);
         }
 
-        using var reader = new StringReader(text);
+        using var reader = new StringReader(text.TrimStart('\uFEFF'));
         var lines = new List<SourceLine>();
         var lineNumber = 1;
         while (await reader.ReadLineAsync(ct) is { } line)
@@ -237,6 +336,10 @@ public partial class UgcParser
             Ugc.Events.AppendChild(new UmgrModel.BpmEvent { Tick = BarTickToAbsTick(bar, tick), Bpm = bpm });
         }
 
+        if (!Ugc.Events.Children.OfType<UmgrModel.BpmEvent>().Any(b => b.Tick.Original == 0) && Ugc.Meta.MainBpm > 0)
+        {
+            Ugc.Events.AppendChild(new UmgrModel.BpmEvent { Tick = 0, Bpm = Ugc.Meta.MainBpm });
+        }
         foreach (var (bar, tick, spd) in _pendingSpdMods)
         {
             Ugc.Events.AppendChild(new UmgrModel.NoteSpeedEvent { Tick = BarTickToAbsTick(bar, tick), Speed = spd });

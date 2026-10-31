@@ -91,7 +91,10 @@ public partial class MgxcParser
                 note = CreateExTap(direction, height);
                 break;
             case NoteType.Flick:
-                note = new UmgrModel.Flick();
+                note = new UmgrModel.Flick
+                {
+                    AutoplayDirection = direction switch { Direction.Left => 'L', Direction.Right => 'R', _ => 'A' }
+                };
                 break;
             case NoteType.Damage:
                 note = new UmgrModel.Damage();
@@ -156,8 +159,12 @@ public partial class MgxcParser
         _lastNote = note;
     }
 
-    private static UmgrModel.ExTap CreateExTap(Direction direction, int height)
+    private UmgrModel.ExTap CreateExTap(Direction direction, int height)
     {
+        if (!Mgxc.Extras.HasCarrierMarkers)
+        {
+            height = MgxcExTapMarkers.DefaultHeight;
+        }
         var exNote = new UmgrModel.ExTap
         {
             Effect = direction switch

@@ -49,6 +49,7 @@ public sealed class C2SParser
     {
         C2s.Meta.FilePath = Path;
         C2s.Meta.BgmEnableBarOffset = true;
+        C2s.Meta.BgmFixedZeroOrigin = true;
 
         var lines = await ReadLinesAsync(Path, ct);
         C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => l.Text));
@@ -82,6 +83,23 @@ public sealed class C2SParser
     private void ParseLine(SourceLine line)
     {
         var text = line.Text.Trim();
+        if (text.StartsWith("//" + ChartExtras.PendingSnapshotShiftPrefix, StringComparison.Ordinal))
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "pending snapshot translation"), line.Number);
+            return;
+        }
+        if (text.StartsWith("//MGR_PREROLL=", StringComparison.Ordinal))
+        {
+            if (text != "//" + ChartExtras.PrerollBar1Marker)
+            {
+                ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "preroll extension"), line.Number);
+            }
+            else
+            {
+                C2s.Extras.PrerollBar1Applied = true;
+            }
+            return;
+        }
         if (text.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal))
         {
             var fields = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);

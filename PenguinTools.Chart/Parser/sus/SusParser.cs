@@ -18,6 +18,7 @@ public sealed class SusParser
 
     private static readonly int[] RoundedAirWidths = [1, 2, 3, 4, 6, 8, 16];
     private readonly Dictionary<int, List<RawNotePoint>> _airHoldPoints = [];
+    private readonly Dictionary<UmgrModel.Note, int> _airParentWidths = [];
 
     private readonly Dictionary<string, decimal> _bpmDefinitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<RawNotePoint> _directionalPoints = [];
@@ -136,6 +137,12 @@ public sealed class SusParser
                 return;
             }
 
+            if (bpm <= 0)
+            {
+                throw new LocationDiagnosticException(
+                    Msg.Create(MsgKeys.Sus_Malformed_line, $"{header}: {data}"), lineNumber, Path);
+            }
+
             _bpmDefinitions[name[3..]] = bpm;
             return;
         }
@@ -239,7 +246,7 @@ public sealed class SusParser
 
                 break;
             case "NOSPEED":
-                ReportIgnoredMeta(lineNumber, name, value);
+                _currentHispeedId = 0;
                 break;
             case "MEASUREBS":
                 if (int.TryParse(value, out var measureBase))
@@ -431,7 +438,7 @@ public sealed class SusParser
 
     private void ParseMeasureBpm(string data, int lineNumber, int measure)
     {
-        var tokens = EnumerateTokens(data).ToArray();
+        var tokens = EnumerateTokens(data, lineNumber);
         for (var i = 0; i < tokens.Length; i++)
         {
             if (!string.Equals(tokens[i], "00", StringComparison.OrdinalIgnoreCase))
@@ -476,11 +483,11 @@ public sealed class SusParser
 
     private void AddNotePoints(List<RawNotePoint> target, int measure, int lane, string data, int lineNumber)
     {
-        var tokens = EnumerateTokens(data).ToArray();
+        var tokens = EnumerateTokens(data, lineNumber);
         for (var i = 0; i < tokens.Length; i++)
         {
             var token = tokens[i];
-            if (string.Equals(token, "00", StringComparison.OrdinalIgnoreCase))
+            if (token[0] == '0')
             {
                 continue;
             }
@@ -802,7 +809,7 @@ public sealed class SusParser
         {
             case 1:
                 {
-                    var pairPositive = FindPairPositive(point.Tick, point.Lane, point.Width);
+                    var pairPositive = FindPairPositive(point.Tick, point.Lane, point.Width, allowAir: true);
                     if (pairPositive == null)
                     {
                         ReportAtLine(Severity.Warning,
@@ -878,12 +885,13 @@ public sealed class SusParser
             .ThenBy(point => point.Lane);
     }
 
-    private UmgrModel.PositiveNote? FindPairPositive(int tick, int lane, int width)
+    private UmgrModel.PositiveNote? FindPairPositive(int tick, int lane, int width, bool allowAir = false)
     {
         return EnumeratePositiveNotes(Sus.Notes)
             .Where(note => note.Tick.Original == tick)
-            .Where(note => note.Lane <= lane && note.Lane + note.Width >= lane + width)
-            .OrderBy(note => note.Width)
+            .Where(note => note.PairNote is null || allowAir && note.PairNote is UmgrModel.Air)
+            .Where(note => note.Lane <= lane && note.Lane + OriginalAirParentWidth(note) >= lane + width)
+            .OrderBy(OriginalAirParentWidth)
             .ThenBy(note => Math.Abs(note.Lane - lane))
             .FirstOrDefault();
     }
@@ -904,8 +912,19 @@ public sealed class SusParser
         }
     }
 
-    private static void ApplyAirWidthRounding(UmgrModel.PositiveNote pairPositive, int width)
+    private static UmgrModel.Note AirWidthOwner(UmgrModel.PositiveNote note) =>
+        note is UmgrModel.HoldJoint { Parent: UmgrModel.Hold hold } ? hold : note;
+
+    private int OriginalAirParentWidth(UmgrModel.PositiveNote note)
     {
+        var owner = AirWidthOwner(note);
+        return _airParentWidths.GetValueOrDefault(owner, owner.Width);
+    }
+
+    private void ApplyAirWidthRounding(UmgrModel.PositiveNote pairPositive, int width)
+    {
+        var owner = AirWidthOwner(pairPositive);
+        _airParentWidths.TryAdd(owner, owner.Width);
         var roundedWidth = RoundedAirWidths
             .OrderBy(candidate => Math.Abs(candidate - width))
             .ThenBy(candidate => candidate)
@@ -977,9 +996,14 @@ public sealed class SusParser
         });
     }
 
-    private static string[] EnumerateTokens(string data)
+    private string[] EnumerateTokens(string data, int lineNumber)
     {
         var normalized = new string(data.Where(c => !char.IsWhiteSpace(c)).ToArray());
+        if (normalized.Length % 2 != 0)
+        {
+            throw new LocationDiagnosticException(
+                Msg.Create(MsgKeys.Sus_Malformed_line, data), lineNumber, Path);
+        }
         var count = normalized.Length / 2;
         var tokens = new string[count];
         for (var i = 0; i < count; i++)

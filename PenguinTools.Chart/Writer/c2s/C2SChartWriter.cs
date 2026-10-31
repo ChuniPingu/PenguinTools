@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.IO;
 using PenguinTools.Core.Metadata;
 
 using C2sModel = PenguinTools.Chart.Models.c2s;
@@ -46,7 +47,12 @@ public partial class C2SChartWriter
 
             var text = FinalizeChartText(sb.ToString());
             text = FormatForGame(text);
-            await File.WriteAllTextAsync(OutPath, text, ct);
+            await AtomicFile.WriteAsync(OutPath, async (stream, token) =>
+            {
+                await using var writer = new StreamWriter(stream, new UTF8Encoding(false, true), leaveOpen: true);
+                await writer.WriteAsync(text.AsMemory(), token);
+                await writer.FlushAsync(token);
+            }, ct);
             return OperationResult.Success().WithDiagnostics(Diagnostic);
         }
         finally
@@ -79,6 +85,10 @@ public partial class C2SChartWriter
         sb.AppendLine(Chart.Extras.Headers.GetValueOrDefault("PROGJUDGE_BPM", "PROGJUDGE_BPM\t240.000"));
         sb.AppendLine(Chart.Extras.Headers.GetValueOrDefault("PROGJUDGE_AER", "PROGJUDGE_AER\t  0.999"));
         sb.AppendLine(CultureInfo.InvariantCulture, $"TUTORIAL\t{(Chart.Extras.Tutorial ? 1 : 0)}");
+        if (Chart.Extras.PrerollBar1Applied)
+        {
+            sb.AppendLine("//" + ChartExtras.PrerollBar1Marker);
+        }
         foreach (var (tag, value) in Chart.Extras.Headers)
         {
             if (tag is not ("CLK_DEF" or "SEQUENCEID" or "PROGJUDGE_BPM" or "PROGJUDGE_AER" or "TUTORIAL" or "VERSION" or "MUSIC" or "DIFFICULT" or "LEVEL" or "CREATOR" or "BPM_DEF" or "MET_DEF"))
@@ -130,7 +140,8 @@ public partial class C2SChartWriter
             text += ChartStatistics.Calculate(text);
         }
 
-        if (Chart.Extras.SourceSnapshot.Length > 0 && (Chart.Extras.SourceKey is null || !Chart.Extras.BinarySnapshotValid))
+        if (Chart.Extras.SourceSnapshot.Length > 0 &&
+            (Chart.Extras.SourceKey is null || !Chart.Extras.BinarySnapshotValid || !Chart.Extras.HasSpeedSnapshot))
         {
             Chart.Extras.Resolution = Resolution;
             text = Chart.Extras.FinalizeText(Chart, text);

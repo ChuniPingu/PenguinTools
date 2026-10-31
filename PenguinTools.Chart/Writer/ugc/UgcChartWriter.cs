@@ -3,19 +3,31 @@ using System.Security.Cryptography;
 using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.IO;
 using PenguinTools.Core.Metadata;
 using U = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart.Writer.ugc;
 
-/// <summary>UGC v8 on the editor's fixed 1920-tick measure axis.</summary>
-public sealed class UgcChartWriter(string path, U.Chart chart)
+/// <summary>Writes UGC v8 using the selected editor coordinate dialect.</summary>
+public sealed class UgcChartWriter(string path, U.Chart chart, ChartDialect dialect = ChartDialect.Auto)
 {
     private readonly List<string> _lines = [];
     private readonly HashSet<U.Note> _written = [];
     private readonly HashSet<(int Tick, int Lane, int Width)> _effectCarriers = [];
-    private static string Position(int tick) => $"{tick / 1920}'{tick % 1920}";
-    private static string Clean(string value) => value.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
+    private ChartDialect _dialect;
+    private string Position(int tick)
+    {
+        if (_dialect != ChartDialect.Original)
+        {
+            return $"{tick / 1920}'{tick % 1920}";
+        }
+        var beat = chart.Events.Children.OfType<U.BeatEvent>().Where(b => b.Tick.Original <= tick).MaxBy(b => b.Bar);
+        var start = beat?.Tick.Original ?? 0;
+        var length = beat is null ? 1920 : 1920 * beat.Numerator / beat.Denominator;
+        return $"{(beat?.Bar ?? 0) + (tick - start) / length}'{(tick - start) % length}";
+    }
+    private static string Clean(string value) => ChartExtras.CleanEditorText(value);
     private static char Coordinate(int value) => value switch
     {
         >= 0 and < 36 => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[value],
@@ -67,6 +79,8 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
     };
     private static char CrashColor(Color color) => color switch
     {
+        Color.PNK => 'Y',
+        Color.VLT => 'B',
         Color.RED => '1',
         Color.ORN => '2',
         Color.YEL => '3',
@@ -77,10 +91,8 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
         Color.DGR => '8',
         Color.BLU => '9',
         Color.PPL => 'A',
-        Color.VLT => 'B',
         Color.GRY => 'C',
         Color.BLK => 'D',
-        Color.PNK => 'E',
         Color.NON => 'Z',
         _ => '0'
     };
@@ -101,7 +113,25 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            _dialect = EditorCompatibility.OutputDialect(dialect, chart.Extras);
+            EditorCompatibility.Validate(chart, _dialect, ugc: true);
+            chart.Extras.ApplyEditorMode(dialect, chart.Meta);
+            chart.Extras.EncodingDialect = _dialect;
+            chart.Extras.FixedZeroOrigin |= chart.Extras.UsesFixedCoordinateOrigin;
+            chart.Extras.CarrierEncodingVersion = 1;
+            chart.Extras.EditorFieldColorName = chart.Meta.FieldColorName;
             _lines.Clear();
+            _lines.Add(EditorCompatibility.UgcMarker + (_dialect == ChartDialect.Original ? "original" : "extended"));
+            if (chart.Extras.FixedZeroOrigin)
+            {
+                _lines.Add("'" + ChartExtras.FixedZeroOriginMarker);
+            }
+            if (chart.Extras.PrerollBar1Applied)
+            {
+                _lines.Add("'" + ChartExtras.PrerollBar1Marker);
+            }
+            _lines.AddRange(chart.Extras.EditorComments);
+            _lines.AddRange(chart.Extras.EditorHeaders);
             _written.Clear();
             _effectCarriers.Clear();
             foreach (var carrier in chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
@@ -142,12 +172,22 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
             }
 
             chart.Extras.CaptureSlideEffects(chart);
+            chart.Extras.CaptureEditorEvents(chart);
+            chart.Extras.CaptureUserText(m);
             chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             chart.Extras.UgcContentKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', _lines))));
             var copyright = $"@COPYRIGHT\tMGR_SYNC_REV={Guid.NewGuid():N};MGR_CLKCNT={chart.Extras.Count(m.BgmInitialNumerator)};" +
-                (chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(chart.Extras.SourceSnapshot) : "") + chart.Extras.ToCopyright();
+                (chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(chart.Extras.SourceSnapshot) : "") + chart.Extras.ToCopyright() + chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
             _lines.Insert(0, copyright);
-            await File.WriteAllLinesAsync(path, _lines, new UTF8Encoding(false), ct);
+            await AtomicFile.WriteAsync(path, async (stream, token) =>
+            {
+                await using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
+                foreach (var line in _lines)
+                {
+                    await writer.WriteLineAsync(line.AsMemory(), token);
+                }
+                await writer.FlushAsync(token);
+            }, ct);
             return OperationResult.Success();
         }
         finally { CultureInfo.CurrentCulture = prior; }
@@ -162,17 +202,36 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
 
     private void AppendMetadata(Meta m)
     {
-        _lines.AddRange(["@VER\t8", "@TICKS\t480", $"@TITLE\t{Clean(m.Title)}", $"@ARTIST\t{Clean(m.Artist)}",
-            $"@DESIGN\t{Clean(m.Designer)}", $"@DIFF\t{DifficultyValue(m.Difficulty)}", $"@CONST\t{m.Level}", $"@SONGID\t{m.Id ?? 0}",
+        _lines.Add($"@EXVER\t{m.ExVersion}");
+        _lines.Add($"@FLAG\tEXLONG\t{(m.ExLongEnabled ? "TRUE" : "FALSE")}");
+        _lines.Add($"@FLAG\tBGMWCMP\t{(m.WaitBgmEnd ? "TRUE" : "FALSE")}");
+        _lines.Add($"@LEVEL\t{(m.Difficulty == Difficulty.WorldsEnd
+            ? PenguinTools.Chart.Writer.mgxc.MgxcChartWriter.WeLevel(m.WeDifficulty)
+            : PenguinTools.Chart.Writer.mgxc.MgxcChartWriter.FormatPlayLevel(m.Level))}");
+        _lines.AddRange(["@VER\t8", "@FLAG\tHIPRECISION\tTRUE", "@TICKS\t480", $"@TITLE\t{Clean(m.Title)}", $"@ARTIST\t{Clean(m.Artist)}",
+            $"@DESIGN\t{Clean(m.Designer)}", $"@DIFF\t{DifficultyValue(m.Difficulty)}", $"@CONST\t{m.Level}", $"@SONGID\t{(string.IsNullOrWhiteSpace(m.MgxcId) ? (m.Id ?? 0).ToString(CultureInfo.InvariantCulture) : Clean(m.MgxcId))}",
             $"@MAINBPM\t{m.MainBpm}", $"@FLAG\tSOFFSET\t{(m.BgmEnableBarOffset ? 1 : 0)}",
             $"@FLAG\tCLICK\t{(chart.Extras.ClickEnabled ? 1 : 0)}", $"@CLKCNT\t{chart.Extras.Count(m.BgmInitialNumerator)}",
             $"@FLAG\tDIFFTTL\t{(chart.Extras.Tutorial ? 1 : 0)}"]);
         _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(m.BgmFilePath)}",
             $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(m.JacketFilePath)}",
             $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
+        _lines.Add($"@LICENSE\t{Clean(m.License)}\t{Clean(m.LicenseUrl)}");
+        _lines.Add($"@GENRE\t{Clean(m.Genre?.Str ?? "")}");
+        _lines.Add($"@WEATTR\t{Clean(m.WeTag.Str)}");
+        _lines.Add($"@BGMPRV\t{m.BgmPreviewStart}\t{m.BgmPreviewStop}");
+        _lines.Add($"@BGIMG\t{Clean(m.BgiFilePath)}");
+        _lines.Add($"@BGSCENE\t{Clean(m.BackgroundScene)}");
+        _lines.Add($"@BGMODE\t{Clean(chart.Extras.EditorBackgroundMode)}\t{(m.BackgroundSync ? "FALSE" : "TRUE")}");
+        _lines.Add($"@FLDCOL\t{m.FieldColorIndex}");
+        _lines.Add($"@FLDIMG\t{Clean(m.FieldImage)}");
+        _lines.Add($"@FLDSCENE\t{Clean(m.FieldScene)}");
+        _lines.Add($"@ATINFO\tAUTHORS\t{m.Authors.Replace('\r', ' ').Replace('\n', ' ')}");
+        _lines.Add($"@ATINFO\tSITES\t{m.AuthorSites.Replace('\r', ' ').Replace('\n', ' ')}");
+        _lines.Add($"@DLURL\t{Clean(m.DownloadUrl)}");
     }
 
-    private static string ExTapRoleSuffix(U.ExTapRole role) => role switch
+    private string ExTapRoleSuffix(U.ExTapRole role) => _dialect == ChartDialect.Original ? "" : role switch
     {
         U.ExTapRole.Explicit => "!",
         U.ExTapRole.SharedLongCarrier => "~",
@@ -186,13 +245,13 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
         _ => ""
     };
 
-    private static string NotePayload(U.Note n, string xy)
+    private string NotePayload(U.Note n, string xy)
     {
         return n switch
         {
             U.ExTap x => $"x{xy}{Effect(x.Effect)}{ExTapRoleSuffix(x.Role)}",
             U.Tap => "t" + xy,
-            U.Flick => "f" + xy + "L",
+            U.Flick f => "f" + xy + f.AutoplayDirection,
             U.Damage => "d" + xy,
             U.Hold => "h" + xy,
             U.Slide => "s" + xy,
@@ -209,6 +268,7 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
         var noLine = n is U.Slide slide && slide.NoLine;
         foreach (var child in n.Children)
         {
+            _lines.Add($"@USETIL\t{child.Timeline}");
             var childXy = $"{Coordinate(child.Lane)}{Coordinate(child.Width)}";
             var joint = child switch
             {
@@ -253,16 +313,16 @@ public sealed class UgcChartWriter(string path, U.Chart chart)
         var xy = $"{Coordinate(n.Lane)}{Coordinate(n.Width)}";
         if (n is U.ExTapableNote ex && ex.Effect is { } effect && _effectCarriers.Add((n.Tick.Original, n.Lane, n.Width)))
         {
-            Head(n, $"x{xy}{Effect(effect)}~");
+            Head(n, $"x{xy}{Effect(effect)}{(_dialect == ChartDialect.Original ? "" : "~")}");
         }
 
         var payload = NotePayload(n, xy);
-        if (n is U.AirHold ah)
+        if (_dialect != ChartDialect.Original && n is U.AirHold ah)
         {
             Head(n, $"a{xy}{Direction(ah.Direction)}{AirColor(ah.Color)}");
         }
 
-        if (n is U.AirSlide air)
+        if (_dialect != ChartDialect.Original && n is U.AirSlide air)
         {
             Head(n, $"a{xy}{Direction(air.Direction)}{AirColor(air.Color)}");
         }

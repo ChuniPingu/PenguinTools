@@ -36,7 +36,10 @@ public class ExTap : PositiveNote
     public bool AirActionParentIsEx { get; set; }
 }
 
-public class Flick : PositiveNote;
+public class Flick : PositiveNote
+{
+    public char AutoplayDirection { get; set; } = 'A';
+}
 
 public class Damage : PositiveNote;
 

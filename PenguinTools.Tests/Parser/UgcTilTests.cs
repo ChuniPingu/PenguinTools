@@ -1,9 +1,13 @@
+using System.Globalization;
+using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.umgr;
 using PenguinTools.Chart.Parser.ugc;
+using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Metadata;
 using Xunit;
 
 namespace PenguinTools.Tests.Parser;
@@ -13,14 +17,15 @@ public class UgcTilTests
     private const string Header =
         "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n";
 
-    private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(string body)
+    private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(
+        string body, ChartDialect mode = ChartDialect.Auto, string header = Header)
     {
         var ct = TestContext.Current.CancellationToken;
         var tmp = TestTempPaths.Create(".ugc");
-        await File.WriteAllTextAsync(tmp, Header + body, ct);
+        await File.WriteAllTextAsync(tmp, header + body, ct);
         try
         {
-            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance)
+            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load(), mode), TestMediaTool.Instance)
                 .ParseAsync(ct);
         }
         finally
@@ -38,6 +43,128 @@ public class UgcTilTests
 
     private static SoflanArea[] GetSoflanAreas(Chart.Models.umgr.Chart chart) =>
         chart.Notes.Children.OfType<SoflanArea>().ToArray();
+
+    private static async Task<string[]> WriteC2s(string body, ChartDialect mode, string header = Header)
+    {
+        var parsed = await ParseResult(body, mode, header);
+        Assert.True(parsed.Succeeded, parsed.ToString());
+        var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, converted.Value!)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            return await File.ReadAllLinesAsync(path, ct);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static int[] TimelinesInFile(string[] lines, params (int Tick, int Lane, int Width)[] notes)
+    {
+        // Read serialized row order independently of the converter's timeline
+        // model: a later matching SLA replaces the earlier assignment.
+        var areas = lines.Where(line => line.StartsWith("SLA\t", StringComparison.Ordinal))
+            .Select(line => line.Split('\t').Skip(1)
+                .Select(value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray()).ToArray();
+        return notes.Select(note => areas
+            .Where(area => note.Tick >= area[0] * 384 + area[1] &&
+                           note.Tick < area[0] * 384 + area[1] + area[4] &&
+                           note.Lane >= area[2] && note.Lane + note.Width <= area[2] + area[3])
+            .Select(area => area[5]).LastOrDefault()).ToArray();
+    }
+
+    [Theory]
+    [InlineData(ChartDialect.Original)]
+    [InlineData(ChartDialect.Extended)]
+    public async Task Til_SerializedRectanglesDoNotOverrideInterleavedTimelines(ChartDialect mode)
+    {
+        const string body =
+            "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t44\n#0'100:t44\n" +
+            "@USETIL\t1\n#0'50:t04\n#0'150:t44\n@USETIL\t0\n#0'200:tC4\n";
+
+        var lines = await WriteC2s(body, mode);
+
+        Assert.Equal([2, 1, 2, 1, 0],
+            TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4), (40, 12, 4)));
+    }
+
+    [Theory]
+    [InlineData(ChartDialect.Original)]
+    [InlineData(ChartDialect.Extended)]
+    public async Task Til_SerializedWideAndNarrowOverlapRemainsConvertible(ChartDialect mode)
+    {
+        const string body =
+            "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t04\n#1'0:t04\n@USETIL\t3\n#0'0:t12\n";
+
+        var lines = await WriteC2s(body, mode);
+
+        Assert.Equal([2, 3, 2], TimelinesInFile(lines, (0, 0, 4), (0, 1, 2), (384, 0, 4)));
+        Assert.Equal(2, lines.Count(line => line.StartsWith("SLA\t", StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [InlineData(ChartDialect.Original)]
+    [InlineData(ChartDialect.Extended)]
+    public async Task Til_SerializedRectanglesPreserveAirSlideChildTimeline(ChartDialect mode)
+    {
+        const string body =
+            "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t44\n#0'0:S440AN\n#100:s440A\n" +
+            "@USETIL\t1\n#0'50:t04\n#0'150:t44\n";
+
+        var lines = await WriteC2s(body, mode);
+
+        var airSlide = Assert.Single(lines, line => line.StartsWith("ASD\t", StringComparison.Ordinal)).Split('\t');
+        Assert.Equal(["0", "0", "4", "4"], airSlide[1..5]);
+        Assert.Equal(["20", "4", "4"], airSlide[7..10]);
+        Assert.Equal([2, 1, 2, 1], TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4)));
+    }
+
+    [Theory]
+    [InlineData(ChartDialect.Original)]
+    [InlineData(ChartDialect.Extended)]
+    public async Task Til_SerializedRectangleExcludesNoteAtEndTick(ChartDialect mode)
+    {
+        const string body =
+            "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t44\n#0'100:t44\n@USETIL\t0\n#0'105:t44\n";
+
+        var lines = await WriteC2s(body, mode);
+
+        Assert.Single(lines, line => line.StartsWith("SLA\t", StringComparison.Ordinal));
+        Assert.Equal([2, 2, 0], TimelinesInFile(lines, (0, 4, 4), (20, 4, 4), (21, 4, 4)));
+    }
+
+    [Theory]
+    [InlineData(ChartDialect.Original, 4)]
+    [InlineData(ChartDialect.Original, 19)]
+    [InlineData(ChartDialect.Original, 14)]
+    [InlineData(ChartDialect.Original, 13)]
+    [InlineData(ChartDialect.Original, 7)]
+    [InlineData(ChartDialect.Extended, 7)]
+    public async Task Til_SerializedRectangleDoesNotCaptureOffGridNoteAfterOpeningMeasure(
+        ChartDialect mode, int denominator)
+    {
+        const string body =
+            "@FLAG\tSOFFSET\tTRUE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:t04\n#0'100:t44\n@USETIL\t0\n#0'103:t04\n";
+        var header = $"@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120\n@BEAT\t0\t1\t{denominator}\n";
+
+        var lines = await WriteC2s(body, mode, header);
+
+        var offset = mode == ChartDialect.Original ? (int)Math.Round(1920m / denominator) : 0;
+        var start = (int)Math.Round(offset / 5m);
+        var last = (int)Math.Round((offset + 100) / 5m);
+        var outside = (int)Math.Round((offset + 103) / 5m);
+        Assert.Equal([2, 2, 0], TimelinesInFile(lines, (start, 0, 4), (last, 4, 4), (outside, 0, 4)));
+    }
 
     [Fact]
     public async Task Til_Definition_CreatesScrollSpeedEvent()

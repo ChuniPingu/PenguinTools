@@ -9,7 +9,7 @@ public partial record Meta
     {
         get
         {
-            if (!BgmEnableBarOffset)
+            if (!BgmEnableBarOffset || BgmFixedZeroOrigin)
             {
                 return BgmManualOffset;
             }
@@ -33,6 +33,7 @@ public partial record Meta
     public decimal BgmManualOffset { get; set; }
 
     public bool BgmEnableBarOffset { get; set; }
+    public bool BgmFixedZeroOrigin { get; set; }
     public decimal BgmInitialBpm { get; set; } = 120m;
     public int BgmInitialNumerator { get; set; } = 4;
     public int BgmInitialDenominator { get; set; } = 4;
