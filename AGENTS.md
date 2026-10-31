@@ -4,6 +4,7 @@
 - Use `MessageDescriptor`, `Msg`, and `MsgKeys` for diagnostics; update both catalogs in `docs/locales/` when adding message keys.
 - Keep proprietary samples local. Optional fixture tests may skip without samples; report missing coverage.
 - `External/` contains separate repositories. Change their source or submodule references only when the task needs it.
+- Use Conventional Commits
 
 ## Documentation
 
