@@ -39,18 +39,18 @@ internal static class ChartCommands
         var mainBpm = new Option<decimal?>("--display-bpm") { Description = "Override the displayed BPM." };
         var insertBlank = new Option<bool?>("--insert-blank-measure")
         {
-            Description = "Enable insertion of a blank measure."
+            Description = "Insert a blank measure."
         };
         var noInsertBlank = new Option<bool>("--no-insert-blank-measure")
         {
-            Description = "Disable insertion of a blank measure."
+            Description = "Do not insert a blank measure."
         };
         var debugTil = new Option<bool>("--debug-til")
         {
             Description =
                 "C2S→MGXC: emit transparent height-0 AirCrush markers (TIL 0) for each original SLA region."
         };
-        var command = new Command("convert", "Convert between C2S, MGXC, and UGC; also import SUS.");
+        var command = new Command("convert", "Convert MGXC, UGC, or SUS to MGXC, UGC, or C2S; convert C2S to MGXC or UGC.");
         command.Arguments.Add(input);
         command.Arguments.Add(output);
         command.Options.Add(songId);
@@ -62,7 +62,7 @@ internal static class ChartCommands
         command.Options.Add(debugTil);
         var inputDialect = InputDialectOption();
         var outputDialect = new Option<ChartDialect>("--output-dialect")
-        { Description = "Target editor encoding: Auto (preserve input), Original, or Extended." };
+        { Description = "Target editor encoding: Auto (preserve known input dialect, otherwise Extended), Original, or Extended." };
         command.Options.Add(inputDialect);
         command.Options.Add(outputDialect);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);

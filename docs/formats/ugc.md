@@ -1,6 +1,6 @@
 # Umiguri Chart v8
 
-Based on the existing English translation of [inonote's Umiguri Chart v8 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298). AIR-HOLD height forms below also document PenguinTools behavior; this reference does not imply full implementation of the upstream specification.
+Based on [inonote's Umiguri Chart v8 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298). This reference does not imply full implementation of the upstream specification.
 
 ## File structure
 
@@ -93,20 +93,21 @@ Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:tx
 | HOLD      | `#BarTick:txw`                       | `t = h`                                        |
 | SLIDE     | `#BarTick:txw`                       | `t = s`                                        |
 | AIR       | `#BarTick:txwddc`                    | `t = a`; `dd` is direction, `c` is color       |
-| AIR-HOLD  | `#BarTick:txwc` or `#BarTick:txwhhc` | `t = H`; optional `hh` is height, `c` is color |
+| AIR-HOLD  | `#BarTick:txwc`                      | `t = H`; `c` is color                          |
 | AIR-SLIDE | `#BarTick:txwhhc`                    | `t = S`; `hh` is height, `c` is color          |
 | AIR-CRUSH | `#BarTick:txwhhc,{interval}`         | `t = C`; `hh` is height, `c` is crush color    |
 
-Height `hh` is a two-digit base-36 value for the original height multiplied by 10. The short AIR-HOLD form uses raw height 80. Its children inherit that height unless an explicit height is present.
+Height `hh` is a two-digit base-36 value. The upstream specification encodes the original height multiplied by 10. PenguinTools decodes the value into native height units: with `HIPRECISION` enabled it uses the value directly; otherwise it multiplies it by 10.
+
+PenguinTools also reads the legacy `H` parent with a height (`#BarTick:txwhhc`) as AIR-SLIDE. Standard AIR-HOLD records have no height field.
 
 | Parent    | Child format                        | Meaning                                                  |
 | --------- | ----------------------------------- | -------------------------------------------------------- |
 | HOLD      | `#OffsetTick>t`, `t = s`            | Endpoint                                                 |
 | SLIDE     | `#OffsetTick>txw`, `t = s`          | Intermediate point or endpoint                           |
 | SLIDE     | `#OffsetTick>txw`, `t = c`          | Control point                                            |
-| AIR-HOLD  | `#OffsetTick>t`, `t = s`            | Intermediate point or endpoint, inheriting parent height |
-| AIR-HOLD  | `#OffsetTick>t`, `t = c`            | Endpoint without AIR-ACTION, inheriting parent height    |
-| AIR-HOLD  | `#OffsetTick>txwhh`, `t = s` or `c` | Corresponding child with explicit height                 |
+| AIR-HOLD  | `#OffsetTick>t`, `t = s`            | Intermediate point or endpoint                           |
+| AIR-HOLD  | `#OffsetTick>t`, `t = c`            | Endpoint without AIR-ACTION                              |
 | AIR-SLIDE | `#OffsetTick>txwhh`, `t = s`        | Intermediate point or endpoint                           |
 | AIR-SLIDE | `#OffsetTick>txwhh`, `t = c`        | Control point or endpoint without AIR-ACTION             |
 | AIR-CRUSH | `#OffsetTick>txwhh`, `t = c`        | Endpoint                                                 |

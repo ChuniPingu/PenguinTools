@@ -29,7 +29,7 @@ internal static class EditorCompatibility
             // Selecting an output encoding cannot silently remove the original
             // editor's preroll by marking unchanged source coordinates as fixed.
             throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header,
-                "Original opening-measure coordinates require migration before Extended output",
+                "Original opening-measure coordinates for Extended output",
                 "Original output or fixed-origin source"));
         }
         ValidateMeterPositions(chart, ugc);
@@ -42,7 +42,8 @@ internal static class EditorCompatibility
         {
             if (!condition)
             {
-                throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, feature, "Original format"), target);
+                throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, feature,
+                    "a feature supported by Original format"), target);
             }
         }
 

@@ -5,11 +5,11 @@ namespace PenguinTools.CLI;
 
 internal static class CommandLineOptions
 {
-    internal static Option<string?> CreateChartFileDiscoveryOption(string description)
+    internal static Option<string?> CreateChartFileDiscoveryOption()
     {
         return new Option<string?>("--chart-file-discovery")
         {
-            Description = description
+            Description = "Chart formats in priority order, for example mgxc,ugc,sus."
         };
     }
 
@@ -152,11 +152,11 @@ internal static class CommandLineOptions
             new Option<decimal?>("--display-bpm") { Description = "Override the displayed BPM." },
             new Option<bool?>("--insert-blank-measure")
             {
-                Description = "Enable insertion of a blank measure."
+                Description = "Insert a blank measure."
             },
             new Option<bool>("--no-insert-blank-measure")
             {
-                Description = "Disable insertion of a blank measure."
+                Description = "Do not insert a blank measure."
             },
             new Option<int?>("--genre-id") { Description = "Override the genre entry ID." },
             new Option<string?>("--genre-name") { Description = "Override the genre entry name." },
@@ -164,9 +164,9 @@ internal static class CommandLineOptions
             new Option<string?>("--we-tag-name") { Description = "Override the World's End tag entry name." },
             new Option<int?>("--we-difficulty-id") { Description = "Override the World's End star difficulty ID." },
             new Option<bool?>("--custom-stage") { Description = "Override whether a custom stage is used." },
-            new Option<decimal?>("--preview-start") { Description = "Override the BGM preview start time." },
-            new Option<decimal?>("--preview-stop") { Description = "Override the BGM preview stop time." },
-            new Option<decimal?>("--manual-offset") { Description = "Override the BGM manual offset." },
+            new Option<decimal?>("--preview-start") { Description = "Override the BGM preview start time in seconds." },
+            new Option<decimal?>("--preview-stop") { Description = "Override the BGM preview stop time in seconds." },
+            new Option<decimal?>("--manual-offset") { Description = "Override the BGM manual offset in seconds." },
             new Option<decimal?>("--initial-bpm") { Description = "Override the initial BPM used for sync." },
             new Option<int?>("--initial-numerator")
             {

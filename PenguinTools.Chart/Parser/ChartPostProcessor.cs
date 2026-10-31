@@ -213,7 +213,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             {
                 note.Timeline = id;
 
-                // magic optimization: when the crash is transparent, it is not necessary to add the SLA on the control joint
+                // Skip SLA on transparent AirCrash joints with zero or maximum density.
                 if (note is UmgrModel.AirCrashJoint
                     {
                         Parent: UmgrModel.AirCrash { Color: Color.NON }, Density.Original: 0x7FFFFFFF or 0

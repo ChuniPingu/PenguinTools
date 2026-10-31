@@ -347,7 +347,7 @@ public partial class C2SChartConverter
                 slide,
                 next,
                 i == 0);
-            // pair the last joint with air
+            // Register the final joint as an AIR pairing target.
             if (i == joints.Length - 2)
             {
                 RegisterPositivePairTarget(next, note);

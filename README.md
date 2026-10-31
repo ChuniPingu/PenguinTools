@@ -6,7 +6,7 @@ Tools for converting CHUNITHM charts, music, jackets, and stages.
 
 For Windows builds: Git, the .NET SDK, and Visual Studio C++ build tools.
 
-Use the versions selected by [global.json](global.json), [Common.props](Common.props), and native dependency configuration. See [development setup](docs/development.md) for environment variables and publish profiles.
+Use the versions selected by [global.json](global.json), [Common.props](Common.props), and native dependency configuration. See [development setup](docs/development.md) for prerequisites and publish profiles.
 
 ## Quick start
 

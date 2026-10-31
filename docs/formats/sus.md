@@ -117,17 +117,15 @@ Note: **SUS** now stands for _Sliding Universal Score_, not _SeaUrchin Score_.
 
 ## 3. Chart Data Lines
 
-- Each line consists of a “header part”, `:`, and a “data part”.
-- A `:` must be appended after the header part.
+- Write each chart-data line as `header:data`.
 - The data part is made up of sets of 2 digits; the number of sets divides the measure, and each division represents a
   timing point.
   - For example, if `11111111` is specified, notes are placed at quarter-note intervals.
   - The maximum number of divisions depends on the application, but it should support at least 512 divisions (data
     part 1024 bytes).
-  - For each 2-digit data value, the meaning of the first digit depends on the data type, but `0` always means nothing
-    is placed.
-  - The second digit always represents note width, where `1` to `z` indicate widths 1 to 35.
-  - Therefore, positions where no note exists should be filled with `00`.
+  - For note data, the first digit selects the note type; `0` means no note. The second digit specifies width, with
+    `1` to `z` representing widths 1 to 35. Use `00` for positions without a note.
+  - Other data types have different values: for example, `#mmm08` uses both digits as a BPM definition ID.
 
 - `mmm`
   - For certain specific strings, it represents special data.
@@ -181,7 +179,7 @@ Note: **SUS** now stands for _Sliding Universal Score_, not _SeaUrchin Score_.
   - String format: `meas'tick:speed`
   - `meas`: measure number (integer)
   - `tick`: tick (integer)
-    (A unit that further divides a measure. By default, 1 beat = 480 ticks, so 1 measure = 1920 ticks.)
+    (By default, one beat is 480 ticks; a four-beat measure has 1,920 ticks.)
   - `speed`: speed (decimal; negative values are also allowed)
 - Writing `#HISPEED zz` applies high-speed definition `zz` to data from that line onward.
 - Writing `#NOSPEED` removes high-speed definitions from data from that line onward.
@@ -195,8 +193,7 @@ Note: **SUS** now stands for _Sliding Universal Score_, not _SeaUrchin Score_.
 
 ### `#MEASUREBS` Measure number base value
 
-- From the point where this is specified onward, the given value is always added to the measure number in data lines.
-- If specified multiple times, the last specified value overwrites the previous added value.
+- `#MEASUREBS n` adds `n` to the measure number of subsequent data lines. A new `#MEASUREBS` replaces the previous value.
 
 ```text
 ... 0-999
@@ -275,7 +272,7 @@ The following are defined by the specification.
 ### `ticks_per_beat` Change the number of ticks per beat
 
 - `#REQUEST "ticks_per_beat <integer>"`
-- When using \(n\)-th notes in a chart, this should be set so that it is a divisor of measure beat count × tick count.
+- Choose a value that places the chart's note subdivisions on whole ticks.
 
 ### `enable_priority` Enable/disable priority-based note rendering
 

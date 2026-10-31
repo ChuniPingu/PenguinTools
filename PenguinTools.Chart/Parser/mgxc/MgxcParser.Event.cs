@@ -79,7 +79,7 @@ public partial class MgxcParser
 
         if (e == null)
         {
-            // avoid misalignment
+            // Stop before reading later records at the wrong offset.
             MessageDescriptor msg = Msg.Create(MsgKeys.MgCrit_Unrecognized_event, name);
             ThrowAtPosition(msg, br.BaseStream.Position, Mgxc);
         }

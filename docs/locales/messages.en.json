@@ -23,7 +23,7 @@
       "jacket_written": "Wrote jacket: {0}",
       "operation_cancelled": "Operation cancelled.",
       "option_build_complete": "Wrote option {0} to {1}.",
-      "option_scan_complete": "Found {0} books and {1} charts."
+      "option_scan_complete": "Found {0} songs and {1} charts."
     }
   },
   "diag": {
@@ -43,7 +43,7 @@
       "audio_format_not_supported": "Unsupported audio format. Only WAV (pcm_s16le at 48,000 Hz) is supported.",
       "background_file_is_not_set": "Background file is not set.",
       "background_file_not_found": "The specified background image was not found.",
-      "chart_conversion_unsupported": "Unsupported chart conversion '{0}'. Supported conversions are mgxc/ugc/sus → c2s and c2s → mgxc.",
+      "chart_conversion_unsupported": "Unsupported chart conversion '{0}'.",
       "chart_discovery_array_incomplete": "Chart format list is incomplete.",
       "chart_discovery_must_be_array": "Chart formats must be provided as an array.",
       "chart_discovery_must_be_string_or_array": "chartFileDiscovery must be a list of chart formats.",
@@ -58,11 +58,12 @@
       "invalid_audio": "Invalid audio format.",
       "invalid_bg_fx_image": "Invalid effect image format.",
       "invalid_bg_image": "Invalid background image format.",
-      "invalid_header": "Found chart header '{0}', expected '{1}'.",
+      "invalid_header": "Invalid or unsupported value '{0}'. Expected: {1}.",
       "invalid_jk_image": "Invalid jacket image format.",
       "jacket_file_not_found": "The specified jacket file was not found.",
       "main_meta_is_null": "Baseline chart metadata is missing.",
-      "preview_stop_greater_than_start": "Preview stop time must be greater than the start time.",
+      "main_difficulty_invalid": "Invalid main difficulty '{0}'.",
+      "preview_stop_greater_than_start": "Preview stop time must not be earlier than the start time.",
       "size_incompatible": "Expected {0} bytes for {1}, but only {2} were available.",
       "song_id_is_not_set": "Song ID is not set.",
       "stage_background_required": "A background image path is required to build a stage.",

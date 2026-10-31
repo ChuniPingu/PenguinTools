@@ -29,16 +29,16 @@ public class AssetManager : INotifyPropertyChanged
         NotifyAssetChanged();
     }
 
-    // Asset Dictionary that merges all assets from various sources below
+    // Merged assets from all sources.
     public AssetDictionary MergeAssets { get; }
 
-    // Assets embedded in the assembly, used for default values and initial setup.
+    // Assets loaded from the supplied stream.
     private AssetDictionary HardAssets { get; }
 
-    // Assets loaded from an explicit --user-assets path (optional).
+    // Assets loaded from the optional user-assets file.
     private AssetDictionary PlusAssets { get; }
 
-    // Assets from the user-defined.
+    // Entries added with DefineEntry.
     private AssetDictionary UserAssets { get; }
 
     public IReadOnlySet<Entry> this[AssetType type] => MergeAssets[type];

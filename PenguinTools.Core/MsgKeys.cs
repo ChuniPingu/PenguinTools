@@ -56,6 +56,7 @@ public static class MsgKeys
     public const string Error_Invalid_jk_image = "diag.error.invalid_jk_image";
     public const string Error_Jacket_file_not_found = "diag.error.jacket_file_not_found";
     public const string Error_Main_meta_is_null = "diag.error.main_meta_is_null";
+    public const string Error_Main_difficulty_invalid = "diag.error.main_difficulty_invalid";
     public const string Error_Preview_stop_greater_than_start = "diag.error.preview_stop_greater_than_start";
     public const string Error_Size_Incompatible = "diag.error.size_incompatible";
     public const string Error_Song_id_is_not_set = "diag.error.song_id_is_not_set";

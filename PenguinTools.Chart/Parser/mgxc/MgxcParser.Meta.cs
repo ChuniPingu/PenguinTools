@@ -131,10 +131,11 @@ public partial class MgxcParser
             case "durl": // DLURL
                 Mgxc.Meta.DownloadUrl = (string)data;
                 break;
-            case "CTCK": // last cursor position?
-            case "LXFN": // .ugc location?
-            case "HSCL": // idk
-            case "\0\0\0\0": // why
+            // Recognized but unused metadata.
+            case "CTCK":
+            case "LXFN":
+            case "HSCL":
+            case "\0\0\0\0":
                 break;
             default:
                 MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, data);

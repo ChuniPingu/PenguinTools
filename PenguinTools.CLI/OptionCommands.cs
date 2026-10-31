@@ -1,5 +1,6 @@
 using System.CommandLine;
 using PenguinTools.Application;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.CLI;
 
@@ -16,8 +17,12 @@ internal static class OptionCommands
     private static Command BuildScanCommand()
     {
         var input = new Argument<string>("input") { Description = "Input chart directory." };
-        var discovery = CommandLineOptions.CreateChartFileDiscoveryOption("Ordered chart formats to discover.");
-        var batchSize = new Option<int>("--batch-size") { DefaultValueFactory = _ => 8 };
+        var discovery = CommandLineOptions.CreateChartFileDiscoveryOption();
+        var batchSize = new Option<int>("--batch-size")
+        {
+            Description = "Maximum parallel operations; -1 uses automatic parallelism.",
+            DefaultValueFactory = _ => 8
+        };
         var saveConfig = new Option<bool>("--save-config")
         { Description = "Save the scan settings to options.json before scanning." };
         var command = new Command("scan", "Scan a directory and report chart metadata and diagnostics.");
@@ -72,16 +77,17 @@ internal static class OptionCommands
         var tokens = trimmed.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length == 0)
         {
-            throw new ArgumentException("At least one chart format is required.");
+            throw new DiagnosticException(MsgKeys.Error_Chart_format_specify_at_least_one);
         }
 
         List<ChartFormat> formats = [];
         foreach (var token in tokens)
         {
             var normalized = token.TrimStart('.');
-            if (!Enum.TryParse<ChartFormat>(normalized, true, out var format))
+            if (!Enum.TryParse<ChartFormat>(normalized, true, out var format) ||
+                format is not (ChartFormat.Mgxc or ChartFormat.Ugc or ChartFormat.Sus))
             {
-                throw new ArgumentException($"Unsupported chart format: {token}");
+                throw new DiagnosticException(Msg.Create(MsgKeys.Error_Chart_format_unsupported, token));
             }
 
             if (!formats.Contains(format))
@@ -109,32 +115,51 @@ internal static class OptionCommands
                 "Force reconversion of jacket, stage, and audio even when the conversion cache matches."
         };
 
-        private Option<string?> OptionName { get; } = new("--option-name");
+        private Option<string?> OptionName { get; } = new("--option-name")
+        { Description = "Four-character option name; required if not set in the config." };
 
         private Option<string?> Discovery { get; } =
-            CommandLineOptions.CreateChartFileDiscoveryOption("Ordered chart formats.");
+            CommandLineOptions.CreateChartFileDiscoveryOption();
 
-        private Option<int?> BatchSize { get; } = new("--batch-size");
-        private Option<bool?> ConvertChart { get; } = new("--convert-chart");
-        private Option<bool?> ConvertAudio { get; } = new("--convert-audio");
-        private Option<bool?> ConvertJacket { get; } = new("--convert-jacket");
-        private Option<bool?> ConvertBackground { get; } = new("--convert-background");
-        private Option<ulong?> HcaKey { get; } = new("--hca-key");
-        private Option<bool?> GenerateEventXml { get; } = new("--generate-event-xml");
-        private Option<bool?> CustomReleaseTagXml { get; } = new("--custom-release-tag-xml");
-        private Option<int?> SelectedReleaseTagId { get; } = new("--selected-release-tag-id");
-        private Option<int?> CustomReleaseTagId { get; } = new("--custom-release-tag-id");
-        private Option<string?> CustomReleaseTagTitleName { get; } = new("--custom-release-tag-title-name");
-        private Option<bool?> CustomGenre { get; } = new("--custom-genre");
-        private Option<int?> SelectedGenreId { get; } = new("--selected-genre-id");
-        private Option<int?> CustomGenreId { get; } = new("--custom-genre-id");
-        private Option<string?> CustomGenreName { get; } = new("--custom-genre-name");
-        private Option<bool?> OverrideChartGenre { get; } = new("--override-chart-genre");
-        private Option<int?> UltimaEventId { get; } = new("--ultima-event-id");
-        private Option<int?> WeEventId { get; } = new("--we-event-id");
+        private Option<int?> BatchSize { get; } = new("--batch-size")
+        { Description = "Maximum parallel operations; -1 uses automatic parallelism." };
+        private Option<bool?> ConvertChart { get; } = new("--convert-chart")
+        { Description = "Convert charts to C2S." };
+        private Option<bool?> ConvertAudio { get; } = new("--convert-audio")
+        { Description = "Convert audio." };
+        private Option<bool?> ConvertJacket { get; } = new("--convert-jacket")
+        { Description = "Convert jackets." };
+        private Option<bool?> ConvertBackground { get; } = new("--convert-background")
+        { Description = "Build stage backgrounds." };
+        private Option<ulong?> HcaKey { get; } = new("--hca-key")
+        { Description = "HCA encryption key." };
+        private Option<bool?> GenerateEventXml { get; } = new("--generate-event-xml")
+        { Description = "Generate ULTIMA and WORLD'S END event XML." };
+        private Option<bool?> CustomReleaseTagXml { get; } = new("--custom-release-tag-xml")
+        { Description = "Generate a custom release tag XML." };
+        private Option<int?> SelectedReleaseTagId { get; } = new("--selected-release-tag-id")
+        { Description = "Existing release tag ID." };
+        private Option<int?> CustomReleaseTagId { get; } = new("--custom-release-tag-id")
+        { Description = "Custom release tag ID." };
+        private Option<string?> CustomReleaseTagTitleName { get; } = new("--custom-release-tag-title-name")
+        { Description = "Custom release tag title." };
+        private Option<bool?> CustomGenre { get; } = new("--custom-genre")
+        { Description = "Use a custom genre." };
+        private Option<int?> SelectedGenreId { get; } = new("--selected-genre-id")
+        { Description = "Existing genre ID." };
+        private Option<int?> CustomGenreId { get; } = new("--custom-genre-id")
+        { Description = "Custom genre ID." };
+        private Option<string?> CustomGenreName { get; } = new("--custom-genre-name")
+        { Description = "Custom genre name." };
+        private Option<bool?> OverrideChartGenre { get; } = new("--override-chart-genre")
+        { Description = "Use the option genre instead of chart genres." };
+        private Option<int?> UltimaEventId { get; } = new("--ultima-event-id")
+        { Description = "ULTIMA event ID." };
+        private Option<int?> WeEventId { get; } = new("--we-event-id")
+        { Description = "WORLD'S END event ID." };
         private Option<string[]?> MainDifficulties { get; } = new("--main-difficulty")
         {
-            Description = "Override the main chart difficulty for a song (format: songId:Difficulty).",
+            Description = "Set a song's main difficulty, for example 1234:Master.",
             AllowMultipleArgumentsPerToken = true,
             Arity = ArgumentArity.ZeroOrMore
         };
@@ -196,12 +221,12 @@ internal static class OptionCommands
                 var separator = value.IndexOf(':');
                 if (separator <= 0 || separator >= value.Length - 1)
                 {
-                    throw new ArgumentException($"Invalid main difficulty override: {value}");
+                    throw new DiagnosticException(Msg.Create(MsgKeys.Error_Main_difficulty_invalid, value));
                 }
 
                 if (!int.TryParse(value[..separator], out var songId))
                 {
-                    throw new ArgumentException($"Invalid song ID in main difficulty override: {value}");
+                    throw new DiagnosticException(Msg.Create(MsgKeys.Error_Main_difficulty_invalid, value));
                 }
 
                 overrides.Add(new OptionMainDifficultyOverride(songId, value[(separator + 1)..]));

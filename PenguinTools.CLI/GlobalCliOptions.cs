@@ -7,7 +7,7 @@ internal static class GlobalCliOptions
 {
     internal static readonly Option<string?> UserAssets = new("--user-assets")
     {
-        Description = "Optional path to collected user assets JSON (plus tier). When omitted, only hardened assets.json is used.",
+        Description = "Path to collected assets JSON. If omitted, use bundled assets only.",
         Recursive = true
     };
 

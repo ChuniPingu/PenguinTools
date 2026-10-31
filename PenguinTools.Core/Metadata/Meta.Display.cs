@@ -12,7 +12,6 @@ public partial record Meta
     public bool IsCustomStage { get; set; }
     public int? StageId { get; set; }
 
-    // use "bgi" to prevent messing up with "bgm" mentally
     public string BgiFilePath { get; set; } = string.Empty;
     public string FullBgiFilePath => GetFullPath(BgiFilePath);
     public int BackgroundOffset { get; set; } = DefaultBackgroundOffset;

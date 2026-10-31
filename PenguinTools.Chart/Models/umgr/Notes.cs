@@ -86,6 +86,7 @@ public class Hold : ExTapableNote
     public override ExEffect? Effect { get; set; }
 }
 
+// Lane and width come from the parent; assignments are ignored.
 public class HoldJoint : PositiveNote
 {
     public override int Lane
@@ -93,7 +94,6 @@ public class HoldJoint : PositiveNote
         get => (Parent as Hold)?.Lane ?? 0;
         set
         {
-            /* Do nothing */
         }
     }
 
@@ -102,11 +102,11 @@ public class HoldJoint : PositiveNote
         get => (Parent as Hold)?.Width ?? 1;
         set
         {
-            // do nothing
         }
     }
 }
 
+// Lane, width, and tick come from the paired note; assignments are ignored.
 public class Air : NegativeNote
 {
     public AirDirection Direction { get; set; } = AirDirection.IR;
@@ -117,7 +117,6 @@ public class Air : NegativeNote
         get => PairNote?.Lane ?? 0;
         set
         {
-            // do nothing
         }
     }
 
@@ -126,7 +125,6 @@ public class Air : NegativeNote
         get => PairNote?.Width ?? 1;
         set
         {
-            // do nothing
         }
     }
 
@@ -135,13 +133,13 @@ public class Air : NegativeNote
         get => PairNote?.Tick ?? 0;
         set
         {
-            // do nothing
         }
     }
 }
 
 public class SoflanArea : Note;
 
+// Lane and width come from the parent; assignments are ignored.
 public class SoflanAreaJoint : Note
 {
     public override int Lane
@@ -149,7 +147,6 @@ public class SoflanAreaJoint : Note
         get => (Parent as SoflanArea)?.Lane ?? 0;
         set
         {
-            /* Do nothing */
         }
     }
 
@@ -158,11 +155,11 @@ public class SoflanAreaJoint : Note
         get => (Parent as SoflanArea)?.Width ?? 1;
         set
         {
-            // do nothing
         }
     }
 }
 
+// Lane, width, and tick come from the paired note; assignments are ignored.
 public class AirSlide : NegativeNote
 {
     public Color Color { get; set; }
@@ -174,7 +171,6 @@ public class AirSlide : NegativeNote
         get => PairNote?.Lane ?? 0;
         set
         {
-            // do nothing
         }
     }
 
@@ -183,7 +179,6 @@ public class AirSlide : NegativeNote
         get => PairNote?.Width ?? 1;
         set
         {
-            // do nothing
         }
     }
 
@@ -192,7 +187,6 @@ public class AirSlide : NegativeNote
         get => PairNote?.Tick ?? 0;
         set
         {
-            // do nothing
         }
     }
 
@@ -218,6 +212,7 @@ public class AirSlideJoint : Note
     public decimal Height { get; set; }
 }
 
+// Lane, width, and tick come from the paired note; assignments are ignored.
 public class AirHold : NegativeNote
 {
     public Color Color { get; set; }
@@ -228,7 +223,6 @@ public class AirHold : NegativeNote
         get => PairNote?.Lane ?? 0;
         set
         {
-            // do nothing
         }
     }
 
@@ -237,7 +231,6 @@ public class AirHold : NegativeNote
         get => PairNote?.Width ?? 1;
         set
         {
-            // do nothing
         }
     }
 
@@ -246,7 +239,6 @@ public class AirHold : NegativeNote
         get => PairNote?.Tick ?? 0;
         set
         {
-            // do nothing
         }
     }
 
@@ -263,6 +255,7 @@ public class AirHold : NegativeNote
     }
 }
 
+// Lane and width come from the parent; assignments are ignored.
 public class AirHoldJoint : Note
 {
     public Joint Joint { get; set; } = Joint.D;
@@ -272,7 +265,6 @@ public class AirHoldJoint : Note
         get => (Parent as AirHold)?.Lane ?? 0;
         set
         {
-            /* Do nothing */
         }
     }
 
@@ -281,7 +273,6 @@ public class AirHoldJoint : Note
         get => (Parent as AirHold)?.Width ?? 1;
         set
         {
-            // do nothing
         }
     }
 }

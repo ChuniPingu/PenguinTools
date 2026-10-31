@@ -223,12 +223,11 @@ public class Note : TimeNode<Note>
 
     public override void Sort()
     {
-        // In CHUNITHM, notes appear to have layer priority where later ones render on top, covering those beneath.
-        // However, in UMIGURI, AirCrash always renders on top regardless of order (but below than AirHold in NEXT).
-        // To match UMIGURI's behavior, AirCrash notes are moved to the end of the collection.
+        // The game appears to draw later notes on top. Place AirCrash last to match
+        // UMIGURI; in NEXT, AirHold draws above AirCrash.
         SortChild(CompareNotes);
 
-        // move negative notes after the paired positive notes
+        // Place paired negative notes after their positive notes.
         foreach (var child in Children.OfType<NegativeNote>().ToArray())
         {
             if (child.PairNote == null)
@@ -301,7 +300,7 @@ public abstract class ExTapableNote : Note
     public abstract ExEffect? Effect { get; set; }
 }
 
-// you may get confused, but I just want to achieve type safety here
+// Constrain paired note types in both directions.
 public abstract class PairableNote<TSelf, TPair> : Note where TSelf : PairableNote<TSelf, TPair>
     where TPair : PairableNote<TPair, TSelf>
 {
