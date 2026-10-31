@@ -342,9 +342,14 @@ public partial class C2SChartConverter
         C2s.Extras.PrerollBar1Applied |= offset > 0;
         foreach (var e in Events)
         {
+            // Original initial speeds cover the preroll, but their ends still move with the notes.
+            if (e.Tick.Original == 0 && e is C2sModel.SpeedEventBase speed &&
+                Mgxc.Extras.EncodingDialect == PenguinTools.Core.Metadata.ChartDialect.Original)
+            {
+                speed.Length = checked(speed.Length.Original + offset);
+            }
             // Keep the initial tempo and meter active throughout the preroll.
-            if (e.Tick.Original != 0 || e is C2sModel.SpeedEventBase &&
-                Mgxc.Extras.EncodingDialect != PenguinTools.Core.Metadata.ChartDialect.Original)
+            else if (e.Tick.Original != 0 || e is C2sModel.SpeedEventBase)
             {
                 e.Tick = checked(e.Tick.Original + offset);
             }

@@ -86,8 +86,8 @@ internal static class ChartCommands
 
     private static Option<ChartDialect> InputDialectOption() => new("--input-dialect")
     {
-        Description = "Input editor format: Original (Margrete 1.8) or Extended (fixed zero origin). Auto is retained for marked legacy files.",
-        DefaultValueFactory = _ => ChartDialect.Original
+        Description = "Input editor format: Auto (detect format), Original, or Extended.",
+        DefaultValueFactory = _ => ChartDialect.Auto
     };
 
     private static Argument<string> InputArgument()
