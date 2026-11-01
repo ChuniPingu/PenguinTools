@@ -161,7 +161,7 @@ public sealed class C2sTouchingSlideTests
     {
         var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
-        Assert.DoesNotContain(converted.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Ambiguous_c2s_slide_path);
+        Assert.DoesNotContain(converted.Diagnostics.Diagnostics, d => d.Message.Key == "diag.mg.ambiguous_c2s_slide_path");
         return await WriteAndRead(converted.Value!);
     }
 

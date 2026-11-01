@@ -142,7 +142,7 @@ public class UgcNoteTests
         Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
-                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+                          "diag.mg.ambiguous_c2s_slide_path");
         var roundTripped = await RoundTripThroughC2s(chart);
         Assert.Equal(2, roundTripped.Notes.Children.OfType<Slide>().Count());
     }
@@ -165,7 +165,7 @@ public class UgcNoteTests
         Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
-                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+                          "diag.mg.ambiguous_c2s_slide_path");
 
         var roundTripped = await RoundTripThroughC2s(chart);
         var slides = roundTripped.Notes.Children.OfType<Slide>().ToArray();
@@ -194,7 +194,7 @@ public class UgcNoteTests
         Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
-                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+                          "diag.mg.ambiguous_c2s_slide_path");
 
         var atJunction = result.Value!.Notes
             .OfType<Chart.Models.c2s.Slide>()
@@ -233,7 +233,7 @@ public class UgcNoteTests
         Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
-                          MsgKeys.Mg_Ambiguous_c2s_slide_path);
+                          "diag.mg.ambiguous_c2s_slide_path");
 
         var roundTripped = await RoundTripThroughC2s(chart);
         var slides = roundTripped.Notes.Children.OfType<Slide>().ToArray();
@@ -290,7 +290,7 @@ public class UgcNoteTests
         Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
-                          MsgKeys.Mg_Overlapping_air_parent_slide);
+                          "diag.mg.overlapping_air_parent_slide");
 
         var c2sAir = Assert.Single(result.Value!.Notes.OfType<Chart.Models.c2s.Air>());
         var lastSegments = result.Value.Notes
@@ -346,7 +346,7 @@ public class UgcNoteTests
         Assert.True(result.Succeeded, result.ToString());
         Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
-            diagnostic => diagnostic.Message.Key == MsgKeys.Mg_Overlapping_air_parent_slide);
+            diagnostic => diagnostic.Message.Key == "diag.mg.overlapping_air_parent_slide");
         Assert.Equal(240, result.Value!.Notes.OfType<Chart.Models.c2s.Slide>().First().Tick.Original);
     }
 

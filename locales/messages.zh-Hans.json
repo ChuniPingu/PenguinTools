@@ -76,7 +76,6 @@
       "preview_stop_clamped": "预览结束时间（{0} 秒）超过允许范围，已调整为 {1} 秒。"
     },
     "mg": {
-      "ambiguous_c2s_slide_path": "C2S 将此 SLIDE 连接到了另一条（轨道 {0}，宽度 {1}）。",
       "concurrent_ex_effects": "同一时刻存在多个不同的 EX 效果：{0}。游戏只会显示其中一个。",
       "head_bpm_not_found": "谱面开头未设置 BPM。",
       "head_time_signature_event_not_found": "谱面开头未设置拍号，已使用 4/4 拍。",
@@ -90,7 +89,6 @@
       "meta_unknown_tag": "未知标记“{0}”。",
       "no_sortname_provided": "未提供排序名称。已根据标题自动生成。",
       "note_overlapped_in_different_til": "C2S 无法区分这些重叠音符；时间线 {0} 的流速将被时间线 {1} 覆盖。",
-      "overlapping_air_parent_slide": "C2S 将此 AIR 连接到了另一个重叠的 SLIDE 终点。",
       "string_id_not_found": "在“{1}”中未找到素材编号“{0}”。",
       "unrecognized_meta": "未知属性“{0}”，数据：{1}。",
       "unrecognized_note": "未知音符类型 {0}。"

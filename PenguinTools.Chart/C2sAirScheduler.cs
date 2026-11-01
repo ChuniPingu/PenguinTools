@@ -64,6 +64,9 @@ internal sealed class C2sAirScheduler
 
         var continuations = notes.Where(IsContinuation).GroupBy(Start).ToDictionary(g => g.Key,
             g => g.Select(n => _nodeOf[n]).Distinct().ToArray());
+        // For positive rounded durations, continuing paths finish strictly
+        // later than the matching terminal. This is an acyclic partial order;
+        // ParentOrder uses it to coordinate ground roots sharing an AIR cell.
         for (var i = 0; i < _pathCount; i++)
         {
             if (_nodes[i][^1] is C.LongNote terminal && continuations.TryGetValue(End(terminal), out var outgoing))
@@ -76,7 +79,7 @@ internal sealed class C2sAirScheduler
         }
     }
 
-    internal static Dictionary<C.Note, int> ParentOrder(List<C.Note> notes)
+    private static Dictionary<C.Note, int> ParentOrder(List<C.Note> notes)
     {
         var scheduler = new C2sAirScheduler(notes);
         var result = new Dictionary<C.Note, int>();
@@ -98,8 +101,13 @@ internal sealed class C2sAirScheduler
         return result;
     }
 
-    internal static List<C.Note> Schedule(List<C.Note> notes)
+    internal static List<C.Note> Schedule(List<C.Note> notes, IEnumerable<C.Slide[]>? slidePaths = null)
     {
+        if (slidePaths is not null)
+        {
+            notes = ScheduleGroundParents(notes, slidePaths);
+        }
+
         var scheduler = new C2sAirScheduler(notes);
         scheduler.AddGroundDependencies();
         var ordered = scheduler.Run();
@@ -107,26 +115,7 @@ internal sealed class C2sAirScheduler
         {
             // Direct C2S writes can retain a valid interleaved source order.
             // Reorder competing ground roots when complete AIR paths need it.
-            var parents = ParentOrder(notes);
-            var revised = notes.ToList();
-            var slides = C2sSlideScheduler.Schedule(C2sSlidePaths.Build(notes.OfType<C.Slide>(), rounded: true), parents);
-            var slideIndex = 0;
-            for (var i = 0; i < revised.Count; i++)
-            {
-                if (revised[i] is C.Slide)
-                {
-                    revised[i] = slides[slideIndex++];
-                }
-            }
-            foreach (var group in notes.Where(n => n is not C.Slide and not C.AirCrash and not C.IPairable).GroupBy(GroundEnd))
-            {
-                var records = group.OrderBy(n => parents.GetValueOrDefault(n, int.MaxValue)).ToArray();
-                var slots = group.Select(n => scheduler._positions[n]).Order().ToArray();
-                for (var i = 0; i < slots.Length; i++)
-                {
-                    revised[slots[i]] = records[i];
-                }
-            }
+            var revised = ScheduleGroundParents(notes, C2sSlidePaths.Build(notes.OfType<C.Slide>(), rounded: true));
             if (!revised.SequenceEqual(notes))
             {
                 scheduler = new C2sAirScheduler(revised);
@@ -135,6 +124,25 @@ internal sealed class C2sAirScheduler
             }
         }
         return ordered.SelectMany(i => scheduler._nodes[i]).ToList();
+    }
+
+    private static List<C.Note> ScheduleGroundParents(List<C.Note> notes, IEnumerable<C.Slide[]> slidePaths)
+    {
+        var parents = ParentOrder(notes);
+        var slides = C2sSlideScheduler.Schedule(slidePaths, parents);
+        // Finish ground SLIDE paths before AIR can attach to a temporary tail.
+        var revised = slides.Cast<C.Note>().Concat(notes.Where(n => n is not C.Slide)).ToList();
+        var positions = revised.Select((note, index) => (note, index)).ToDictionary(x => x.note, x => x.index);
+        foreach (var group in revised.Where(n => n is not C.Slide and not C.AirCrash and not C.IPairable).GroupBy(GroundEnd))
+        {
+            var records = group.OrderBy(n => parents.GetValueOrDefault(n, int.MaxValue)).ToArray();
+            var slots = group.Select(n => positions[n]).Order().ToArray();
+            for (var i = 0; i < slots.Length; i++)
+            {
+                revised[slots[i]] = records[i];
+            }
+        }
+        return revised;
     }
 
     private static bool IsContinuation(C.Note note) => note is

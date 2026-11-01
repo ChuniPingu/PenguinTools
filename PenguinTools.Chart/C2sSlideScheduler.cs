@@ -52,6 +52,8 @@ internal sealed class C2sSlideScheduler
                 // Complete every path that passes through this cell before
                 // leaving a permanent matching tail there. Whole paths avoid
                 // the deadlock caused by advancing one of those paths halfway.
+                // With positive rounded durations, the passing path ends later:
+                // these edges strictly decrease final time and cannot cycle.
                 AddBarrier(outgoing, ending);
             }
         }
@@ -60,6 +62,8 @@ internal sealed class C2sSlideScheduler
             foreach (var group in airCells.Values)
             {
                 // AIR ignores line type and uses ground-root creation order.
+                // These paths end at the same time, so the shared AIR rank can
+                // break ties without reversing a continuation dependency.
                 var attached = group.Where(i => airParentOrder.ContainsKey(_paths[i][^1]))
                     .OrderBy(i => airParentOrder[_paths[i][^1]]).ToArray();
                 for (var i = 1; i < attached.Length; i++)

@@ -11,7 +11,7 @@ public partial class C2SChartConverter
     private readonly Dictionary<UmgrModel.NegativeNote, C2sModel.IPairable> _negativePairRoots = [];
     private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairTargets = [];
     private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairRealTargets = [];
-    private readonly Dictionary<C2sModel.Slide, C2sSlideSegmentSource> _slideSegmentSources = [];
+    private readonly List<C2sModel.Slide[]> _slidePaths = [];
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
         where TSource : UmgrModel.Note where T : C2sModel.Note, new()
@@ -341,6 +341,7 @@ public partial class C2SChartConverter
     private void ProcessSlide(UmgrModel.Slide slide)
     {
         var joints = slide.Children.OfType<UmgrModel.SlideJoint>().Prepend(slide.AsChild()).ToArray();
+        var path = new C2sModel.Slide[joints.Length - 1];
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
@@ -355,15 +356,16 @@ public partial class C2SChartConverter
                 x.NoLine = curr.NoLine;
                 x.Effect = curr.HasEffectOverride ? curr.SegmentEffect : slide.Effect;
             });
-            _slideSegmentSources[note] = new C2sSlideSegmentSource(
-                slide,
-                next,
-                i == 0);
+            path[i] = note;
             // Register the final joint as an AIR pairing target.
             if (i == joints.Length - 2)
             {
                 RegisterPositivePairTarget(next, note);
             }
+        }
+        if (path.Length > 0)
+        {
+            _slidePaths.Add(path);
         }
     }
 

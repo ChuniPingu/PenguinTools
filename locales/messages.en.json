@@ -76,7 +76,6 @@
       "preview_stop_clamped": "Preview end time ({0} s) exceeds the allowed range and has been adjusted to {1} s."
     },
     "mg": {
-      "ambiguous_c2s_slide_path": "C2S connects this SLIDE to another SLIDE (lane {0}, width {1}).",
       "concurrent_ex_effects": "Different EX effects overlap at the same time: {0}. The game will display only one of them.",
       "head_bpm_not_found": "No BPM is set at the start of the chart.",
       "head_time_signature_event_not_found": "No time signature is set at the start of the chart. Using 4/4.",
@@ -90,7 +89,6 @@
       "meta_unknown_tag": "Unknown tag '{0}'.",
       "no_sortname_provided": "No sort name was provided. A sort name has been generated from the title.",
       "note_overlapped_in_different_til": "C2S cannot separate these coincident notes; the scroll speed of timeline {0} will be overridden by timeline {1}.",
-      "overlapping_air_parent_slide": "C2S attaches this AIR to a different overlapping SLIDE endpoint.",
       "string_id_not_found": "Asset ID '{0}' was not found in '{1}'.",
       "unrecognized_meta": "Unknown property '{0}', data: {1}.",
       "unrecognized_note": "Unknown note type {0}."

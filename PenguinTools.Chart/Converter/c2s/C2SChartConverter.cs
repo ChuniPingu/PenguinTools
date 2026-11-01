@@ -1,4 +1,3 @@
-using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
@@ -322,12 +321,9 @@ public partial class C2SChartConverter
             }
             RestoreMeterDefSnapshot();
             ApplyBgmBarOffset();
-            var airParentOrder = C2sAirScheduler.ParentOrder(Notes);
-            ScheduleC2sSlidePaths(airParentOrder);
-            PrioritizeGroundAirParents(airParentOrder);
-            ScheduleC2sAirParents();
-            ValidateOverlappingAirParents();
-            ValidateAmbiguousC2sSlidePaths();
+            var scheduled = C2sAirScheduler.Schedule(Notes, _slidePaths);
+            Notes.Clear();
+            Notes.AddRange(scheduled);
             if (!restoredSla)
             {
                 AssignSoflanTimelines();
@@ -344,8 +340,6 @@ public partial class C2SChartConverter
             return OperationResult<C2sModel.Chart>.Failure().WithDiagnostics(Diagnostic);
         }
     }
-
-    private readonly Dictionary<UmgrModel.Slide, int> _slideRootOrder = [];
 
     private void ApplyBgmBarOffset()
     {
@@ -381,257 +375,6 @@ public partial class C2SChartConverter
             if (note is C2sModel.LongNote longNote)
             {
                 longNote.EndTick = checked(longNote.EndTick.Original + offset);
-            }
-        }
-    }
-
-    private void ScheduleC2sSlidePaths(IReadOnlyDictionary<C2sModel.Note, int> airParentOrder)
-    {
-        var paths = Notes.OfType<C2sModel.Slide>()
-            .GroupBy(n => _slideSegmentSources[n].SourceSlide)
-            .Select(g => g.ToArray()).ToArray();
-        var scheduled = C2sSlideScheduler.Schedule(paths, airParentOrder);
-        foreach (var segment in scheduled)
-        {
-            var source = _slideSegmentSources[segment].SourceSlide;
-            _slideRootOrder.TryAdd(source, _slideRootOrder.Count);
-        }
-        RebuildNotesWithScheduledSlides(scheduled);
-    }
-
-    private void PrioritizeGroundAirParents(IReadOnlyDictionary<C2sModel.Note, int> airParentOrder)
-    {
-        var index = Notes.Select((note, i) => (note, i)).ToDictionary(p => p.note, p => p.i);
-        foreach (var group in _positivePairRealTargets.Values.Where(n => n is not C2sModel.Slide)
-                     .Distinct().GroupBy(n => (n.GetType(), Tick: n is C2sModel.Hold h ? h.EndTick.Round : n.Tick.Round,
-                         n.Lane, n.Width)))
-        {
-            ApplyNoteOrder(group.OrderBy(n => airParentOrder.GetValueOrDefault(n, int.MaxValue))
-                .ThenBy(n => index[n]).ToList(), index);
-        }
-    }
-
-    private void IndexAirCells(Dictionary<(int Round, int Lane, int Width, Type Kind), List<C2sModel.Note>> airsByCell, Dictionary<C2sModel.Note, int> noteIndex)
-    {
-        for (var i = 0; i < Notes.Count; i++)
-        {
-            var note = Notes[i];
-            noteIndex[note] = i;
-
-            if (note is not C2sModel.IPairable { Parent: { } parent } || parent is C2sModel.AirHold or C2sModel.AirSlide)
-            {
-                continue;
-            }
-
-            var key = (note.Tick.Round, note.Lane, note.Width, parent.GetType());
-            if (!airsByCell.TryGetValue(key, out var list))
-            {
-                list = [];
-                airsByCell[key] = list;
-            }
-
-            list.Add(note);
-        }
-
-    }
-
-    private void RebuildNotesWithScheduledSlides(List<C2sModel.Slide> scheduled)
-    {
-        var others = Notes.Where(note => note is not C2sModel.Slide).ToArray();
-        Notes.Clear();
-        Notes.AddRange(scheduled);
-        Notes.AddRange(others);
-    }
-
-    private Dictionary<C2sModel.IPairable, C2sModel.Note> BuildIntendedAirParents()
-    {
-        var intended = new Dictionary<C2sModel.IPairable, C2sModel.Note>();
-        foreach (var (source, root) in _negativePairRoots)
-        {
-            if (source.PairNote is null)
-            {
-                continue;
-            }
-
-            if (_positivePairRealTargets.TryGetValue(source.PairNote, out var real))
-            {
-                intended[root] = real;
-            }
-        }
-
-        return intended;
-    }
-
-    private void ScheduleC2sAirParents()
-    {
-        var intended = BuildIntendedAirParents();
-        if (intended.Count == 0)
-        {
-            return;
-        }
-
-        var airsByCell =
-            new Dictionary<(int Round, int Lane, int Width, Type Kind), List<C2sModel.Note>>();
-        var noteIndex = new Dictionary<C2sModel.Note, int>(Notes.Count);
-
-        IndexAirCells(airsByCell, noteIndex);
-
-        if (airsByCell.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var cellAirs in airsByCell.Values)
-        {
-            var orderedAirs = cellAirs
-                .OrderBy(a =>
-                {
-                    if (intended.TryGetValue((C2sModel.IPairable)a, out var parent))
-                    {
-                        return parent is C2sModel.Slide slide && _slideSegmentSources.TryGetValue(slide, out var source)
-                            ? _slideRootOrder[source.SourceSlide]
-                            : noteIndex.GetValueOrDefault(parent, int.MaxValue);
-                    }
-
-                    return int.MaxValue;
-                })
-                .ThenBy(a => noteIndex[a])
-                .ToList();
-
-            ApplyNoteOrder(orderedAirs, noteIndex);
-        }
-    }
-
-    private void ApplyNoteOrder(
-        List<C2sModel.Note> desiredOrder,
-        Dictionary<C2sModel.Note, int> noteIndex)
-    {
-        if (desiredOrder.Count <= 1)
-        {
-            return;
-        }
-
-        var slots = new int[desiredOrder.Count];
-        for (var i = 0; i < desiredOrder.Count; i++)
-        {
-            slots[i] = noteIndex[desiredOrder[i]];
-        }
-
-        Array.Sort(slots);
-
-        for (var i = 0; i < slots.Length; i++)
-        {
-            var note = desiredOrder[i];
-            Notes[slots[i]] = note;
-            noteIndex[note] = slots[i];
-        }
-    }
-
-    private void ValidateOverlappingAirParents()
-    {
-        var intended = BuildIntendedAirParents();
-        if (intended.Count == 0)
-        {
-            return;
-        }
-
-        var used = new HashSet<C2sModel.Note>();
-        var warned = new HashSet<(int Tick, int Lane, int Width)>();
-
-        var candidatesByCell = BuildSlideAttachCandidates();
-
-        var pairables = Notes.OfType<C2sModel.IPairable>()
-            .Where(note => note.Parent is C2sModel.Slide);
-
-        foreach (var pairable in pairables)
-        {
-            var note = (C2sModel.Note)pairable;
-            var cell = (note.Tick.Round, note.Lane, note.Width);
-            if (!candidatesByCell.TryGetValue(cell, out var candidates))
-            {
-                continue;
-            }
-
-            var bound = candidates.FirstOrDefault(candidate => !used.Contains(candidate));
-            if (bound is null)
-            {
-                continue;
-            }
-
-            used.Add(bound);
-
-            if (!intended.TryGetValue(pairable, out var expected) ||
-                ReferenceEquals(bound, expected))
-            {
-                continue;
-            }
-
-            if (!warned.Add(cell))
-            {
-                continue;
-            }
-
-            Diagnostic.Report(new TimedDiagnostic(
-                Severity.Warning,
-                Msg.Key(MsgKeys.Mg_Overlapping_air_parent_slide),
-                note.Tick.Original)
-            {
-                Target = NotePairDiagnosticTarget.From(_slideSegmentSources[(C2sModel.Slide)expected].EndJoint,
-                    _slideSegmentSources[(C2sModel.Slide)bound].EndJoint, Diagnostic.TimeCalculator)
-            });
-        }
-    }
-
-    private Dictionary<(int Tick, int Lane, int Width), List<C2sModel.Note>> BuildSlideAttachCandidates()
-    {
-        // AIR sees the completed paths in root creation order, at game precision.
-        var candidatesByCell =
-            new Dictionary<(int Tick, int Lane, int Width), List<C2sModel.Note>>();
-
-        void AddCandidate(C2sModel.Note slide, int tick, int lane, int width)
-        {
-            var key = (tick, lane, width);
-            if (!candidatesByCell.TryGetValue(key, out var list))
-            {
-                list = [];
-                candidatesByCell[key] = list;
-            }
-
-            list.Add(slide);
-        }
-
-        foreach (var slide in _positivePairRealTargets.Values.OfType<C2sModel.Slide>()
-                     .OrderBy(s => _slideRootOrder[_slideSegmentSources[s].SourceSlide]))
-        {
-            AddCandidate(slide, slide.EndTick.Round, slide.EndLane, slide.EndWidth);
-        }
-
-        return candidatesByCell;
-    }
-
-    private void ValidateAmbiguousC2sSlidePaths()
-    {
-        // Replay the reader at serialized C2S precision, including line groups.
-        foreach (var path in C2sSlidePaths.Build(Notes.OfType<C2sModel.Slide>(), rounded: true))
-        {
-            var root = _slideSegmentSources[path[0]].SourceSlide;
-            for (var i = 1; i < path.Length; i++)
-            {
-                var note = path[i];
-                var source = _slideSegmentSources[note];
-                if (ReferenceEquals(root, source.SourceSlide))
-                {
-                    continue;
-                }
-
-                Diagnostic.Report(new TimedDiagnostic(
-                    Severity.Information,
-                    Msg.Create(MsgKeys.Mg_Ambiguous_c2s_slide_path, note.Lane, note.Width),
-                    note.Tick.Original)
-                {
-                    Target = NotePairDiagnosticTarget.From(source.SourceSlide, _slideSegmentSources[path[i - 1]].EndJoint)
-                        .WithTime(Diagnostic.TimeCalculator!, note.Tick.Original)
-                });
             }
         }
     }
@@ -708,9 +451,4 @@ public partial class C2SChartConverter
 
         return !hasError;
     }
-
-    private sealed record C2sSlideSegmentSource(
-        UmgrModel.Slide SourceSlide,
-        UmgrModel.SlideJoint EndJoint,
-        bool IsRoot);
 }

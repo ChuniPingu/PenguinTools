@@ -62,7 +62,9 @@ Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that categ
 - **`SXD` / `SXC`** — ExSlide.
 - **Link** — usually `SLD`; `NCL` = no line.
 
-Conversion preserves unrelated statement order and orders SLIDE/AIR paths by parent and continuation dependencies. Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. Independent slides touching end to start require the later slide's first record before the earlier slide's final segment; sorting these records by time merges the paths. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches native height in integer tenths and the parent node type.
+Conversion and C2S writing share a scheduler that orders complete SLIDE/AIR paths by parent and continuation dependencies while preserving unrelated statement order. Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. Independent slides touching end to start require the later slide's first record before the earlier slide's final segment; sorting these records by time merges the paths. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches native height in integer tenths and the parent node type.
+
+When all segments have positive duration at C2S precision and each ground path has at most one AIR path attached at its final endpoint, these ordering constraints resolve overlapping paths without changing their associations.
 
 ## FLK (Flick)
 

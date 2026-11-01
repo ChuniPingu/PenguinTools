@@ -159,7 +159,7 @@ public sealed class C2sOverlappingAirTests
     }
 
     [Fact]
-    public void ZeroLengthOverlaps_KeepTheirDiagnosticAtTheActualTime()
+    public void ZeroLengthOverlaps_ReportShortLengthsAtTheActualTime()
     {
         var chart = NewChart();
         AddSlide(chart, 1920, 0, false, (1920, 0));
@@ -168,10 +168,13 @@ public sealed class C2sOverlappingAirTests
         var result = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
 
         Assert.True(result.Succeeded, result.ToString());
-        var diagnostic = Assert.Single(result.Diagnostics.Diagnostics,
-            d => d.Message.Key == MsgKeys.Mg_Ambiguous_c2s_slide_path);
-        Assert.Equal(1920, diagnostic.Time);
-        Assert.Contains(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Length_smaller_than_unit);
+        var diagnostics = result.Diagnostics.Diagnostics;
+        Assert.Equal(2, diagnostics.Count);
+        Assert.All(diagnostics, diagnostic =>
+        {
+            Assert.Equal(MsgKeys.Mg_Length_smaller_than_unit, diagnostic.Message.Key);
+            Assert.Equal(1920, diagnostic.Time);
+        });
     }
 
     private static U.Chart NewChart()
@@ -220,8 +223,8 @@ public sealed class C2sOverlappingAirTests
     {
         var result = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         Assert.True(result.Succeeded, result.ToString());
-        Assert.DoesNotContain(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Overlapping_air_parent_slide);
-        Assert.DoesNotContain(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Ambiguous_c2s_slide_path);
+        Assert.DoesNotContain(result.Diagnostics.Diagnostics, d => d.Message.Key == "diag.mg.overlapping_air_parent_slide");
+        Assert.DoesNotContain(result.Diagnostics.Diagnostics, d => d.Message.Key == "diag.mg.ambiguous_c2s_slide_path");
         var path = TestTempPaths.Create(".c2s");
         var ct = TestContext.Current.CancellationToken;
         try
