@@ -117,7 +117,20 @@ internal static class EditorProjection
             // Line flags and height encoding limits are normalized silently.
             foreach (var p in snapshots.Where(p => (p.Before with { NoLine = p.After.NoLine, Height = p.After.Height }) != p.After))
             {
-                Warn(diagnostics, format, p.Note.GetType().Name, Describe(p.Before), Describe(p.After), p.Note.Tick.Original);
+                var name = NoteName(p.Note);
+                var tick = p.Note.Tick.Original;
+                if (p.Before.Lane != p.After.Lane)
+                {
+                    Warn(diagnostics, MsgKeys.Warn_Editor_lane_adjusted, tick, format, name, p.Before.Lane, p.After.Lane);
+                }
+                if (p.Before.Width != p.After.Width)
+                {
+                    Warn(diagnostics, MsgKeys.Warn_Editor_width_adjusted, tick, format, name, p.Before.Width, p.After.Width);
+                }
+                if (p.Before.Color != p.After.Color)
+                {
+                    Warn(diagnostics, MsgKeys.Warn_Editor_color_defaulted, tick, format, name, p.Before.Color.ToString());
+                }
             }
         }
     }
@@ -144,7 +157,7 @@ internal static class EditorProjection
         var removed = false;
         foreach (var group in crash.Children.GroupBy(p => p.Tick.Original).Where(g => g.Count() > 1).ToArray())
         {
-            Warn(diagnostics, format, "AIR-CRUSH path", group.Count(), 1, group.Key);
+            Warn(diagnostics, MsgKeys.Warn_Editor_crash_points_merged, group.Key, format, group.Count());
             foreach (var point in group.SkipLast(1))
             {
                 crash.RemoveChild(point);
@@ -324,8 +337,16 @@ internal static class EditorProjection
         (n.Parent?.Parent is not null ? Key(n.Parent) + "/" : "") +
         string.Create(CultureInfo.InvariantCulture, $"{n.GetType().Name},{n.Tick.Original},{n.Timeline},{n.Lane},{n.Width}");
 
-    private static string Describe(EditorNoteProjection p) => string.Create(CultureInfo.InvariantCulture,
-        $"x={p.Lane}, w={p.Width}, h={p.Height}, color={p.Color}");
+    private static string NoteName(U.Note note) => note.GetType().Name switch
+    {
+        "ExTap" => "EX-TAP",
+        "HoldJoint" => "HOLD",
+        "SlideJoint" => "SLIDE",
+        "AirHold" or "AirHoldJoint" => "AIR-HOLD",
+        "AirSlide" or "AirSlideJoint" => "AIR-SLIDE",
+        "AirCrash" or "AirCrashJoint" => "AIR-CRUSH",
+        var name => name.ToUpperInvariant()
+    };
 
     private static EditorNoteProjection Capture(U.Note n) => new(Key(n), n.Lane, n.Width, GetHeight(n), GetColor(n),
         n switch { U.Slide s => s.NoLine, U.SlideJoint s when s.NextSibling is not null => s.NoLine, _ => null });
@@ -405,8 +426,8 @@ internal static class EditorProjection
             if (beat.Numerator <= 0 || beat.Denominator <= 0 || sourceLength <= 0 || delta < 0 || delta % length != 0)
             {
                 changed = true;
-                Warn(diagnostics, format, "BEAT", $"{beat.Numerator}/{beat.Denominator}",
-                    $"{previous.Numerator}/{previous.Denominator}", checked((int)sourceTick));
+                Warn(diagnostics, MsgKeys.Warn_Editor_meter_skipped, checked((int)sourceTick), format,
+                    $"{beat.Numerator}/{beat.Denominator}", $"{previous.Numerator}/{previous.Denominator}");
                 continue;
             }
             var bar = checked(previous.Bar + (int)(delta / length));
@@ -441,7 +462,6 @@ internal static class EditorProjection
         beat.Denominator > 0 && beat.Numerator >= 0
             ? checked((int)(1920L * beat.Numerator / beat.Denominator)) : previous;
 
-    private static void Warn(DiagnosticCollector diagnostics, string format, string feature, object before, object after, int tick) =>
-        diagnostics.Report(new TimedDiagnostic(Severity.Warning,
-            Msg.Create(MsgKeys.Warn_Editor_approximation, format, feature, before, after), tick));
+    private static void Warn(DiagnosticCollector diagnostics, string key, int tick, params object?[] args) =>
+        diagnostics.Report(new TimedDiagnostic(Severity.Warning, Msg.Create(key, args), tick));
 }

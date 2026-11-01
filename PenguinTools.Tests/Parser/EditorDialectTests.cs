@@ -150,7 +150,7 @@ public sealed class EditorDialectTests
                 : await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!)).WriteAsync(ct);
             Assert.True(written.Succeeded);
             Assert.Equal(zero || !representable,
-                written.Diagnostics.Diagnostics.Any(d => d.Message.Key == MsgKeys.Warn_Editor_approximation));
+                written.Diagnostics.Diagnostics.Any(d => d.Message.Key == MsgKeys.Warn_Editor_meter_skipped));
             Assert.NotEqual("existing output", await File.ReadAllTextAsync(path, ct));
         }
         finally { File.Delete(path); }
@@ -429,7 +429,7 @@ public sealed class EditorDialectTests
             await File.WriteAllTextAsync(path, "keep existing output", TestContext.Current.CancellationToken);
             var written = await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded);
-            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_crash_points_merged);
             Assert.Single(await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken),
                 line => line.StartsWith("#480>", StringComparison.Ordinal));
             var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)

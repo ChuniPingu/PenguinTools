@@ -236,8 +236,7 @@ public partial class C2SChartConverter
                 if (owner is null)
                 {
                     diagnostics.Report(new TimedDiagnostic(Severity.Warning,
-                        Msg.Create(MsgKeys.Warn_Editor_approximation, "C2S", "ALD timeline",
-                            point.Source.Timeline, actual), point.Source.Tick.Original)
+                        Msg.Create(MsgKeys.Warn_Editor_ald_timeline_changed, point.Source.Timeline, actual), point.Source.Tick.Original)
                     {
                         Target = NoteDiagnosticTarget.From(point.Source)
                     });

@@ -277,11 +277,11 @@ public class UgcTilTests
         var parsed = await ParseResult(body, ChartDialect.Original, Header.Replace("@VER\t8", "@VER\t9"));
 
         Assert.True(parsed.Succeeded, parsed.ToString());
-        Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+        Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_ald_timeline_changed);
         var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
         Assert.Contains(converted.Diagnostics.Diagnostics, diagnostic =>
-            diagnostic.Message.Key == MsgKeys.Warn_Editor_approximation &&
+            diagnostic.Message.Key == MsgKeys.Warn_Editor_ald_timeline_changed &&
             diagnostic.Target is NoteDiagnosticTarget { Type: "AirCrashJoint", Timeline: 2 });
         Assert.All(GetSoflanAreas(parsed.Value!), area => Assert.InRange(area.Width, 1, 16));
     }

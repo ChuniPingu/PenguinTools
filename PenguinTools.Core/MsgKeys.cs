@@ -47,6 +47,12 @@ public static class MsgKeys
     public const string Error_Chart_conversion_unsupported = "diag.error.chart_conversion_unsupported";
     public const string Error_Chart_version_too_new = "diag.error.chart_version_too_new";
     public const string Warn_Editor_approximation = "diag.warn.editor_approximation";
+    public const string Warn_Editor_lane_adjusted = "diag.warn.editor_lane_adjusted";
+    public const string Warn_Editor_width_adjusted = "diag.warn.editor_width_adjusted";
+    public const string Warn_Editor_color_defaulted = "diag.warn.editor_color_defaulted";
+    public const string Warn_Editor_crash_points_merged = "diag.warn.editor_crash_points_merged";
+    public const string Warn_Editor_meter_skipped = "diag.warn.editor_meter_skipped";
+    public const string Warn_Editor_ald_timeline_changed = "diag.warn.editor_ald_timeline_changed";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
     public const string Error_File_ignored_due_to_id_missing = "diag.error.file_ignored_due_to_id_missing";
