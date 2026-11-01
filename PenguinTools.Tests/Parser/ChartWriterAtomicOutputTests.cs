@@ -93,6 +93,87 @@ public class ChartWriterAtomicOutputTests
         }
     }
 
+    [Fact]
+    public async Task AtomicWrite_ReleasedFileLock_ReplacesExistingOutput()
+    {
+        Assert.SkipWhen(!OperatingSystem.IsWindows(), "Windows file sharing is required.");
+        var path = TestTempPaths.Create(".c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, "existing chart", TestContext.Current.CancellationToken);
+            using var locked = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var writing = AtomicFile.WriteAsync(path,
+                (stream, token) => stream.WriteAsync("replacement chart"u8.ToArray(), token).AsTask(),
+                TestContext.Current.CancellationToken);
+
+            await Task.Delay(150, TestContext.Current.CancellationToken);
+            Assert.False(writing.IsCompleted);
+            Assert.Equal("existing chart", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            locked.Dispose();
+            await writing.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+            Assert.Equal("replacement chart", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            AssertNoTemporaryOutput(path);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AtomicWrite_PermanentFileLock_PreservesExistingOutputAndCleansTemporaryFile()
+    {
+        Assert.SkipWhen(!OperatingSystem.IsWindows(), "Windows file sharing is required.");
+        var path = TestTempPaths.Create(".c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, "existing chart", TestContext.Current.CancellationToken);
+            using var locked = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            var failure = await Assert.ThrowsAsync<IOException>(() =>
+                AtomicFile.WriteAsync(path,
+                        (stream, token) => stream.WriteAsync("replacement chart"u8.ToArray(), token).AsTask(),
+                        TestContext.Current.CancellationToken)
+                    .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+            Assert.True((failure.HResult & 0xffff) is 32 or 33);
+            Assert.Equal("existing chart", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            AssertNoTemporaryOutput(path);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AtomicWrite_CancelledWhileFileLocked_PreservesExistingOutputAndCleansTemporaryFile()
+    {
+        Assert.SkipWhen(!OperatingSystem.IsWindows(), "Windows file sharing is required.");
+        var path = TestTempPaths.Create(".c2s");
+        try
+        {
+            await File.WriteAllTextAsync(path, "existing chart", TestContext.Current.CancellationToken);
+            using var locked = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            var writing = AtomicFile.WriteAsync(path,
+                (stream, token) => stream.WriteAsync("replacement chart"u8.ToArray(), token).AsTask(),
+                cancellation.Token);
+
+            await Task.Delay(150, TestContext.Current.CancellationToken);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                writing.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+            Assert.Equal("existing chart", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            AssertNoTemporaryOutput(path);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
     private static void AssertNoTemporaryOutput(string path) =>
         Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + ".*.tmp"));
 }
