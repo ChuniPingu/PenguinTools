@@ -35,7 +35,6 @@ internal static class EditorProjection
         {
             NormalizeNote(note, ugc, chart.Meta.ExtendedField);
         }
-        chart.Notes.Sort();
         CaptureNoteProjections(chart, before, diagnostics, format);
         if (ugc)
         {

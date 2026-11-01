@@ -387,7 +387,20 @@ public partial class C2SChartConverter
     {
         var paths = Notes.OfType<C2sModel.Slide>()
             .GroupBy(n => _slideSegmentSources[n].SourceSlide)
-            .Select(g => g.ToArray());
+            .Select(g => g.ToArray()).ToArray();
+        // AIR takes the first unoccupied matching endpoint. Prioritize paths
+        // with an attachment over unpaired paths at that same endpoint.
+        foreach (var group in paths.Select((path, index) => (path, index))
+                     .GroupBy(p => (p.path[^1].EndTick.Round, p.path[^1].EndLane, p.path[^1].EndWidth)))
+        {
+            var slots = group.Select(p => p.index).ToArray();
+            var ordered = group.OrderByDescending(p => _slideSegmentSources[p.path[^1]].EndJoint.PairNote is not null)
+                .Select(p => p.path).ToArray();
+            for (var i = 0; i < slots.Length; i++)
+            {
+                paths[slots[i]] = ordered[i];
+            }
+        }
         var scheduled = C2sSlideScheduler.Schedule(paths);
         foreach (var segment in scheduled)
         {
@@ -526,12 +539,8 @@ public partial class C2SChartConverter
 
         var candidatesByCell = BuildSlideAttachCandidates();
 
-        var pairables = Notes
-            .Select((note, index) => (note, index))
-            .Where(x => x.note is C2sModel.IPairable { Parent: C2sModel.Slide })
-            .OrderBy(x => x.note.Tick.Round)
-            .ThenBy(x => x.index)
-            .Select(x => (C2sModel.IPairable)x.note);
+        var pairables = Notes.OfType<C2sModel.IPairable>()
+            .Where(note => note.Parent is C2sModel.Slide);
 
         foreach (var pairable in pairables)
         {

@@ -175,7 +175,7 @@ public class UgcNoteTests
     }
 
     [Fact]
-    public async Task SlideFifoScheduler_WritesContinuationBeforeNewRootAtSharedEndpoint()
+    public async Task SlideFifoScheduler_PreservesDeclaredRootBeforeTouchingContinuation()
     {
         // Short root is declared before the long path whose continuation shares
         // the same Original tick. Without FIFO, C2S joins them into one path.
@@ -201,9 +201,9 @@ public class UgcNoteTests
             .Where(s => s.Tick.Round == 960 && s.Lane == 0 && s.Width == 16)
             .ToArray();
         Assert.Equal(2, atJunction.Length);
-        // Continuation of the long path ends at lane 7; the short root also ends there.
-        // First written segment at the junction must be the continuation (not IsRoot).
-        Assert.Equal(1920, atJunction[0].EndTick.Original);
+        // The declared short root can precede the earlier path's first segment;
+        // it therefore remains independent without sorting by start time.
+        Assert.Equal([2880, 1920], atJunction.Select(s => s.EndTick.Original));
         Assert.Equal(7, atJunction[0].EndLane);
         Assert.Equal(2, atJunction[0].EndWidth);
 
@@ -306,7 +306,7 @@ public class UgcNoteTests
     }
 
     [Fact]
-    public void AirFifoScheduler_WarnsWhenIntendedParentStartsLater()
+    public void AirFifoScheduler_PrioritizesIntendedParentEvenWhenItStartsLater()
     {
         var chart = new Chart.Models.umgr.Chart();
 
@@ -344,11 +344,10 @@ public class UgcNoteTests
         var result = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
 
         Assert.True(result.Succeeded, result.ToString());
-        Assert.Contains(
+        Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
-            diagnostic =>
-                diagnostic.Message.Key == MsgKeys.Mg_Overlapping_air_parent_slide &&
-                diagnostic.Severity == Severity.Warning);
+            diagnostic => diagnostic.Message.Key == MsgKeys.Mg_Overlapping_air_parent_slide);
+        Assert.Equal(240, result.Value!.Notes.OfType<Chart.Models.c2s.Slide>().First().Tick.Original);
     }
 
     [Fact]

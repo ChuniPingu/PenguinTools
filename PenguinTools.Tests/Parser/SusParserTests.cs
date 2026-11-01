@@ -241,7 +241,8 @@ public class SusParserTests
                     Assert.Equal(0.125m, restored.Value.Meta.BgmManualOffset);
                 }
                 var actual = await WriteC2s(restored.Value!);
-                Assert.Equal(baseline, actual);
+                Assert.Equal(baseline.Order(StringComparer.Ordinal), actual.Order(StringComparer.Ordinal));
+                Assert.True(Chart.C2sSlidePaths.PreservesPaths(baseline, actual, 384));
                 chart = await ReadC2s(actual);
             }
             finally

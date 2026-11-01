@@ -8,13 +8,14 @@ internal sealed class C2sSlideScheduler
     private readonly record struct Position(int Tick, int Lane, int Width, bool NoLine);
 
     private readonly Dictionary<C.Slide, C.Slide> _roots = [];
+    private readonly Dictionary<C.Slide, int> _sourceOrder = [];
     private readonly HashSet<C.Slide> _tails = [];
     private readonly Dictionary<C.Slide, int> _rootOrder = [];
     private readonly Dictionary<Position, LinkedList<C.Slide>> _pending = [];
     private readonly Dictionary<(Position, C.Slide), Queue<LinkedListNode<C.Slide>>> _bySource = [];
     private readonly Dictionary<Position, HashSet<Position>> _waitingTails = [];
     private readonly Dictionary<Position, PriorityQueue<C.Slide, int>> _active = [];
-    private readonly PriorityQueue<Position, (int, int, int, bool)> _ready = new();
+    private readonly PriorityQueue<Position, int> _ready = new();
     private readonly HashSet<Position> _queued = [];
 
     private C2sSlideScheduler(IEnumerable<C.Slide[]> paths)
@@ -40,6 +41,7 @@ internal sealed class C2sSlideScheduler
     private void Add(C.Slide slide, C.Slide root)
     {
         _roots[slide] = root;
+        _sourceOrder[slide] = _sourceOrder.Count;
         var start = Start(slide);
         if (!_pending.TryGetValue(start, out var list))
         {
@@ -82,7 +84,7 @@ internal sealed class C2sSlideScheduler
         // Degenerate/reversed segments can make the constraints unsatisfiable.
         // Keep them for the converter's existing path diagnostics.
         var fallback = _pending.Where(p => p.Value.Count > 0)
-            .MinBy(p => (p.Key.Tick, p.Key.Lane, p.Key.Width, p.Key.NoLine)).Key;
+            .MinBy(p => _sourceOrder[p.Value.First!.Value]).Key;
         return Continuation(fallback) ?? _pending[fallback].First!;
     }
 
@@ -120,10 +122,10 @@ internal sealed class C2sSlideScheduler
 
     private void Enqueue(Position key)
     {
-        if (_pending.ContainsKey(key) && !_queued.Contains(key) && Next(key) is not null)
+        if (_pending.ContainsKey(key) && !_queued.Contains(key) && Next(key) is { } next)
         {
             _queued.Add(key);
-            _ready.Enqueue(key, (key.Tick, key.Lane, key.Width, key.NoLine));
+            _ready.Enqueue(key, _sourceOrder[next.Value]);
         }
     }
 

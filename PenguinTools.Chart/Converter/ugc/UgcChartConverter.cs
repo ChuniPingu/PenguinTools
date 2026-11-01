@@ -109,7 +109,7 @@ public sealed class UgcChartConverter
         ConvertAirCrashes(airCrashes);
 
         RebindGroundParents(notes);
-        var airSlides = notes.OfType<C2sModel.AirSlide>().OrderBy(n => n.Tick.Original).ThenBy(n => n.Lane).ThenBy(n => n.Width).ToArray();
+        var airSlides = notes.OfType<C2sModel.AirSlide>().ToArray();
         var airHolds = notes.OfType<C2sModel.AirHold>().ToArray();
 
         foreach (var note in notes.OrderBy(n => n is C2sModel.IPairable p && p.Parent is not C2sModel.AirSlide and not C2sModel.AirHold ? ParentSourceOrder(p.Parent) : int.MaxValue))
@@ -138,7 +138,6 @@ public sealed class UgcChartConverter
             EmitDebugTilMarkers();
         }
 
-        _target.Notes.Sort();
 
         _target.Meta.C2sSlaEditKey ??= C2sRoundTripKeys.FormatSlaEditKey(_target);
         _target.Meta.C2sSlpEditKey ??= C2sRoundTripKeys.FormatSlpEditKey(_target);

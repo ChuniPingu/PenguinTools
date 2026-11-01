@@ -121,7 +121,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             var m = _chart.Meta;
             AppendMetadata(m);
             AppendEvents();
-            foreach (var n in _chart.Notes.Children.Where(n => n is not U.NegativeNote and not U.SoflanArea).OrderBy(n => n.Tick.Original).ThenBy(n => n.Lane).ThenBy(n => n.Width))
+            foreach (var n in _chart.Notes.Children.Where(n => n is not U.NegativeNote and not U.SoflanArea))
             {
                 WriteNote(n);
             }

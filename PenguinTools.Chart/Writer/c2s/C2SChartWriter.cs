@@ -239,13 +239,7 @@ public partial class C2SChartWriter
         // Ground SLIDE statement order defines the paths. Emit those records
         // first so their final endpoints exist before any AIR attachment.
         var notes = Chart.Notes.OfType<C2sModel.Slide>().Cast<C2sModel.Note>().Concat(Chart.Notes
-            .Where(note => note is not C2sModel.Slide)
-            .Select((note, index) => (note, index))
-            .OrderBy(x => x.note.Tick.Round)
-            .ThenBy(x => x.note.Lane)
-            .ThenBy(x => x.note.Width)
-            .ThenBy(x => x.index)
-            .Select(x => x.note))
+            .Where(note => note is not C2sModel.Slide))
             .ToList();
 
         var positions = notes
@@ -272,7 +266,6 @@ public partial class C2SChartWriter
                 Height: x.Height.Result,
                 ParentId: x.Parent!.Id))
             .Where(x => x.Count() > 1)
-            .OrderBy(x => x.Key.Tick)
             .ToArray();
 
         foreach (var group in groups)

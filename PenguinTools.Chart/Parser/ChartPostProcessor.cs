@@ -112,7 +112,6 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             ApplyLongNoteEffect(exTap, notesAtTick);
         }
 
-        chart.Notes.Sort();
 
         foreach (var (tick, effects) in exEffects)
         {
