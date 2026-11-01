@@ -22,6 +22,7 @@ public static class ChartScanner
     {
         var diagnostics = processContext.Diagnostics;
         var ct = processContext.CancellationToken;
+        var scanMediaTool = new ScanMediaTool(mediaTool, ct);
         var booksById = new ConcurrentDictionary<int, BookAccumulator>();
 
         var batch = DiagnosticSnapshot.Empty;
@@ -36,7 +37,7 @@ public static class ChartScanner
                     ChartFileDiscoveryFormats.GetGlob(format),
                     booksById,
                     assets,
-                    mediaTool,
+                    scanMediaTool,
                     processContext,
                     i > 0));
         }

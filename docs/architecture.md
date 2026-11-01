@@ -24,6 +24,8 @@ Treat application request/result records and [CLI JSON output](cli.md#json-outpu
 
 [Chart conversion](chart-conversion.md) defines supported conversions, timing, approximation, and round-trip behavior. [Format references](formats/README.md) describe file syntax and provenance; [testing](testing.md) covers regression and fixture requirements.
 
+Directory scans share audio and image validation tasks for files with the same full path, length, and last-write time. This reuse is scoped to one scan; each chart retains its own diagnostics, and scan cancellation reaches the shared decoder. Option export caching separately verifies input and output content hashes.
+
 ## Messages
 
 `PenguinTools.Core` defines `MessageDescriptor`, `Msg`, and `MsgKeys`. Diagnostics carry message keys and named arguments rather than already translated text.
