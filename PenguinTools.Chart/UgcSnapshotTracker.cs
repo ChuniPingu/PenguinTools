@@ -107,6 +107,21 @@ internal sealed class UgcSnapshotTracker
         }
         void Join(int a, int b) => roots[Root(b)] = Root(a);
 
+        var heads = JoinCoincidentNotes(Join);
+        JoinExCoverage(heads, Join);
+        foreach (var group in Enumerable.Range(0, _entries.Count).GroupBy(Root))
+        {
+            var indices = group.ToArray();
+            var key = Hash(string.Join('\n', indices.Select(i => Hash(string.Join('\n', _entries[i].Lines)))));
+            for (var i = 0; i < indices.Length; i++)
+            {
+                yield return (_entries[indices[i]].Note, key + ":" + i.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+    }
+
+    private Dictionary<int, List<int>> JoinCoincidentNotes(Action<int, int> join)
+    {
         var cells = new Dictionary<(int Tick, int Lane, int Width), int>();
         var heads = new Dictionary<int, List<int>>();
         for (var i = 0; i < _entries.Count; i++)
@@ -117,7 +132,7 @@ internal sealed class UgcSnapshotTracker
                 var cell = (point.Tick.Original, point.Lane, point.Width);
                 if (cells.TryGetValue(cell, out var previous))
                 {
-                    Join(i, previous);
+                    join(i, previous);
                 }
                 else
                 {
@@ -136,6 +151,11 @@ internal sealed class UgcSnapshotTracker
 
             atTick.Add(i);
         }
+        return heads;
+    }
+
+    private void JoinExCoverage(Dictionary<int, List<int>> heads, Action<int, int> join)
+    {
         foreach (var atTick in heads.Values)
         {
             foreach (var exIndex in atTick.Where(i => _entries[i].Note is U.ExTap))
@@ -146,18 +166,9 @@ internal sealed class UgcSnapshotTracker
                     var note = _entries[longIndex].Note;
                     if (ex.Lane <= note.Lane && ex.Lane + (long)ex.Width >= note.Lane + (long)note.Width)
                     {
-                        Join(exIndex, longIndex);
+                        join(exIndex, longIndex);
                     }
                 }
-            }
-        }
-        foreach (var group in Enumerable.Range(0, _entries.Count).GroupBy(Root))
-        {
-            var indices = group.ToArray();
-            var key = Hash(string.Join('\n', indices.Select(i => Hash(string.Join('\n', _entries[i].Lines)))));
-            for (var i = 0; i < indices.Length; i++)
-            {
-                yield return (_entries[indices[i]].Note, key + ":" + i.ToString(CultureInfo.InvariantCulture));
             }
         }
     }

@@ -465,15 +465,16 @@ public sealed partial class ChartExtras
         var holds = HoldEffects.GroupBy(h => h.Key).ToDictionary(g => g.Key, g => new Queue<HoldEffectSnapshot>(g));
         foreach (var hold in chart.Notes.Children.OfType<UmgrModel.ExTapableNote>())
         {
-            if (holds.TryGetValue(AirKey(hold), out var savedHolds) && savedHolds.TryDequeue(out var saved))
+            if (!holds.TryGetValue(AirKey(hold), out var savedHolds) || !savedHolds.TryDequeue(out var saved))
             {
-                if (eligible is not null && !eligible.Contains(hold))
-                {
-                    continue;
-                }
-
-                hold.Effect = saved.Effect;
+                continue;
             }
+            if (eligible is not null && !eligible.Contains(hold))
+            {
+                continue;
+            }
+
+            hold.Effect = saved.Effect;
         }
 
         foreach (var slide in chart.Notes.Children.OfType<UmgrModel.Slide>())
@@ -483,14 +484,19 @@ public sealed partial class ChartExtras
                 continue;
             }
 
-            var points = slide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
-            foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
+            RestoreSlideEffects(slide);
+        }
+    }
+
+    private void RestoreSlideEffects(UmgrModel.Slide slide)
+    {
+        var points = slide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
+        foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
+        {
+            if (saved.Index >= 0 && saved.Index < points.Length)
             {
-                if (saved.Index >= 0 && saved.Index < points.Length)
-                {
-                    points[saved.Index].HasEffectOverride = true;
-                    points[saved.Index].SegmentEffect = saved.Effect;
-                }
+                points[saved.Index].HasEffectOverride = true;
+                points[saved.Index].SegmentEffect = saved.Effect;
             }
         }
     }

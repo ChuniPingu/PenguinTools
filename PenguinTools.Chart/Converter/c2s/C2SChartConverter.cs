@@ -158,57 +158,59 @@ public partial class C2SChartConverter
         var restored = new List<C2sModel.Air>();
         var existing = Notes.OfType<C2sModel.Air>().ToList();
 
-        if (snapshot.Length != 0)
+        foreach (var entry in snapshot.Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
-            foreach (var entry in snapshot.Split(
-                         ';',
-                         StringSplitOptions.RemoveEmptyEntries))
+            var air = RestoreAirSnapshotEntry(entry, existing);
+            if (air is null)
             {
-                var fields = entry.Split(',');
-
-                if (fields.Length != 7 ||
-                    !int.TryParse(fields[0], out var tick) ||
-                    !int.TryParse(fields[1], out var timeline) ||
-                    !int.TryParse(fields[2], out var lane) ||
-                    !int.TryParse(fields[3], out var width) ||
-                    !Enum.TryParse<AirDirection>(fields[4], out var direction) ||
-                    !Enum.TryParse<Color>(fields[5], out var color))
-                {
-                    return;
-                }
-
-                var parent = CreateAirSnapshotParent(fields[6]);
-
-                if (parent is null)
-                {
-                    return;
-                }
-
-                // C2S has no per-AIR timeline field. Its snapshot predates SLA
-                // projection, which may assign a timeline to the editor note.
-                var air = existing.FirstOrDefault(a => a.Tick.Original == tick &&
-                    a.Lane == lane && a.Width == width && a.Parent?.GetType() == parent.GetType() &&
-                    a.Direction == direction && a.Color == color);
-                air ??= existing.FirstOrDefault(a => a.Tick.Original == tick &&
-                    a.Lane == lane && a.Width == width && a.Parent?.GetType() == parent.GetType());
-                if (air is not null)
-                {
-                    existing.Remove(air);
-                }
-                else
-                {
-                    air = new C2sModel.Air { Tick = tick, Timeline = timeline, Lane = lane, Width = width, Parent = parent };
-                }
-                air.Direction = direction;
-                air.Color = color;
-                air.Timeline = timeline;
-                restored.Add(air);
+                return;
             }
+            restored.Add(air);
         }
 
         Notes.RemoveAll(x => x is C2sModel.Air);
         Notes.AddRange((IEnumerable<C2sModel.Note>)restored);
 
+    }
+
+    private static C2sModel.Air? RestoreAirSnapshotEntry(string entry, List<C2sModel.Air> existing)
+    {
+        var fields = entry.Split(',');
+        if (fields.Length != 7 ||
+            !int.TryParse(fields[0], out var tick) ||
+            !int.TryParse(fields[1], out var timeline) ||
+            !int.TryParse(fields[2], out var lane) ||
+            !int.TryParse(fields[3], out var width) ||
+            !Enum.TryParse<AirDirection>(fields[4], out var direction) ||
+            !Enum.TryParse<Color>(fields[5], out var color))
+        {
+            return null;
+        }
+        var parent = CreateAirSnapshotParent(fields[6]);
+        if (parent is null)
+        {
+            return null;
+        }
+
+        // C2S has no per-AIR timeline field. Its snapshot predates SLA
+        // projection, which may assign a timeline to the editor note.
+        var air = existing.FirstOrDefault(a => a.Tick.Original == tick &&
+            a.Lane == lane && a.Width == width && a.Parent?.GetType() == parent.GetType() &&
+            a.Direction == direction && a.Color == color);
+        air ??= existing.FirstOrDefault(a => a.Tick.Original == tick &&
+            a.Lane == lane && a.Width == width && a.Parent?.GetType() == parent.GetType());
+        if (air is not null)
+        {
+            existing.Remove(air);
+        }
+        else
+        {
+            air = new C2sModel.Air { Tick = tick, Timeline = timeline, Lane = lane, Width = width, Parent = parent };
+        }
+        air.Direction = direction;
+        air.Color = color;
+        air.Timeline = timeline;
+        return air;
     }
 
     private static C2sModel.Note? CreateAirSnapshotParent(string id) =>

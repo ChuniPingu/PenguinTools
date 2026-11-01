@@ -12,7 +12,7 @@ internal static class ChartCopy
             Meta = source.Meta with { },
             Extras = source.Extras.Copy(),
             Notes = CopyTree(source.Notes, notes),
-            Events = CopyTree(source.Events, new Dictionary<U.Event, U.Event>())
+            Events = CopyTree(source.Events, [])
         };
         foreach (var (original, cloned) in notes)
         {

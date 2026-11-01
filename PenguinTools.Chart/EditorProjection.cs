@@ -19,6 +19,33 @@ internal static class EditorProjection
     {
         var chart = ChartCopy.Create(source);
         var format = ugc ? "UGC v9" : "MGXC v4";
+        PrepareSnapshots(chart);
+        chart.Extras.EncodingDialect = ChartDialect.Original;
+        chart.Extras.EditorFormatVersion = ugc ? 9 : 4;
+        NormalizeMeters(chart, diagnostics, format);
+        diagnostics.TimeCalculator = chart.GetCalculator();
+        diagnostics.BackfillTimeCalculator();
+        var notes = AllNotes(chart).ToArray();
+        var paths = chart.Notes.Children.Where(n => n is U.Slide or U.AirSlide or U.AirCrash)
+            .ToDictionary(n => n, n => n.Children.Select(CapturePoint).ToList());
+        chart.Meta.ExtendedField |= notes.Any(n => !CurveExpansion.IsControl(n) && (n.Lane < 0 || n.Lane + (long)n.Width > 16));
+        // Capture attributes before changing shared pair coordinates.
+        var before = notes.ToDictionary(n => n, Capture);
+        foreach (var note in notes)
+        {
+            NormalizeNote(note, ugc, chart.Meta.ExtendedField);
+        }
+        chart.Notes.Sort();
+        CaptureNoteProjections(chart, before, diagnostics, format);
+        if (ugc)
+        {
+            CapturePathProjections(chart, paths, before, diagnostics, format);
+        }
+        return chart;
+    }
+
+    private static void PrepareSnapshots(U.Chart chart)
+    {
         var extras = chart.Extras;
         extras.EditorNoteProjections.Clear();
         extras.EditorBeatProjections.Clear();
@@ -47,44 +74,36 @@ internal static class EditorProjection
             extras.OriginalBlankMeasure = true;
             chart.Meta.BgmEnableBarOffset = false;
         }
-        extras.EncodingDialect = ChartDialect.Original;
-        extras.EditorFormatVersion = ugc ? 9 : 4;
-        NormalizeMeters(chart, diagnostics, format);
-        diagnostics.TimeCalculator = chart.GetCalculator();
-        diagnostics.BackfillTimeCalculator();
-        var notes = AllNotes(chart).ToArray();
-        var paths = chart.Notes.Children.Where(n => n is U.Slide or U.AirSlide or U.AirCrash)
-            .ToDictionary(n => n, n => n.Children.Select(CapturePoint).ToList());
-        var changedPaths = new HashSet<U.Note>();
-        chart.Meta.ExtendedField |= notes.Any(n => !CurveExpansion.IsControl(n) && (n.Lane < 0 || n.Lane + (long)n.Width > 16));
-        // Capture attributes before changing shared pair coordinates.
-        var before = notes.ToDictionary(n => n, Capture);
-        for (var i = 0; i < notes.Length; i++)
+    }
+
+    private static void NormalizeNote(U.Note note, bool ugc, bool extendedField)
+    {
+        var clippedControl = ugc && note is U.SlideJoint { Joint: Joint.C, IsCurveControl: false }
+            or U.AirSlideJoint { Joint: Joint.C, IsCurveControl: false };
+        note.Width = Math.Clamp(note.Width, clippedControl ? 0 : 1, 16);
+        var expanded = extendedField || CurveExpansion.IsControl(note);
+        note.Lane = Math.Clamp(note.Lane, expanded ? -16 : 0, (expanded ? 32 : 16) - note.Width);
+        if (GetHeight(note) is { } height)
         {
-            var n = notes[i];
-            var clippedControl = ugc && n is U.SlideJoint { Joint: Joint.C, IsCurveControl: false }
-                or U.AirSlideJoint { Joint: Joint.C, IsCurveControl: false };
-            n.Width = Math.Clamp(n.Width, clippedControl ? 0 : 1, 16);
-            var expanded = chart.Meta.ExtendedField || CurveExpansion.IsControl(n);
-            n.Lane = Math.Clamp(n.Lane, expanded ? -16 : 0, (expanded ? 32 : 16) - n.Width);
-            if (GetHeight(n) is { } height)
+            var maxHeight = ugc ? 1295 : ushort.MaxValue;
+            SetHeight(note, Math.Clamp(decimal.Round(height, 0, MidpointRounding.AwayFromZero), 0, maxHeight));
+        }
+        if (GetColor(note) is not (null or Color.DEF or Color.PNK))
+        {
+            SetColor(note, Color.DEF);
+        }
+        if (note is U.Slide slide)
+        {
+            foreach (var joint in slide.Children.OfType<U.SlideJoint>())
             {
-                var maxHeight = ugc ? 1295 : ushort.MaxValue;
-                SetHeight(n, Math.Clamp(decimal.Round(height, 0, MidpointRounding.AwayFromZero), 0, maxHeight));
-            }
-            if (GetColor(n) is not (null or Color.DEF or Color.PNK))
-            {
-                SetColor(n, Color.DEF);
-            }
-            if (n is U.Slide slide)
-            {
-                foreach (var joint in slide.Children.OfType<U.SlideJoint>())
-                {
-                    joint.NoLine = slide.NoLine;
-                }
+                joint.NoLine = slide.NoLine;
             }
         }
-        chart.Notes.Sort();
+    }
+
+    private static void CaptureNoteProjections(U.Chart chart, Dictionary<U.Note, EditorNoteProjection> before,
+        DiagnosticCollector diagnostics, string format)
+    {
         // Retain unchanged colliding notes too, so FIFO restoration cannot apply a
         // changed note's attributes to an earlier overlapping note.
         foreach (var group in AllNotes(chart).GroupBy(Key))
@@ -95,49 +114,51 @@ internal static class EditorProjection
                 continue;
             }
 
-            extras.EditorNoteProjections.AddRange(snapshots.Select(p => p.Before));
+            chart.Extras.EditorNoteProjections.AddRange(snapshots.Select(p => p.Before));
             // Line flags and height encoding limits are normalized silently.
             foreach (var p in snapshots.Where(p => (p.Before with { NoLine = p.After.NoLine, Height = p.After.Height }) != p.After))
             {
                 Warn(diagnostics, format, p.Note.GetType().Name, Describe(p.Before), Describe(p.After), p.Note.Tick.Original);
             }
         }
-        if (ugc)
-        {
-            // Flattened curves no longer contain handles to match by note key.
-            // Retain their full editable path when any part needed approximation.
-            foreach (var root in paths.Keys.Where(n => n.Children.Any(CurveExpansion.IsControl)))
-            {
-                if (new[] { root }.Concat(root.Children).Any(n => (before[n] with { Key = Key(n) }) != Capture(n)))
-                {
-                    changedPaths.Add(root);
-                }
-            }
-            foreach (var crash in chart.Notes.Children.OfType<U.AirCrash>())
-            {
-                var removed = false;
-                foreach (var group in crash.Children.GroupBy(p => p.Tick.Original).Where(g => g.Count() > 1).ToArray())
-                {
-                    Warn(diagnostics, format, "AIR-CRUSH path", group.Count(), 1, group.Key);
-                    foreach (var point in group.SkipLast(1))
-                    {
-                        crash.RemoveChild(point);
-                    }
+    }
 
-                    removed = true;
-                }
-                if (removed)
-                {
-                    changedPaths.Add(crash);
-                }
-            }
-            foreach (var group in paths.Keys.GroupBy(Key).Where(g => g.Any(changedPaths.Contains)))
+    private static void CapturePathProjections(U.Chart chart, Dictionary<U.Note, List<EditorPathPoint>> paths,
+        Dictionary<U.Note, EditorNoteProjection> before, DiagnosticCollector diagnostics, string format)
+    {
+        // Flattened curves no longer contain handles to match by note key.
+        // Retain their full editable path when any part needed approximation.
+        var changedPaths = paths.Keys.Where(n => n.Children.Any(CurveExpansion.IsControl))
+            .Where(root => new[] { root }.Concat(root.Children).Any(n => (before[n] with { Key = Key(n) }) != Capture(n)))
+            .ToHashSet();
+        foreach (var crash in chart.Notes.Children.OfType<U.AirCrash>())
+        {
+            if (RemoveDuplicateCrashPoints(crash, diagnostics, format))
             {
-                // Include unchanged overlapping paths to preserve FIFO identity.
-                extras.EditorPathProjections.AddRange(group.Select(n => new EditorPathProjection(group.Key, paths[n])));
+                changedPaths.Add(crash);
             }
         }
-        return chart;
+        foreach (var group in paths.Keys.GroupBy(Key).Where(g => g.Any(changedPaths.Contains)))
+        {
+            // Include unchanged overlapping paths to preserve FIFO identity.
+            chart.Extras.EditorPathProjections.AddRange(group.Select(n => new EditorPathProjection(group.Key, paths[n])));
+        }
+    }
+
+    private static bool RemoveDuplicateCrashPoints(U.AirCrash crash, DiagnosticCollector diagnostics, string format)
+    {
+        var removed = false;
+        foreach (var group in crash.Children.GroupBy(p => p.Tick.Original).Where(g => g.Count() > 1).ToArray())
+        {
+            Warn(diagnostics, format, "AIR-CRUSH path", group.Count(), 1, group.Key);
+            foreach (var point in group.SkipLast(1))
+            {
+                crash.RemoveChild(point);
+            }
+
+            removed = true;
+        }
+        return removed;
     }
 
     private static IEnumerable<U.Note> AllNotes(U.Chart chart) =>
@@ -150,10 +171,21 @@ internal static class EditorProjection
         {
             return;
         }
-        var saved = extras.EditorNoteProjections.GroupBy(p => p.Key)
-            .ToDictionary(g => g.Key, g => new Queue<EditorNoteProjection>(g));
         // Resolve keys first: restoring a ground note also changes its paired AIR coordinates.
         var matches = AllNotes(chart).Select(n => (Note: n, Key: Key(n))).ToArray();
+        RestoreNotes(extras.EditorNoteProjections, matches, eligible);
+        RestorePaths(extras.EditorPathProjections, matches, eligible);
+        if (extras.BinarySnapshotValid || restoreEvents)
+        {
+            RestoreEvents(chart);
+        }
+    }
+
+    private static void RestoreNotes(List<EditorNoteProjection> projections, (U.Note Note, string Key)[] matches,
+        IReadOnlySet<U.Note>? eligible)
+    {
+        var saved = projections.GroupBy(p => p.Key)
+            .ToDictionary(g => g.Key, g => new Queue<EditorNoteProjection>(g));
         foreach (var (note, key) in matches)
         {
             if (!saved.TryGetValue(key, out var queue) || !queue.TryDequeue(out var p))
@@ -165,32 +197,39 @@ internal static class EditorProjection
                 continue;
             }
 
-            note.Lane = p.Lane;
-            note.Width = p.Width;
-            if (p.Height is { } height)
+            RestoreNote(note, p);
+        }
+    }
+
+    private static void RestoreNote(U.Note note, EditorNoteProjection projection)
+    {
+        note.Lane = projection.Lane;
+        note.Width = projection.Width;
+        if (projection.Height is { } height)
+        {
+            SetHeight(note, height);
+        }
+        if (projection.Color is { } color)
+        {
+            SetColor(note, color);
+        }
+        if (projection.NoLine is { } noLine)
+        {
+            if (note is U.Slide slide)
             {
-                SetHeight(note, height);
+                slide.NoLine = noLine;
             }
-
-            if (p.Color is { } color)
+            if (note is U.SlideJoint joint)
             {
-                SetColor(note, color);
-            }
-
-            if (p.NoLine is { } noLine)
-            {
-                if (note is U.Slide slide)
-                {
-                    slide.NoLine = noLine;
-                }
-
-                if (note is U.SlideJoint joint)
-                {
-                    joint.NoLine = noLine;
-                }
+                joint.NoLine = noLine;
             }
         }
-        var paths = extras.EditorPathProjections.GroupBy(p => p.Key)
+    }
+
+    private static void RestorePaths(List<EditorPathProjection> projections, (U.Note Note, string Key)[] matches,
+        IReadOnlySet<U.Note>? eligible)
+    {
+        var paths = projections.GroupBy(p => p.Key)
             .ToDictionary(g => g.Key, g => new Queue<EditorPathProjection>(g));
         foreach (var (note, key) in matches)
         {
@@ -202,56 +241,66 @@ internal static class EditorProjection
             {
                 continue;
             }
-            // Reuse surviving endpoints so AIR pair references remain attached.
-            var existing = note.Children.GroupBy(n => (n.Tick.Original, n.Timeline))
-                .ToDictionary(g => g.Key, g => new Queue<U.Note>(g));
-            foreach (var child in note.Children.ToArray())
-            {
-                note.RemoveChild(child);
-            }
-            foreach (var point in savedPath.Points)
-            {
-                U.Note child = note switch
-                {
-                    U.Slide => new U.SlideJoint(),
-                    U.AirSlide => new U.AirSlideJoint(),
-                    U.AirCrash => new U.AirCrashJoint(),
-                    _ => throw new InvalidOperationException("Invalid retained editor path.")
-                };
-                if (!point.IsCurveControl && existing.TryGetValue((point.Tick, point.Timeline), out var candidates)
-                    && candidates.TryDequeue(out var endpoint))
-                {
-                    child = endpoint;
-                }
-                child.Tick = point.Tick;
-                child.Timeline = point.Timeline;
-                child.Lane = point.Lane;
-                child.Width = point.Width;
-                if (point.Height is { } height)
-                {
-                    SetHeight(child, height);
-                }
-                if (child is U.SlideJoint slide)
-                {
-                    slide.Joint = point.Joint ?? Joint.D;
-                    slide.NoLine = point.NoLine;
-                    slide.IsCurveControl = point.IsCurveControl;
-                    slide.HasEffectOverride = point.HasEffectOverride;
-                    slide.SegmentEffect = point.SegmentEffect;
-                }
-                if (child is U.AirSlideJoint air)
-                {
-                    air.Joint = point.Joint ?? Joint.D;
-                    air.IsCurveControl = point.IsCurveControl;
-                }
-                note.AppendChild(child);
-            }
+            RestorePath(note, savedPath);
         }
-        if (!extras.BinarySnapshotValid && !restoreEvents)
-        {
-            return;
-        }
+    }
 
+    private static void RestorePath(U.Note note, EditorPathProjection savedPath)
+    {
+        // Reuse surviving endpoints so AIR pair references remain attached.
+        var existing = note.Children.GroupBy(n => (n.Tick.Original, n.Timeline))
+            .ToDictionary(g => g.Key, g => new Queue<U.Note>(g));
+        foreach (var child in note.Children.ToArray())
+        {
+            note.RemoveChild(child);
+        }
+        foreach (var point in savedPath.Points)
+        {
+            U.Note child = note switch
+            {
+                U.Slide => new U.SlideJoint(),
+                U.AirSlide => new U.AirSlideJoint(),
+                U.AirCrash => new U.AirCrashJoint(),
+                _ => throw new InvalidOperationException("Invalid retained editor path.")
+            };
+            if (!point.IsCurveControl && existing.TryGetValue((point.Tick, point.Timeline), out var candidates)
+                && candidates.TryDequeue(out var endpoint))
+            {
+                child = endpoint;
+            }
+            RestorePathPoint(child, point);
+            note.AppendChild(child);
+        }
+    }
+
+    private static void RestorePathPoint(U.Note child, EditorPathPoint point)
+    {
+        child.Tick = point.Tick;
+        child.Timeline = point.Timeline;
+        child.Lane = point.Lane;
+        child.Width = point.Width;
+        if (point.Height is { } height)
+        {
+            SetHeight(child, height);
+        }
+        if (child is U.SlideJoint slide)
+        {
+            slide.Joint = point.Joint ?? Joint.D;
+            slide.NoLine = point.NoLine;
+            slide.IsCurveControl = point.IsCurveControl;
+            slide.HasEffectOverride = point.HasEffectOverride;
+            slide.SegmentEffect = point.SegmentEffect;
+        }
+        if (child is U.AirSlideJoint air)
+        {
+            air.Joint = point.Joint ?? Joint.D;
+            air.IsCurveControl = point.IsCurveControl;
+        }
+    }
+
+    private static void RestoreEvents(U.Chart chart)
+    {
+        var extras = chart.Extras;
         if (extras.EditorBeatProjections.Count > 0)
         {
             foreach (var beat in chart.Events.Children.OfType<U.BeatEvent>().ToArray())
@@ -305,17 +354,17 @@ internal static class EditorProjection
     {
         switch (n)
         {
-            case U.AirSlide a:
-                a.Height = height;
+            case U.AirSlide slide:
+                slide.Height = height;
                 break;
-            case U.AirSlideJoint a:
-                a.Height = height;
+            case U.AirSlideJoint slideJoint:
+                slideJoint.Height = height;
                 break;
-            case U.AirCrash a:
-                a.Height = height;
+            case U.AirCrash crash:
+                crash.Height = height;
                 break;
-            case U.AirCrashJoint a:
-                a.Height = height;
+            case U.AirCrashJoint crashJoint:
+                crashJoint.Height = height;
                 break;
         }
     }
@@ -327,14 +376,14 @@ internal static class EditorProjection
     {
         switch (n)
         {
-            case U.Air a:
-                a.Color = color;
+            case U.Air air:
+                air.Color = color;
                 break;
-            case U.AirSlide a:
-                a.Color = color;
+            case U.AirSlide slide:
+                slide.Color = color;
                 break;
-            case U.AirHold a:
-                a.Color = color;
+            case U.AirHold hold:
+                hold.Color = color;
                 break;
         }
     }
@@ -355,8 +404,7 @@ internal static class EditorProjection
             var beat = beats[i];
             sourceTick = meters is null ? sourceTick + (long)(beat.Bar - sourceBar) * sourceLength : meters[i].Tick;
             sourceBar = beat.Bar;
-            sourceLength = beat.Denominator > 0 && beat.Numerator >= 0
-                ? checked((int)(1920L * beat.Numerator / beat.Denominator)) : sourceLength;
+            sourceLength = SourceMeasureLength(beat, sourceLength);
             var previous = accepted[^1];
             var length = 1920L * previous.Numerator / previous.Denominator;
             var delta = sourceTick - previous.Tick.Original;
@@ -394,6 +442,10 @@ internal static class EditorProjection
             chart.Extras.EditorBeatProjections = original;
         }
     }
+
+    private static int SourceMeasureLength(U.BeatEvent beat, int previous) =>
+        beat.Denominator > 0 && beat.Numerator >= 0
+            ? checked((int)(1920L * beat.Numerator / beat.Denominator)) : previous;
 
     private static void Warn(DiagnosticCollector diagnostics, string format, string feature, object before, object after, int tick) =>
         diagnostics.Report(new TimedDiagnostic(Severity.Warning,
