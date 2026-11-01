@@ -131,13 +131,8 @@ internal static class EditorProjection
         var changedPaths = paths.Keys.Where(n => n.Children.Any(CurveExpansion.IsControl))
             .Where(root => new[] { root }.Concat(root.Children).Any(n => (before[n] with { Key = Key(n) }) != Capture(n)))
             .ToHashSet();
-        foreach (var crash in chart.Notes.Children.OfType<U.AirCrash>())
-        {
-            if (RemoveDuplicateCrashPoints(crash, diagnostics, format))
-            {
-                changedPaths.Add(crash);
-            }
-        }
+        changedPaths.UnionWith(chart.Notes.Children.OfType<U.AirCrash>()
+            .Where(crash => RemoveDuplicateCrashPoints(crash, diagnostics, format)));
         foreach (var group in paths.Keys.GroupBy(Key).Where(g => g.Any(changedPaths.Contains)))
         {
             // Include unchanged overlapping paths to preserve FIFO identity.
