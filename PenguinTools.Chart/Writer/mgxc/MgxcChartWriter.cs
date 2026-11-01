@@ -63,8 +63,6 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     {
         _chart.Extras.CaptureSlideEffects(_chart);
         _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(_chart.Meta).ToList();
-        _chart.Extras.TraceCrashes = _chart.Notes.Children.OfType<UmgrModel.AirCrash>()
-            .Where(c => c.Attr == AirLadderAttr.Trace).Select(ChartExtras.CrashKey).ToList();
         using (var payload = new MemoryStream())
         {
             using var contentWriter = new BinaryWriter(payload, Encoding.UTF8, leaveOpen: true);

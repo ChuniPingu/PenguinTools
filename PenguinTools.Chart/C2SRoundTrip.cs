@@ -179,8 +179,9 @@ public static partial class C2SRoundTrip
         }
         foreach (string kind in new[] { "BEAT", "BPM", "TIL", "SPDMOD" })
         {
-            var rows = view.Replace("\r", "").Split('\n').Where(line => line.StartsWith(kind + "\t", StringComparison.Ordinal));
+            var rows = view.Replace("\r", "").Split('\n').Where(line => line.StartsWith(kind + "\t", StringComparison.Ordinal)).ToArray();
             saved.Add("VIEWHASH\t" + kind + "\t" + ViewHash(rows));
+            saved.Add("VIEWSEQHASH\t" + kind + "\t" + OrderedViewHash(rows));
         }
         saved.AddRange(exceptions.Split('\n').Where(line => line.StartsWith("EXCEPT\t", StringComparison.Ordinal)));
         SaveAmbiguousOrder(sourceLines, saved);
@@ -459,9 +460,25 @@ public static partial class C2SRoundTrip
             output.Add(output[output.Count - distance]);
         }
     }
-    public static string ViewHash(IEnumerable<string> lines)
+    public static string ViewHash(IEnumerable<string> lines) => HashViewRows(CanonicalViewRows(lines).Order(StringComparer.Ordinal));
+
+    internal static string OrderedViewHash(IEnumerable<string> lines) =>
+        HashViewRows(CanonicalViewRows(lines).OrderBy(ViewPositionKey, StringComparer.Ordinal));
+
+    internal static bool HasConcurrentViewEvents(IEnumerable<string> lines) => CanonicalViewRows(lines)
+        .GroupBy(ViewPositionKey).Any(group => group.Distinct(StringComparer.Ordinal).Skip(1).Any());
+
+    private static string ViewPositionKey(string row)
     {
-        var rows = new List<string>();
+        var parts = Parts(row);
+        return string.Join('\t', parts.Take(parts.FirstOrDefault() == "TIL" ? 3 : 2));
+    }
+
+    private static string HashViewRows(IEnumerable<string> rows) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", rows))));
+
+    private static IEnumerable<string> CanonicalViewRows(IEnumerable<string> lines)
+    {
         foreach (string line in lines)
         {
             var p = Parts(line);
@@ -473,9 +490,7 @@ public static partial class C2SRoundTrip
                     p[i] = n.ToString("0.############################", CultureInfo.InvariantCulture);
                 }
             }
-            rows.Add(string.Join("\t", p));
+            yield return string.Join("\t", p);
         }
-        rows.Sort(StringComparer.Ordinal);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", rows))));
     }
 }

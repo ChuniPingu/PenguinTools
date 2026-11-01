@@ -90,7 +90,8 @@ public static partial class ChartStatistics
             var end = At(start.Tick + N(p, 7), p, 8, 9);
             var height = Height(p, 6);
             var density = N(p, 5);
-            var color = p.Length > 11 ? p[11] : "DEF";
+            var color = p.Length > 11 && p[11] is "RED" or "ORN" or "YEL" or "LIM" or "GRN" or "AQA" or
+                "CYN" or "DGR" or "BLU" or "PPL" or "VLT" or "PNK" or "GRY" or "BLK" or "NON" ? p[11] : "DEF";
             var path = _notes.FirstOrDefault(n => n.Kind == "ALD" && n.Density == density &&
                 n.Color == color && n.End == start && n.Path[^1].EndHeight == height);
             if (path is null)

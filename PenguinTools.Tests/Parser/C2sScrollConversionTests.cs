@@ -52,6 +52,18 @@ public sealed class C2sScrollConversionTests
     }
 
     [Fact]
+    public async Task NegativePatternIdsDoNotChangeTheMainTimeline()
+    {
+        var chart = await Convert("SLP\t0\t0\t96\t9\t-1\nSFL\t0\t0\t96\t2\n");
+
+        var events = chart.Events.Children.OfType<U.ScrollSpeedEvent>().OrderBy(e => e.Tick).ToArray();
+        Assert.Equal([0, 480], events.Select(e => e.Tick.Original));
+        Assert.Equal([2m, 1m], events.Select(e => e.Speed));
+        Assert.All(events, e => Assert.Equal(0, e.Timeline));
+        Assert.Contains(chart.Extras.Speeds, e => e.Tag == "SLP" && e.Timeline == -1 && e.Speed == 9m);
+    }
+
+    [Fact]
     public async Task DuplicateAndNestedScrollIntervalsRestoreCombinedSpeed()
     {
         var chart = await Convert("SLP\t0\t0\t192\t0.1\t1\nSLP\t0\t0\t192\t0.1\t1\n" +

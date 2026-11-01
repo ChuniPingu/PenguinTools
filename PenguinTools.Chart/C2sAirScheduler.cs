@@ -103,6 +103,8 @@ internal sealed class C2sAirScheduler
 
     internal static List<C.Note> Schedule(List<C.Note> notes, IEnumerable<C.Slide[]>? slidePaths = null)
     {
+        using var crashes = C2sAirCrashScheduler.Schedule(notes.OfType<C.AirCrash>()).GetEnumerator();
+        notes = notes.Select(note => note is C.AirCrash && crashes.MoveNext() ? crashes.Current : note).ToList();
         if (slidePaths is not null)
         {
             notes = ScheduleGroundParents(notes, slidePaths);
@@ -150,23 +152,23 @@ internal sealed class C2sAirScheduler
 
     private static AirCell Start(C.Note note) => note switch
     {
-        C.AirSlide slide => new(slide.Tick.Round, slide.Lane, slide.Width, C2sHeight.Key(slide.Height), slide.Parent!.Id),
-        _ => new(note.Tick.Round, note.Lane, note.Width, 0, "AHD")
+        C.AirSlide slide => new(slide.Tick.Round, slide.Lane, Math.Clamp(slide.Width, 1, 16), C2sHeight.Key(slide.Height), slide.Parent!.Id),
+        _ => new(note.Tick.Round, note.Lane, Math.Clamp(note.Width, 1, 16), 0, "AHD")
     };
 
     private static AirCell End(C.LongNote note) => note switch
     {
-        C.AirSlide slide => new(slide.EndTick.Round, slide.EndLane, slide.EndWidth, C2sHeight.Key(slide.EndHeight), slide.Id),
-        _ => new(note.EndTick.Round, note.Lane, note.Width, 0, "AHD")
+        C.AirSlide slide => new(slide.EndTick.Round, slide.EndLane, Math.Clamp(slide.EndWidth, 1, 16), C2sHeight.Key(slide.EndHeight), slide.Id),
+        _ => new(note.EndTick.Round, note.Lane, Math.Clamp(note.Width, 1, 16), 0, "AHD")
     };
 
     private static GroundCell GroundEnd(C.Note note) => note switch
     {
-        C.Hold hold => new(hold.EndTick.Round, hold.Lane, hold.Width, note.GetType()),
-        C.LongNote longNote => new(longNote.EndTick.Round, longNote.EndLane, longNote.EndWidth, note.GetType()),
+        C.Hold hold => new(hold.EndTick.Round, hold.Lane, Math.Clamp(hold.Width, 1, 16), note.GetType()),
+        C.LongNote longNote => new(longNote.EndTick.Round, longNote.EndLane, Math.Clamp(longNote.EndWidth, 1, 16), note.GetType()),
         C.Sla area => new(new Models.Time(checked(area.Tick.Original + area.Length.Original)).Round,
-            area.Lane, area.Width, note.GetType()),
-        _ => new(note.Tick.Round, note.Lane, note.Width, note.GetType())
+            area.Lane, Math.Clamp(area.Width, 1, 16), note.GetType()),
+        _ => new(note.Tick.Round, note.Lane, Math.Clamp(note.Width, 1, 16), note.GetType())
     };
 
     private void AddGroundDependencies()
@@ -187,7 +189,7 @@ internal sealed class C2sAirScheduler
             Register(path);
         }
 
-        foreach (var path in C2sAirCrashPaths.Build(_notes.OfType<C.AirCrash>(), includeAxis: false))
+        foreach (var path in C2sAirCrashPaths.Build(_notes.OfType<C.AirCrash>()))
         {
             Register(path);
         }
@@ -223,7 +225,7 @@ internal sealed class C2sAirScheduler
                 root = actual;
             }
             else if (parent is not null && candidates.TryGetValue(
-                         new GroundCell(head.Tick.Round, head.Lane, head.Width, parent.GetType()), out var matching))
+                         new GroundCell(head.Tick.Round, head.Lane, Math.Clamp(head.Width, 1, 16), parent.GetType()), out var matching))
             {
                 root = matching.FirstOrDefault(n => !used.Contains(n));
             }
@@ -239,7 +241,7 @@ internal sealed class C2sAirScheduler
         }
         foreach (var group in Enumerable.Range(0, _pathCount)
                      .Where(i => _nodes[i][0] is C.IPairable { Parent: not null })
-                     .GroupBy(i => new GroundCell(_nodes[i][0].Tick.Round, _nodes[i][0].Lane, _nodes[i][0].Width,
+                     .GroupBy(i => new GroundCell(_nodes[i][0].Tick.Round, _nodes[i][0].Lane, Math.Clamp(_nodes[i][0].Width, 1, 16),
                          ((C.IPairable)_nodes[i][0]).Parent!.GetType())))
         {
             previous = null;

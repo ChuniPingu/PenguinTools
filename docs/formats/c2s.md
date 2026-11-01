@@ -27,7 +27,7 @@ Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that categ
 
 - **Measure / Offset** — placement in chart ticks (`RESOLUTION`, usually 384 per measure).
 - **Cell** — leftmost column (0–15; `1.14.00+` may use values outside that range).
-- **Width** — columns occupied (1–16 typically).
+- **Width** — columns occupied, clamped to 1–16 before matching paths and AIR parents. Extended lane bounds are applied after those relationships are established.
 
 ## TAP
 
@@ -120,6 +120,7 @@ When all segments have positive duration at C2S precision and each ground path h
 | `"ALD"` | Measure | Offset | Cell | Width | Density | Height | Duration | End Cell | End Width | End Height | Color | Attr |
 | ------- | ------- | ------ | ---- | ----- | ------- | ------ | -------- | -------- | --------- | ---------- | ----- | ---- |
 
+- Continuations join the first earlier path with matching endpoint time, cell, width, quantized height, density, and color. The root's axis applies to the whole path. Independent editor paths are ordered to keep touching endpoints separate.
 - **Color** — see [Colors](#colors).
 - **Attr** — ladder mode (`1.15.00+`):
 

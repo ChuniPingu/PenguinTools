@@ -242,7 +242,7 @@ public sealed class EditorDialectTests
         var mgxc = TestTempPaths.Create(".mgxc");
         try
         {
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);

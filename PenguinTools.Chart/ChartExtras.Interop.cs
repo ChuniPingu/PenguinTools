@@ -32,7 +32,8 @@ public sealed partial class ChartExtras
         string Canon(string line) => string.Join("\t", C2SRoundTrip.Parts(line).Select(p => decimal.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n.ToString("0.############################", CultureInfo.InvariantCulture) : p));
         var saved = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEW\t", StringComparison.Ordinal)).Select(s => Canon(s.Substring(5))).ToArray();
         var hashes = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEWHASH\t", StringComparison.Ordinal)).Select(C2SRoundTrip.Parts).ToDictionary(p => p[1], p => p[2]);
-        if (saved.Length == 0 && hashes.Count == 0)
+        var sequenceHashes = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEWSEQHASH\t", StringComparison.Ordinal)).Select(C2SRoundTrip.Parts).ToDictionary(p => p[1], p => p[2]);
+        if (saved.Length == 0 && hashes.Count == 0 && sequenceHashes.Count == 0)
         {
             return;
         }
@@ -40,9 +41,17 @@ public sealed partial class ChartExtras
         var current = EventView(chart).Split('\n');
         foreach (string kind in new[] { "BEAT", "BPM", "TIL", "SPDMOD" })
         {
-            var a = saved.Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).OrderBy(s => s, StringComparer.Ordinal);
-            var b = current.Select(Canon).Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).OrderBy(s => s, StringComparer.Ordinal);
-            if (hashes.TryGetValue(kind, out var hash) ? C2SRoundTrip.ViewHash(b) == hash : a.SequenceEqual(b))
+            var a = saved.Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal));
+            var b = current.Select(Canon).Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).ToArray();
+            // Legacy hashes did not retain same-position event order. Such a
+            // snapshot cannot establish that an effective-value edit is unchanged.
+            var unchanged = sequenceHashes.TryGetValue(kind, out var sequenceHash)
+                ? C2SRoundTrip.OrderedViewHash(b) == sequenceHash
+                : hashes.TryGetValue(kind, out var hash)
+                    ? !C2SRoundTrip.HasConcurrentViewEvents(b) && C2SRoundTrip.ViewHash(b) == hash
+                    : C2SRoundTrip.OrderedViewHash(a) == C2SRoundTrip.OrderedViewHash(b);
+            UnchangedEventKinds.Remove(kind);
+            if (unchanged)
             {
                 UnchangedEventKinds.Add(kind);
             }
@@ -139,7 +148,7 @@ public sealed partial class ChartExtras
 
         var snapshot = SourceSnapshot.Split('\n').Select(P).Where(p => p.Length > 0).ToArray();
         var sourceHash = snapshot.First(p => p[0] == "HASH")[1];
-        int sourceRes = int.Parse(snapshot.First(p => p[0] == "RESOLUTION")[1], CultureInfo.InvariantCulture);
+        int sourceRes = int.Parse(snapshot.FirstOrDefault(p => p.Length > 1 && p[0] == "RESOLUTION")?[1] ?? "384", CultureInfo.InvariantCulture);
         var judgeOptionsUnchanged = (snapshot.FirstOrDefault(p => p[0] == "TUTORIAL")?.ElementAtOrDefault(1) == "1") == Tutorial;
         RestoreJudgeHeaders(snapshot, headers);
         var usedExceptions = new HashSet<int>();

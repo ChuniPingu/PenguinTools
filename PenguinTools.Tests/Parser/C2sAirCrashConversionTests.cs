@@ -272,7 +272,7 @@ public sealed class C2sAirCrashConversionTests
         Assert.Equal(960, joints[1].Tick.Original);
     }
     [Fact]
-    public void AirCrashSegments_WithDifferentAxis_StartSeparatePaths()
+    public void AirCrashSegments_WithDifferentAxis_KeepTheRootAxis()
     {
         var source = new C2sChart();
 
@@ -314,7 +314,9 @@ public sealed class C2sAirCrashConversionTests
             .OfType<PenguinTools.Chart.Models.umgr.AirCrash>()
             .ToArray();
 
-        Assert.Equal(2, crashes.Length);
+        var crash = Assert.Single(crashes);
+        Assert.Equal(AirLadderAttr.AxisY, crash.Attr);
+        Assert.Equal(2, crash.Children.Count);
     }
     [Fact]
     public void C2sBaseHeads_AreReconstructedByPaths()

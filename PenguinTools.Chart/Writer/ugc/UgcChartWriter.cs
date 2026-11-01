@@ -113,6 +113,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _written.Clear();
             _effectCarriers.Clear();
             _chart.Extras.UgcExTaps.Clear();
+            _chart.Extras.AirAppearances.Clear();
             foreach (var carrier in _chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
             {
                 _effectCarriers.Add((carrier.Tick.Original, carrier.Lane, carrier.Width));
@@ -302,6 +303,14 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         if (n is U.ExTap exTap)
         {
             _chart.Extras.UgcExTaps.Add(new(exTap.Role, exTap.AirActionParent, exTap.AirActionParentJoint, exTap.AirActionParentIsEx));
+        }
+        if (n is U.AirHold airHold)
+        {
+            _chart.Extras.AirAppearances.Add(new(ChartExtras.AirKey(airHold), airHold.Color, airHold.Direction));
+        }
+        if (n is U.AirSlide airSlide)
+        {
+            _chart.Extras.AirAppearances.Add(new(ChartExtras.AirKey(airSlide), airSlide.Color, airSlide.Direction));
         }
         var payload = NotePayload(n, xy);
         Head(n, payload);

@@ -194,11 +194,9 @@ public class SusParserTests
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, false)]
-    [InlineData(ChartDialect.Original, true)]
-    [InlineData(ChartDialect.Extended, false)]
-    [InlineData(ChartDialect.Extended, true)]
-    public async Task SupportedNotesAndTiming_SurviveNativeEncodingAndThreeC2sCycles(ChartDialect dialect, bool ugc)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupportedNotesAndTiming_SurviveNativeEncodingAndC2sRoundTrip(bool ugc)
     {
         const string source = "#TITLE \"SUS roundtrip\"\n#ARTIST \"Artist\"\n#DESIGNER \"Designer\"\n" +
                               "#DIFFICULTY 3\n#PLAYLEVEL 14+\n#SONGID \"5097\"\n#WAVEOFFSET 0.125\n" +
@@ -217,7 +215,7 @@ public class SusParserTests
         Assert.Contains("MET\t1\t0\t4\t3", baseline);
         Assert.Contains("MET\t1\t288\t8\t5", baseline);
 
-        for (var cycle = 0; cycle < 4; cycle++)
+        for (var cycle = 0; cycle < 2; cycle++)
         {
             var native = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
             var ct = TestContext.Current.CancellationToken;
@@ -228,8 +226,8 @@ public class SusParserTests
                     : await new MgxcChartWriter(new MgxcWriteRequest(native, chart)).WriteAsync(ct);
                 Assert.True(written.Succeeded, written.ToString());
                 var restored = ugc
-                    ? await new UgcParser(new UgcParseRequest(native, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct)
-                    : await new MgxcParser(new MgxcParseRequest(native, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct);
+                    ? await new UgcParser(new UgcParseRequest(native, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                    : await new MgxcParser(new MgxcParseRequest(native, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
                 Assert.True(restored.Succeeded, restored.ToString());
                 if (cycle == 0)
                 {

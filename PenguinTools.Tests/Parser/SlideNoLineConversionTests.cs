@@ -16,64 +16,19 @@ public sealed class SlideNoLineConversionTests
     private static readonly string[] ExpectedSlideMarkers = ["NCL", "SLD", "NCL"];
 
     [Fact]
-    public async Task MixedNoLineSegments_WriteExpectedC2sMarkers()
-    {
-        var chart = CreateMixedNoLineSlideChart();
-
-        var converted = new C2SChartConverter(
-            new C2SConvertRequest(chart)).Convert();
-
-        Assert.True(converted.Succeeded, converted.ToString());
-
-        var segments = converted.Value!.Notes
-            .OfType<C2sModel.Slide>()
-            .OrderBy(x => x.Tick.Original)
-            .ToArray();
-
-        Assert.Equal(3, segments.Length);
-
-        Assert.Equal(
-            ExpectedNoLineSegments,
-            segments.Select(x => x.NoLine).ToArray());
-
-        var outputPath = Path.Combine(
-            Path.GetTempPath(),
-            $"penguin-tools-noline-{Guid.NewGuid():N}.c2s");
-
-        try
-        {
-            var written = await new C2SChartWriter(
-                    new C2SWriteRequest(outputPath, converted.Value))
-                .WriteAsync(TestContext.Current.CancellationToken);
-
-            Assert.True(written.Succeeded, written.ToString());
-
-            var header = (await File.ReadAllLinesAsync(outputPath, TestContext.Current.CancellationToken))[0];
-            Assert.Equal("VERSION\t1.15.00\t1.15.00", header);
-            Assert.Equal(
-                ExpectedSlideMarkers,
-                await ReadSlideMarkersAsync(outputPath, TestContext.Current.CancellationToken));
-        }
-        finally
-        {
-            if (File.Exists(outputPath))
-            {
-                File.Delete(outputPath);
-            }
-        }
-    }
-
-    [Fact]
     public async Task MixedNoLineSegments_RoundTripThroughC2sPreservesMarkers()
     {
         var chart = CreateMixedNoLineSlideChart();
         var converted = new C2SChartConverter(
             new C2SConvertRequest(chart)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
+        Assert.Equal(ExpectedNoLineSegments, converted.Value!.Notes
+            .OfType<C2sModel.Slide>().OrderBy(x => x.Tick.Original).Select(x => x.NoLine));
 
         var outputPath = Path.Combine(
             Path.GetTempPath(),
             $"penguin-tools-noline-roundtrip-{Guid.NewGuid():N}.c2s");
+        var rewritePath = outputPath + ".rewrite.c2s";
 
         try
         {
@@ -84,6 +39,8 @@ public sealed class SlideNoLineConversionTests
 
             Assert.Equal("VERSION\t1.15.00\t1.15.00",
                 (await File.ReadAllLinesAsync(outputPath, TestContext.Current.CancellationToken))[0]);
+            Assert.Equal(ExpectedSlideMarkers,
+                await ReadSlideMarkersAsync(outputPath, TestContext.Current.CancellationToken));
 
             var parsed = await new C2SParser(new C2SParseRequest(outputPath))
                 .ParseAsync(TestContext.Current.CancellationToken);
@@ -111,7 +68,6 @@ public sealed class SlideNoLineConversionTests
                 new C2SConvertRequest(toUmgr.Value)).Convert();
             Assert.True(reconverted.Succeeded, reconverted.ToString());
 
-            var rewritePath = outputPath + ".rewrite.c2s";
             var rewritten = await new C2SChartWriter(
                     new C2SWriteRequest(rewritePath, reconverted.Value!))
                 .WriteAsync(TestContext.Current.CancellationToken);
@@ -120,15 +76,11 @@ public sealed class SlideNoLineConversionTests
             Assert.Equal(
                 ExpectedSlideMarkers,
                 await ReadSlideMarkersAsync(rewritePath, TestContext.Current.CancellationToken));
-
-            File.Delete(rewritePath);
         }
         finally
         {
-            if (File.Exists(outputPath))
-            {
-                File.Delete(outputPath);
-            }
+            File.Delete(outputPath);
+            File.Delete(rewritePath);
         }
     }
 

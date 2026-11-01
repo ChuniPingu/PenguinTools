@@ -34,6 +34,22 @@ public sealed class C2sEffectParsingTests
     }
 
     [Theory]
+    [InlineData("HLD\t0\t96\t0\t4\t96\tDW")]
+    [InlineData("HLD\t0\t96\t0\t4\t96\tUNKNOWN")]
+    [InlineData("SLD\t0\t96\t0\t4\t96\t4\t4\tSLD\tRC")]
+    [InlineData("SLC\t0\t96\t0\t4\t96\t4\t4\tNCL\tUNKNOWN")]
+    [InlineData("SLD\t0\t96\t0\t4\t96\t4\t4\tRC")]
+    public async Task PlainLongNotes_IgnoreExtraEffectColumns(string record)
+    {
+        var result = await Parse(record);
+
+        Assert.True(result.Succeeded, result.ToString());
+        var note = Assert.Single(result.Value!.Notes.OfType<ExTapableLongNote>());
+        Assert.Null(note.Effect);
+        Assert.Empty(result.Diagnostics.Diagnostics);
+    }
+
+    [Theory]
     [InlineData("SLD", false)]
     [InlineData("NCL", true)]
     [InlineData("SXD", false)]

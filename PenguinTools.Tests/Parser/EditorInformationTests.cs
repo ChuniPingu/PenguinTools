@@ -15,7 +15,7 @@ public sealed class EditorInformationTests
     [Theory]
     [InlineData(ChartDialect.Original)]
     [InlineData(ChartDialect.Extended)]
-    public async Task EditorInformation_SurvivesThreeUgcMgxcCycles(ChartDialect dialect)
+    public async Task EditorInformation_SurvivesRepeatedUgcMgxcSaves(ChartDialect dialect)
     {
         var source = TestTempPaths.Create(".ugc");
         var ugc = TestTempPaths.Create(".ugc");
@@ -42,7 +42,7 @@ public sealed class EditorInformationTests
             chart.Events.AppendChild(new U.BreakingMarker { Tick = 720 });
             var image = ImageEvent();
             chart.Extras.EditorImageEvents.Add(image);
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);

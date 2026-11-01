@@ -47,9 +47,9 @@ public sealed class UgcChartConverter
 
     public OperationResult<UmgrModel.Chart> Convert()
     {
-        _target.Meta = _source.Meta;
+        _target.Meta = _source.Meta with { };
         _target.Meta.BgmFixedZeroOrigin = true;
-        _target.Extras = _source.Extras;
+        _target.Extras = _source.Extras.Copy();
         _target.Extras.C2sCoordinateOrigin = true;
         _target.Extras.FixedZeroOrigin = true;
 
@@ -104,6 +104,7 @@ public sealed class UgcChartConverter
             ConvertNote(note);
         }
 
+        NormalizeNativeGeometry();
         ApplySlaTimelines();
         if (_debugTil)
         {
@@ -169,23 +170,23 @@ public sealed class UgcChartConverter
                 out _,
                 out _))
         {
-            if (_source.Meta.C2sJudgeSldProxyBaseline is null)
+            if (_target.Meta.C2sJudgeSldProxyBaseline is null)
             {
-                _source.Meta.C2sJudgeSldProxyBaseline =
+                _target.Meta.C2sJudgeSldProxyBaseline =
                     C2SJudgeSummaryCalculator.CalculateSlideProxy(
                         _source);
             }
 
-            if (_source.Meta.C2sJudgeHldProxyBaseline is null)
+            if (_target.Meta.C2sJudgeHldProxyBaseline is null)
             {
-                _source.Meta.C2sJudgeHldProxyBaseline =
+                _target.Meta.C2sJudgeHldProxyBaseline =
                     C2SJudgeSummaryCalculator.CalculateHoldProxy(
                         _source);
             }
 
-            if (_source.Meta.C2sJudgeAirProxyBaseline is null)
+            if (_target.Meta.C2sJudgeAirProxyBaseline is null)
             {
-                _source.Meta.C2sJudgeAirProxyBaseline =
+                _target.Meta.C2sJudgeAirProxyBaseline =
                     C2SJudgeSummaryCalculator.CalculateAirProxy(
                         _source);
             }
@@ -235,13 +236,13 @@ public sealed class UgcChartConverter
             previousDenominator = meter.Denominator;
         }
 
-        AddDurationEvents(_source.Events.OfType<C2sModel.Dcm>(),
-            (tick, speed) => new UmgrModel.NoteSpeedEvent { Tick = tick, Speed = speed });
+        AddDcmEvents(_source.Events.OfType<C2sModel.Dcm>());
 
 #pragma warning disable CS0612
         var scrolls = _source.Events.OfType<C2sModel.SpeedEventBase>()
             .Where(x => x is C2sModel.Slp or C2sModel.Sfl or C2sModel.Stop)
-            .GroupBy(x => x is C2sModel.Slp slp ? Math.Max(0, slp.Timeline) : 0);
+            .Where(x => x is not C2sModel.Slp { Timeline: < 0 })
+            .GroupBy(x => x is C2sModel.Slp slp ? slp.Timeline : 0);
 #pragma warning restore CS0612
         foreach (var group in scrolls)
         {
@@ -276,18 +277,25 @@ public sealed class UgcChartConverter
         }
     }
 
-    private void AddDurationEvents<T>(IEnumerable<T> source, Func<int, decimal, UmgrModel.Event> factory)
-        where T : C2sModel.SpeedEventBase
+    private void AddDcmEvents(IEnumerable<C2sModel.Dcm> source)
     {
-        var events = source.OrderBy(x => x.Tick).ThenBy(x => x.Length).ToArray();
-        foreach (var item in events)
+        // DCM chooses the first active nonzero interval in start-time order.
+        // Equal starts retain statement order; later overlaps cannot override it.
+        var events = source.Where(e => e.Length.Original > 0 && e.Speed != 0m)
+            .OrderBy(e => e.Tick)
+            .Select(e => (Start: e.Tick.Original, End: checked(e.Tick.Original + e.Length.Original), e.Speed))
+            .ToArray();
+        var boundaries = events.SelectMany(e => new[] { e.Start, e.End }).Distinct().Order();
+        var speed = 1m;
+        foreach (var tick in boundaries)
         {
-            _target.Events.AppendChild(factory(item.Tick.Original, item.Speed));
-            var end = item.Tick.Original + item.Length.Original;
-            var restored = events.Where(x => !ReferenceEquals(x, item) && x.Tick.Original <= end &&
-                                              x.Tick.Original + x.Length.Original > end)
-                .OrderByDescending(x => x.Tick).Select(x => x.Speed).FirstOrDefault(1m);
-            _target.Events.AppendChild(factory(end, restored));
+            var next = events.Where(e => e.Start <= tick && tick < e.End).Select(e => e.Speed).FirstOrDefault(1m);
+            if (next == speed)
+            {
+                continue;
+            }
+            _target.Events.AppendChild(new UmgrModel.NoteSpeedEvent { Tick = tick, Speed = next });
+            speed = next;
         }
     }
 
@@ -757,6 +765,46 @@ public sealed class UgcChartConverter
 
     private static int Timeline(C2sModel.Note note) => Math.Max(0, note.Timeline);
 
+    private void NormalizeNativeGeometry()
+    {
+        var airKey = C2sRoundTripKeys.FormatAirEditKey(_target);
+        foreach (var root in _target.Notes.Children)
+        {
+            if (root is not UmgrModel.NegativeNote)
+            {
+                (root.Lane, root.Width) = NativeRootGeometry(root.Lane, root.Width);
+            }
+            foreach (var point in root.Children.Where(n => n is UmgrModel.SlideJoint or UmgrModel.AirSlideJoint or UmgrModel.AirCrashJoint))
+            {
+                point.Width = Math.Clamp(point.Width, 1, 16);
+                point.Lane = Math.Clamp(point.Lane, -16, 32 - point.Width);
+            }
+        }
+        // Relations use the original lanes; the game's bounds are applied only
+        // after complete paths exist. Their old AIR coordinates cannot be replayed.
+        if (airKey != C2sRoundTripKeys.FormatAirEditKey(_target))
+        {
+            _target.Meta.C2sAirSnapshot = null;
+            _target.Meta.C2sAirEditKey = null;
+        }
+    }
+
+    private static (int Lane, int Width) NativeRootGeometry(int lane, int width)
+    {
+        width = Math.Clamp(width, 1, 16);
+        if (lane < -16)
+        {
+            width = (int)Math.Max(1, width - (-16L - lane));
+            lane = 0;
+        }
+        if (lane + (long)width > 32)
+        {
+            width = (int)Math.Max(1, 32L - lane);
+            lane = 32 - width;
+        }
+        return (lane, width);
+    }
+
     private void ApplySlaTimelines()
     {
         var regions = _source.Notes.OfType<C2sModel.Sla>().ToArray();
@@ -782,19 +830,21 @@ public sealed class UgcChartConverter
     private static bool Contains(C2sModel.Sla sla, UmgrModel.Note note)
     {
         var end = sla.Tick.Original + sla.Length.Original;
+        var (lane, width) = NativeRootGeometry(sla.Lane, sla.Width);
         return note.Tick.Original >= sla.Tick.Original && note.Tick.Original < end &&
-               note.Lane >= sla.Lane && note.Lane + note.Width <= sla.Lane + sla.Width;
+               note.Lane >= lane && note.Lane + (long)note.Width <= lane + width;
     }
 
     private void EmitDebugTilMarkers()
     {
         foreach (var sla in _source.Notes.OfType<C2sModel.Sla>())
         {
+            var (lane, width) = NativeRootGeometry(sla.Lane, sla.Width);
             var crash = new UmgrModel.AirCrash
             {
                 Tick = sla.Tick,
-                Lane = sla.Lane,
-                Width = sla.Width,
+                Lane = lane,
+                Width = width,
                 Timeline = 0,
                 Height = 0,
                 Color = Color.NON,
@@ -803,8 +853,8 @@ public sealed class UgcChartConverter
             crash.AppendChild(new UmgrModel.AirCrashJoint
             {
                 Tick = sla.Tick.Original + sla.Length.Original,
-                Lane = sla.Lane,
-                Width = sla.Width,
+                Lane = lane,
+                Width = width,
                 Timeline = 0,
                 Height = 0
             });

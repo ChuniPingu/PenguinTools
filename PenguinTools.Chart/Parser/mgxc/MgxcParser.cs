@@ -218,11 +218,7 @@ public partial class MgxcParser
             return;
         }
 
-        foreach (var crash in Mgxc.Notes.Children.OfType<UmgrModel.AirCrash>()
-                     .Where(crash => Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash))))
-        {
-            crash.Attr = Models.AirLadderAttr.Trace;
-        }
+        Mgxc.Extras.RestoreCrashAttributes(Mgxc);
     }
 
     private void PostProcessChart()
@@ -239,7 +235,7 @@ public partial class MgxcParser
         EditorProjection.Restore(Mgxc);
         Mgxc.Extras.EditorFormatVersion = _version;
         Mgxc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Mgxc);
-        Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
+        Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
         Mgxc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Mgxc);
         Mgxc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Mgxc);
         ProcessMeta();

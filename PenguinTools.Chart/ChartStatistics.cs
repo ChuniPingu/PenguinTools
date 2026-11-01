@@ -10,9 +10,9 @@ public static partial class ChartStatistics
     {
         private readonly string[][] _rows;
         private readonly decimal _resolution;
-        private readonly (decimal Tick, decimal Bpm)[] _bpms;
-        private readonly decimal _judgeBpm;
-        private readonly decimal _airExclusion;
+        private readonly (decimal Tick, float Bpm)[] _bpms;
+        private readonly float _judgeBpm;
+        private readonly float _airExclusion;
         private readonly bool _tutorial;
         private readonly long[] _counts = new long[5];
         private readonly List<Note> _notes = [];
@@ -24,14 +24,16 @@ public static partial class ChartStatistics
                 .Where(p => p.Length > 0 && !p[0].StartsWith("//", StringComparison.Ordinal)).ToArray();
             _resolution = Header("RESOLUTION", 384);
             _bpms = _rows.Where(p => p[0] == "BPM")
-                .Select(p => (Tick: Tick(p), Bpm: N(p, 3))).OrderBy(p => p.Tick).ToArray();
-            _judgeBpm = Header("PROGJUDGE_BPM", 240);
-            _airExclusion = Header("PROGJUDGE_AER", 0.999m);
+                .Select(p => (Tick: Tick(p), Bpm: float.Parse(p[3], CultureInfo.InvariantCulture))).OrderBy(p => p.Tick).ToArray();
+            _judgeBpm = FloatHeader("PROGJUDGE_BPM", 240);
+            _airExclusion = FloatHeader("PROGJUDGE_AER", 0.999f);
             _tutorial = Header("TUTORIAL", 0) == 1;
         }
 
         private decimal Header(string tag, decimal fallback) =>
             _rows.Where(p => p[0] == tag).Select(p => N(p, 1)).LastOrDefault(fallback);
+        private float FloatHeader(string tag, float fallback) =>
+            _rows.Where(p => p[0] == tag).Select(p => float.Parse(p[1], CultureInfo.InvariantCulture)).LastOrDefault(fallback);
         private static decimal N(string[] p, int i) => decimal.Parse(p[i], CultureInfo.InvariantCulture);
         private static int I(string[] p, int i) => int.Parse(p[i], CultureInfo.InvariantCulture);
         private decimal Tick(string[] p) => N(p, 1) * _resolution + N(p, 2);
@@ -51,7 +53,7 @@ public static partial class ChartStatistics
 
         private decimal Step(decimal tick)
         {
-            var bpm = _bpms.FirstOrDefault((0, 150m)).Bpm;
+            var bpm = _bpms.FirstOrDefault((0, 150f)).Bpm;
             foreach (var change in _bpms)
             {
                 if (change.Tick > tick)
@@ -88,7 +90,7 @@ public static partial class ChartStatistics
             {
                 return false;
             }
-            var margin = MathF.Floor((float)(Step(tick) * 384 / _resolution) * (float)_airExclusion);
+            var margin = MathF.Floor((float)(Step(tick) * 384 / _resolution) * _airExclusion);
             return tick + (decimal)margin * _resolution / 384 >= end;
         }
 
@@ -106,8 +108,8 @@ public static partial class ChartStatistics
                     _counts[0]++;
                     CountGround(note);
                     break;
-                case "ALD" when note.Density > 0:
-                    _counts[3] += 1 + (long)Math.Max(0, Math.Floor((note.End.Tick - note.Start.Tick) / note.Density));
+                case "ALD" when note.Density > 0 && note.End.Tick > note.Start.Tick:
+                    _counts[3] += 1 + (long)Math.Floor((note.End.Tick - note.Start.Tick) / note.Density);
                     break;
             }
             if (note.Air is { } air)

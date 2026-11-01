@@ -26,7 +26,7 @@ internal static class EditorProjection
         diagnostics.TimeCalculator = chart.GetCalculator();
         diagnostics.BackfillTimeCalculator();
         var notes = AllNotes(chart).ToArray();
-        var paths = chart.Notes.Children.Where(n => n is U.Slide or U.AirSlide or U.AirCrash)
+        var paths = notes.Where(n => n.Parent == chart.Notes && n is U.Slide or U.AirSlide or U.AirCrash)
             .ToDictionary(n => n, n => n.Children.Select(CapturePoint).ToList());
         chart.Meta.ExtendedField |= notes.Any(n => !CurveExpansion.IsControl(n) && (n.Lane < 0 || n.Lane + (long)n.Width > 16));
         // Capture attributes before changing shared pair coordinates.
@@ -48,6 +48,7 @@ internal static class EditorProjection
         var extras = chart.Extras;
         extras.EditorNoteProjections.Clear();
         extras.EditorBeatProjections.Clear();
+        extras.HasEditorBeatProjection = false;
         extras.EditorPathProjections.Clear();
         // Check the editable source before normalization or curve expansion changes
         // its view. A newly written checksum must not validate an older snapshot.
@@ -168,8 +169,47 @@ internal static class EditorProjection
         return removed;
     }
 
-    private static IEnumerable<U.Note> AllNotes(U.Chart chart) =>
-        chart.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children));
+    private static IEnumerable<U.Note> AllNotes(U.Chart chart)
+    {
+        var written = new HashSet<U.Note>();
+        IEnumerable<U.Note> WithPairedNotes(U.Note root)
+        {
+            if (!written.Add(root))
+            {
+                yield break;
+            }
+            yield return root;
+            foreach (var child in root.Children)
+            {
+                if (written.Add(child))
+                {
+                    yield return child;
+                }
+            }
+            foreach (var positive in new[] { root }.Concat(root.Children).OfType<U.PositiveNote>())
+            {
+                if (positive.PairNote is not { } paired)
+                {
+                    continue;
+                }
+                foreach (var note in WithPairedNotes(paired))
+                {
+                    yield return note;
+                }
+            }
+        }
+
+        // Both editors write each paired AIR immediately after its ground path.
+        // Coincident projection queues must follow that same ownership order.
+        foreach (var root in chart.Notes.Children.Where(n => n is not U.NegativeNote)
+                     .Concat(chart.Notes.Children.OfType<U.NegativeNote>()))
+        {
+            foreach (var note in WithPairedNotes(root))
+            {
+                yield return note;
+            }
+        }
+    }
 
     internal static void Restore(U.Chart chart, IReadOnlySet<U.Note>? eligible = null, bool restoreEvents = false)
     {
@@ -308,7 +348,7 @@ internal static class EditorProjection
     private static void RestoreEvents(U.Chart chart)
     {
         var extras = chart.Extras;
-        if (extras.EditorBeatProjections.Count > 0)
+        if (extras.HasEditorBeatProjection || extras.EditorBeatProjections.Count > 0)
         {
             foreach (var beat in chart.Events.Children.OfType<U.BeatEvent>().ToArray())
             {
@@ -418,6 +458,7 @@ internal static class EditorProjection
         {
             var beat = beats[i];
             sourceTick = meters is null ? sourceTick + (long)(beat.Bar - sourceBar) * sourceLength : meters[i].Tick;
+            original[i] = original[i] with { Tick = checked((int)sourceTick) };
             sourceBar = beat.Bar;
             sourceLength = SourceMeasureLength(beat, sourceLength);
             var previous = accepted[^1];
@@ -452,9 +493,11 @@ internal static class EditorProjection
         chart.Events.Sort();
         chart.Meta.BgmInitialNumerator = accepted[0].Numerator;
         chart.Meta.BgmInitialDenominator = accepted[0].Denominator;
-        if (changed)
+        if (changed || !original.SequenceEqual(accepted.Select(b =>
+                new EditorBeatProjection(b.Bar, b.Tick.Original, b.Numerator, b.Denominator))))
         {
             chart.Extras.EditorBeatProjections = original;
+            chart.Extras.HasEditorBeatProjection = true;
         }
     }
 

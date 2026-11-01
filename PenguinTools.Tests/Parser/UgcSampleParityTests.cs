@@ -57,16 +57,8 @@ public class UgcSampleParityTests
         return summary;
     }
 
-    private static string FormatBpm(decimal bpm)
-    {
-        var s = bpm.ToString(CultureInfo.InvariantCulture);
-        if (!s.Contains('.'))
-        {
-            return s;
-        }
-
-        return s.TrimEnd('0').TrimEnd('.');
-    }
+    // Paired text and binary exports can round the same gameplay BPM differently.
+    private static string FormatBpm(decimal bpm) => ((float)bpm).ToString("R", CultureInfo.InvariantCulture);
 
     private sealed class ChartSummary
     {

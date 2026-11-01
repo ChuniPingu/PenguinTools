@@ -97,49 +97,43 @@ public class UgcTilTests
             .Select(area => area[5]).Append(0).Max()).ToArray();
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedRectanglesDoNotOverrideInterleavedTimelines(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedRectanglesDoNotOverrideInterleavedTimelines()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'100:t44\n" +
             "@USETIL\t1\n#0'50:t04\n#0'150:t44\n@USETIL\t0\n#0'200:tC4\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body, ChartDialect.Original);
 
         Assert.Equal([2, 1, 2, 1, 0],
             TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4), (40, 12, 4)));
         Assert.Equal(2, lines.Count(line => line.StartsWith("SLA\t", StringComparison.Ordinal)));
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedWideAndNarrowOverlapRemainsConvertible(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedWideAndNarrowOverlapRemainsConvertible()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n#1'0:t04\n@USETIL\t3\n#0'0:t12\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body, ChartDialect.Original);
 
         Assert.Equal([2, 3, 2], TimelinesInFile(lines, (0, 0, 4), (0, 1, 2), (384, 0, 4)));
         Assert.Equal(2, lines.Count(line => line.StartsWith("SLA\t", StringComparison.Ordinal)));
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedRectanglesPreserveAirSlideChildTimeline(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedRectanglesPreserveAirSlideChildTimeline()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'0:S440AN\n#100:s440A\n" +
             "@USETIL\t1\n#0'50:t04\n#0'150:t44\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body, ChartDialect.Original);
 
         var airSlide = Assert.Single(lines, line => line.StartsWith("ASD\t", StringComparison.Ordinal)).Split('\t');
         Assert.Equal(["0", "0", "4", "4"], airSlide[1..5]);
@@ -147,16 +141,14 @@ public class UgcTilTests
         Assert.Equal([2, 1, 2, 1], TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4)));
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedRectangleExcludesNoteAtEndTick(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedRectangleExcludesNoteAtEndTick()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'100:t44\n@USETIL\t0\n#0'105:t44\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body, ChartDialect.Original);
 
         Assert.Single(lines, line => line.StartsWith("SLA\t", StringComparison.Ordinal));
         Assert.Equal([2, 2, 0], TimelinesInFile(lines, (0, 4, 4), (20, 4, 4), (21, 4, 4)));

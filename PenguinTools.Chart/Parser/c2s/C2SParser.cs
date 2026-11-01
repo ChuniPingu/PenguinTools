@@ -657,13 +657,9 @@ public sealed class C2SParser
             EndWidth = noteBase.Width
         };
 
-        if (TryReadEffect(tokens, 6, lineNumber, out var effect))
+        if (type == "HXD")
         {
-            note.Effect = effect;
-        }
-        else if (type == "HXD")
-        {
-            note.Effect = ExEffect.UP;
+            note.Effect = TryReadEffect(tokens, 6, lineNumber, out var effect) ? effect : ExEffect.UP;
         }
 
         C2s.Notes.Add(note);
@@ -718,7 +714,7 @@ public sealed class C2SParser
             Width = noteBase.Width,
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = endWidth,
+            EndWidth = Math.Clamp(endWidth, 1, 16),
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
@@ -730,13 +726,9 @@ public sealed class C2SParser
             ? 8
             : 9;
 
-        if (TryReadEffect(tokens, effectIndex, lineNumber, out var effect))
+        if (type is "SXD" or "SXC")
         {
-            note.Effect = effect;
-        }
-        else if (type is "SXD" or "SXC")
-        {
-            note.Effect = ExEffect.UP;
+            note.Effect = TryReadEffect(tokens, effectIndex, lineNumber, out var effect) ? effect : ExEffect.UP;
         }
 
         C2s.Notes.Add(note);
@@ -793,7 +785,7 @@ public sealed class C2SParser
             Height = ParseDisplayedHeight(height),
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = endWidth,
+            EndWidth = Math.Clamp(endWidth, 1, 16),
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
@@ -857,7 +849,7 @@ public sealed class C2SParser
             Height = ParseDisplayedHeight(height),
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = endWidth,
+            EndWidth = Math.Clamp(endWidth, 1, 16),
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
@@ -914,7 +906,7 @@ public sealed class C2SParser
             return false;
         }
 
-        noteBase = new NoteBase(tick, lane, width);
+        noteBase = new NoteBase(tick, lane, Math.Clamp(width, 1, 16));
         return true;
     }
 
@@ -928,7 +920,7 @@ public sealed class C2SParser
                 roots[segment] = path[0];
             }
         }
-        foreach (var path in C2sAirCrashPaths.Build(C2s.Notes.OfType<c2sModel.AirCrash>(), includeAxis: false))
+        foreach (var path in C2sAirCrashPaths.Build(C2s.Notes.OfType<c2sModel.AirCrash>()))
         {
             foreach (var segment in path)
             {

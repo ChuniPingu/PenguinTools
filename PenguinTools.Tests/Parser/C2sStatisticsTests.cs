@@ -25,6 +25,9 @@ public sealed class C2sStatisticsTests
         { "TAP 0 0 0 4\nASC 0 0 0 4 TAP 1 96 4 4 2 DEF\nASD 0 96 4 4 ASD 2 96 8 4 4 DEF", [1, 0, 0, 1, 0] },
         { "TAP 0 0 0 4\nASC 0 0 0 4 TAP 1 96 4 4 2 DEF\nASC 0 96 4 4 ASC 2 96 8 4 3 DEF\nASD 0 192 8 4 ASC 3 48 12 4 4 DEF", [1, 0, 0, 5, 0] },
         { "ALD 0 96 0 4 48 1 96 4 4 1 DEF CEN\nALD 0 0 0 4 48 1 96 0 4 1 DEF CEN", [0, 0, 0, 6, 0] },
+        { "ALD 0 0 0 4 48 1 0 4 4 1 DEF DEF", [0, 0, 0, 0, 0] },
+        { "ALD 0 96 0 4 48 1 -96 4 4 1 DEF DEF", [0, 0, 0, 0, 0] },
+        { "ALD 0 0 0 4 48 1 96 4 4 2 UNKNOWN DEF\nALD 0 96 4 4 48 2 96 8 4 3 DEF DEF", [0, 0, 0, 5, 0] },
         { "SLA 0 0 0 4 96 0\nAIR 0 96 0 4 SLA DEF", [0, 0, 0, 1, 0] },
         { "SLA 0 0 0 4 96 0\nAIR 0 0 0 4 SLA DEF", [0, 0, 0, 0, 0] },
         { "SLA 0 0 0 4 96 0\nAHD 0 96 0 4 SLA 96 DEF\nAIR 0 96 0 4 SLA DEF", [0, 0, 0, 2, 0] },
@@ -98,16 +101,41 @@ public sealed class C2sStatisticsTests
     }
 
     [Theory]
+    [InlineData("119.999999", "240", 2)]
+    [InlineData("119.99999", "240", 4)]
+    [InlineData("239.999999", "240", 1)]
+    [InlineData("239.99999", "240", 2)]
+    [InlineData("120", "240.000001", 2)]
+    [InlineData("120", "240.00002", 4)]
+    public void JudgementInterval_UsesSinglePrecisionThresholds(string bpm, string judgeBpm, int holds)
+    {
+        var text = $"VERSION\t1.15.00\t1.15.00\nBPM\t0\t0\t{bpm}\nPROGJUDGE_BPM\t{judgeBpm}\nHLD\t0\t0\t0\t4\t96";
+        AssertCounts(ChartStatistics.Calculate(text), [1, holds, 0, 0, 0]);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Writer_ReplacesUnchangedSourceAndSnapshotStatistics(bool throughEditorModel)
+    public async Task Writer_RecalculatesAllCountsDespiteSavedStatistics(bool throughEditorModel)
     {
         var path = TestTempPaths.Create(".c2s");
         var ct = TestContext.Current.CancellationToken;
         try
         {
-            await File.WriteAllTextAsync(path, Header + "HLD\t0\t0\t0\t4\t96\n" +
-                "T_JUDGE_TAP\t1\nT_JUDGE_HLD\t500\nT_JUDGE_SLD\t0\nT_JUDGE_AIR\t0\nT_JUDGE_FLK\t0\nT_JUDGE_ALL\t501", ct);
+            const string records = """
+                HLD 0 0 0 4 96
+                SLD 0 0 8 4 96 12 4 SLD
+                TAP 1 0 0 4
+                AIR 1 0 0 4 TAP
+                FLK 1 0 8 4
+                T_JUDGE_TAP 500
+                T_JUDGE_HLD 500
+                T_JUDGE_SLD 500
+                T_JUDGE_AIR 500
+                T_JUDGE_FLK 500
+                T_JUDGE_ALL 2500
+                """;
+            await File.WriteAllTextAsync(path, Header + records.Replace(' ', '\t'), ct);
             var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var chart = parsed.Value!;
@@ -119,9 +147,12 @@ public sealed class C2sStatisticsTests
                 Assert.True(converted.Succeeded, converted.ToString());
                 chart = converted.Value!;
             }
+            chart.Meta.C2sJudgeHldProxyBaseline = throughEditorModel ? 99 : null;
+            chart.Meta.C2sJudgeSldProxyBaseline = throughEditorModel ? 99 : null;
+            chart.Meta.C2sJudgeAirProxyBaseline = throughEditorModel ? 99 : null;
             var written = await new C2SChartWriter(new C2SWriteRequest(path, chart)).WriteAsync(ct);
             Assert.True(written.Succeeded, written.ToString());
-            AssertCounts(await File.ReadAllTextAsync(path, ct), [1, 2, 0, 0, 0]);
+            AssertCounts(await File.ReadAllTextAsync(path, ct), [3, 2, 2, 1, 1]);
         }
         finally { File.Delete(path); }
     }

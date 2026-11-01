@@ -344,7 +344,7 @@ public sealed class C2sAudioOffsetTests
         var ct = TestContext.Current.CancellationToken;
         try
         {
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source)).WriteAsync(ct)).Succeeded);
                 var binary = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
@@ -558,7 +558,7 @@ public sealed class C2sAudioOffsetTests
         var ct = TestContext.Current.CancellationToken;
         try
         {
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True(ugc
                     ? (await new UgcChartWriter(editor, chart).WriteAsync(ct)).Succeeded

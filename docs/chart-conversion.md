@@ -31,6 +31,8 @@ For example, at an initial BPM of 120 with `SOFFSET` enabled, a 4/4 chart receiv
 
 Overlapping C2S SLP/SFL/STP intervals become TIL speeds of `1 + Σ(speed − 1)` at each interval boundary. SLA placement includes generated AIR-CRUSH rungs as well as explicit note endpoints. C2S output assigns higher timeline IDs to nested objects when needed, copying their complete scroll curves without changing editor timelines. Conversion warns only when the resulting scroll curve differs, such as coincident objects with incompatible curves.
 
+Overlapping DCM intervals use the first active nonzero speed in start-time order, retaining statement order for equal starts. Editor SPDMOD events follow that effective speed; unedited round trips retain the original intervals.
+
 ## Approximation and round trips
 
 MGXC retains Bezier handles; UGC and C2S expand curves. Unsupported geometry, AIR colors, and meter changes are approximated with `diag.warn.editor_approximation`; original values are retained in checksum-validated metadata. SLIDE line visibility follows the start without a warning.
@@ -42,4 +44,4 @@ In UGC output, PenguinTools retains original C2S roles and Trace attributes in v
 Two examples illustrate which information survives edits:
 
 - After C2S → MGXC, moving a note and converting back to C2S retains the edited position without inserting an additional opening measure, provided the origin metadata remains present.
-- After C2S → UGC, unchanged speed events can restore their saved C2S intervals. Editing a speed invalidates the matching snapshot, so conversion uses the edited speed instead of restoring its old value.
+- After C2S → UGC, unchanged speed events can restore their saved C2S intervals. Editing a speed or reordering events at the same position invalidates the matching snapshot, so conversion uses the edited events.

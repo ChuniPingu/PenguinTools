@@ -229,7 +229,7 @@ public partial class UgcParser
             Ugc.Extras.EditorFormatVersion = _version;
 
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
-            Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Ugc).Split('\n'));
+            Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Ugc).Split('\n'));
             Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
             Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
             ValidateSlaSnapshot(slaValid);

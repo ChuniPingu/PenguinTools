@@ -13,7 +13,7 @@ For targeted runs, pass the test runner's options after `--`; use `dotnet run --
 
 Synthetic parser and workflow tests do not need local chart samples. Native tool and sample integration tests have additional requirements; report skipped tests separately from passed tests.
 
-Parser and writer changes need regression tests for the affected metadata, timing, note relationships, or payloads, including round-trip preservation where relevant. Prefer synthetic fixtures; keep proprietary samples local and report any missing coverage.
+Parser and writer changes need regression tests for the affected metadata, timing, note relationships, or payloads, including round-trip preservation where relevant. Prefer small synthetic fixtures for distinct behavior; add format combinations or repeated conversions when they exercise a different code path or state change. Keep proprietary samples local and report any missing coverage.
 
 ## Chart samples
 

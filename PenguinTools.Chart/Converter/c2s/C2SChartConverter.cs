@@ -269,7 +269,7 @@ public partial class C2SChartConverter
             CurveExpansion.Expand(Mgxc);
             C2s.Meta = Mgxc.Meta;
             C2s.Meta.BgmFixedZeroOrigin |= Mgxc.Extras.UsesFixedCoordinateOrigin;
-            if (Mgxc.Extras.ParsedEventModelKey != C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n')))
+            if (Mgxc.Extras.ParsedEventModelKey != C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Mgxc).Split('\n')))
             {
                 Mgxc.Extras.UnchangedEventKinds.Clear();
                 Mgxc.Extras.CheckEventView(Mgxc);
