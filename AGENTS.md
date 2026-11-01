@@ -13,3 +13,16 @@
 - Preserve license text and source attribution in notices and format references.
 
 Use [architecture](docs/architecture.md) for project boundaries and CLI contracts, [development](docs/development.md) for native builds or releases, [testing](docs/testing.md) for local fixtures, and [format references](docs/formats/README.md) for chart syntax.
+
+## C# changes
+
+Prefer modern, stable C# supported by the affected project's SDK, target framework,
+and effective `LangVersion`.
+Check [Directory.Build.props](Directory.Build.props) when choosing syntax.
+Keep modernization within the requested change.
+
+Prefer file-scoped namespaces, target-typed `new`, collection expressions, primary
+constructors, patterns, switch expressions, using declarations, raw strings, and
+supported `field` or extension blocks where they improve clarity. Preserve collection
+and disposal semantics, framework behavior, and binding, source-generator,
+serialization, and public API contracts. Explain meaningful compatibility exceptions.
