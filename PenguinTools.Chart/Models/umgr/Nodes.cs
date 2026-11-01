@@ -10,7 +10,17 @@ namespace PenguinTools.Chart.Models.umgr;
 
 public abstract class TimeNode<T> where T : TimeNode<T>
 {
-    protected List<T> ChildNodes { get; } = [];
+    protected List<T> ChildNodes { get; private set; } = [];
+
+    internal T CopyNode()
+    {
+        var copy = (T)MemberwiseClone();
+        copy.ChildNodes = [];
+        copy.Parent = null;
+        copy.PreviousSibling = null;
+        copy.NextSibling = null;
+        return copy;
+    }
 
     public IReadOnlyList<T> Children => ChildNodes;
 

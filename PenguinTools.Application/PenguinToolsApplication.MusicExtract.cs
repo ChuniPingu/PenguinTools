@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Writer.mgxc;
+using PenguinTools.Chart.Writer.ugc;
 using PenguinTools.Core;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Media;
@@ -23,6 +24,11 @@ public sealed partial class PenguinToolsApplication
     private async Task<OperationResult<MusicExtractResult>> ExtractMusicCoreAsync(
         MusicExtractRequest request, IProgress<ProgressReport>? progress, CancellationToken cancellationToken)
     {
+        if (request.OutputFormat is not (ChartFormat.Mgxc or ChartFormat.Ugc))
+        {
+            return ApplicationDiagnostics.Failure<MusicExtractResult>(
+                Msg.Create(MsgKeys.Error_Invalid_Header, request.OutputFormat, "MGXC or UGC"));
+        }
         var xmlPath = FullPath(request.MusicXmlPath);
         var output = FullPath(request.OutputDirectory);
         if (!File.Exists(xmlPath))
@@ -45,6 +51,7 @@ public sealed partial class PenguinToolsApplication
         Directory.CreateDirectory(stage);
         var artifacts = new List<ApplicationArtifact>();
         var chartSummaries = new List<MusicExtractChartSummary>();
+        var diagnostics = OperationResult.Success().Diagnostics;
         var musicFileName = $"{songId}_music.wav";
         var jacketFileName = $"{songId}_jacket.png";
         try
@@ -103,9 +110,10 @@ public sealed partial class PenguinToolsApplication
                 var extracted = await ExtractMusicChartAsync(row,
                     new MusicExtractionContext(request, root, xmlDirectory, stage, songFolder, audio, jacketPng is not null),
                     cancellationToken);
+                diagnostics = diagnostics.Merge(extracted.Diagnostics);
                 if (!extracted.Succeeded)
                 {
-                    return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(extracted.Diagnostics);
+                    return OperationResult<MusicExtractResult>.Failure().WithDiagnostics(diagnostics);
                 }
 
                 chartSummaries.Add(extracted.Value);
@@ -125,6 +133,7 @@ public sealed partial class PenguinToolsApplication
                 var kind = Path.GetExtension(file).ToLowerInvariant() switch
                 {
                     ".mgxc" => "chart.mgxc",
+                    ".ugc" => "chart.ugc",
                     ".wav" => "audio.wav",
                     ".png" => "jacket.png",
                     _ => "music.file"
@@ -132,7 +141,7 @@ public sealed partial class PenguinToolsApplication
                 artifacts.Add(new ApplicationArtifact(kind, destination));
             }
             return OperationResult<MusicExtractResult>.Success(new MusicExtractResult(
-                xmlPath, songFolder, songId, title, artist, chartSummaries, artifacts));
+                xmlPath, songFolder, songId, title, artist, chartSummaries, artifacts)).WithDiagnostics(diagnostics);
         }
         finally
         {
@@ -219,12 +228,14 @@ public sealed partial class PenguinToolsApplication
             return OperationResult<MusicExtractChartSummary>.Failure().WithDiagnostics(converted.Diagnostics);
         }
 
-        var filename = $"{songId}_{difficultyId}.mgxc";
+        var filename = $"{songId}_{difficultyId}.{ToChartFormatName(request.OutputFormat)}";
         var staged = Path.Combine(stage, filename);
-        await new MgxcChartWriter(new MgxcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);
-        return OperationResult<MusicExtractChartSummary>.Success(new MusicExtractChartSummary(songId, difficultyId,
+        var written = request.OutputFormat == ChartFormat.Ugc
+            ? await new UgcChartWriter(staged, converted.Value).WriteAsync(cancellationToken)
+            : await new MgxcChartWriter(new MgxcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);
+        return ApplicationDiagnostics.Merge(new MusicExtractChartSummary(songId, difficultyId,
             chart.Meta.Difficulty.ToString(), chart.Meta.Level, chart.Meta.Designer, chart.Meta.MainBpm,
-            Path.Combine(songFolder, filename)));
+            Path.Combine(songFolder, filename)), parsed.Diagnostics.Merge(converted.Diagnostics), written);
     }
 
     private static async Task<XDocument> LoadXmlAsync(string path, CancellationToken ct)

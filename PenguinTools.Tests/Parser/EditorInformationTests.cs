@@ -44,7 +44,7 @@ public sealed class EditorInformationTests
             chart.Extras.EditorImageEvents.Add(image);
             for (var cycle = 0; cycle < 3; cycle++)
             {
-                Assert.True((await new UgcChartWriter(ugc, chart, dialect).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
+                Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);
                 Assert.Contains("@LEVEL\t4", text);
                 Assert.Contains("'User annotation", text);
@@ -57,7 +57,7 @@ public sealed class EditorInformationTests
                 Assert.True(readUgc.Succeeded, readUgc.ToString());
                 chart = readUgc.Value!;
                 AssertInformation(chart, image);
-                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart, dialect))
+                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart))
                     .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var readMgxc = await new MgxcParser(new MgxcParseRequest(mgxc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
@@ -125,10 +125,8 @@ public sealed class EditorInformationTests
         return stream.ToArray();
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task RetainedUserText_RestoresNativeSaveWithoutOverwritingEdits(ChartDialect dialect)
+    [Fact]
+    public async Task RetainedUserText_RestoresNativeSaveWithoutOverwritingEdits()
     {
         var chart = new U.Chart();
         const string comment = "Original comment\n第二行\t制表符";
@@ -141,8 +139,12 @@ public sealed class EditorInformationTests
         var mgxc = TestTempPaths.Create(".mgxc");
         try
         {
-            Assert.True((await new UgcChartWriter(ugc, chart, dialect)
+            Assert.True((await new UgcChartWriter(ugc, chart)
                 .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
+            var saved = await new UgcParser(new UgcParseRequest(ugc, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(saved.Succeeded);
+            chart = saved.Value!;
             // A native editor reads the single-line view and retains the extension payload.
             chart.Meta.Comment = comment.Replace('\n', ' ').Replace('\t', ' ') + "\r\n";
             chart.Meta.Copyright = copyright.Replace('\n', ' ');
@@ -153,7 +155,7 @@ public sealed class EditorInformationTests
                     chart.Meta.Comment = "Edited comment";
                     chart.Meta.Copyright = "Edited copyright";
                 }
-                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart, dialect))
+                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart))
                     .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var parsed = await new MgxcParser(new MgxcParseRequest(mgxc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
@@ -169,10 +171,8 @@ public sealed class EditorInformationTests
         }
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task RetainedUserText_DoesNotOverwriteEdits(ChartDialect dialect)
+    [Fact]
+    public async Task RetainedUserText_DoesNotOverwriteEdits()
     {
         var chart = new U.Chart();
         chart.Meta.Comment = "Original comment\n第二行";
@@ -183,7 +183,7 @@ public sealed class EditorInformationTests
         var path = TestTempPaths.Create(".ugc");
         try
         {
-            Assert.True((await new UgcChartWriter(path, chart, dialect)
+            Assert.True((await new UgcChartWriter(path, chart)
                 .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
             var text = await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken);
             text = text.Replace("@CMT\tOriginal comment 第二行", "@CMT\tEdited comment", StringComparison.Ordinal)

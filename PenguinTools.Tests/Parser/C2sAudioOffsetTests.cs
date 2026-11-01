@@ -44,8 +44,9 @@ public sealed class C2sAudioOffsetTests
                 source.Events.AppendChild(new U.NoteSpeedEvent { Tick = 503, Speed = 1 });
             }
             source.Notes.AppendChild(new U.Tap { Tick = 503, Lane = 0, Width = 4 });
-            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, source, ChartDialect.Original))
+            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, source))
                 .WriteAsync(ct)).Succeeded);
+            await LegacyEditorFixture.DowngradeAsync(input, ct);
             var parsed = await new MgxcParser(new MgxcParseRequest(input, TestAssets.Load(), mode), TestMediaTool.Instance)
                 .ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
@@ -78,9 +79,10 @@ public sealed class C2sAudioOffsetTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task ExtendedWriters_PreserveFixedOriginOnSubsequentDefaultReads(bool ugc, bool blank)
+    public async Task OfficialWriters_PreserveFixedOriginOnSubsequentReads(bool ugc, bool blank)
     {
         var chart = new U.Chart();
+        chart.Extras.FixedZeroOrigin = true;
         chart.Meta.BgmEnableBarOffset = blank;
         chart.Meta.BgmManualOffset = .25m;
         chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
@@ -92,10 +94,9 @@ public sealed class C2sAudioOffsetTests
         {
             for (var cycle = 0; cycle < 2; cycle++)
             {
-                var mode = cycle == 0 ? ChartDialect.Extended : ChartDialect.Auto;
                 Assert.True(ugc
-                    ? (await new UgcChartWriter(path, chart, mode).WriteAsync(ct)).Succeeded
-                    : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart, mode)).WriteAsync(ct)).Succeeded);
+                    ? (await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded
+                    : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct)).Succeeded);
                 var parsed = ugc
                     ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
                     : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
@@ -306,11 +307,9 @@ public sealed class C2sAudioOffsetTests
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, false)]
-    [InlineData(ChartDialect.Original, true)]
-    [InlineData(ChartDialect.Extended, false)]
-    [InlineData(ChartDialect.Extended, true)]
-    public async Task FixedZeroOrigin_KeepsNotesEventsAndAudioAcrossEditedContainers(ChartDialect dialect, bool blankMeasure)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FixedZeroOrigin_KeepsNotesEventsAndAudioAcrossEditedContainers(bool blankMeasure)
     {
         var source = new U.Chart();
         source.Meta.BgmEnableBarOffset = blankMeasure;
@@ -338,11 +337,11 @@ public sealed class C2sAudioOffsetTests
         {
             for (var cycle = 0; cycle < 3; cycle++)
             {
-                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source, dialect)).WriteAsync(ct)).Succeeded);
+                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source)).WriteAsync(ct)).Succeeded);
                 var binary = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
                 Assert.True(binary.Succeeded, binary.ToString());
                 Assert.True(binary.Value!.Extras.FixedZeroOrigin);
-                Assert.True((await new UgcChartWriter(ugcPath, binary.Value, dialect).WriteAsync(ct)).Succeeded);
+                Assert.True((await new UgcChartWriter(ugcPath, binary.Value).WriteAsync(ct)).Succeeded);
                 var text = await new UgcParser(new UgcParseRequest(ugcPath, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
                 Assert.True(text.Succeeded, text.ToString());
                 source = text.Value!;
@@ -531,16 +530,12 @@ public sealed class C2sAudioOffsetTests
     }
 
     [Theory]
-    [InlineData(false, ChartDialect.Original, false)]
-    [InlineData(false, ChartDialect.Original, true)]
-    [InlineData(false, ChartDialect.Extended, false)]
-    [InlineData(false, ChartDialect.Extended, true)]
-    [InlineData(true, ChartDialect.Original, false)]
-    [InlineData(true, ChartDialect.Original, true)]
-    [InlineData(true, ChartDialect.Extended, false)]
-    [InlineData(true, ChartDialect.Extended, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task PrerollEvidence_SurvivesC2sAndEditorCyclesWithoutMovingAgain(
-        bool ugc, ChartDialect dialect, bool applied)
+        bool ugc, bool applied)
     {
         var chart = new U.Chart();
         chart.Extras.FixedZeroOrigin = true;
@@ -557,8 +552,8 @@ public sealed class C2sAudioOffsetTests
             for (var cycle = 0; cycle < 3; cycle++)
             {
                 Assert.True(ugc
-                    ? (await new UgcChartWriter(editor, chart, dialect).WriteAsync(ct)).Succeeded
-                    : (await new MgxcChartWriter(new MgxcWriteRequest(editor, chart, dialect)).WriteAsync(ct)).Succeeded);
+                    ? (await new UgcChartWriter(editor, chart).WriteAsync(ct)).Succeeded
+                    : (await new MgxcChartWriter(new MgxcWriteRequest(editor, chart)).WriteAsync(ct)).Succeeded);
                 var parsed = ugc
                     ? await new UgcParser(new UgcParseRequest(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
                     : await new MgxcParser(new MgxcParseRequest(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
@@ -653,8 +648,9 @@ public sealed class C2sAudioOffsetTests
         try
         {
             Assert.True(ugc
-                ? (await new UgcChartWriter(path, chart, ChartDialect.Original).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart, ChartDialect.Original)).WriteAsync(ct)).Succeeded);
+                ? (await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct)).Succeeded);
+            await LegacyEditorFixture.DowngradeAsync(path, ct);
             var parsed = ugc
                 ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct)
                 : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct);

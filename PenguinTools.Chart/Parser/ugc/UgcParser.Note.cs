@@ -93,7 +93,7 @@ public partial class UgcParser
 
         var typeChar = payload[0];
         var x = Lane(payload[1]);
-        var w = Lane(payload[2]);
+        var w = Width(payload[2]);
         if (w <= 0)
         {
             WarnMalformed(payload);
@@ -148,6 +148,10 @@ public partial class UgcParser
         note.Lane = x;
         note.Width = w;
         note.Timeline = _currentTimeline;
+        if (_version >= 9 && note is UmgrModel.Slide slide)
+        {
+            slide.NoLine = extras.StartsWith('Z');
+        }
 
         Ugc.Notes.AppendChild(note);
         _lastParentNote = note;
@@ -353,6 +357,11 @@ public partial class UgcParser
 
     private string NormalizeSlidePayload(string payload)
     {
+        if (_version >= 9)
+        {
+            return payload;
+        }
+
         if (_lastParentNote is UmgrModel.Slide slide && payload.Length > 0)
         {
             var noLine = payload[0] is 'n' or 'N' or 'V';
@@ -450,6 +459,11 @@ public partial class UgcParser
         payload = NormalizeSlidePayload(payload);
         if (_lastParentNote is null)
         {
+            if (_version >= 9)
+            {
+                ThrowAtCurrentLine(Msg.Key(MsgKeys.MgCrit_Pairing_notes_incompatible));
+            }
+
             WarnMalformed(payload);
             return;
         }
@@ -467,8 +481,9 @@ public partial class UgcParser
 
         var typeChar = payload[0];
         var x = Lane(payload[1]);
-        var w = Lane(payload[2]);
-        if (w <= 0)
+        var w = Width(payload[2]);
+        var clippedControl = _version >= 9 && typeChar == 'c' && _lastParentNote is UmgrModel.Slide or UmgrModel.AirSlide;
+        if (w < 0 || (w == 0 && !clippedControl))
         {
             WarnMalformed(payload);
             return;
@@ -480,6 +495,11 @@ public partial class UgcParser
 
         if (child is null)
         {
+            if (_version >= 9)
+            {
+                ThrowAtCurrentLine(Msg.Key(MsgKeys.MgCrit_Pairing_notes_incompatible));
+            }
+
             return;
         }
 
@@ -487,6 +507,10 @@ public partial class UgcParser
         child.Lane = x;
         child.Width = w;
         child.Timeline = _currentTimeline;
+        if (_version >= 9 && child is UmgrModel.SlideJoint joint && _lastParentNote is UmgrModel.Slide slide)
+        {
+            joint.NoLine = slide.NoLine;
+        }
         _lastParentNote.AppendChild(child);
         _lastNote = child;
     }

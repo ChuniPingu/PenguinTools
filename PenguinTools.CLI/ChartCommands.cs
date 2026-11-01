@@ -61,10 +61,7 @@ internal static class ChartCommands
         command.Options.Add(noInsertBlank);
         command.Options.Add(debugTil);
         var inputDialect = InputDialectOption();
-        var outputDialect = new Option<ChartDialect>("--output-dialect")
-        { Description = "Target editor encoding: Auto (preserve known input dialect, otherwise Extended), Original, or Extended." };
         command.Options.Add(inputDialect);
-        command.Options.Add(outputDialect);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("chart.convert", (app, progress, ct) => app.ConvertChartAsync(
@@ -77,7 +74,7 @@ internal static class ChartCommands
                                 ? false
                                 : parseResult.GetValue(insertBlank),
                             parseResult.GetValue(debugTil)),
-                        parseResult.GetValue(inputDialect), parseResult.GetValue(outputDialect)), progress, ct),
+                        parseResult.GetValue(inputDialect)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_written, value.OutputPath),
                 CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
@@ -86,7 +83,7 @@ internal static class ChartCommands
 
     private static Option<ChartDialect> InputDialectOption() => new("--input-dialect")
     {
-        Description = "Input editor format: Auto (detect format), Original, or Extended.",
+        Description = "Legacy input editor format: Auto (detect format), Original, or Extended. MGXC v3/v4 and UGC v9 use official semantics.",
         DefaultValueFactory = _ => ChartDialect.Auto
     };
 

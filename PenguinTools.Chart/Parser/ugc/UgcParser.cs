@@ -14,6 +14,7 @@ public partial class UgcParser
 
     private int _currentTimeline;
     private int _sourceTicks = 480;
+    private int _version = 8;
     private readonly PenguinTools.Core.Metadata.ChartDialect _requestedDialect;
     private PenguinTools.Core.Metadata.ChartDialect _dialect;
     private bool _highPrecision;
@@ -23,6 +24,11 @@ public partial class UgcParser
 
     private void SelectDialect(SourceLine[] lines)
     {
+        if (_version >= 9)
+        {
+            _dialect = PenguinTools.Core.Metadata.ChartDialect.Original;
+            return;
+        }
         var marker = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal));
         var marked = marker?[EditorCompatibility.UgcMarker.Length..].Trim().ToLowerInvariant() switch
         {
@@ -69,6 +75,16 @@ public partial class UgcParser
 
     private int Lane(char value)
     {
+        if (_version >= 9)
+        {
+            var digit = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".IndexOf(value);
+            if (digit < 0)
+            {
+                ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value, "UGC v9 base62 coordinate"));
+            }
+
+            return digit - 16;
+        }
         if (!Extended && UgcPayload.Base36(value) < 0)
         {
             ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value.ToString(), "base UGC coordinate"));
@@ -76,7 +92,9 @@ public partial class UgcParser
         return UgcPayload.Lane(value);
     }
 
-    private decimal Height(ReadOnlySpan<char> value) => UgcPayload.Height36(value) * (_highPrecision ? 1 : 10);
+    private int Width(char value) => _version >= 9 ? UgcPayload.Base36(value) : Lane(value);
+
+    private decimal Height(ReadOnlySpan<char> value) => (_version >= 9 ? UgcPayload.Base36(value) : UgcPayload.Height36(value)) * (_highPrecision ? 1 : 10);
 
 
     private int ScaleTick(int tick)
@@ -158,7 +176,7 @@ public partial class UgcParser
             {
                 Ugc.Extras.FixedZeroOrigin = true;
             }
-            Ugc.Extras.ApplyEditorMode(_requestedDialect, Ugc.Meta);
+            Ugc.Extras.ApplyEditorMode(_version >= 9 ? PenguinTools.Core.Metadata.ChartDialect.Auto : _requestedDialect, Ugc.Meta);
             Ugc.Extras.RestoreUserText(Ugc.Meta);
             Ugc.Extras.EncodingDialect = _dialect;
             Ugc.Meta.FieldColorName = Ugc.Extras.EditorFieldColorName;
@@ -178,6 +196,8 @@ public partial class UgcParser
             {
                 Ugc.Extras.RestoreAppearance(Ugc);
             }
+            EditorProjection.Restore(Ugc);
+            Ugc.Extras.EditorFormatVersion = _version;
 
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
             Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Ugc).Split('\n'));

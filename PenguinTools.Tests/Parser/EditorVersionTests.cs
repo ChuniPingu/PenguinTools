@@ -12,12 +12,10 @@ namespace PenguinTools.Tests.Parser;
 public sealed class EditorVersionTests
 {
     [Theory]
-    [InlineData(".mgxc", 3, 8, 2)]
-    [InlineData(".mgxc", 4, 8, 2)]
-    [InlineData(".mgxc", int.MaxValue, 8, 2)]
-    [InlineData(".ugc", 9, 2, 8)]
-    [InlineData(".ugc", 10, 2, 8)]
-    [InlineData(".ugc", int.MaxValue, 2, 8)]
+    [InlineData(".mgxc", 5, 8, 4)]
+    [InlineData(".mgxc", int.MaxValue, 8, 4)]
+    [InlineData(".ugc", 10, 2, 9)]
+    [InlineData(".ugc", int.MaxValue, 2, 9)]
     public async Task NewerVersion_IsRejectedBeforePayload_InEveryDialect(
         string extension, int version, int location, int maximumVersion)
     {
@@ -52,10 +50,10 @@ public sealed class EditorVersionTests
     }
 
     [Theory]
-    [InlineData(".mgxc", 4, false)]
-    [InlineData(".mgxc", 4, true)]
-    [InlineData(".ugc", 9, false)]
-    [InlineData(".ugc", 9, true)]
+    [InlineData(".mgxc", 5, false)]
+    [InlineData(".mgxc", 5, true)]
+    [InlineData(".ugc", 10, false)]
+    [InlineData(".ugc", 10, true)]
     public async Task NewerVersion_ConversionFailsWithoutWritingOutput(string extension, int version, bool existingOutput)
     {
         var ct = TestContext.Current.CancellationToken;

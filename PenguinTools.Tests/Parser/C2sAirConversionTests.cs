@@ -116,7 +116,7 @@ public sealed class C2sAirConversionTests
     }
 
     [Fact]
-    public async Task MgxcWriter_EmitsAirBeforeAirHold()
+    public async Task MgxcWriter_EmitsOfficialAirHoldWithoutSeparateAir()
     {
         var source = new C2sChart();
         source.Meta.MainBpm = 120m;
@@ -164,7 +164,7 @@ public sealed class C2sAirConversionTests
             reader.ReadInt32();
 
             sbyte? previousType = null;
-            var sawAirBeforeHold = false;
+            var sawNativeHold = false;
             while (stream.Position + 8 <= stream.Length)
             {
                 var block = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));
@@ -172,7 +172,7 @@ public sealed class C2sAirConversionTests
                 var end = stream.Position + size;
                 if (block == "dat2")
                 {
-                    while (stream.Position + 24 <= end)
+                    while (stream.Position + 20 <= end)
                     {
                         var type = reader.ReadSByte();
                         var longAttr = reader.ReadSByte();
@@ -189,9 +189,10 @@ public sealed class C2sAirConversionTests
                             reader.ReadInt32();
                         }
 
-                        if (type == 0x08 && longAttr == 0x01 && previousType == 0x07)
+                        if (type == 0x08 && longAttr == 0x01)
                         {
-                            sawAirBeforeHold = true;
+                            Assert.NotEqual((sbyte)0x07, previousType);
+                            sawNativeHold = true;
                         }
 
                         previousType = type;
@@ -203,7 +204,7 @@ public sealed class C2sAirConversionTests
                 }
             }
 
-            Assert.True(sawAirBeforeHold);
+            Assert.True(sawNativeHold);
         }
         finally
         {
@@ -875,6 +876,61 @@ public sealed class C2sAirConversionTests
 
         Assert.Null(roundTrip.Value!.Meta.C2sAirSnapshot);
         Assert.Null(roundTrip.Value.Meta.C2sAirEditKey);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AirSnapshot_IsDroppedWhenOnlyCurveFlagChangesBeforeSaving(bool ugc)
+    {
+        var source = new C2sChart();
+        source.Events.Add(new Bpm { Tick = 0, Value = 120 });
+        var tap = new Tap { Tick = 480, Lane = 4, Width = 3 };
+        var first = new AirSlide
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 3,
+            Height = 4,
+            EndTick = 960,
+            EndLane = 10,
+            EndWidth = 3,
+            EndHeight = 8,
+            Joint = Joint.C,
+            Parent = tap
+        };
+        source.Notes.AddRange([tap, first, new AirSlide
+        {
+            Tick = 960, Lane = 10, Width = 3, Height = 8,
+            EndTick = 1440, EndLane = 8, EndWidth = 3, EndHeight = 4,
+            Joint = Joint.D, Parent = first
+        }, new Air { Tick = 480, Lane = 4, Width = 3, Direction = AirDirection.IR, Parent = tap }]);
+        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        var chart = converted.Value!;
+        Assert.NotNull(chart.Meta.C2sAirSnapshot);
+        var slide = Assert.Single(chart.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirSlide>());
+        Assert.Equal(2, slide.Children.Count);
+        Assert.IsType<PenguinTools.Chart.Models.umgr.AirSlideJoint>(slide.FirstChild).IsCurveControl = true;
+        var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = ugc ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(path, chart).WriteAsync(ct)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var parsed = ugc
+                ? await new PenguinTools.Chart.Parser.ugc.UgcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                : await new MgxcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, string.Join("\n", parsed.Diagnostics.Diagnostics));
+            Assert.Null(parsed.Value!.Meta.C2sAirSnapshot);
+            var roundTrip = new C2SChartConverter(new C2SConvertRequest(parsed.Value)).Convert();
+            Assert.True(roundTrip.Succeeded, string.Join("\n", roundTrip.Diagnostics.Diagnostics));
+            Assert.Null(roundTrip.Value!.Meta.C2sAirSnapshot);
+            Assert.NotNull(chart.Meta.C2sAirSnapshot);
+            Assert.Equal(2, slide.Children.Count);
+        }
+        finally { File.Delete(path); }
     }
 
     [Fact]

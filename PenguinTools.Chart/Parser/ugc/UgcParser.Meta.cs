@@ -251,14 +251,15 @@ public partial class UgcParser
             return;
         }
 
-        if (int.TryParse(args[0], out var v) && v > 8)
+        if (int.TryParse(args[0], out var v) && v > 9)
         {
-            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Chart_version_too_new, "UGC", v, 8));
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Chart_version_too_new, "UGC", v, 9));
         }
-        if (v != 8)
+        if (v is not (8 or 9))
         {
-            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "UGC v8"));
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "UGC v8/v9"));
         }
+        _version = v;
     }
 
     private void HandleExVer(string[] args)
@@ -461,6 +462,9 @@ public partial class UgcParser
         var boolVal = ParseBool(args[1]);
         switch (key)
         {
+            case "EXFIELD":
+                Ugc.Meta.ExtendedField = boolVal;
+                break;
             case "SOFFSET":
                 Ugc.Meta.BgmEnableBarOffset = boolVal;
                 break;

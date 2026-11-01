@@ -32,8 +32,9 @@ public sealed partial class PenguinToolsApplicationTests
         {
             var chart = OriginFixture(true);
             Assert.True(ugc
-                ? (await new UgcChartWriter(input, chart, ChartDialect.Original).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart, ChartDialect.Original)).WriteAsync(ct)).Succeeded);
+                ? (await new UgcChartWriter(input, chart).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart)).WriteAsync(ct)).Succeeded);
+            await LegacyEditorFixture.DowngradeAsync(input, ct);
             var bytes = await File.ReadAllBytesAsync(input, ct);
             var result = await application.InspectChartAsync(new ChartInspectRequest(input, dialect), ct);
             Assert.True(result.Succeeded, result.ToString());
@@ -47,10 +48,10 @@ public sealed partial class PenguinToolsApplicationTests
     }
 
     [Theory]
-    [InlineData(".c2s", ".mgxc", true)]
-    [InlineData(".mgxc", ".c2s", false)]
+    [InlineData(".c2s", ".mgxc")]
+    [InlineData(".mgxc", ".c2s")]
     public async Task ChartConversion_RejectsUndefinedModesBeforeWriting(
-        string inputExtension, string outputExtension, bool invalidInput)
+        string inputExtension, string outputExtension)
     {
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -63,8 +64,7 @@ public sealed partial class PenguinToolsApplicationTests
             await File.WriteAllTextAsync(output, "existing chart", ct);
             var result = await application.ConvertChartAsync(new ChartConvertRequest(
                 Path.Combine(root, "input" + inputExtension), output,
-                InputDialect: invalidInput ? (ChartDialect)999 : ChartDialect.Original,
-                OutputDialect: invalidInput ? ChartDialect.Original : (ChartDialect)999), cancellationToken: ct);
+                InputDialect: (ChartDialect)999), cancellationToken: ct);
             Assert.False(result.Succeeded);
             Assert.Contains(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Invalid_Header);
             Assert.Equal("existing chart", await File.ReadAllTextAsync(output, ct));
@@ -95,8 +95,9 @@ public sealed partial class PenguinToolsApplicationTests
         {
             var chart = OriginFixture(blank);
             Assert.True(ugc
-                ? (await new UgcChartWriter(input, chart, dialect).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart, dialect)).WriteAsync(ct)).Succeeded);
+                ? (await new UgcChartWriter(input, chart).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart)).WriteAsync(ct)).Succeeded);
+            await LegacyEditorFixture.DowngradeAsync(input, ct);
             var bytes = await File.ReadAllBytesAsync(input, ct);
             Assert.True((await application.InspectChartAsync(new ChartInspectRequest(input), ct)).Succeeded);
             var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output, InputDialect: dialect), cancellationToken: ct);
@@ -131,9 +132,9 @@ public sealed partial class PenguinToolsApplicationTests
         using var application = CreateInjectedApplication(root, store);
         try
         {
-            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, OriginFixture(blank), ChartDialect.Original)).WriteAsync(ct)).Succeeded);
+            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, OriginFixture(blank))).WriteAsync(ct)).Succeeded);
             var rewritten = await application.ConvertChartAsync(new ChartConvertRequest(input, saved,
-                InputDialect: ChartDialect.Original, OutputDialect: ChartDialect.Original), cancellationToken: ct);
+                InputDialect: ChartDialect.Original), cancellationToken: ct);
             Assert.True(rewritten.Succeeded, rewritten.ToString());
             var back = await application.ConvertChartAsync(new ChartConvertRequest(saved, output,
                 InputDialect: ChartDialect.Original), cancellationToken: ct);

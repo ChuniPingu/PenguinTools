@@ -105,8 +105,7 @@ public sealed record ChartConvertRequest(
     string InputPath,
     string OutputPath,
     ChartConvertOverrides? Overrides = null,
-    PenguinTools.Core.Metadata.ChartDialect InputDialect = PenguinTools.Core.Metadata.ChartDialect.Auto,
-    PenguinTools.Core.Metadata.ChartDialect OutputDialect = PenguinTools.Core.Metadata.ChartDialect.Auto);
+    PenguinTools.Core.Metadata.ChartDialect InputDialect = PenguinTools.Core.Metadata.ChartDialect.Auto);
 
 public sealed record ChartConvertResult(
     string InputPath,
@@ -404,7 +403,8 @@ public sealed record MusicExtractRequest(
     bool NoAudio = false,
     bool NoJacket = false,
     ulong? HcaKey = null,
-    bool DebugTil = false);
+    bool DebugTil = false,
+    ChartFormat OutputFormat = ChartFormat.Mgxc);
 
 public sealed record MusicExtractChartSummary(
     int SongId,

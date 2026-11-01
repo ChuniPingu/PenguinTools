@@ -1,6 +1,6 @@
-# Umiguri Chart v8
+# Umiguri Chart v9
 
-Based on [inonote's Umiguri Chart v8 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298). This reference does not imply full implementation of the upstream specification.
+Based on [inonote's Umiguri Chart v9 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298). This reference does not imply full implementation of the upstream specification.
 
 ## File structure
 
@@ -12,7 +12,7 @@ Time uses `Bar'Tick`: `0'240` means measure 0, tick 240. Header arguments are se
 
 | Command  | Arguments and meaning                                                                         |
 | -------- | --------------------------------------------------------------------------------------------- |
-| `VER`    | Version, always 8                                                                             |
+| `VER`    | Version, always 9                                                                             |
 | `EXVER`  | Extended version, 0 or 1; 1 forces `FLAG:EXLONG` to `TRUE` and is always used in UMIGURI NEXT |
 | `TITLE`  | Song title                                                                                    |
 | `SORT`   | Sort key; see the rules below                                                                 |
@@ -55,7 +55,7 @@ The source recommends M4A around 3 MB for loading speed, jacket images at 400×4
 
 | Command   | Arguments and meaning                                                 |
 | --------- | --------------------------------------------------------------------- |
-| `TICKS`   | Time resolution, 480 in the v8 specification                          |
+| `TICKS`   | Time resolution, 480 in the v9 specification                          |
 | `MAINBPM` | Base BPM                                                              |
 | `MAINTIL` | Base timeline ID; 0 recommended                                       |
 | `CLKCNT`  | Click count; defaults to the first measure's time-signature numerator |
@@ -78,10 +78,11 @@ The source recommends M4A around 3 MB for loading speed, jacket images at 400×4
 | `EXLONG`      | Use ExLong                              |
 | `BGMWCMP`     | Wait for audio playback to finish       |
 | `HIPRECISION` | Use high-resolution AIR values          |
+| `EXFIELD`     | Use the extended field                  |
 
 ## Note records
 
-Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:txw` is also accepted. Here, `t` is the note type, `x` is the horizontal position, and `w` is the width. Positions and widths use base 36.
+Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:txw` is also accepted. Here, `t` is the note type, `x` is the horizontal position, and `w` is the width. Positions use case-sensitive base 62 (`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`) with an offset of 16: `0` is lane −16, `G` is 0, `W` is 16, and `l` is 31. Widths remain base 36.
 
 | Note      | Parent format                        | Type and extra fields                          |
 | --------- | ------------------------------------ | ---------------------------------------------- |
@@ -91,11 +92,11 @@ Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:tx
 | FLICK     | `#BarTick:txwd`                      | `t = f`; `d` selects the autoplay direction    |
 | DAMAGE    | `#BarTick:txw`                       | `t = d`                                        |
 | HOLD      | `#BarTick:txw`                       | `t = h`                                        |
-| SLIDE     | `#BarTick:txw`                       | `t = s`                                        |
+| SLIDE     | `#BarTick:txwc`                      | `t = s`; `c = 0` normal line or `Z` transparent |
 | AIR       | `#BarTick:txwddc`                    | `t = a`; `dd` is direction, `c` is color       |
 | AIR-HOLD  | `#BarTick:txwc`                      | `t = H`; `c` is color                          |
 | AIR-SLIDE | `#BarTick:txwhhc`                    | `t = S`; `hh` is height, `c` is color          |
-| AIR-CRUSH | `#BarTick:txwhhc,{interval}`         | `t = C`; `hh` is height, `c` is crush color    |
+| AIR-CRUSH | `#BarTick:txwhhca,{interval}`         | `t = C`; `hh` height, `c` color, `a` axis    |
 
 Height `hh` is a two-digit base-36 value. The upstream specification encodes the original height multiplied by 10. PenguinTools decodes the value into native height units: with `HIPRECISION` enabled it uses the value directly; otherwise it multiplies it by 10.
 
@@ -112,7 +113,7 @@ PenguinTools also reads the legacy `H` parent with a height (`#BarTick:txwhhc`) 
 | AIR-SLIDE | `#OffsetTick>txwhh`, `t = c`        | Control point or endpoint without AIR-ACTION             |
 | AIR-CRUSH | `#OffsetTick>txwhh`, `t = c`        | Endpoint                                                 |
 
-AIR-CRUSH `{interval}` is a decimal placement interval. `0` means AIR-TRACE; `$` creates notes that generate combo only at the starting point.
+AIR-CRUSH axis `a` is `N` (X), `Y`, or `Z`. `{interval}` is a decimal placement interval. `0` means AIR-TRACE; `$` creates notes that generate combo only at the starting point.
 
 ## Effects, directions, and colors
 

@@ -224,8 +224,8 @@ public class SusParserTests
             try
             {
                 var written = ugc
-                    ? await new UgcChartWriter(native, chart, dialect).WriteAsync(ct)
-                    : await new MgxcChartWriter(new MgxcWriteRequest(native, chart, dialect)).WriteAsync(ct);
+                    ? await new UgcChartWriter(native, chart).WriteAsync(ct)
+                    : await new MgxcChartWriter(new MgxcWriteRequest(native, chart)).WriteAsync(ct);
                 Assert.True(written.Succeeded, written.ToString());
                 var restored = ugc
                     ? await new UgcParser(new UgcParseRequest(native, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct)

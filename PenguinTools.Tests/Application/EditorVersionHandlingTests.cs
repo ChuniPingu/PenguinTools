@@ -17,7 +17,7 @@ public sealed partial class PenguinToolsApplicationTests
     [InlineData(".ugc", ChartDialect.Auto)]
     [InlineData(".ugc", ChartDialect.Original)]
     [InlineData(".ugc", ChartDialect.Extended)]
-    public async Task NewEditor_InspectionReadsOnlyMetadata_ConversionStillFails(string extension, ChartDialect dialect)
+    public async Task NewEditor_InspectionAndConversionParseNotes(string extension, ChartDialect dialect)
     {
         var ct = TestContext.Current.CancellationToken;
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -33,9 +33,9 @@ public sealed partial class PenguinToolsApplicationTests
             var inspected = await application.InspectChartAsync(new ChartInspectRequest(input, dialect), ct);
             Assert.True(inspected.Succeeded);
             Assert.NotNull(inspected.Value);
-            Assert.False(inspected.Value.NotesParsed);
+            Assert.True(inspected.Value.NotesParsed);
             Assert.Equal(version, inspected.Value.FormatVersion);
-            Assert.Null(inspected.Value.Metadata);
+            Assert.NotNull(inspected.Value.Metadata);
             Assert.Equal("新谱面", inspected.Value.Chart.Title);
             Assert.Equal("Artist", inspected.Value.Chart.Artist);
             Assert.Equal("Designer", inspected.Value.Chart.Designer);
@@ -44,26 +44,25 @@ public sealed partial class PenguinToolsApplicationTests
             Assert.Equal(14.5m, inspected.Value.Chart.Level);
             Assert.Equal(180m, inspected.Value.Chart.MainBpm);
             Assert.False(inspected.Diagnostics.HasError);
-            Assert.Equal(MsgKeys.Warn_Chart_metadata_only, Assert.Single(inspected.Diagnostics.Diagnostics).Message.Key);
+            Assert.DoesNotContain(inspected.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Chart_metadata_only);
             var json = JsonSerializer.Serialize(inspected.Value, CliJsonSerializerContext.Default.ChartInspectResult);
             using var payload = JsonDocument.Parse(json);
-            Assert.False(payload.RootElement.GetProperty("notesParsed").GetBoolean());
-            Assert.False(payload.RootElement.TryGetProperty("metadata", out _));
+            Assert.True(payload.RootElement.GetProperty("notesParsed").GetBoolean());
+            Assert.True(payload.RootElement.TryGetProperty("metadata", out _));
 
             var output = Path.Combine(root, "existing.c2s");
             await File.WriteAllTextAsync(output, "keep output", ct);
             var converted = await application.ConvertChartAsync(new ChartConvertRequest(input, output,
                 InputDialect: dialect), cancellationToken: ct);
-            Assert.False(converted.Succeeded);
-            Assert.Contains(converted.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Chart_version_too_new);
-            Assert.Equal("keep output", await File.ReadAllTextAsync(output, ct));
+            Assert.True(converted.Succeeded);
+            Assert.DoesNotContain(converted.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Chart_version_too_new);
+            Assert.NotEqual("keep output", await File.ReadAllTextAsync(output, ct));
             Assert.Equal(original, await File.ReadAllBytesAsync(input, ct));
         }
         finally { Directory.Delete(root, true); }
     }
 
     [Theory]
-    [InlineData(".mgxc", 3)]
     [InlineData(".mgxc", 5)]
     [InlineData(".ugc", 10)]
     public async Task UnverifiedEditorVersion_InspectionStillFails(string extension, int version)
@@ -100,8 +99,8 @@ public sealed partial class PenguinToolsApplicationTests
                 await WriteChartFixtureAsync(input);
             }
 
-            await WriteNewEditorFixtureAsync(Path.Combine(input, "new.ugc"), 9, ct);
-            await WriteNewEditorFixtureAsync(Path.Combine(input, "new.mgxc"), 4, ct);
+            await WriteNewEditorFixtureAsync(Path.Combine(input, "new.ugc"), 10, ct);
+            await WriteNewEditorFixtureAsync(Path.Combine(input, "new.mgxc"), 5, ct);
             var scan = await application.ScanOptionAsync(new OptionScanRequest(input), cancellationToken: ct);
             Assert.False(scan.Succeeded);
             Assert.NotNull(scan.Value);
@@ -142,6 +141,84 @@ public sealed partial class PenguinToolsApplicationTests
         finally { Directory.Delete(root, true); }
     }
 
+    [Theory]
+    [InlineData(".mgxc", 4, null)]
+    [InlineData(".ugc", 9, null)]
+    [InlineData(".mgxc", 4, ChartFormat.Ugc)]
+    [InlineData(".ugc", 9, ChartFormat.Ugc)]
+    public async Task OfficialEditor_ScanBuildAndExtractUseLatestFormats(string extension, int version, ChartFormat? outputFormat)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        var input = Path.Combine(root, "input");
+        Directory.CreateDirectory(input);
+        using var store = new TrackingAssetStore(root);
+        using var application = CreateInjectedApplication(root, store);
+        try
+        {
+            await WriteNewEditorFixtureAsync(Path.Combine(input, "chart" + extension), version, ct);
+            var scan = await application.ScanOptionAsync(new OptionScanRequest(input), cancellationToken: ct);
+            Assert.True(scan.Succeeded, scan.ToString());
+            Assert.Empty(scan.Value!.SkippedCharts);
+            var build = await application.BuildOptionAsync(new OptionBuildRequest(input, Path.Combine(root, "built"), SkipConfig: true,
+                Overrides: new OptionBuildOverrides(OptionName: "TEST", ConvertChart: true,
+                    ConvertAudio: false, ConvertJacket: false, ConvertBackground: false,
+                    GenerateEventXml: false, CustomReleaseTagXml: false, CustomGenre: false)), cancellationToken: ct);
+            Assert.True(build.Succeeded, build.ToString());
+            Assert.Equal(1, build.Value!.ChartCount);
+            var c2s = Assert.Single(build.Value.Artifacts, a => a.Path.EndsWith(".c2s", StringComparison.Ordinal)).Path;
+            // Exercise the extraction boundary with the just-built C2S and a minimal Music.xml.
+            var xml = Path.Combine(root, "Music.xml");
+            var doc = new System.Xml.Linq.XDocument(new System.Xml.Linq.XElement("MusicData",
+                new System.Xml.Linq.XElement("name", new System.Xml.Linq.XElement("id", 1234), new System.Xml.Linq.XElement("str", "Test")),
+                new System.Xml.Linq.XElement("fumens", new System.Xml.Linq.XElement("MusicFumenData",
+                    new System.Xml.Linq.XElement("enable", true),
+                    new System.Xml.Linq.XElement("type", new System.Xml.Linq.XElement("id", 3)),
+                    new System.Xml.Linq.XElement("file", new System.Xml.Linq.XElement("path", c2s))))));
+            await File.WriteAllTextAsync(xml, doc.ToString(), ct);
+            var request = new MusicExtractRequest(xml, Path.Combine(root, "extracted"), NoAudio: true, NoJacket: true);
+            if (outputFormat is { } format)
+            {
+                request = request with { OutputFormat = format };
+            }
+            var extracted = await application.ExtractMusicAsync(request, cancellationToken: ct);
+            Assert.True(extracted.Succeeded, extracted.ToString());
+            var artifact = Assert.Single(extracted.Value!.Artifacts);
+            var outputExtension = outputFormat == ChartFormat.Ugc ? ".ugc" : ".mgxc";
+            Assert.Equal("chart" + outputExtension, artifact.Kind);
+            Assert.Equal(outputExtension, Path.GetExtension(artifact.Path));
+            Assert.Equal(artifact.Path, Assert.Single(extracted.Value.Charts).OutputPath);
+            var inspected = await application.InspectChartAsync(new ChartInspectRequest(artifact.Path), ct);
+            Assert.True(inspected.Succeeded);
+            Assert.True(inspected.Value!.NotesParsed);
+            Assert.Equal(outputFormat == ChartFormat.Ugc ? 9 : 4, inspected.Value.FormatVersion);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Theory]
+    [InlineData(ChartFormat.Sus)]
+    [InlineData(ChartFormat.C2s)]
+    [InlineData((ChartFormat)999)]
+    public async Task MusicExtraction_RejectsUnsupportedOutputBeforeCreatingFiles(ChartFormat format)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        using var store = new TrackingAssetStore(root);
+        using var application = CreateInjectedApplication(root, store);
+        try
+        {
+            var output = Path.Combine(root, "output");
+            var result = await application.ExtractMusicAsync(new MusicExtractRequest(
+                Path.Combine(root, "missing.xml"), output, OutputFormat: format),
+                cancellationToken: TestContext.Current.CancellationToken);
+            Assert.False(result.Succeeded);
+            Assert.Contains(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Invalid_Header);
+            Assert.False(Directory.Exists(output));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     private static async Task WriteNewEditorFixtureAsync(string path, int version, CancellationToken ct)
     {
         if (Path.GetExtension(path) == ".ugc")
@@ -149,7 +226,7 @@ public sealed partial class PenguinToolsApplicationTests
             await File.WriteAllTextAsync(path,
                 $"' Created with Margrete v1.9.3\n@VER\t{version}\n@TITLE\t新谱面\n@ARTIST\tArtist\n" +
                 "@DESIGN\tDesigner\n@DIFF\t5\n@CONST\t14.5\n@SONGID\t1234\n@MAINBPM\t180\n" +
-                "@ENDHEAD\n#invalid-notes-must-not-be-read\n", ct);
+                "@BPM\t0'0\t180\n@BEAT\t0\t4\t4\n@ENDHEAD\n#0'480:tH4\n", ct);
             return;
         }
         using var stream = File.Create(path);
@@ -181,7 +258,14 @@ public sealed partial class PenguinToolsApplicationTests
         stream.Position = 16;
         writer.Write(checked((int)(end - 20)));
         stream.Position = end;
-        writer.Write("invalid-note-block"u8);
+        writer.Write("evnt"u8);
+        writer.Write(0);
+        writer.Write("dat2"u8);
+        writer.Write(20);
+        writer.Write(new byte[] { 1, 0, 0, 0, 0, 0, 4, 1 });
+        writer.Write(80);
+        writer.Write(480);
+        writer.Write(0);
         var length = stream.Length;
         stream.Position = 4;
         writer.Write(checked((int)(length - 8)));

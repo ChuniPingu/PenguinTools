@@ -5,20 +5,20 @@ using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.IO;
 using PenguinTools.Core.Metadata;
-
 using UmgrModel = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart.Writer.mgxc;
-/// <summary>Writes Magrete binary MGXC (version 2).</summary>
+/// <summary>Writes official Margrete binary MGXC (version 4).</summary>
 public sealed class MgxcChartWriter(MgxcWriteRequest request)
 {
-    private const int Version = 2;
+    private const int Version = 4;
     private const int DefaultHeight = MgxcExTapMarkers.DefaultHeight;
-    private const sbyte NoLineVariation = 0x7F;
+    private const sbyte NoLineVariation = 35;
 
-    private readonly UmgrModel.Chart _chart = request.Chart ?? throw new ArgumentNullException(nameof(request));
+    private UmgrModel.Chart _chart = null!;
     private bool _timingBookmarksRequired;
 
     private readonly record struct EffectCarrierKey(
@@ -34,10 +34,10 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     public async Task<OperationResult> WriteAsync(CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
-        var dialect = EditorCompatibility.OutputDialect(request.Dialect, _chart.Extras);
-        EditorCompatibility.Validate(_chart, dialect, ugc: false);
-        _chart.Extras.ApplyEditorMode(request.Dialect, _chart.Meta);
-        _chart.Extras.EncodingDialect = dialect;
+        ArgumentNullException.ThrowIfNull(request.Chart);
+        var diagnostics = new DiagnosticCollector();
+        _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics);
+        CurveExpansion.Validate(_chart);
         _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
         _timingBookmarksRequired = (_chart.Extras.FixedZeroOrigin || _chart.Extras.PrerollBar1Applied) &&
             Encoding.UTF8.GetByteCount(_chart.Extras.CopyrightWithTiming(_chart.Meta.Copyright)) > short.MaxValue;
@@ -55,26 +55,11 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             await buffer.CopyToAsync(stream, token);
             await stream.FlushAsync(token);
         }, ct);
-        return OperationResult.Success();
+        return OperationResult.Success().WithDiagnostics(diagnostics);
     }
 
     private void WriteFile(BinaryWriter bw)
     {
-        if (_chart.Extras.AirModelKey is { } airKey && airKey != C2sRoundTripKeys.FormatAirEditKey(_chart))
-        {
-            _chart.Meta.C2sAirSnapshot = null;
-            _chart.Meta.C2sAirEditKey = null;
-        }
-        if (_chart.Extras.SlaModelKey is { } slaKey && slaKey != C2sRoundTripKeys.FormatSlaEditKey(_chart))
-        {
-            _chart.Meta.C2sSlaSnapshot = null;
-            _chart.Meta.C2sSlaEditKey = null;
-        }
-        if (_chart.Extras.SpeedModelKey != ChartExtras.SpeedKey(_chart))
-        {
-            _chart.Extras.HasSpeedSnapshot = false;
-        }
-
         _chart.Extras.CaptureSlideEffects(_chart);
         _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(_chart.Meta).ToList();
         _chart.Extras.TraceCrashes = _chart.Notes.Children.OfType<UmgrModel.AirCrash>()
@@ -150,6 +135,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteIntField(bw, "sofs", m.BgmEnableBarOffset ? 1 : 0);
         WriteIntField(bw, "uclk", _chart.Extras.ClickEnabled ? 1 : 0);
         WriteIntField(bw, "xlng", m.ExLongEnabled ? 1 : 0);
+        WriteIntField(bw, "xfld", m.ExtendedField ? 1 : 0);
         WriteIntField(bw, "bgmw", m.WaitBgmEnd ? 1 : 0);
         WriteStringField(bw, "atls", m.Authors);
         WriteStringField(bw, "atst", m.AuthorSites);
@@ -366,10 +352,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             var joint = joints[i];
             var isLast = i == joints.Length - 1;
-            var previousNoLine = i == 0 ? slide.NoLine : joints[i - 1].NoLine;
-            var noLine = isLast ? previousNoLine : joint.NoLine;
 
-            WriteNote(bw, new NoteFormat(NoteType.Slide, SlideAttr(joint.Joint, isLast), Direction.None, ExAttr.None, noLine ? NoLineVariation : (sbyte)0),
+            WriteNote(bw, new NoteFormat(NoteType.Slide, joint.IsCurveControl ? LongAttr.CurveControl : SlideAttr(joint.Joint, isLast), Direction.None, ExAttr.None, 0),
                 new NotePosition(joint.Lane, joint.Width, DefaultHeight, joint.Tick.Original, joint.Timeline));
 
             if (isLast)
@@ -432,8 +416,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private static void WriteAirCrashNote(BinaryWriter bw, UmgrModel.AirCrash crash)
     {
-        var crashDirection = AirCrashDirection(crash.Attr);
-        WriteNote(bw, new NoteFormat(NoteType.AirCrush, LongAttr.Begin, crashDirection, ExAttr.None, CrushVariation(crash.Color)),
+        var crashAxis = crash.Attr switch { AirLadderAttr.AxisY => ExAttr.AxisY, AirLadderAttr.AxisZ => ExAttr.AxisZ, _ => ExAttr.None };
+        WriteNote(bw, new NoteFormat(NoteType.AirCrush, LongAttr.Begin, Direction.None, crashAxis, CrushVariation(crash.Color)),
             new NotePosition(crash.Lane, crash.Width, Height(crash.Height), crash.Tick.Original, crash.Timeline), crash.Density.Original);
 
         var crashJoints = crash.Children.OfType<UmgrModel.AirCrashJoint>().ToArray();
@@ -444,7 +428,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                 ? LongAttr.End
                 : LongAttr.Control;
 
-            WriteNote(bw, new NoteFormat(NoteType.AirCrush, longAttr, crashDirection, ExAttr.None, 0),
+            WriteNote(bw, new NoteFormat(NoteType.AirCrush, longAttr, Direction.None, ExAttr.None, 0),
                 new NotePosition(joint.Lane, joint.Width, Height(joint.Height), joint.Tick.Original, joint.Timeline));
         }
     }
@@ -547,13 +531,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         UmgrModel.AirHold airHold)
     {
         _chart.Extras.AirAppearances.Add(new AirAppearance(ChartExtras.AirKey(airHold), airHold.Color, airHold.Direction));
-        WriteAirBase(
-            bw,
-            airHold.Direction,
-            airHold.Color,
-            airHold);
-
-        WriteNote(bw, new NoteFormat(NoteType.AirHold, LongAttr.Begin, Direction.None, ExAttr.None, 0),
+        WriteNote(bw, new NoteFormat(NoteType.AirHold, LongAttr.Begin, Direction.Up, AirEx(airHold.Color), 0),
             new NotePosition(airHold.Lane, airHold.Width, DefaultHeight, airHold.Tick.Original, airHold.Timeline));
 
         var airHoldJoints =
@@ -575,13 +553,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         UmgrModel.AirSlide airSlide)
     {
         _chart.Extras.AirAppearances.Add(new AirAppearance(ChartExtras.AirKey(airSlide), airSlide.Color, airSlide.Direction));
-        WriteAirBase(
-            bw,
-            airSlide.Direction,
-            airSlide.Color,
-            airSlide);
-
-        WriteNote(bw, new NoteFormat(NoteType.AirSlide, LongAttr.Begin, Direction.None, ExAttr.None, 0),
+        WriteNote(bw, new NoteFormat(NoteType.AirSlide, LongAttr.Begin, Direction.Up, AirEx(airSlide.Color), 0),
             new NotePosition(airSlide.Lane, airSlide.Width, Height(airSlide.Height), airSlide.Tick.Original, airSlide.Timeline));
 
         var airSlideJoints =
@@ -591,7 +563,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             var joint = airSlideJoints[i];
 
-            WriteNote(bw, new NoteFormat(NoteType.AirSlide, SlideAttr(
+            WriteNote(bw, new NoteFormat(NoteType.AirSlide, joint.IsCurveControl ? LongAttr.CurveControl : SlideAttr(
                     joint.Joint,
                     i == airSlideJoints.Length - 1), Direction.None, ExAttr.None, 0),
             new NotePosition(joint.Lane, joint.Width, Height(joint.Height), joint.Tick.Original, joint.Timeline));
@@ -680,9 +652,11 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         bw.Write((sbyte)direction);
         bw.Write((sbyte)exAttr);
         bw.Write(variationId);
+        bw.Write((byte)0);
+        bw.Write(checked((byte)width));
         bw.Write(checked((sbyte)lane));
-        bw.Write(checked((short)width));
-        bw.Write(height);
+        bw.Write(checked((ushort)height));
+        bw.Write((ushort)0);
         bw.Write(tick);
         bw.Write(timeline);
         if (optionValue is { } option)
@@ -723,12 +697,6 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         _ => Direction.Up
     };
 
-    private static Direction AirCrashDirection(AirLadderAttr attr) => attr switch
-    {
-        AirLadderAttr.AxisY => Direction.RotateLeft,
-        AirLadderAttr.AxisZ => Direction.RotateRight,
-        _ => Direction.None
-    };
 
     private static ExAttr AirEx(Color color) => color is Color.PNK ? ExAttr.Invert : ExAttr.None;
 
@@ -875,6 +843,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         Begin = 0x01,
         Step = 0x02,
         Control = 0x03,
+        CurveControl = 0x04,
         End = 0x05,
         EndNoAct = 0x06
     }
@@ -900,6 +869,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private enum ExAttr : sbyte
     {
         None = 0x00,
-        Invert = 0x01
+        Invert = 0x01,
+        AxisY = 0x04,
+        AxisZ = 0x05
     }
 }

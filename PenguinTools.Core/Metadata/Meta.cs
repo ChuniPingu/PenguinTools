@@ -11,6 +11,7 @@ public partial record Meta
     public string LicenseUrl { get; set; } = string.Empty;
     public int ExVersion { get; set; } = 1;
     public bool ExLongEnabled { get; set; } = true;
+    public bool ExtendedField { get; set; }
     public bool WaitBgmEnd { get; set; }
     public string BackgroundScene { get; set; } = string.Empty;
     public bool BackgroundSync { get; set; } = true;

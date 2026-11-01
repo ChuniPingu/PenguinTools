@@ -14,7 +14,7 @@ public partial class C2SChartConverter
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Mgxc);
 
-        Mgxc = request.Mgxc;
+        Mgxc = ChartCopy.Create(request.Mgxc);
     }
 
     private DiagnosticCollector Diagnostic { get; } = new();
@@ -255,6 +255,7 @@ public partial class C2SChartConverter
         Diagnostic.TimeCalculator = Mgxc.GetCalculator();
         try
         {
+            CurveExpansion.Expand(Mgxc);
             C2s.Meta = Mgxc.Meta;
             C2s.Meta.BgmFixedZeroOrigin |= Mgxc.Extras.UsesFixedCoordinateOrigin;
             if (Mgxc.Extras.ParsedEventModelKey != C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n')))

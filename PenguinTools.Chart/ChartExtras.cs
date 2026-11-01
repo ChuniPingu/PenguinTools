@@ -13,6 +13,29 @@ namespace PenguinTools.Chart;
 /// <summary>Editor extensions that have no equivalent in the basic note models.</summary>
 public sealed partial class ChartExtras
 {
+    public int EditorFormatVersion { get; set; }
+    public List<EditorNoteProjection> EditorNoteProjections { get; set; } = [];
+    public List<EditorBeatProjection> EditorBeatProjections { get; set; } = [];
+    public List<EditorPathProjection> EditorPathProjections { get; set; } = [];
+    public bool? OriginalBlankMeasure { get; set; }
+
+    internal ChartExtras Copy()
+    {
+        var copy = JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(this,
+            ChartExtrasJsonContext.Default.ChartExtras), ChartExtrasJsonContext.Default.ChartExtras)!;
+        copy.SourceSnapshot = SourceSnapshot;
+        copy.FromC2S = FromC2S;
+        copy.Resolution = Resolution;
+        copy.SourceRecords.AddRange(SourceRecords);
+        copy.UnchangedEventKinds.UnionWith(UnchangedEventKinds);
+        copy.ParsedEventModelKey = ParsedEventModelKey;
+        copy.AirModelKey = AirModelKey;
+        copy.SlaModelKey = SlaModelKey;
+        copy.BinarySnapshotValid = BinarySnapshotValid;
+        copy.SpeedModelKey = SpeedModelKey;
+        copy.InteropSourceText = InteropSourceText;
+        return copy;
+    }
     public PenguinTools.Core.Metadata.ChartDialect EncodingDialect { get; set; }
     public int CarrierEncodingVersion { get; set; }
     [JsonIgnore]
@@ -395,7 +418,7 @@ public sealed partial class ChartExtras
     internal static string SlideKey(UmgrModel.Slide slide) =>
         $"{slide.Tick.Original},{slide.Lane},{slide.Width},{slide.Effect}:" +
         string.Join(";", slide.Children.OfType<UmgrModel.SlideJoint>()
-            .Select(n => $"{n.Tick.Original},{n.Lane},{n.Width}"));
+            .Select(n => $"{n.Tick.Original},{n.Lane},{n.Width}" + (n.IsCurveControl ? ",BEZIER" : "")));
 
     internal void CaptureSlideEffects(UmgrModel.Chart chart)
     {

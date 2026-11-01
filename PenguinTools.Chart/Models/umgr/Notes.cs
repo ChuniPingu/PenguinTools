@@ -71,6 +71,7 @@ public class Slide : ExTapableNote
 
 public class SlideJoint : PositiveNote
 {
+    public bool IsCurveControl { get; set; }
     public bool HasEffectOverride { get; set; }
     public ExEffect? SegmentEffect { get; set; }
     public Joint Joint { get; set; } = Joint.D;
@@ -208,6 +209,7 @@ public class AirSlide : NegativeNote
 
 public class AirSlideJoint : Note
 {
+    public bool IsCurveControl { get; set; }
     public Joint Joint { get; set; } = Joint.D;
     public decimal Height { get; set; }
 }

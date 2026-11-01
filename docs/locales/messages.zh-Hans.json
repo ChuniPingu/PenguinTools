@@ -120,6 +120,7 @@
       "unsupported_tap_point_type": "不支持的 SUS TAP 点类型“{0}”。"
     },
     "warn": {
+      "editor_approximation": "{0}：将 {1} 从 {2} 近似为 {3}。",
       "chart_metadata_only": "仅读取 {0} v{1} 元数据。",
       "chart_skipped_version": "已跳过 {0} v{1}，最高支持 v{2}。",
       "config_invalid": "无法读取 options.json：{0}",

@@ -26,17 +26,17 @@ MGXC, UGC, and SUS inputs can be written as MGXC, UGC, or C2S. C2S inputs can be
 
 Conversion tests cover metadata, timing, note relationships, payloads, and C2S round-trip information stored in MGXC bookmarks. A change to parsing or writing needs tests for the affected behavior and round-trip preservation where relevant.
 
-MGXC header versions above 2 and UGC versions above 8 fail with `diag.error.chart_version_too_new` before note parsing, even when an input dialect is specified. UGC checks the version before the creator and dialect. Failed conversions preserve existing output files.
+Editor output uses MGXC v4 or UGC v9. `music extract` defaults to MGXC; use `--chart-format ugc` for UGC. `chart inspect` fully parses supported versions. Newer versions fail with `diag.error.chart_version_too_new`.
 
-`chart inspect` can read the common header fields verified in MGXC v4 and UGC v9 without parsing their events or notes. These results carry `notesParsed: false`, `formatVersion`, and `diag.warn.chart_metadata_only`; conversion metadata is absent because timing has not been validated. Other unsupported versions continue to fail. This inspection fallback does not enable conversion or change dialect detection.
+`--input-dialect` selects legacy Original/Extended input semantics. MGXC v3/v4 and UGC v9 use their version's official semantics.
 
-`chart inspect` and `chart convert` default to `--input-dialect Auto`, matching the application API. Auto honors embedded format metadata and supported legacy markers; ordinary unmarked editor charts use Original. Explicit `--input-dialect Original` or `Extended` overrides detection. Conversion selects the output mode independently with `--output-dialect`; its Auto default preserves the detected editor mode and uses Extended for C2S input. This lets default CLI conversions read their own output using the same coordinate system, including non-4/4 UGC charts.
+MGXC retains Bezier handles; UGC and C2S share a curve expander. Writers operate on a copy. Unsupported geometry, AIR colors, and meter changes are approximated with `diag.warn.editor_approximation`; original values are retained in checksum-validated metadata. SLIDE line visibility follows the start without a warning.
 
 For an Original MGXC/UGC chart with `sofs`/`SOFFSET` enabled, audio export inserts one measure of silence. Its length uses the initial time signature, independently of the manual audio offset.
 
 C2S conversion shifts notes, long-note endpoints, speed intervals, and later tempo/meter events by that measure; the initial tempo and meter stay at tick zero. Speed intervals starting at zero remain active during the silence and extend to the shifted endpoint.
 
-Extended mode uses fixed zero-based coordinates without this extra measure. C2S imports retain their coordinates even after edits invalidate saved snapshots. `ChartExtras.C2sCoordinateOrigin` records the origin in MGXC/UGC round-trip metadata; older imports are recognized by their source key or snapshot.
+Legacy Extended input uses fixed zero-based coordinates without this extra measure. C2S imports retain their coordinates even after edits invalidate saved snapshots. `ChartExtras.C2sCoordinateOrigin` records the origin in MGXC/UGC round-trip metadata; older imports are recognized by their source key or snapshot.
 
 [Format references](formats/README.md) describe syntax and provenance. A source specification does not imply that every command is implemented; check the parser and its tests.
 

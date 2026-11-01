@@ -5,6 +5,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Writer.ugc;
+using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using Xunit;
@@ -17,7 +18,7 @@ public sealed class EditorDialectTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ExtendedOutput_RejectsUnmigratedOriginalPrerollWithoutReplacingOutput(bool ugc)
+    public async Task OfficialOutput_PreservesOriginalPrerollWithoutMutatingSource(bool ugc)
     {
         var chart = await Parse("@FLAG\tSOFFSET\tTRUE\n@BEAT\t0\t3\t8\n#0'0:t04\n", ChartDialect.Original);
         var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
@@ -25,18 +26,17 @@ public sealed class EditorDialectTests
         try
         {
             await File.WriteAllTextAsync(path, "existing output", ct);
-            await Assert.ThrowsAsync<DiagnosticException>(async () =>
             {
                 if (ugc)
                 {
-                    await new UgcChartWriter(path, chart, ChartDialect.Extended).WriteAsync(ct);
+                    await new UgcChartWriter(path, chart).WriteAsync(ct);
                 }
                 else
                 {
-                    await new MgxcChartWriter(new MgxcWriteRequest(path, chart, ChartDialect.Extended)).WriteAsync(ct);
+                    await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
                 }
-            });
-            Assert.Equal("existing output", await File.ReadAllTextAsync(path, ct));
+            }
+            Assert.NotEqual("existing output", await File.ReadAllTextAsync(path, ct));
             Assert.Equal(ChartDialect.Original, chart.Extras.EncodingDialect);
             Assert.False(chart.Extras.FixedZeroOrigin);
             Assert.False(chart.Meta.BgmFixedZeroOrigin);
@@ -58,7 +58,7 @@ public sealed class EditorDialectTests
     [InlineData(true, ChartDialect.Original, true, 4, true)]
     [InlineData(false, ChartDialect.Auto, true, 4, false)]
     [InlineData(true, ChartDialect.Auto, true, 4, false)]
-    public async Task ExtendedOutput_AllowsCoordinatesWithoutPendingOriginalPreroll(
+    public async Task OfficialOutput_PreservesSourceOrigin(
         bool ugc, ChartDialect sourceDialect, bool blank, int numerator, bool fixedOrigin)
     {
         var chart = await Parse($"@FLAG\tSOFFSET\t{blank}\n@BEAT\t0\t{numerator}\t4\n#0'0:t04\n",
@@ -70,15 +70,15 @@ public sealed class EditorDialectTests
         try
         {
             Assert.True(ugc
-                ? (await new UgcChartWriter(path, chart, ChartDialect.Extended).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart, ChartDialect.Extended)).WriteAsync(ct)).Succeeded);
+                ? (await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct)).Succeeded);
             var parsed = ugc
                 ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), ChartDialect.Extended), TestMediaTool.Instance).ParseAsync(ct)
                 : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load(), ChartDialect.Extended), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
             Assert.True(converted.Succeeded, converted.ToString());
-            Assert.Equal(0, Assert.Single(converted.Value!.Notes).Tick.Original);
+            Assert.Equal(blank && !fixedOrigin ? numerator * 480 : 0, Assert.Single(converted.Value!.Notes).Tick.Original);
             Assert.Equal(blank, parsed.Value!.Meta.BgmEnableBarOffset);
         }
         finally { File.Delete(path); }
@@ -87,23 +87,26 @@ public sealed class EditorDialectTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NativeWriters_RejectInvalidDialectWithoutReplacingOutput(bool ugc)
+    public async Task NativeWriters_RejectDanglingCurveWithoutReplacingOutput(bool ugc)
     {
         var chart = await Parse("#0'0:t04\n", ChartDialect.Original);
+        var slide = new U.Slide { Tick = 0, Lane = 0, Width = 4 };
+        slide.AppendChild(new U.SlideJoint { Tick = 240, Lane = 4, Width = 4, Joint = Joint.C, IsCurveControl = true });
+        chart.Notes.AppendChild(slide);
         var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
         var ct = TestContext.Current.CancellationToken;
         try
         {
             await File.WriteAllTextAsync(path, "existing output", ct);
-            await Assert.ThrowsAsync<DiagnosticException>(async () =>
+            await Assert.ThrowsAsync<TimedDiagnosticException>(async () =>
             {
                 if (ugc)
                 {
-                    await new UgcChartWriter(path, chart, (ChartDialect)999).WriteAsync(ct);
+                    await new UgcChartWriter(path, chart).WriteAsync(ct);
                 }
                 else
                 {
-                    await new MgxcChartWriter(new MgxcWriteRequest(path, chart, (ChartDialect)999)).WriteAsync(ct);
+                    await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
                 }
             });
             Assert.Equal("existing output", await File.ReadAllTextAsync(path, ct));
@@ -121,7 +124,7 @@ public sealed class EditorDialectTests
     [InlineData(true, false, true)]
     [InlineData(true, true, false)]
     [InlineData(true, true, true)]
-    public async Task NativeWriters_RejectUnrepresentableMeterPositionsWithoutReplacingOutput(
+    public async Task NativeWriters_WarnAndApproximateUnrepresentableMeters(
         bool ugc, bool zero, bool representable)
     {
         var source = new PenguinTools.Chart.Models.c2s.Chart();
@@ -142,22 +145,13 @@ public sealed class EditorDialectTests
         try
         {
             await File.WriteAllTextAsync(path, "existing output", ct);
-            async Task Write()
-            {
-                Assert.True(ugc
-                    ? (await new UgcChartWriter(path, converted.Value!, ChartDialect.Extended).WriteAsync(ct)).Succeeded
-                    : (await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!, ChartDialect.Extended)).WriteAsync(ct)).Succeeded);
-            }
-            if (representable)
-            {
-                await Write();
-                Assert.NotEqual("existing output", await File.ReadAllTextAsync(path, ct));
-            }
-            else
-            {
-                await Assert.ThrowsAsync<DiagnosticException>(Write);
-                Assert.Equal("existing output", await File.ReadAllTextAsync(path, ct));
-            }
+            var written = ugc
+                ? await new UgcChartWriter(path, converted.Value!).WriteAsync(ct)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value!)).WriteAsync(ct);
+            Assert.True(written.Succeeded);
+            Assert.Equal(zero || !representable,
+                written.Diagnostics.Diagnostics.Any(d => d.Message.Key == MsgKeys.Warn_Editor_approximation));
+            Assert.NotEqual("existing output", await File.ReadAllTextAsync(path, ct));
         }
         finally { File.Delete(path); }
     }
@@ -232,7 +226,7 @@ public sealed class EditorDialectTests
     [Theory]
     [InlineData(ChartDialect.Original)]
     [InlineData(ChartDialect.Extended)]
-    public async Task Writers_KeepDialectTimingEffectsAndUserText(ChartDialect dialect)
+    public async Task OfficialWriters_KeepLegacyTimingEffectsAndUserText(ChartDialect dialect)
     {
         var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n@BEAT\t0\t3\t8\n@BEAT\t2\t4\t4\n#2'0:x04L\n", dialect);
         chart.Meta.Copyright = "Copyright author; literal text";
@@ -250,15 +244,15 @@ public sealed class EditorDialectTests
         {
             for (var cycle = 0; cycle < 3; cycle++)
             {
-                Assert.True((await new UgcChartWriter(ugc, chart, dialect).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
+                Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);
-                Assert.Contains("'PenguinTools dialect: " + (dialect == ChartDialect.Original ? "original" : "extended"), text);
+                Assert.Contains("@VER\t9", text);
                 Assert.DoesNotContain("'PenguinTools dialect: margrete-", text);
                 var parsed = await new UgcParser(new UgcParseRequest(ugc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
                 Assert.True(parsed.Succeeded, parsed.ToString());
                 chart = parsed.Value!;
-                Assert.Equal(dialect, chart.Extras.EncodingDialect);
+                Assert.Equal(ChartDialect.Original, chart.Extras.EncodingDialect);
                 Assert.Equal(expectedTick, Assert.Single(chart.Notes.Children.OfType<U.ExTap>()).Tick.Original);
                 Assert.Equal(expectedEffect, Assert.Single(chart.Notes.Children.OfType<U.ExTap>()).Effect);
                 Assert.Equal("Copyright author; literal text", chart.Meta.Copyright);
@@ -268,7 +262,7 @@ public sealed class EditorDialectTests
                 Assert.Equal(0, chart.Meta.ExVersion);
                 Assert.False(chart.Meta.ExLongEnabled);
                 Assert.True(chart.Meta.WaitBgmEnd);
-                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart, dialect))
+                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart))
                     .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var binary = await new MgxcParser(new MgxcParseRequest(mgxc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
@@ -290,7 +284,7 @@ public sealed class EditorDialectTests
     [InlineData(32768)]
     [InlineData(65535)]
     [InlineData(65536)]
-    public async Task MgxcHeight_UsesComplete32BitField(int height)
+    public async Task MgxcHeight_ClampsNativeValueAndRetainsOriginalInMetadata(int height)
     {
         var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n#0'0:C04280,240\n#240:c0428\n");
         var crash = Assert.Single(chart.Notes.Children.OfType<U.AirCrash>());
@@ -299,7 +293,7 @@ public sealed class EditorDialectTests
         var path = TestTempPaths.Create(".mgxc");
         try
         {
-            await new MgxcChartWriter(new MgxcWriteRequest(path, chart, ChartDialect.Extended))
+            await new MgxcChartWriter(new MgxcWriteRequest(path, chart))
                 .WriteAsync(TestContext.Current.CancellationToken);
             var parsed = await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
@@ -313,17 +307,20 @@ public sealed class EditorDialectTests
     }
 
     [Fact]
-    public async Task UnsupportedLegacyOutput_FailsBeforeReplacingExistingFile()
+    public async Task LegacyNoLine_WritesOfficialMgxc()
     {
         var chart = await Parse("#0'0:s04\n#480:n44\n", ChartDialect.Extended);
         var path = TestTempPaths.Create(".mgxc");
         try
         {
             await File.WriteAllTextAsync(path, "keep existing output", TestContext.Current.CancellationToken);
-            await Assert.ThrowsAsync<Core.Diagnostic.DiagnosticException>(async () =>
-                await new MgxcChartWriter(new MgxcWriteRequest(path, chart, ChartDialect.Original))
-                    .WriteAsync(TestContext.Current.CancellationToken));
-            Assert.Equal("keep existing output", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, chart))
+                .WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded);
+            var parsed = await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(parsed.Succeeded);
+            Assert.True(Assert.Single(parsed.Value!.Notes.Children.OfType<U.Slide>()).NoLine);
         }
         finally
         {
@@ -387,7 +384,7 @@ public sealed class EditorDialectTests
         try
         {
             await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
-            Assert.Contains("#480>c4428", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            Assert.Contains("#480>cK428", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
             var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded, result.ToString());
@@ -402,8 +399,8 @@ public sealed class EditorDialectTests
 
     [Theory]
     [InlineData(ChartDialect.Original, false)]
-    [InlineData(ChartDialect.Extended, true)]
-    public async Task AirLongHead_UsesNativeDialectSyntax(ChartDialect dialect, bool separateAir)
+    [InlineData(ChartDialect.Extended, false)]
+    public async Task AirLongHead_UsesOfficialSyntax(ChartDialect dialect, bool separateAir)
     {
         var chart = await Parse("#0'0:t04\n#0'0:H04N\n#480>s\n", dialect);
         var path = TestTempPaths.Create(".ugc");
@@ -411,8 +408,8 @@ public sealed class EditorDialectTests
         {
             await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
             var text = await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken);
-            Assert.Equal(separateAir, text.Contains("#0'0:a04", StringComparison.Ordinal));
-            Assert.Contains("#0'0:H04N", text);
+            Assert.Equal(separateAir, text.Contains("#0'0:aG4", StringComparison.Ordinal));
+            Assert.Contains("#0'0:HG4N", text);
             Assert.Contains("#480>s", text);
         }
         finally
@@ -422,7 +419,7 @@ public sealed class EditorDialectTests
     }
 
     [Fact]
-    public async Task CoincidentCrashPoints_RequireMgxcOrExtendedUgc()
+    public async Task CoincidentCrashPoints_AreApproximatedWithWarning()
     {
         var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n#0'0:C04280,240\n#480>c4428\n#480>c8428\n",
             ChartDialect.Extended);
@@ -430,11 +427,14 @@ public sealed class EditorDialectTests
         try
         {
             await File.WriteAllTextAsync(path, "keep existing output", TestContext.Current.CancellationToken);
-            await Assert.ThrowsAsync<Core.Diagnostic.DiagnosticException>(async () =>
-                await new UgcChartWriter(path, chart, ChartDialect.Original).WriteAsync(TestContext.Current.CancellationToken));
-            Assert.Equal("keep existing output", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
-            Assert.True((await new UgcChartWriter(path, chart, ChartDialect.Extended)
-                .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
+            var written = await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
+            Assert.True(written.Succeeded);
+            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.Single(await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken),
+                line => line.StartsWith("#480>", StringComparison.Ordinal));
+            var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(2, Assert.Single(parsed.Value!.Notes.Children.OfType<U.AirCrash>()).Children.Count);
         }
         finally
         {
@@ -561,7 +561,7 @@ public sealed class EditorDialectTests
     [Theory]
     [InlineData(ChartDialect.Original, 1440)]
     [InlineData(ChartDialect.Extended, 3840)]
-    public async Task RetainedFormat_SurvivesRemovedMarkerAndChangedCreator(ChartDialect dialect, int tick)
+    public async Task OfficialVersion_SurvivesChangedCreator(ChartDialect dialect, int tick)
     {
         var chart = await Parse("@BEAT\t0\t3\t8\n#2'0:t04\n", dialect);
         var path = TestTempPaths.Create(".ugc");
@@ -575,7 +575,7 @@ public sealed class EditorDialectTests
             var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded, result.ToString());
-            Assert.Equal(dialect, result.Value!.Extras.EncodingDialect);
+            Assert.Equal(ChartDialect.Original, result.Value!.Extras.EncodingDialect);
             Assert.Equal(tick, Assert.Single(result.Value.Notes.Children.OfType<U.Tap>()).Tick.Original);
         }
         finally
@@ -672,12 +672,12 @@ public sealed class EditorDialectTests
         {
             for (var cycle = 0; cycle < 2; cycle++)
             {
-                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart, dialect))
+                Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxc, chart))
                     .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var binary = await new MgxcParser(new MgxcParseRequest(mgxc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
                 Assert.True(binary.Succeeded, binary.ToString());
-                Assert.True((await new UgcChartWriter(ugc, binary.Value!, dialect)
+                Assert.True((await new UgcChartWriter(ugc, binary.Value!)
                     .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await new UgcParser(new UgcParseRequest(ugc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);

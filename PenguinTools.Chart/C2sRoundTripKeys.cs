@@ -54,7 +54,8 @@ internal static class C2sRoundTripKeys
                     note.Timeline != 0 &&
                     note is not UmgrModel.SoflanArea and not UmgrModel.SoflanAreaJoint)
                 .Select(note =>
-                    $"{note.Tick.Original},{note.Lane},{note.Width},{note.Timeline}")
+                    $"{note.Tick.Original},{note.Lane},{note.Width},{note.Timeline}" +
+                    (CurveExpansion.IsControl(note) ? ",BEZIER" : ""))
                 .OrderBy(key => key, StringComparer.Ordinal));
     }
 
@@ -106,7 +107,7 @@ internal static class C2sRoundTripKeys
                         $"ASJ,{joint.Tick.Original},{joint.Timeline}," +
                         $"{joint.Lane},{joint.Width}," +
                         $"{joint.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
-                        $"{joint.Joint}",
+                        $"{joint.Joint}" + (joint.IsCurveControl ? ",BEZIER" : ""),
 
                     UmgrModel.AirHold airHold =>
                         $"AH,{airHold.Tick.Original},{airHold.Timeline}," +

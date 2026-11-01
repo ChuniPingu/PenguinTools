@@ -120,6 +120,7 @@
       "unsupported_tap_point_type": "Unsupported SUS TAP point type '{0}'."
     },
     "warn": {
+      "editor_approximation": "{0}: approximated {1} from {2} to {3}.",
       "chart_metadata_only": "Read {0} v{1} metadata only.",
       "chart_skipped_version": "Skipped {0} v{1}; maximum supported: v{2}.",
       "config_invalid": "Failed to read options.json: {0}",

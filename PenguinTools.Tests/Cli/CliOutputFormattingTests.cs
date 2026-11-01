@@ -129,6 +129,19 @@ public class CliOutputFormattingTests
     }
 
     [Theory]
+    [InlineData("", ChartFormat.Mgxc)]
+    [InlineData(" --chart-format mgxc", ChartFormat.Mgxc)]
+    [InlineData(" --chart-format ugc", ChartFormat.Ugc)]
+    public void MusicExtraction_SelectsChartFormat(string optionText, ChartFormat expected)
+    {
+        var parsed = RootCommands.BuildRootCommand().Parse("music extract input output" + optionText);
+        Assert.Empty(parsed.Errors);
+        var option = Assert.Single(parsed.CommandResult.Command.Options
+            .OfType<System.CommandLine.Option<ChartFormat>>(), o => o.Name == "--chart-format");
+        Assert.Equal(expected, parsed.GetValue(option));
+    }
+
+    [Theory]
     [InlineData("inspect input.mgxc")]
     [InlineData("convert input.mgxc output.c2s")]
     public void ChartCommands_UseAutoByDefaultAndAcceptExplicitModes(string command)
@@ -153,6 +166,8 @@ public class CliOutputFormattingTests
     [InlineData("info --no-pretty")]
     [InlineData("scan .")]
     [InlineData("music export input output")]
+    [InlineData("music extract input output --chart-format c2s")]
+    [InlineData("music extract input output --chart-format sus")]
     [InlineData("option convert input output")]
     [InlineData("media audio input output")]
     public void LegacyOrRemovedOptions_AreRejected(string commandLine)

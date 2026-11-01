@@ -2,6 +2,8 @@
 
 import std.sys;
 
+s32 MGXC_VERSION;
+
 struct Field {
     s16 type;
 
@@ -127,6 +129,8 @@ enum ExAttr : s8 {
     Invert    = 0x01,
     HasNote   = 0x02,
     ExJdg     = 0x03,
+    AxisY     = 0x04,
+    AxisZ     = 0x05,
 };
 
 enum OptionValue : s32 {
@@ -141,9 +145,23 @@ struct Note {
     Direction direction;
     ExAttr exAttr;
     s8 variationId;
-    s8 x;
-    s16 width;
-    s32 height;
+    if (MGXC_VERSION >= 4) {
+        u8 reserved;
+        u8 width;
+        s8 x;
+        u16 height;
+        u16 reservedHeight;
+    } else if (MGXC_VERSION == 3) {
+        s8 x;
+        u8 width;
+        u8 reserved;
+        u16 height;
+        u16 reservedHeight;
+    } else {
+        s8 x;
+        s16 width;
+        s32 height;
+    }
     s32 tick;
     s32 timelineId;
 
@@ -163,7 +181,8 @@ struct Mgxc {
     std::assert(header == "MGXC", ERROR);
 
     s32 mgxcBlockSize;
-    s32 version;             // 02 00 00 00
+    s32 version;
+    MGXC_VERSION = version;
 
     char metaHeader[4];      // 6D 65 74 61
     std::assert(metaHeader == "meta", ERROR);

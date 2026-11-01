@@ -29,6 +29,7 @@ public partial class MgxcParser
     }
 
     private readonly PenguinTools.Core.Metadata.ChartDialect _requestedDialect;
+    private int _version;
     private bool _hasFixedZeroOriginMarker;
     private bool _hasPrerollBar1Marker;
     private IMediaTool MediaTool { get; }
@@ -81,10 +82,15 @@ public partial class MgxcParser
             }
 
             br.ReadInt32(); // MGXC Block Size
-            var version = br.ReadInt32();
-            if (version > 2)
+            var version = _version = br.ReadInt32();
+            if (version > 4)
             {
-                ThrowAtPosition(Msg.Create(MsgKeys.Error_Chart_version_too_new, "MGXC", version, 2), fs.Position - 4);
+                ThrowAtPosition(Msg.Create(MsgKeys.Error_Chart_version_too_new, "MGXC", version, 4), fs.Position - 4);
+            }
+
+            if (version < 1)
+            {
+                ThrowAtPosition(Msg.Create(MsgKeys.Error_Invalid_Header, version, "MGXC v1-v4"), fs.Position - 4);
             }
 
             br.ReadBlock(HeaderMeta, ParseMeta);
@@ -120,7 +126,7 @@ public partial class MgxcParser
             br.ReadBlock(HeaderEvnt, reader => Capture(reader, ParseEvent, true));
             Mgxc.Extras.FixedZeroOrigin |= _hasFixedZeroOriginMarker || ChartExtras.HasFixedZeroOrigin(_copyright);
             Mgxc.Extras.PrerollBar1Applied |= _hasPrerollBar1Marker || ChartExtras.HasPrerollBar1(_copyright);
-            Mgxc.Extras.ApplyEditorMode(_requestedDialect, Mgxc.Meta);
+            Mgxc.Extras.ApplyEditorMode(_version >= 3 ? PenguinTools.Core.Metadata.ChartDialect.Auto : _requestedDialect, Mgxc.Meta);
             Mgxc.Extras.EditorImageEvents = _imageEvents;
             Mgxc.Extras.RestoreEditorMetadata(Mgxc.Meta);
             PenguinTools.Core.Metadata.C2sRoundTripComment.Absorb(Mgxc.Meta, Mgxc.Extras.RoundTripBookmarks);
@@ -132,11 +138,12 @@ public partial class MgxcParser
             Diagnostic.TimeCalculator = Mgxc.GetCalculator();
 
             var legacyEncoding = Mgxc.Extras.EncodingDialect == PenguinTools.Core.Metadata.ChartDialect.Auto && Mgxc.Extras.HasCarrierMarkers;
-            Mgxc.Extras.EncodingDialect = _requestedDialect != PenguinTools.Core.Metadata.ChartDialect.Auto ? _requestedDialect :
+            Mgxc.Extras.EncodingDialect = _version >= 3 ? PenguinTools.Core.Metadata.ChartDialect.Original :
+                _requestedDialect != PenguinTools.Core.Metadata.ChartDialect.Auto ? _requestedDialect :
                 Mgxc.Extras.EncodingDialect != PenguinTools.Core.Metadata.ChartDialect.Auto ? Mgxc.Extras.EncodingDialect :
                 legacyEncoding ? PenguinTools.Core.Metadata.ChartDialect.Extended : PenguinTools.Core.Metadata.ChartDialect.Original;
             br.ReadBlock(HeaderDat2, reader => Capture(reader, ParseNote, false));
-            if (_requestedDialect == PenguinTools.Core.Metadata.ChartDialect.Auto && !legacyEncoding &&
+            if (_version < 3 && _requestedDialect == PenguinTools.Core.Metadata.ChartDialect.Auto && !legacyEncoding &&
                 (Mgxc.Events.Children.OfType<UmgrModel.BeatEvent>().Any(b => b.Numerator == 0) ||
                  Mgxc.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).Any(n =>
                      n is UmgrModel.Slide { NoLine: true } or UmgrModel.SlideJoint { NoLine: true } ||
@@ -168,6 +175,8 @@ public partial class MgxcParser
             {
                 Mgxc.Extras.RestoreAppearance(Mgxc);
             }
+            EditorProjection.Restore(Mgxc);
+            Mgxc.Extras.EditorFormatVersion = _version;
 
             Mgxc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Mgxc);
             Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n'));

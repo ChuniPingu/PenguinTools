@@ -6,7 +6,8 @@ Reference material for the chart parsers and writers in `PenguinTools.Chart/`.
 | ------------------------------------------------------ | ------------------------------------------------ |
 | [C2S note types](c2s.md)                               | Record fields, note codes, colors, and effects   |
 | [SUS](sus.md)                                          | English reference for SUS v2.7 rev2              |
-| [UGC](ugc.md)                                          | Umiguri Chart v8 commands and project extensions |
+| [MGXC](mgxc.hexpat) | Binary layout (ImHex pattern) |
+| [UGC](ugc.md)                                          | Umiguri Chart v9 commands and legacy input |
 | [Alternate SUS translation](references/sus-waki285.md) | Retained upstream translation and annotations    |
 
 These documents describe file syntax; implementation coverage is determined by the parsers, writers, and tests. Keep format version numbers because they identify the data specification. Tool and library versions belong in configuration.

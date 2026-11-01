@@ -15,6 +15,9 @@ public partial class MgxcParser
 
         switch (name)
         {
+            case "xfld":
+                Mgxc.Meta.ExtendedField = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
+                break;
             case "titl":
                 Mgxc.Meta.Title = (string)data;
                 break;
