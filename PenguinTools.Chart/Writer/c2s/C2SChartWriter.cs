@@ -192,53 +192,6 @@ public partial class C2SChartWriter
             .Select((note, index) => new { note, index })
             .ToDictionary(x => x.note, x => x.index);
 
-        var slideRoots = C2sSlidePaths.Build(notes.OfType<C2sModel.Slide>(), rounded: true)
-            .SelectMany(path => path.Select(segment => (segment, root: path[0])))
-            .ToDictionary(x => x.segment, x => x.root);
-        int AirRootOrder(C2sModel.Note note)
-        {
-            var visited = new HashSet<C2sModel.Note>();
-            while (note is C2sModel.IPairable { Parent: C2sModel.AirSlide or C2sModel.AirHold } pair && visited.Add(note))
-            {
-                note = pair.Parent;
-            }
-            var ground = ((C2sModel.IPairable)note).Parent ?? note;
-            if (ground is C2sModel.Slide slide && slideRoots.TryGetValue(slide, out var root))
-            {
-                ground = root;
-            }
-            return positions.GetValueOrDefault(ground, positions[note]);
-        }
-
-        var groups = notes
-            .Where(x => x is C2sModel.IPairable { Parent: C2sModel.AirSlide or C2sModel.AirHold })
-            .GroupBy(x => (
-                Tick: x.Tick.Round,
-                x.Lane,
-                x.Width,
-                Height: x is C2sModel.AirSlide slide ? slide.Height.Result : 0,
-                ParentId: x is C2sModel.AirHold ? "AHD" : ((C2sModel.IPairable)x).Parent!.Id))
-            .Where(x => x.Count() > 1)
-            .ToArray();
-
-        foreach (var group in groups)
-        {
-            var slots = group
-                .Select(x => positions[x])
-                .OrderBy(x => x)
-                .ToArray();
-
-            var ordered = group
-                .OrderBy(AirRootOrder)
-                .ToArray();
-
-            for (var i = 0; i < slots.Length; i++)
-            {
-                notes[slots[i]] = ordered[i];
-                positions[ordered[i]] = slots[i];
-            }
-        }
-
         foreach (var group in notes.OfType<C2sModel.AirCrash>()
                      .GroupBy(n => (n.Tick.Round, n.Lane, n.Width, n.Height, n.Color, n.Density, n.Attr)).Where(g => g.Count() > 1))
         {
@@ -250,7 +203,7 @@ public partial class C2SChartWriter
                 positions[ordered[i]] = slots[i];
             }
         }
-        return OrderNoteDependencies(notes);
+        return C2sAirScheduler.Schedule(notes);
     }
 
     private bool AppendFormattedNotes(StringBuilder sb)

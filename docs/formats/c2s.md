@@ -62,7 +62,7 @@ Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that categ
 - **`SXD` / `SXC`** — ExSlide.
 - **Link** — usually `SLD`; `NCL` = no line.
 
-Conversion preserves note statement order except where parent or path dependencies require reordering. Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. Independent slides touching end to start require the later slide's first record before the earlier slide's final segment; sorting these records by time merges the paths. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches height and the parent node type.
+Conversion preserves unrelated statement order and orders SLIDE/AIR paths by parent and continuation dependencies. Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. Independent slides touching end to start require the later slide's first record before the earlier slide's final segment; sorting these records by time merges the paths. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches native height in integer tenths and the parent node type.
 
 ## FLK (Flick)
 
@@ -98,7 +98,7 @@ Conversion preserves note statement order except where parent or path dependenci
 | `ADL` | Down-left  |
 | `ADR` | Down-right |
 
-- **Target Note** — parent type token at the same time.
+- **Target Note** — selects the first previously created, unoccupied parent of that type whose current endpoint matches the AIR time, cell, and width. AIR, AIR-HOLD, and AIR-SLIDE share one attachment slot per ground path. Long-note parents match their current end; forward references and reuse of occupied parents are rejected.
 - **Color** — optional; see [Colors](#colors).
 
 ## AHD / AHX (Air Hold)

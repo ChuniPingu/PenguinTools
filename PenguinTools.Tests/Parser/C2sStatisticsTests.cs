@@ -25,6 +25,11 @@ public sealed class C2sStatisticsTests
         { "TAP 0 0 0 4\nASC 0 0 0 4 TAP 1 96 4 4 2 DEF\nASD 0 96 4 4 ASD 2 96 8 4 4 DEF", [1, 0, 0, 1, 0] },
         { "TAP 0 0 0 4\nASC 0 0 0 4 TAP 1 96 4 4 2 DEF\nASC 0 96 4 4 ASC 2 96 8 4 3 DEF\nASD 0 192 8 4 ASC 3 48 12 4 4 DEF", [1, 0, 0, 5, 0] },
         { "ALD 0 96 0 4 48 1 96 4 4 1 DEF CEN\nALD 0 0 0 4 48 1 96 0 4 1 DEF CEN", [0, 0, 0, 6, 0] },
+        { "SLA 0 0 0 4 96 0\nAIR 0 96 0 4 SLA DEF", [0, 0, 0, 1, 0] },
+        { "SLA 0 0 0 4 96 0\nAIR 0 0 0 4 SLA DEF", [0, 0, 0, 0, 0] },
+        { "SLA 0 0 0 4 96 0\nAHD 0 96 0 4 SLA 96 DEF\nAIR 0 96 0 4 SLA DEF", [0, 0, 0, 2, 0] },
+        { "SLA 0 0 0 4 96 0\nSLA 0 0 0 4 96 0\nAIR 0 96 0 4 SLA DEF\nAIR 0 96 0 4 SLA DEF", [0, 0, 0, 2, 0] },
+        { "SLA 0 0 0 4 0 0\nAIR 0 0 0 4 SLA DEF", [0, 0, 0, 1, 0] },
         { "TUTORIAL 1\nSTP 0 0 200\nHLD 0 0 0 4 100", [1, 0, 0, 0, 0] },
         { "TUTORIAL 1\nSTP 0 0 100\nHLD 0 0 0 4 100", [1, 1, 0, 0, 0] },
         { "TUTORIAL 1\nSLP 0 0 200 0 1\nHLD 0 0 0 4 100", [1, 3, 0, 0, 0] },
@@ -35,6 +40,50 @@ public sealed class C2sStatisticsTests
     [MemberData(nameof(AcceptedRecords))]
     public void CountsOnlyAcceptedRelationshipsAndJudgements(string records, int[] expected) =>
         AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), expected);
+
+    [Theory]
+    [InlineData("ASX", "ASX", 0)]
+    [InlineData("ASX", "AHD", 0)]
+    [InlineData("AHX", "ASX", 1)]
+    [InlineData("AHX", "AHX", 4)]
+    public void LegacyAirHoldAliases_DoNotCreateNativeJudgements(string firstTag, string parentTag, int airCount)
+    {
+        var records = $"TAP 0 0 0 4\n{firstTag} 0 0 0 4 TAP 96 DEF\nAHD 0 96 0 4 {parentTag} 96 DEF";
+        AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), [1, 0, 0, airCount, 0]);
+    }
+
+    [Theory]
+    [InlineData("5.06", "5.10", 3)]
+    [InlineData("5.04", "5.09", 2)]
+    public void AirSlideContinuation_UsesNativeHeightKey(string endHeight, string nextHeight, int airCount)
+    {
+        var records = $"TAP 0 0 0 4\nASD 0 0 0 4 TAP 5 96 4 4 {endHeight} DEF\n" +
+            $"ASD 0 96 4 4 ASD {nextHeight} 96 8 4 5 DEF";
+        AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), [1, 0, 0, airCount, 0]);
+    }
+
+    [Theory]
+    [InlineData("5.06", "5.10", 5)]
+    [InlineData("5.04", "5.09", 6)]
+    public void AirCrashContinuation_UsesNativeHeightKey(string endHeight, string nextHeight, int airCount)
+    {
+        var records = $"ALD 0 0 0 4 48 5 96 4 4 {endHeight} DEF DEF\n" +
+            $"ALD 0 96 4 4 48 {nextHeight} 96 8 4 5 DEF AxisY";
+        AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), [0, 0, 0, airCount, 0]);
+    }
+
+    [Theory]
+    [InlineData(8, 4, 8, 4, 3)]
+    [InlineData(8, 4, 4, 4, 2)]
+    [InlineData(4, 2, 4, 2, 3)]
+    [InlineData(4, 2, 4, 4, 2)]
+    public void AirHoldContinuation_UsesLiveGroundEndpoint(int endLane, int endWidth,
+        int nextLane, int nextWidth, int airCount)
+    {
+        var records = "SLD 0 0 0 4 96 4 4 SLD\nAHD 0 96 4 4 SLD 96 DEF\n" +
+            $"SLD 0 96 4 4 96 {endLane} {endWidth} SLD\nAHD 0 192 {nextLane} {nextWidth} AHD 96 DEF";
+        AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), [1, 0, 3, airCount, 0]);
+    }
 
     [Theory]
     [InlineData("0", 100, 2)]

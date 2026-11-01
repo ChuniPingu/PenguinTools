@@ -76,7 +76,7 @@
       "preview_stop_clamped": "Preview stop time ({0} s) exceeds the maximum ({1} s) and has been clamped to prevent overflow."
     },
     "mg": {
-      "ambiguous_c2s_slide_path": "A Slide starts where another Slide segment ends at the same C2S position (lane {0}, width {1}).",
+      "ambiguous_c2s_slide_path": "C2S joins this SLIDE segment to a different path (lane {0}, width {1}).",
       "concurrent_ex_effects": "Different EX effects overlap at the same tick: {0}. The game will display only one of them.",
       "head_bpm_not_found": "No BPM change was found at tick 0.",
       "head_time_signature_event_not_found": "No time signature was found at bar 0. Defaulting to 4/4.",
@@ -90,7 +90,7 @@
       "meta_unknown_tag": "Unknown tag '{0}'.",
       "no_sortname_provided": "No sort name was provided. A sort name has been generated from the title.",
       "note_overlapped_in_different_til": "C2S cannot separate these coincident notes; the speed of timeline {0} will be overridden by timeline {1}.",
-      "overlapping_air_parent_slide": "More Slide ends than Air notes share this position, so an Air parent cannot be determined uniquely. Separate overlapping Slide ends by at least one tick.",
+      "overlapping_air_parent_slide": "C2S attaches this AIR to a different overlapping SLIDE endpoint.",
       "string_id_not_found": "StringID '{0}' was not found in '{1}'. Use a numeric ID from Assets, not a placeholder like [StringID]. You can also run Recollect game assets to refresh the database.",
       "unrecognized_meta": "Unknown property '{0}', data: {1}.",
       "unrecognized_note": "Unknown note type {0}."

@@ -7,13 +7,13 @@ internal static class C2sAirCrashPaths
 {
     private readonly record struct Point(int Tick, int Lane, int Width, decimal Height, Color Color, int Density, AirLadderAttr Attr);
 
-    internal static IEnumerable<C.AirCrash[]> Build(IEnumerable<C.AirCrash> segments)
+    internal static IEnumerable<C.AirCrash[]> Build(IEnumerable<C.AirCrash> segments, bool includeAxis = true)
     {
         var paths = new List<List<C.AirCrash>>();
         var tails = new Dictionary<Point, PriorityQueue<int, int>>();
         foreach (var segment in segments)
         {
-            var attr = segment.Attr == AirLadderAttr.Trace ? AirLadderAttr.DEF : segment.Attr;
+            var attr = !includeAxis || segment.Attr == AirLadderAttr.Trace ? AirLadderAttr.DEF : segment.Attr;
             var start = new Point(segment.Tick.Original, segment.Lane, segment.Width, segment.Height.Original,
                 segment.Color, segment.Density.Original, attr);
             if (!tails.TryGetValue(start, out var candidates) || !candidates.TryDequeue(out var root, out _))

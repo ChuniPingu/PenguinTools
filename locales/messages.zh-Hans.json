@@ -76,7 +76,7 @@
       "preview_stop_clamped": "预览结束时间（{0} 秒）超过最大值（{1} 秒），已自动限制以防溢出。"
     },
     "mg": {
-      "ambiguous_c2s_slide_path": "一个 Slide 的起点与另一个 Slide 片段的终点位于相同的 C2S 位置（轨道 {0}，宽度 {1}）",
+      "ambiguous_c2s_slide_path": "C2S 将此 SLIDE 片段连接到了另一条路径（轨道 {0}，宽度 {1}）。",
       "concurrent_ex_effects": "同一时刻存在多个不同的 EX 效果：{0}。游戏只会显示其中一个。",
       "head_bpm_not_found": "在 tick 0 处未找到 BPM 变化。",
       "head_time_signature_event_not_found": "在小节 0 处未找到拍号。将默认使用 4/4 拍。",
@@ -90,7 +90,7 @@
       "meta_unknown_tag": "未知标记“{0}”。",
       "no_sortname_provided": "未提供排序名称。已根据标题自动生成。",
       "note_overlapped_in_different_til": "C2S 无法区分这些重叠音符；时间线 {0} 的速度将被时间线 {1} 覆盖。",
-      "overlapping_air_parent_slide": "此位置上的 Slide 终点多于 Air，无法唯一确定 Air 的父级。请将重叠的 Slide 终点至少错开一个 tick。",
+      "overlapping_air_parent_slide": "C2S 将此 AIR 连接到了另一个重叠的 SLIDE 终点。",
       "string_id_not_found": "在“{1}”中未找到 StringID “{0}”。请填写素材库中的编号，而不是 [StringID] 这类占位符；也可执行“读取游戏素材”以刷新数据。",
       "unrecognized_meta": "未知属性“{0}”，数据：{1}。",
       "unrecognized_note": "未知音符类型 {0}。"

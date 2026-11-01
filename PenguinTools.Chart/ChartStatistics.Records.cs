@@ -5,7 +5,7 @@ public static partial class ChartStatistics
     private sealed partial class Calculator
     {
         private readonly record struct Cell(decimal Tick, int Lane, int Width);
-        private sealed record Segment(Cell Start, Cell End, bool Judge, decimal StartHeight = 0, decimal EndHeight = 0);
+        private sealed record Segment(Cell Start, Cell End, bool Judge, int StartHeight = 0, int EndHeight = 0);
         private sealed class Air(string kind, Segment first)
         {
             internal string Kind { get; } = kind;
@@ -28,14 +28,14 @@ public static partial class ChartStatistics
             "HXD" => "HLD",
             "SLC" or "SXC" or "SXD" => "SLD",
             "AUL" or "AUR" or "ADW" or "ADR" or "ADL" => "AIR",
-            "AHX" or "ASX" => "AHD",
+            "AHX" => "AHD",
             "ASC" => "ASD",
             _ => tag
         };
 
         private static Cell At(decimal tick, string[] p, int lane, int width) =>
             new(tick, I(p, lane), Math.Clamp(I(p, width), 1, 16));
-        private static decimal Height(string[] p, int index) => (decimal)MathF.Truncate((float)N(p, index) * 10);
+        private static int Height(string[] p, int index) => C2sHeight.Key(N(p, index));
 
         private void ReadNotes()
         {
@@ -51,10 +51,10 @@ public static partial class ChartStatistics
                     case "TAP" or "CHR" or "FLK" or "MNE":
                         _notes.Add(new Note(kind, start));
                         break;
-                    case "HLD":
-                        var hold = new Note(kind, start);
-                        hold.Path.Add(new(start, start with { Tick = start.Tick + N(p, 5) }, true));
-                        _notes.Add(hold);
+                    case "HLD" or "SLA":
+                        var span = new Note(kind, start);
+                        span.Path.Add(new(start, start with { Tick = start.Tick + N(p, 5) }, kind == "HLD"));
+                        _notes.Add(span);
                         break;
                     case "SLD":
                         ReadSlide(p, start);
@@ -125,8 +125,10 @@ public static partial class ChartStatistics
             }
 
             var parent = _notes.FirstOrDefault(n => n.Air is { } air && air.Kind == kind &&
-                air.Path[^1].End == start && (!slide ||
-                    air.Path[^1].EndHeight == segment.StartHeight && air.Path[^1].Judge == (p[5] == "ASD")));
+                air.Path[^1].End.Tick == start.Tick && (slide
+                    ? air.Path[^1].End == start && air.Path[^1].EndHeight == segment.StartHeight &&
+                        air.Path[^1].Judge == (p[5] == "ASD")
+                    : n.End.Lane == start.Lane && n.End.Width == start.Width));
             parent?.Air!.Path.Add(segment);
         }
     }

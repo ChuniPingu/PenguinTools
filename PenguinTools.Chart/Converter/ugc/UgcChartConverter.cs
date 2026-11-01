@@ -35,33 +35,6 @@ public sealed class UgcChartConverter
             .Select(x => x.i).DefaultIfEmpty(int.MaxValue).Min();
     }
 
-    private void RebindGroundParents(C2sModel.Note[] notes)
-    {
-        var cursors = new Dictionary<(int, int, int, Type), int>();
-        foreach (var note in notes)
-        {
-            if (note is not C2sModel.IPairable pair || pair.Parent is not { } old ||
-                old is C2sModel.AirSlide or C2sModel.AirHold)
-            {
-                continue;
-            }
-
-            var candidates = _positiveNotes.Where(p => p.Key.GetType() == old.GetType() &&
-                p.Value.Tick == note.Tick && p.Value.Lane == note.Lane && p.Value.Width == note.Width &&
-                (p.Value.Parent is not UmgrModel.Slide slide || ReferenceEquals(slide.LastChild, p.Value)))
-                .OrderBy(p => ParentSourceOrder(p.Key)).Select(p => p.Key).ToArray();
-            if (candidates.Length == 0)
-            {
-                continue;
-            }
-
-            var key = (note.Tick.Original, note.Lane, note.Width, old.GetType());
-            var cursor = cursors.GetValueOrDefault(key);
-            pair.Parent = candidates[Math.Min(cursor, candidates.Length - 1)];
-            cursors[key] = cursor + 1;
-        }
-    }
-
     private readonly bool _debugTil;
 
     public UgcChartConverter(UgcConvertRequest request)
@@ -108,7 +81,6 @@ public sealed class UgcChartConverter
         ConvertSlides(slides);
         ConvertAirCrashes(airCrashes);
 
-        RebindGroundParents(notes);
         var airSlides = notes.OfType<C2sModel.AirSlide>().ToArray();
         var airHolds = notes.OfType<C2sModel.AirHold>().ToArray();
 
@@ -494,9 +466,9 @@ public sealed class UgcChartConverter
             return;
         }
 
-        // C2S may attach more than one AIR action to the same positive
-        // parent. Pairing another action directly would detach the first one,
-        // so additional actions use an internal carrier instead.
+        // Explicit model inputs and legacy metadata can contain more than one
+        // action for a parent. Preserve their carrier representation without
+        // detaching the action already paired to this editor note.
         var carrierParent = sourceParent switch
         {
             C2sModel.Tap =>
@@ -592,6 +564,12 @@ public sealed class UgcChartConverter
         C2sModel.AirSlide source,
         IReadOnlyList<C2sModel.AirSlide> allSegments)
     {
+        var parent = source.Parent;
+        if (parent is null)
+        {
+            return;
+        }
+
         var air = new UmgrModel.AirSlide
         {
             Height = source.Height.Original,
@@ -628,13 +606,19 @@ public sealed class UgcChartConverter
 
         _target.Notes.AppendChild(air);
 
-        EnsureAirActionPaired(source, source.Parent, air);
+        EnsureAirActionPaired(source, parent, air);
     }
 
     private void ConvertAirHoldChain(
         C2sModel.AirHold source,
         IReadOnlyList<C2sModel.AirHold> allSegments)
     {
+        var parent = source.Parent;
+        if (parent is null)
+        {
+            return;
+        }
+
         var air = new UmgrModel.AirHold
         {
             Color = source.Color
@@ -666,84 +650,34 @@ public sealed class UgcChartConverter
 
         _target.Notes.AppendChild(air);
 
-        EnsureAirActionPaired(source, source.Parent, air);
-    }
-
-    private C2sModel.Note? ResolveAirActionPairParent(C2sModel.Note? parent)
-    {
-        if (parent is not C2sModel.Slide slide)
-        {
-            return parent;
-        }
-
-        if (!_positiveNotes.TryGetValue(slide, out var mappedParent) ||
-            mappedParent is not UmgrModel.SlideJoint mappedJoint ||
-            mappedJoint.Parent is not UmgrModel.Slide mappedSlide ||
-            ReferenceEquals(mappedSlide.LastChild, mappedJoint))
-        {
-            return parent;
-        }
-
-        var terminalMatches = _source.Notes
-            .OfType<C2sModel.Slide>()
-            .Where(candidate =>
-                !ReferenceEquals(candidate, slide) &&
-                candidate.Id == slide.Id &&
-                candidate.Tick.Original == slide.Tick.Original &&
-                candidate.Timeline == slide.Timeline &&
-                candidate.Lane == slide.Lane &&
-                candidate.Width == slide.Width &&
-                candidate.EndTick.Original == slide.EndTick.Original &&
-                candidate.EndLane == slide.EndLane &&
-                candidate.EndWidth == slide.EndWidth &&
-                candidate.Joint == slide.Joint &&
-                candidate.NoLine == slide.NoLine &&
-                candidate.Effect == slide.Effect)
-            .Where(candidate =>
-                _positiveNotes.TryGetValue(candidate, out var mappedCandidate) &&
-                mappedCandidate is UmgrModel.SlideJoint candidateJoint &&
-                candidateJoint.Parent is UmgrModel.Slide candidateSlide &&
-                ReferenceEquals(candidateSlide.LastChild, candidateJoint))
-            .ToArray();
-
-        return terminalMatches.Length == 1
-            ? terminalMatches[0]
-            : parent;
+        EnsureAirActionPaired(source, parent, air);
     }
 
     private void EnsureAirActionPaired(
         C2sModel.Note source,
-        C2sModel.Note? parent,
+        C2sModel.Note parent,
         UmgrModel.NegativeNote action)
     {
-        var pairParent = ResolveAirActionPairParent(parent);
-
         var canUseMappedParent =
-            pairParent is not null &&
-            _positiveNotes.TryGetValue(pairParent, out var positiveParent) &&
+            _positiveNotes.TryGetValue(parent, out var positiveParent) &&
             (positiveParent is not UmgrModel.SlideJoint slideJoint ||
              slideJoint.Parent is UmgrModel.Slide mappedSlide &&
              ReferenceEquals(mappedSlide.LastChild, slideJoint));
 
-        if (pairParent is not null && canUseMappedParent)
+        if (canUseMappedParent)
         {
-            PairAirAction(pairParent, action);
+            PairAirAction(parent, action);
 
             if (action.PairNote is not null)
             {
-                if (parent is not null)
-                {
-                    RegisterAirAction(parent, action);
-                }
-
+                RegisterAirAction(parent, action);
                 return;
             }
         }
 
         // A Slide action attached to an intermediate joint cannot be written
         // directly after that joint because MGXC long-note pairing is
-        // sequential. Keep a dedicated carrier for that case, as well as for
-        // unresolved parents.
+        // sequential. Keep a dedicated carrier for that case.
         var carrier = new UmgrModel.ExTap
         {
             Tick = source.Tick,
@@ -781,11 +715,6 @@ public sealed class UgcChartConverter
 
         _target.Notes.AppendChild(carrier);
         carrier.MakePair(action);
-
-        if (parent is null)
-        {
-            return;
-        }
 
         RegisterAirAction(parent, action);
     }

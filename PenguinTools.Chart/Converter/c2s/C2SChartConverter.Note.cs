@@ -113,7 +113,11 @@ public partial class C2SChartConverter
                 RegisterAirActionCarrier(carrier);
             }
 
-            if (_positivePairTargets.TryGetValue(
+            if (_positivePairRealTargets.TryGetValue(source.PairNote, out var real))
+            {
+                root.Parent = real;
+            }
+            else if (_positivePairTargets.TryGetValue(
                     source.PairNote,
                     out var parent))
             {

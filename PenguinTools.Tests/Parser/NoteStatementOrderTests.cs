@@ -184,9 +184,10 @@ public sealed class NoteStatementOrderTests
             Assert.True(written.Succeeded, written.ToString());
             var records = (await File.ReadAllLinesAsync(path, ct)).Select(line => line.Split('\t'))
                 .Where(p => p[0] == "ASD").ToArray();
-            Assert.Equal(["12", "0"], records.Select(p => p[8]));
+            Assert.Equal(["0", "12"], records.Select(p => p[8]).Order());
             var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Empty(parsed.Diagnostics.Diagnostics);
             foreach (var tail in parsed.Value!.Notes.OfType<C.AirSlide>().Where(n => n.Joint == Joint.D))
             {
                 var root = Assert.IsType<C.AirSlide>(tail.Parent);
@@ -222,9 +223,13 @@ public sealed class NoteStatementOrderTests
         {
             var written = await new C2SChartWriter(new C2SWriteRequest(path, chart)).WriteAsync(ct);
             Assert.True(written.Succeeded, written.ToString());
-            var records = (await File.ReadAllLinesAsync(path, ct)).Select(line => line.Split('\t'))
-                .Where(p => p[0] == "AHD" && p[5] == "AHD").ToArray();
-            Assert.Equal(["96", "192"], records.Select(p => p[6]));
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Empty(parsed.Diagnostics.Diagnostics);
+            var ends = parsed.Value!.Notes.OfType<C.AirHold>().Where(n => n.Parent is C.AirHold)
+                .ToDictionary(n => ((C.AirHold)n.Parent!).Parent!.Tick.Original, n => n.EndTick.Original);
+            Assert.Equal(1440, ends[0]);
+            Assert.Equal(1920, ends[480]);
         }
         finally { File.Delete(path); }
     }

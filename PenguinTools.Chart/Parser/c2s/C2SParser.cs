@@ -24,9 +24,6 @@ public sealed class C2SParser
     ];
 
     private readonly List<PendingPair> _pendingPairs = [];
-    private readonly HashSet<c2sModel.Note> _usedPairParents = [];
-    private readonly Dictionary<c2sModel.Note, int> _pairRootOrder = [];
-    private readonly HashSet<c2sModel.Slide> _slideTails = [];
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
 
@@ -725,19 +722,13 @@ public sealed class C2SParser
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
-        var effectIndex = 8;
-        if (HasToken(tokens, 8))
-        {
-            if (tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase))
-            {
-                note.NoLine = true;
-                effectIndex = 9;
-            }
-            else if (tokens[8].Equals("SLD", StringComparison.OrdinalIgnoreCase))
-            {
-                effectIndex = 9;
-            }
-        }
+        note.NoLine = HasToken(tokens, 8) && tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase);
+        // Older exporters can omit the link field. Only a recognized effect
+        // identifies that abbreviated form; other link markers use the normal line.
+        var effectIndex = !HasToken(tokens, 9) && HasToken(tokens, 8) &&
+                          Enum.TryParse<ExEffect>(tokens[8], true, out var legacyEffect) && Enum.IsDefined(legacyEffect)
+            ? 8
+            : 9;
 
         if (TryReadEffect(tokens, effectIndex, lineNumber, out var effect))
         {
@@ -929,102 +920,115 @@ public sealed class C2SParser
 
     private void ResolvePairings()
     {
-        for (var i = 0; i < C2s.Notes.Count; i++)
-        {
-            _pairRootOrder[C2s.Notes[i]] = i;
-        }
+        var roots = new Dictionary<c2sModel.Note, c2sModel.Note>();
         foreach (var path in C2sSlidePaths.Build(C2s.Notes.OfType<c2sModel.Slide>()))
         {
-            _slideTails.Add(path[^1]);
             foreach (var segment in path)
             {
-                _pairRootOrder[segment] = _pairRootOrder[path[0]];
+                roots[segment] = path[0];
             }
         }
-        foreach (var pending in _pendingPairs)
+        foreach (var path in C2sAirCrashPaths.Build(C2s.Notes.OfType<c2sModel.AirCrash>(), includeAxis: false))
         {
-            var parent = FindPairParent(pending.Note, pending.ParentId);
-            if (parent != null)
+            foreach (var segment in path)
             {
-                ((c2sModel.IPairable)pending.Note).Parent = parent;
-                _usedPairParents.Add(parent);
-                // AIR continuations consume parents in ground-note creation
-                // order, even when the AIR roots were declared in another order.
-                _pairRootOrder[pending.Note] = _pairRootOrder[parent];
+                roots[segment] = path[0];
+            }
+        }
+
+        var pendingByNote = _pendingPairs.ToDictionary(p => p.Note);
+        var parents = new List<AirParentState>();
+        var stateByRoot = new Dictionary<c2sModel.Note, AirParentState>();
+        foreach (var note in C2s.Notes)
+        {
+            if (!pendingByNote.TryGetValue(note, out var pending))
+            {
+                var root = roots.GetValueOrDefault(note, note);
+                if (!stateByRoot.TryGetValue(root, out var state))
+                {
+                    state = new AirParentState(root);
+                    stateByRoot.Add(root, state);
+                    parents.Add(state);
+                }
+                state.Tail = note;
                 continue;
             }
 
+            // Each ground record has one AIR slot. Replay statements so a
+            // later parent or continuation cannot affect an earlier binding.
+            var binding = FindPairParent(note, pending.ParentId, parents);
+            if (binding is { } found)
+            {
+                ((c2sModel.IPairable)note).Parent = found.Parent;
+                found.State.AirTail = note;
+                continue;
+            }
             ReportAtLine(Severity.Warning,
                 Msg.Create(MsgKeys.C2s_Parent_not_resolved, pending.ParentId, pending.Note.Id), pending.LineNumber,
                 pending.Note);
         }
     }
 
-    private c2sModel.Note? FindPairParent(c2sModel.Note note, string parentId)
+    private static AirParentBinding? FindPairParent(c2sModel.Note note, string parentId,
+        List<AirParentState> parents)
     {
-        return C2s.Notes
-            .Where(candidate => ParentTypeMatches(candidate, parentId))
-            .Where(candidate => candidate is not c2sModel.Slide slide || _slideTails.Contains(slide))
-            .Where(candidate => IsAttachPoint(candidate, note))
-            .OrderBy(candidate => _usedPairParents.Contains(candidate))
-            .ThenBy(candidate => PairDistance(candidate, note))
-            .ThenBy(candidate => _pairRootOrder[candidate])
-            .FirstOrDefault();
+        parentId = parentId.ToUpperInvariant();
+        foreach (var state in parents)
+        {
+            if (note is c2sModel.AirHold && parentId is "AHD" or "AHX" or "ASX")
+            {
+                if (state.AirTail is c2sModel.AirHold airHold &&
+                    airHold.EndTick == note.Tick && EndLane(state.Tail) == note.Lane &&
+                    EndWidth(state.Tail) == note.Width)
+                {
+                    return new AirParentBinding(airHold, state);
+                }
+            }
+            else if (note is c2sModel.AirSlide && parentId is "ASD" or "ASC")
+            {
+                if (state.AirTail is c2sModel.AirSlide airSlide && airSlide.Id == parentId &&
+                    IsAttachPoint(airSlide, note) && C2sHeight.Key(airSlide.EndHeight) == C2sHeight.Key(((c2sModel.AirSlide)note).Height))
+                {
+                    return new AirParentBinding(airSlide, state);
+                }
+            }
+            else if (state.AirTail is null && ParentTypeMatches(state.Root, parentId) && IsAttachPoint(state.Tail, note))
+            {
+                return new AirParentBinding(state.Tail, state);
+            }
+        }
+        return null;
     }
 
-    private static bool ParentTypeMatches(c2sModel.Note candidate, string parentId)
+    private static bool ParentTypeMatches(c2sModel.Note candidate, string parentId) => candidate switch
     {
-        // C2S writers use SLD as the generic parent marker even when the
-        // attach-point segment itself is a control (SLC/SXC) segment.
-        if (parentId.Equals("SLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Slide)
-        {
-            return true;
-        }
+        c2sModel.Hold => parentId is "HLD" or "HXD",
+        c2sModel.Slide => parentId is "SLD" or "SXD" or "SLC" or "SXC",
+        _ => candidate.Id == parentId
+    };
 
-        if (parentId.Equals("HLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Hold)
-        {
-            return true;
-        }
+    private static bool IsAttachPoint(c2sModel.Note candidate, c2sModel.Note note) =>
+        EndTick(candidate) == note.Tick.Original && EndLane(candidate) == note.Lane && EndWidth(candidate) == note.Width;
 
-        if (parentId.Equals("AHD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.AirHold)
-        {
-            return true;
-        }
+    private static int EndTick(c2sModel.Note note) => note switch
+    {
+        c2sModel.LongNote longNote => longNote.EndTick.Original,
+        c2sModel.Sla sla => checked(sla.Tick.Original + sla.Length.Original),
+        _ => note.Tick.Original
+    };
 
-        return string.Equals(candidate.Id, parentId, StringComparison.OrdinalIgnoreCase);
+    private static int EndLane(c2sModel.Note note) => note is c2sModel.LongNote longNote ? longNote.EndLane : note.Lane;
+
+    private static int EndWidth(c2sModel.Note note) => note is c2sModel.LongNote longNote ? longNote.EndWidth : note.Width;
+
+    private sealed class AirParentState(c2sModel.Note root)
+    {
+        public c2sModel.Note Root { get; } = root;
+        public c2sModel.Note Tail { get; set; } = root;
+        public c2sModel.Note? AirTail { get; set; }
     }
 
-    private static bool IsAttachPoint(c2sModel.Note candidate, c2sModel.Note note)
-    {
-        if (candidate is c2sModel.LongHeightNote heightNote && note is c2sModel.LongHeightNote targetHeight)
-        {
-            return heightNote.EndTick.Original == note.Tick.Original &&
-                heightNote.EndLane == note.Lane && heightNote.EndWidth == note.Width &&
-                heightNote.EndHeight.Result == targetHeight.Height.Result;
-        }
-
-        if (candidate is c2sModel.LongNote longNote &&
-            longNote.EndTick.Original == note.Tick.Original &&
-            longNote.EndLane == note.Lane &&
-            longNote.EndWidth == note.Width)
-        {
-            return true;
-        }
-
-        return candidate.Tick.Original == note.Tick.Original &&
-               candidate.Lane == note.Lane &&
-               candidate.Width == note.Width;
-    }
-
-    private static int PairDistance(c2sModel.Note candidate, c2sModel.Note note)
-    {
-        if (candidate is c2sModel.LongNote longNote)
-        {
-            return Math.Abs(longNote.EndTick.Original - note.Tick.Original);
-        }
-
-        return Math.Abs(candidate.Tick.Original - note.Tick.Original);
-    }
+    private readonly record struct AirParentBinding(c2sModel.Note Parent, AirParentState State);
 
     private bool TryReadEffect(string[] tokens, int index, int lineNumber, out ExEffect effect) =>
         TryReadEnum(tokens, index, lineNumber, MsgKeys.C2s_Unknown_ex_effect, default, out effect);

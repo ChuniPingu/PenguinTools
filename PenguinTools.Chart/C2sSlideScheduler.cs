@@ -6,168 +6,147 @@ namespace PenguinTools.Chart;
 internal sealed class C2sSlideScheduler
 {
     private readonly record struct Position(int Tick, int Lane, int Width, bool NoLine);
+    private readonly record struct AirPosition(int Tick, int Lane, int Width);
 
-    private readonly Dictionary<C.Slide, C.Slide> _roots = [];
-    private readonly Dictionary<C.Slide, int> _sourceOrder = [];
-    private readonly HashSet<C.Slide> _tails = [];
-    private readonly Dictionary<C.Slide, int> _rootOrder = [];
-    private readonly Dictionary<Position, LinkedList<C.Slide>> _pending = [];
-    private readonly Dictionary<(Position, C.Slide), Queue<LinkedListNode<C.Slide>>> _bySource = [];
-    private readonly Dictionary<Position, HashSet<Position>> _waitingTails = [];
-    private readonly Dictionary<Position, PriorityQueue<C.Slide, int>> _active = [];
-    private readonly PriorityQueue<Position, int> _ready = new();
-    private readonly HashSet<Position> _queued = [];
+    private readonly C.Slide[][] _paths;
+    private readonly List<List<int>> _outgoing = [];
+    private readonly List<int> _incoming = [];
 
-    private C2sSlideScheduler(IEnumerable<C.Slide[]> paths)
+    private C2sSlideScheduler(IEnumerable<C.Slide[]> paths, IReadOnlyDictionary<C.Note, int>? airParentOrder)
     {
-        foreach (var path in paths)
+        _paths = paths.ToArray();
+        var starts = new Dictionary<Position, HashSet<int>>();
+        var tails = new Dictionary<Position, List<int>>();
+        var airCells = new Dictionary<AirPosition, List<int>>();
+        for (var i = 0; i < _paths.Length; i++)
         {
-            foreach (var slide in path)
+            AddNode();
+            foreach (var slide in _paths[i])
             {
-                Add(slide, path[0]);
+                var key = new Position(slide.Tick.Round, slide.Lane, slide.Width, slide.NoLine);
+                if (!starts.TryGetValue(key, out var pathsAtStart))
+                {
+                    starts[key] = pathsAtStart = [];
+                }
+                pathsAtStart.Add(i);
             }
-            var tail = path[^1];
-            _tails.Add(tail);
-            if (!_waitingTails.TryGetValue(End(tail), out var starts))
+            var tail = _paths[i][^1];
+            var end = new Position(tail.EndTick.Round, tail.EndLane, tail.EndWidth, tail.NoLine);
+            if (!tails.TryGetValue(end, out var pathsAtEnd))
             {
-                _waitingTails[End(tail)] = starts = [];
+                tails[end] = pathsAtEnd = [];
             }
-            starts.Add(Start(tail));
+            pathsAtEnd.Add(i);
+            var cell = new AirPosition(tail.EndTick.Round, tail.EndLane, tail.EndWidth);
+            if (!airCells.TryGetValue(cell, out var airPaths))
+            {
+                airCells[cell] = airPaths = [];
+            }
+            airPaths.Add(i);
+        }
+
+        foreach (var (cell, ending) in tails)
+        {
+            if (starts.TryGetValue(cell, out var outgoing))
+            {
+                // Complete every path that passes through this cell before
+                // leaving a permanent matching tail there. Whole paths avoid
+                // the deadlock caused by advancing one of those paths halfway.
+                AddBarrier(outgoing, ending);
+            }
+        }
+        if (airParentOrder is not null)
+        {
+            foreach (var group in airCells.Values)
+            {
+                // AIR ignores line type and uses ground-root creation order.
+                var attached = group.Where(i => airParentOrder.ContainsKey(_paths[i][^1]))
+                    .OrderBy(i => airParentOrder[_paths[i][^1]]).ToArray();
+                for (var i = 1; i < attached.Length; i++)
+                {
+                    AddBarrier([attached[i - 1]], [attached[i]]);
+                }
+                AddBarrier(attached, group.Where(i => !airParentOrder.ContainsKey(_paths[i][^1])));
+            }
         }
     }
 
-    internal static List<C.Slide> Schedule(IEnumerable<C.Slide[]> paths) => new C2sSlideScheduler(paths).Run();
+    internal static List<C.Slide> Schedule(IEnumerable<C.Slide[]> paths, IReadOnlyDictionary<C.Note, int>? airParentOrder = null) =>
+        new C2sSlideScheduler(paths, airParentOrder).Run();
 
-    private void Add(C.Slide slide, C.Slide root)
+    private int AddNode()
     {
-        _roots[slide] = root;
-        _sourceOrder[slide] = _sourceOrder.Count;
-        var start = Start(slide);
-        if (!_pending.TryGetValue(start, out var list))
+        _outgoing.Add([]);
+        _incoming.Add(0);
+        return _outgoing.Count - 1;
+    }
+
+    private void AddBarrier(IEnumerable<int> before, IEnumerable<int> after)
+    {
+        var predecessors = before.ToArray();
+        var successors = after.ToArray();
+        if (predecessors.Length == 0 || successors.Length == 0)
         {
-            _pending[start] = list = new();
+            return;
         }
-        if (!_bySource.TryGetValue((start, root), out var queue))
+        // A shared node avoids quadratic edges for heavily overlapping charts.
+        var barrier = AddNode();
+        foreach (var predecessor in predecessors)
         {
-            _bySource[(start, root)] = queue = new();
+            _outgoing[predecessor].Add(barrier);
+            _incoming[barrier]++;
         }
-        queue.Enqueue(list.AddLast(slide));
+        foreach (var successor in successors)
+        {
+            _outgoing[barrier].Add(successor);
+            _incoming[successor]++;
+        }
     }
 
     private List<C.Slide> Run()
     {
-        foreach (var key in _pending.Keys)
+        var ready = new PriorityQueue<int, int>();
+        var emitted = new bool[_incoming.Count];
+        for (var i = 0; i < _incoming.Count; i++)
         {
-            Enqueue(key);
-        }
-        var scheduled = new List<C.Slide>(_roots.Count);
-        while (scheduled.Count < _roots.Count)
-        {
-            var pick = TakeNext();
-            scheduled.Add(pick.Value);
-            Emit(pick);
-        }
-        return scheduled;
-    }
-
-    private LinkedListNode<C.Slide> TakeNext()
-    {
-        while (_ready.TryDequeue(out var key, out _))
-        {
-            _queued.Remove(key);
-            if (Next(key) is { } pick)
+            if (_incoming[i] == 0)
             {
-                return pick;
+                ready.Enqueue(i, i < _paths.Length ? i : -1);
             }
         }
-
-        // Degenerate/reversed segments can make the constraints unsatisfiable.
-        // Keep them for the converter's existing path diagnostics.
-        var fallback = _pending.Where(p => p.Value.Count > 0)
-            .MinBy(p => _sourceOrder[p.Value.First!.Value]).Key;
-        return Continuation(fallback) ?? _pending[fallback].First!;
-    }
-
-    private LinkedListNode<C.Slide>? Continuation(Position key) =>
-        _active.TryGetValue(key, out var paths) && paths.TryPeek(out var root, out _) &&
-        _bySource.TryGetValue((key, root), out var segments) ? segments.Peek() : null;
-
-    private LinkedListNode<C.Slide>? Next(Position key)
-    {
-        if (_active.ContainsKey(key))
+        var result = new List<C.Slide>();
+        var remaining = _paths.Length;
+        var fallback = 0;
+        while (remaining > 0)
         {
-            var pick = Continuation(key);
-            return pick is not null && !WaitsForOutgoing(pick.Value) ? pick : null;
-        }
-
-        for (var node = _pending[key].First; node is not null; node = node.Next)
-        {
-            if (ReferenceEquals(_roots[node.Value], node.Value) && !WaitsForOutgoing(node.Value))
+            if (!ready.TryDequeue(out var node, out _))
             {
-                return node;
+                // Zero-length or reversed paths can make the dependencies
+                // cyclic. Retain the records for the converter's diagnostics.
+                while (emitted[fallback])
+                {
+                    fallback++;
+                }
+                node = fallback;
+            }
+            if (emitted[node])
+            {
+                continue;
+            }
+            emitted[node] = true;
+            if (node < _paths.Length)
+            {
+                result.AddRange(_paths[node]);
+                remaining--;
+            }
+            foreach (var next in _outgoing[node])
+            {
+                if (--_incoming[next] == 0)
+                {
+                    ready.Enqueue(next, next < _paths.Length ? next : -1);
+                }
             }
         }
-        return null;
+        return result;
     }
-
-    private bool WaitsForOutgoing(C.Slide note)
-    {
-        // A finished path remains a continuation candidate forever. Emit
-        // every segment starting at its endpoint first, so neither a new
-        // head nor another path's continuation can be captured by it.
-        var end = End(note);
-        return _tails.Contains(note) && end != Start(note) &&
-            _pending.TryGetValue(end, out var outgoing) && outgoing.Count > 0;
-    }
-
-    private void Enqueue(Position key)
-    {
-        if (_pending.ContainsKey(key) && !_queued.Contains(key) && Next(key) is { } next)
-        {
-            _queued.Add(key);
-            _ready.Enqueue(key, _sourceOrder[next.Value]);
-        }
-    }
-
-    private void Emit(LinkedListNode<C.Slide> pick)
-    {
-        var note = pick.Value;
-        var key = Start(note);
-        var root = _roots[note];
-        _pending[key].Remove(pick);
-        var sourceQueue = _bySource[(key, root)];
-        sourceQueue.Dequeue();
-        if (sourceQueue.Count == 0)
-        {
-            _bySource.Remove((key, root));
-        }
-        _rootOrder.TryAdd(root, _rootOrder.Count);
-        if (_active.TryGetValue(key, out var paths))
-        {
-            paths.Dequeue();
-            if (paths.Count == 0)
-            {
-                _active.Remove(key);
-            }
-        }
-
-        var end = End(note);
-        if (!_active.TryGetValue(end, out var endPaths))
-        {
-            _active[end] = endPaths = new();
-        }
-        endPaths.Enqueue(root, _rootOrder[root]);
-        Enqueue(key);
-        Enqueue(end);
-        if (_pending[key].Count == 0 && _waitingTails.TryGetValue(key, out var tails))
-        {
-            foreach (var tail in tails)
-            {
-                Enqueue(tail);
-            }
-        }
-    }
-
-    private static Position Start(C.Slide slide) => new(slide.Tick.Round, slide.Lane, slide.Width, slide.NoLine);
-    private static Position End(C.Slide slide) => new(slide.EndTick.Round, slide.EndLane, slide.EndWidth, slide.NoLine);
 }

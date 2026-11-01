@@ -299,11 +299,6 @@ public partial class C2SChartConverter
                 { Tick = m.Tick, Numerator = m.Numerator, Denominator = m.Denominator }));
             }
 
-            ScheduleC2sSlidePaths();
-            ScheduleC2sAirParents();
-            ValidateOverlappingAirParents();
-            ValidateAmbiguousC2sSlidePaths();
-            ValidateLongNoteLengths();
             RestoreSlpSnapshot();
             if (C2s.Extras.HasSpeedSnapshot && C2s.Extras.BinarySnapshotValid && C2s.Extras.SpeedModelKey == ChartExtras.SpeedKey(Mgxc))
             {
@@ -327,10 +322,17 @@ public partial class C2SChartConverter
             }
             RestoreMeterDefSnapshot();
             ApplyBgmBarOffset();
+            var airParentOrder = C2sAirScheduler.ParentOrder(Notes);
+            ScheduleC2sSlidePaths(airParentOrder);
+            PrioritizeGroundAirParents(airParentOrder);
+            ScheduleC2sAirParents();
+            ValidateOverlappingAirParents();
+            ValidateAmbiguousC2sSlidePaths();
             if (!restoredSla)
             {
                 AssignSoflanTimelines();
             }
+            ValidateLongNoteLengths();
 
             return ValidatePairings()
                 ? OperationResult<C2sModel.Chart>.Success(C2s).WithDiagnostics(Diagnostic)
@@ -383,25 +385,12 @@ public partial class C2SChartConverter
         }
     }
 
-    private void ScheduleC2sSlidePaths()
+    private void ScheduleC2sSlidePaths(IReadOnlyDictionary<C2sModel.Note, int> airParentOrder)
     {
         var paths = Notes.OfType<C2sModel.Slide>()
             .GroupBy(n => _slideSegmentSources[n].SourceSlide)
             .Select(g => g.ToArray()).ToArray();
-        // AIR takes the first unoccupied matching endpoint. Prioritize paths
-        // with an attachment over unpaired paths at that same endpoint.
-        foreach (var group in paths.Select((path, index) => (path, index))
-                     .GroupBy(p => (p.path[^1].EndTick.Round, p.path[^1].EndLane, p.path[^1].EndWidth)))
-        {
-            var slots = group.Select(p => p.index).ToArray();
-            var ordered = group.OrderByDescending(p => _slideSegmentSources[p.path[^1]].EndJoint.PairNote is not null)
-                .Select(p => p.path).ToArray();
-            for (var i = 0; i < slots.Length; i++)
-            {
-                paths[slots[i]] = ordered[i];
-            }
-        }
-        var scheduled = C2sSlideScheduler.Schedule(paths);
+        var scheduled = C2sSlideScheduler.Schedule(paths, airParentOrder);
         foreach (var segment in scheduled)
         {
             var source = _slideSegmentSources[segment].SourceSlide;
@@ -410,19 +399,31 @@ public partial class C2SChartConverter
         RebuildNotesWithScheduledSlides(scheduled);
     }
 
-    private void IndexAirCells(Dictionary<(int Round, int Lane, int Width), List<C2sModel.Note>> airsByCell, Dictionary<C2sModel.Note, int> noteIndex)
+    private void PrioritizeGroundAirParents(IReadOnlyDictionary<C2sModel.Note, int> airParentOrder)
+    {
+        var index = Notes.Select((note, i) => (note, i)).ToDictionary(p => p.note, p => p.i);
+        foreach (var group in _positivePairRealTargets.Values.Where(n => n is not C2sModel.Slide)
+                     .Distinct().GroupBy(n => (n.GetType(), Tick: n is C2sModel.Hold h ? h.EndTick.Round : n.Tick.Round,
+                         n.Lane, n.Width)))
+        {
+            ApplyNoteOrder(group.OrderBy(n => airParentOrder.GetValueOrDefault(n, int.MaxValue))
+                .ThenBy(n => index[n]).ToList(), index);
+        }
+    }
+
+    private void IndexAirCells(Dictionary<(int Round, int Lane, int Width, Type Kind), List<C2sModel.Note>> airsByCell, Dictionary<C2sModel.Note, int> noteIndex)
     {
         for (var i = 0; i < Notes.Count; i++)
         {
             var note = Notes[i];
             noteIndex[note] = i;
 
-            if (note is not C2sModel.IPairable { Parent: C2sModel.Slide })
+            if (note is not C2sModel.IPairable { Parent: { } parent } || parent is C2sModel.AirHold or C2sModel.AirSlide)
             {
                 continue;
             }
 
-            var key = (note.Tick.Round, note.Lane, note.Width);
+            var key = (note.Tick.Round, note.Lane, note.Width, parent.GetType());
             if (!airsByCell.TryGetValue(key, out var list))
             {
                 list = [];
@@ -470,7 +471,7 @@ public partial class C2SChartConverter
         }
 
         var airsByCell =
-            new Dictionary<(int Round, int Lane, int Width), List<C2sModel.Note>>();
+            new Dictionary<(int Round, int Lane, int Width, Type Kind), List<C2sModel.Note>>();
         var noteIndex = new Dictionary<C2sModel.Note, int>(Notes.Count);
 
         IndexAirCells(airsByCell, noteIndex);
@@ -545,13 +546,13 @@ public partial class C2SChartConverter
         foreach (var pairable in pairables)
         {
             var note = (C2sModel.Note)pairable;
-            var cell = (note.Tick.Original, note.Lane, note.Width);
+            var cell = (note.Tick.Round, note.Lane, note.Width);
             if (!candidatesByCell.TryGetValue(cell, out var candidates))
             {
                 continue;
             }
 
-            var bound = FindSlidePairParent(note, candidates, used);
+            var bound = candidates.FirstOrDefault(candidate => !used.Contains(candidate));
             if (bound is null)
             {
                 continue;
@@ -573,13 +574,17 @@ public partial class C2SChartConverter
             Diagnostic.Report(new TimedDiagnostic(
                 Severity.Warning,
                 Msg.Key(MsgKeys.Mg_Overlapping_air_parent_slide),
-                note.Tick.Original));
+                note.Tick.Original)
+            {
+                Target = NotePairDiagnosticTarget.From(_slideSegmentSources[(C2sModel.Slide)expected].EndJoint,
+                    _slideSegmentSources[(C2sModel.Slide)bound].EndJoint, Diagnostic.TimeCalculator)
+            });
         }
     }
 
     private Dictionary<(int Tick, int Lane, int Width), List<C2sModel.Note>> BuildSlideAttachCandidates()
     {
-        // Index slide attach cells once. Same cell can host start and end parents.
+        // AIR sees the completed paths in root creation order, at game precision.
         var candidatesByCell =
             new Dictionary<(int Tick, int Lane, int Width), List<C2sModel.Note>>();
 
@@ -598,70 +603,10 @@ public partial class C2SChartConverter
         foreach (var slide in _positivePairRealTargets.Values.OfType<C2sModel.Slide>()
                      .OrderBy(s => _slideRootOrder[_slideSegmentSources[s].SourceSlide]))
         {
-            AddCandidate(slide, slide.EndTick.Original, slide.EndLane, slide.EndWidth);
+            AddCandidate(slide, slide.EndTick.Round, slide.EndLane, slide.EndWidth);
         }
 
         return candidatesByCell;
-    }
-
-    private static C2sModel.Note? FindSlidePairParent(
-        C2sModel.Note note,
-        List<C2sModel.Note> candidates,
-        HashSet<C2sModel.Note> used)
-    {
-        C2sModel.Note? best = null;
-        var bestUsed = false;
-        var bestDistance = int.MaxValue;
-
-        foreach (var candidate in candidates)
-        {
-            if (!IsSlideAttachPoint(candidate, note))
-            {
-                continue;
-            }
-
-            var candidateUsed = used.Contains(candidate);
-            var distance = SlidePairDistance(candidate, note);
-
-            if (best is not null && IsWorseParent(candidateUsed, bestUsed, distance, bestDistance))
-            {
-                continue;
-            }
-
-            best = candidate;
-            bestUsed = candidateUsed;
-            bestDistance = distance;
-        }
-
-        return best;
-    }
-
-    private static bool IsWorseParent(bool candidateUsed, bool bestUsed, int distance, int bestDistance) =>
-        candidateUsed && !bestUsed || candidateUsed == bestUsed && distance >= bestDistance;
-
-    private static bool IsSlideAttachPoint(C2sModel.Note candidate, C2sModel.Note note)
-    {
-        if (candidate is C2sModel.LongNote longNote &&
-            longNote.EndTick.Original == note.Tick.Original &&
-            longNote.EndLane == note.Lane &&
-            longNote.EndWidth == note.Width)
-        {
-            return true;
-        }
-
-        return candidate.Tick.Original == note.Tick.Original &&
-               candidate.Lane == note.Lane &&
-               candidate.Width == note.Width;
-    }
-
-    private static int SlidePairDistance(C2sModel.Note candidate, C2sModel.Note note)
-    {
-        if (candidate is C2sModel.LongNote longNote)
-        {
-            return Math.Abs(longNote.EndTick.Original - note.Tick.Original);
-        }
-
-        return Math.Abs(candidate.Tick.Original - note.Tick.Original);
     }
 
     private void ValidateAmbiguousC2sSlidePaths()
@@ -674,7 +619,7 @@ public partial class C2SChartConverter
             {
                 var note = path[i];
                 var source = _slideSegmentSources[note];
-                if (!source.IsRoot || ReferenceEquals(root, source.SourceSlide))
+                if (ReferenceEquals(root, source.SourceSlide))
                 {
                     continue;
                 }
@@ -682,10 +627,10 @@ public partial class C2SChartConverter
                 Diagnostic.Report(new TimedDiagnostic(
                     Severity.Information,
                     Msg.Create(MsgKeys.Mg_Ambiguous_c2s_slide_path, note.Lane, note.Width),
-                    note.Tick.Round)
+                    note.Tick.Original)
                 {
                     Target = NotePairDiagnosticTarget.From(source.SourceSlide, _slideSegmentSources[path[i - 1]].EndJoint)
-                        .WithTime(Diagnostic.TimeCalculator!, note.Tick.Round)
+                        .WithTime(Diagnostic.TimeCalculator!, note.Tick.Original)
                 });
             }
         }
@@ -712,12 +657,14 @@ public partial class C2SChartConverter
 
         foreach (var sla in Notes.OfType<C2sModel.Sla>())
         {
-            if (sla.Length.Original >= ChartResolution.SingleTick)
+            var end = new Time(checked(sla.Tick.Original + sla.Length.Original));
+            var length = end.Round - sla.Tick.Round;
+            if (length >= ChartResolution.SingleTick)
             {
                 continue;
             }
 
-            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Length_smaller_than_unit, sla.Length.Original,
+            MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Length_smaller_than_unit, length,
                 ChartResolution.UmiguriTick / ChartResolution.SingleTick);
             Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, sla.Tick.Original)
             {
