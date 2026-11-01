@@ -13,6 +13,11 @@ internal static class RasterPipeline
             throw new InvalidOperationException("The bundled libvips runtime could not be initialized.");
         }
 
+        // NativeAOT can free NetVips' cached module handle on concurrent first imports.
+        // The package initializer resolves libvips and GObject on Windows; resolve GLib
+        // here too before releasing image workers. g_free(NULL) is a no-op.
+        NetVips.NetVips.Free(nint.Zero);
+
         NetVips.NetVips.Concurrency = Math.Max(1, Environment.ProcessorCount / ImageOperationScheduler.DefaultConcurrency);
         // Retaining operation graphs also retains open input files and decoded pixels between jobs.
         Cache.Max = 0;
