@@ -61,6 +61,174 @@ public sealed class NoteStatementOrderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReorderedAirRoots_KeepTheirContinuationsAfterTheParent(bool hold)
+    {
+        var chart = new U.Chart();
+        chart.Extras.FixedZeroOrigin = true;
+        chart.Events.AppendChild(new U.BpmEvent { Bpm = 120 });
+        chart.Events.AppendChild(new U.BeatEvent());
+        var parents = new List<U.SlideJoint>();
+        foreach (var lane in new[] { 0, 12 })
+        {
+            var slide = new U.Slide { Lane = lane, Width = 4 };
+            var end = new U.SlideJoint { Tick = 480, Lane = 6, Width = 4, Joint = Joint.D };
+            slide.AppendChild(end);
+            chart.Notes.AppendChild(slide);
+            parents.Add(end);
+        }
+        U.NegativeNote action;
+        if (hold)
+        {
+            var air = new U.AirHold();
+            air.AppendChild(new U.AirHoldJoint { Tick = 720, Joint = Joint.D });
+            air.AppendChild(new U.AirHoldJoint { Tick = 960, Joint = Joint.D });
+            action = air;
+        }
+        else
+        {
+            var air = new U.AirSlide { Height = 50 };
+            air.AppendChild(new U.AirSlideJoint { Tick = 720, Lane = 4, Width = 4, Height = 50, Joint = Joint.C });
+            air.AppendChild(new U.AirSlideJoint { Tick = 960, Lane = 8, Width = 4, Height = 50, Joint = Joint.D });
+            action = air;
+        }
+        parents[1].MakePair(action);
+        chart.Notes.AppendChild(action);
+        var arrow = new U.Air { Direction = AirDirection.IR };
+        parents[0].MakePair(arrow);
+        chart.Notes.AppendChild(arrow);
+
+        var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.All(converted.Value!.Notes.OfType<C.IPairable>(),
+            n => Assert.Contains(n.Parent, converted.Value.Notes));
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, converted.Value!)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var records = (await File.ReadAllLinesAsync(path, ct)).Select(line => line.Split('\t'))
+                .Where(p => p[0] is "AIR" or "AHD" or "ASC" or "ASD").ToArray();
+            Assert.Equal(["AIR", hold ? "AHD" : "ASC", hold ? "AHD" : "ASD"], records.Select(p => p[0]));
+            Assert.Equal(["SLD", "SLD", hold ? "AHD" : "ASC"], records.Select(p => p[5]));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task CrossingAirSlides_FollowGroundCreationOrderAtSharedCell()
+    {
+        var tap = new C.Tap { Lane = 0, Width = 4 };
+        var slide = new C.Slide { Lane = 12, Width = 4, EndTick = 480, EndLane = 12, EndWidth = 4, Joint = Joint.D };
+        var first = new C.AirSlide
+        {
+            Lane = 0,
+            Width = 4,
+            Parent = tap,
+            Height = 50,
+            EndTick = 960,
+            EndLane = 6,
+            EndWidth = 4,
+            EndHeight = 50,
+            Joint = Joint.C
+        };
+        var firstTail = new C.AirSlide
+        {
+            Tick = 960,
+            Lane = 6,
+            Width = 4,
+            Parent = first,
+            Height = 50,
+            EndTick = 1440,
+            EndLane = 0,
+            EndWidth = 4,
+            EndHeight = 50,
+            Joint = Joint.D
+        };
+        var second = new C.AirSlide
+        {
+            Tick = 480,
+            Lane = 12,
+            Width = 4,
+            Parent = slide,
+            Height = 50,
+            EndTick = 960,
+            EndLane = 6,
+            EndWidth = 4,
+            EndHeight = 50,
+            Joint = Joint.C
+        };
+        var secondTail = new C.AirSlide
+        {
+            Tick = 960,
+            Lane = 6,
+            Width = 4,
+            Parent = second,
+            Height = 50,
+            EndTick = 1920,
+            EndLane = 12,
+            EndWidth = 4,
+            EndHeight = 50,
+            Joint = Joint.D
+        };
+        var chart = new C.Chart();
+        chart.Notes.AddRange([tap, slide, first, firstTail, second, secondTail]);
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var records = (await File.ReadAllLinesAsync(path, ct)).Select(line => line.Split('\t'))
+                .Where(p => p[0] == "ASD").ToArray();
+            Assert.Equal(["12", "0"], records.Select(p => p[8]));
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            foreach (var tail in parsed.Value!.Notes.OfType<C.AirSlide>().Where(n => n.Joint == Joint.D))
+            {
+                var root = Assert.IsType<C.AirSlide>(tail.Parent);
+                Assert.Equal(tail.EndLane, root.Lane);
+            }
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task MeetingAirHolds_UseGroundOrderDespiteReversedRootDeclarations()
+    {
+        var first = new C.Tap { Lane = 6, Width = 4 };
+        var second = new C.Tap { Tick = 480, Lane = 6, Width = 4 };
+        C.AirHold Segment(C.Note parent, int start, int end) => new()
+        {
+            Tick = start,
+            Lane = 6,
+            Width = 4,
+            Parent = parent,
+            EndTick = end,
+            EndLane = 6,
+            EndWidth = 4
+        };
+        var firstRoot = Segment(first, 0, 960);
+        var secondRoot = Segment(second, 480, 960);
+        var chart = new C.Chart();
+        chart.Notes.AddRange([first, second, secondRoot, firstRoot,
+            Segment(secondRoot, 960, 1920), Segment(firstRoot, 960, 1440)]);
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var records = (await File.ReadAllLinesAsync(path, ct)).Select(line => line.Split('\t'))
+                .Where(p => p[0] == "AHD" && p[5] == "AHD").ToArray();
+            Assert.Equal(["96", "192"], records.Select(p => p[6]));
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public void UnrelatedSlidePaths_KeepDeclaredRootOrder()
     {

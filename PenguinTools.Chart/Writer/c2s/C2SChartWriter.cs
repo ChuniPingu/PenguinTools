@@ -246,25 +246,32 @@ public partial class C2SChartWriter
             .Select((note, index) => new { note, index })
             .ToDictionary(x => x.note, x => x.index);
 
-        int AirRootOrder(C2sModel.AirSlide note)
+        var slideRoots = C2sSlidePaths.Build(notes.OfType<C2sModel.Slide>(), rounded: true)
+            .SelectMany(path => path.Select(segment => (segment, root: path[0])))
+            .ToDictionary(x => x.segment, x => x.root);
+        int AirRootOrder(C2sModel.Note note)
         {
-            var visited = new HashSet<C2sModel.AirSlide>();
-            while (note.Parent is C2sModel.AirSlide parent && visited.Add(note))
+            var visited = new HashSet<C2sModel.Note>();
+            while (note is C2sModel.IPairable { Parent: C2sModel.AirSlide or C2sModel.AirHold } pair && visited.Add(note))
             {
-                note = parent;
+                note = pair.Parent;
             }
-            return positions[note];
+            var ground = ((C2sModel.IPairable)note).Parent ?? note;
+            if (ground is C2sModel.Slide slide && slideRoots.TryGetValue(slide, out var root))
+            {
+                ground = root;
+            }
+            return positions.GetValueOrDefault(ground, positions[note]);
         }
 
         var groups = notes
-            .OfType<C2sModel.AirSlide>()
-            .Where(x => x.Parent is C2sModel.AirSlide)
+            .Where(x => x is C2sModel.IPairable { Parent: C2sModel.AirSlide or C2sModel.AirHold })
             .GroupBy(x => (
-                Tick: x.Tick.Original,
+                Tick: x.Tick.Round,
                 x.Lane,
                 x.Width,
-                Height: x.Height.Result,
-                ParentId: x.Parent!.Id))
+                Height: x is C2sModel.AirSlide slide ? slide.Height.Result : 0,
+                ParentId: x is C2sModel.AirHold ? "AHD" : ((C2sModel.IPairable)x).Parent!.Id))
             .Where(x => x.Count() > 1)
             .ToArray();
 
@@ -297,7 +304,7 @@ public partial class C2SChartWriter
                 positions[ordered[i]] = slots[i];
             }
         }
-        return notes;
+        return OrderNoteDependencies(notes);
     }
 
     private bool AppendFormattedNotes(StringBuilder sb)

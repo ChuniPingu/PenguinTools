@@ -41,7 +41,7 @@ public partial class C2SChartConverter
     private void RegisterPositivePairTarget(UmgrModel.PositiveNote source, C2sModel.Note target)
     {
         _positivePairRealTargets[source] = target;
-        _positivePairTargets[source] = CreateGenericAirParent(target);
+        _positivePairTargets[source] = target;
     }
 
     private void RegisterNegativePairRoot(
@@ -51,8 +51,8 @@ public partial class C2SChartConverter
         _negativePairRoots[source] = target;
     }
 
-    // C2S AIR parent tokens are generic HLD/SLD even when the attach point is
-    // an EX or control segment. Keep one dummy shape so pairing and writing agree.
+    // Legacy carriers preserve a parent kind without a matching ground object.
+    // Ordinary AIR keeps the actual parent; the writer normalizes HLD/SLD tokens.
     private static C2sModel.Note CreateGenericAirParent(C2sModel.Note target) => target switch
     {
         C2sModel.Hold => new C2sModel.Hold(),

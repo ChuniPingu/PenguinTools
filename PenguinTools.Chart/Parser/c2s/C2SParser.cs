@@ -948,11 +948,9 @@ public sealed class C2SParser
             {
                 ((c2sModel.IPairable)pending.Note).Parent = parent;
                 _usedPairParents.Add(parent);
-                if (pending.Note is c2sModel.AirSlide && parent is c2sModel.AirSlide ||
-                    pending.Note is c2sModel.AirHold && parent is c2sModel.AirHold)
-                {
-                    _pairRootOrder[pending.Note] = _pairRootOrder[parent];
-                }
+                // AIR continuations consume parents in ground-note creation
+                // order, even when the AIR roots were declared in another order.
+                _pairRootOrder[pending.Note] = _pairRootOrder[parent];
                 continue;
             }
 
