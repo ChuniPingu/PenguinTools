@@ -6,12 +6,14 @@ From the repository root:
 
 ```powershell
 dotnet build PenguinTools.slnx -c Release
-dotnet run --project PenguinTools.Tests
+dotnet run --project PenguinTools.Tests -c Release --no-build
 ```
 
 For targeted runs, pass the test runner's options after `--`; use `dotnet run --project PenguinTools.Tests -- --help` to inspect the current options.
 
 Synthetic parser and workflow tests do not need local chart samples. Native tool and sample integration tests have additional requirements; report skipped tests separately from passed tests.
+
+Parser and writer changes need regression tests for the affected metadata, timing, note relationships, or payloads, including round-trip preservation where relevant. Prefer synthetic fixtures; keep proprietary samples local and report any missing coverage.
 
 ## Chart samples
 
@@ -28,6 +30,6 @@ The sample theories enumerate during discovery, so empty optional sample sets ar
 
 ## Native and asset tests
 
-Native media integration tests need the corresponding tool output and local assets. Build tools using the [development commands](development.md#native-tools-and-publishing), then check the paths resolved by `TestAssets` and `TestMediaTool`. CRI round-trip, error, cancellation, and console-logging tests use generated WAV fixtures and the in-process library; they do not require a separate CRI executable.
+Windows builds prepare and copy native tools into the test output; see [development](development.md#windows-prerequisites) for setup. Image integration tests use libvips and `assets/texconv/texconv.exe` relative to that output. CRI integration tests use generated WAV fixtures and the in-process library.
 
-Prefer a synthetic fixture for parser regressions. If a real sample is needed, keep it local and describe the missing coverage in the validation result.
+Tests using the shared asset catalog locate `assets.json` by walking upward from the test output; see [TestAssets](../PenguinTools.Tests/TestAssets.cs) for asset overrides.

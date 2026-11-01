@@ -21,7 +21,7 @@ PenguinTools helps bring fan charts authored in Margrete to CHUNITHM while prese
 
 Autoplay review means watching the chart through and visually judging whether the authored content produces the intended effect. What matters depends on what the author put into that particular chart. Once the result looks close enough, the author plays it to check the experience.
 
-PenguinTools' option naming rules are described in the [option build contract](architecture.md#option-scanning).
+PenguinTools' option naming rules are described in the [option configuration](cli.md#option-configuration).
 
 ## Sharing charts
 

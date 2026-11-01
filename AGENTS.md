@@ -1,24 +1,23 @@
 # PenguinTools guidance
 
-- Keep credentials and private implementation details out of public source and artifacts. Public documentation must not link to private repositories.
-- Use `MessageDescriptor`, `Msg`, and `MsgKeys` for diagnostics; update both catalogs in `docs/locales/` when adding message keys.
-- Keep proprietary samples local. Optional fixture tests may skip without samples; report missing coverage.
+- Keep credentials, proprietary samples, and private implementation details out of public source and artifacts. Public documentation must not link to private repositories.
+- Use `MessageDescriptor`, `Msg`, and `MsgKeys` for diagnostics; update both catalogs in `locales/` when adding message keys.
+- Optional fixture tests may skip without local samples; report missing coverage.
 - `External/` contains separate repositories. Change their source or submodule references only when the task needs it.
-- Use Conventional Commits
+- Use Conventional Commits.
 
 ## Documentation
 
-- Keep READMEs to overview, prerequisites, quick start, common commands, and links. Keep tool and library versions in configuration.
-- Put architecture, implementation, workflow, deployment, and format details in `docs/`; update the relevant document with a feature change.
-- Preserve license text and source attribution in notices and format references.
+- Update docs when usage, public contracts, prerequisites, or lasting architecture constraints change. Revise existing passages; keep one primary location per fact. Put investigation and validation notes in PRs or commits.
+- Keep READMEs to overview, prerequisites, quick start, common commands, and links. Tool and library versions belong in configuration.
 
-Use [architecture](docs/architecture.md) for project boundaries and CLI contracts, [development](docs/development.md) for native builds or releases, [testing](docs/testing.md) for local fixtures, and [format references](docs/formats/README.md) for chart syntax.
+Use [architecture](docs/architecture.md) for project boundaries, [development](docs/development.md) for builds and releases, and [testing](docs/testing.md) for fixtures and test setup.
 
 ## C# changes
 
 Prefer modern, stable C# supported by the affected project's SDK, target framework,
 and effective `LangVersion`.
-Check [Directory.Build.props](Directory.Build.props) when choosing syntax.
+Check [global.json](global.json), [Common.props](Common.props), and the affected project and its imports when choosing syntax.
 Keep modernization within the requested change.
 
 Prefer file-scoped namespaces, target-typed `new`, collection expressions, primary

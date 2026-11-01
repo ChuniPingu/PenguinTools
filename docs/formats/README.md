@@ -1,17 +1,12 @@
 # Chart formats
 
-Reference material for the chart parsers and writers in `PenguinTools.Chart/`.
+File structure, field meanings, encoding, and format versions for CHUNITHM chart files.
 
-| Document                                               | Contents                                         |
-| ------------------------------------------------------ | ------------------------------------------------ |
-| [C2S note types](c2s.md)                               | Record fields, note codes, colors, and effects   |
-| [SUS](sus.md)                                          | English reference for SUS v2.7 rev2              |
+| Document | Contents |
+| -------- | -------- |
+| [C2S note types](c2s.md) | Record fields, note codes, colors, and effects |
+| [SUS](sus.md) | English reference for SUS v2.7 rev2 |
 | [MGXC](mgxc.hexpat) | Binary layout (ImHex pattern) |
-| [UGC](ugc.md)                                          | Umiguri Chart v9 commands and legacy input |
-| [Alternate SUS translation](references/sus-waki285.md) | Retained upstream translation and annotations    |
+| [UGC](ugc.md) | Umiguri Chart v9 commands and note records |
 
-These documents describe file syntax; implementation coverage is determined by the parsers, writers, and tests. Keep format version numbers because they identify the data specification. Tool and library versions belong in configuration.
-
-SUS and UGC references retain their original source attribution. The alternate SUS translation is source material; use the primary SUS document for corrected examples.
-
-For model ownership and conversion behavior, see [architecture](../architecture.md#charts).
+SUS and UGC references include source attribution. The [alternate SUS translation](references/sus-waki285.md) preserves upstream text and annotations; the primary SUS reference contains corrected examples.
