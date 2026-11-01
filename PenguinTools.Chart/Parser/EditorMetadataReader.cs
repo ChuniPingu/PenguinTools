@@ -15,42 +15,53 @@ public static class EditorMetadataReader
         var meta = new Meta { FilePath = path };
         if (Path.GetExtension(path).Equals(".mgxc", StringComparison.OrdinalIgnoreCase))
         {
-            using var stream = File.OpenRead(path);
-            using var reader = new BinaryReader(stream);
-            if (reader.ReadUtf8String(4) != "MGXC")
-            {
-                return null;
-            }
-
-            reader.ReadInt32();
-            if (reader.ReadInt32() != 4)
-            {
-                return null;
-            }
-
-            reader.ReadBlock("meta", field =>
-            {
-                ct.ThrowIfCancellationRequested();
-                var name = field.ReadUtf8String(4);
-                // Bound strings to this metadata block, including long UTF-8 fields.
-                var type = field.ReadInt16();
-                var attr = field.ReadInt16();
-                if (type == 4 && (attr < 0 || attr > field.BaseStream.Length - field.BaseStream.Position))
-                {
-                    throw new EndOfStreamException();
-                }
-
-                field.BaseStream.Position -= 4;
-                var value = field.ReadField();
-                Apply(meta, name, Convert.ToString(value, CultureInfo.InvariantCulture) ?? "");
-            });
-            return new EditorMetadata(meta, "MGXC", 4);
+            return ReadMgxc(path, meta, ct);
         }
-        if (!Path.GetExtension(path).Equals(".ugc", StringComparison.OrdinalIgnoreCase))
+        return Path.GetExtension(path).Equals(".ugc", StringComparison.OrdinalIgnoreCase)
+            ? await ReadUgcAsync(path, meta, ct) : null;
+    }
+
+    private static EditorMetadata? ReadMgxc(string path, Meta meta, CancellationToken ct)
+    {
+        using var stream = File.OpenRead(path);
+        using var reader = new BinaryReader(stream);
+        if (reader.ReadUtf8String(4) != "MGXC")
         {
             return null;
         }
 
+        reader.ReadInt32();
+        if (reader.ReadInt32() != 4)
+        {
+            return null;
+        }
+
+        reader.ReadBlock("meta", field =>
+        {
+            ct.ThrowIfCancellationRequested();
+            ReadMgxcField(field, meta);
+        });
+        return new EditorMetadata(meta, "MGXC", 4);
+    }
+
+    private static void ReadMgxcField(BinaryReader field, Meta meta)
+    {
+        var name = field.ReadUtf8String(4);
+        // Bound strings to this metadata block, including long UTF-8 fields.
+        var type = field.ReadInt16();
+        var attr = field.ReadInt16();
+        if (type == 4 && (attr < 0 || attr > field.BaseStream.Length - field.BaseStream.Position))
+        {
+            throw new EndOfStreamException();
+        }
+
+        field.BaseStream.Position -= 4;
+        var value = field.ReadField();
+        Apply(meta, name, Convert.ToString(value, CultureInfo.InvariantCulture) ?? "");
+    }
+
+    private static async Task<EditorMetadata?> ReadUgcAsync(string path, Meta meta, CancellationToken ct)
+    {
         using var text = new StreamReader(path, new UTF8Encoding(false, true));
         var hasVersion = false;
         while (await text.ReadLineAsync(ct) is { } line)

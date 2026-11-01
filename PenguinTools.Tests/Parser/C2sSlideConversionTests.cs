@@ -168,20 +168,13 @@ public sealed class C2sSlideConversionTests
 
             Assert.True(converted.Succeeded, converted.ToString());
 
-            var slide = Assert.Single(
-                converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Slide>());
-
-            Assert.Null(slide.Effect);
-            Assert.False(slide.NoLine);
-
-            var joints = slide.Children
-                .OfType<PenguinTools.Chart.Models.umgr.SlideJoint>()
-                .ToArray();
-
-            Assert.Equal(2, joints.Length);
-            Assert.True(joints[0].NoLine);
-            Assert.True(joints[0].HasEffectOverride);
-            Assert.Equal(ExEffect.UP, joints[0].SegmentEffect);
+            var paths = converted.Value!.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Slide>().ToArray();
+            Assert.Equal(2, paths.Length);
+            Assert.Null(paths[0].Effect);
+            Assert.False(paths[0].NoLine);
+            Assert.Equal(ExEffect.UP, paths[1].Effect);
+            Assert.True(paths[1].NoLine);
+            Assert.All(paths, path => Assert.Single(path.Children));
         }
         finally
         {

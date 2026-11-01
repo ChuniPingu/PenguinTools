@@ -342,36 +342,27 @@ public sealed class UgcChartConverter
 
     private void ConvertSlides(IEnumerable<C2sModel.Slide> source)
     {
-        var segments = source.OrderBy(n => n.Tick.Original).ThenBy(n => n.Lane).ThenBy(n => n.Width).ToArray();
-        var used = new HashSet<C2sModel.Slide>();
-        foreach (var root in segments)
+        foreach (var path in C2sSlidePaths.Build(source))
         {
-            if (!used.Add(root))
-            {
-                continue;
-            }
-
+            var root = path[0];
             var slide = new UmgrModel.Slide { Effect = root.Effect, NoLine = root.NoLine };
             Copy(root, slide);
             _target.Notes.AppendChild(slide);
-            var current = root;
-            while (true)
+            for (var i = 0; i < path.Length; i++)
             {
+                var current = path[i];
                 var joint = CreateSlideJoint(current);
                 slide.AppendChild(joint);
                 _positiveNotes[current] = joint;
-                var next = segments.FirstOrDefault(n => !used.Contains(n) &&
-                    n.Tick.Original == current.EndTick.Original && n.Lane == current.EndLane && n.Width == current.EndWidth);
-                if (next is null)
+                if (i + 1 == path.Length)
                 {
                     break;
                 }
 
-                used.Add(next);
+                var next = path[i + 1];
                 joint.HasEffectOverride = true;
                 joint.SegmentEffect = next.Effect;
                 joint.NoLine = next.NoLine;
-                current = next;
             }
         }
     }
@@ -590,7 +581,7 @@ public sealed class UgcChartConverter
         {
             _usedAirSegments.Add(segment);
             var next = allSegments.FirstOrDefault(
-                x => !_usedAirSegments.Contains(x) && x.Parent is C2sModel.AirSlide && x.Tick == segment.EndTick && x.Lane == segment.EndLane && x.Width == segment.EndWidth && x.Height.Original == segment.EndHeight.Original && x.Color == segment.Color);
+                x => !_usedAirSegments.Contains(x) && ReferenceEquals(x.Parent, segment));
 
             air.AppendChild(new UmgrModel.AirSlideJoint
             {
@@ -631,7 +622,7 @@ public sealed class UgcChartConverter
         {
             _usedAirSegments.Add(segment);
             var next = allSegments.FirstOrDefault(
-                x => !_usedAirSegments.Contains(x) && x.Parent is C2sModel.AirHold && x.Tick == segment.EndTick && x.Lane == segment.EndLane && x.Width == segment.EndWidth);
+                x => !_usedAirSegments.Contains(x) && ReferenceEquals(x.Parent, segment));
 
             air.AppendChild(new UmgrModel.AirHoldJoint
             {
@@ -774,87 +765,31 @@ public sealed class UgcChartConverter
         RegisterAirAction(parent, action);
     }
 
-    private readonly record struct AirCrashPathKey(
-        int Tick,
-        int Lane,
-        int Width,
-        decimal Height,
-        Color Color,
-        int Density,
-        AirLadderAttr Attr);
-
-    private static AirLadderAttr AirCrashPathAttr(AirLadderAttr attr) =>
-        attr == AirLadderAttr.Trace ? AirLadderAttr.DEF : attr;
-
-    private static AirCrashPathKey AirCrashStartKey(C2sModel.AirCrash note) => new(
-        note.Tick.Original,
-        note.Lane,
-        note.Width,
-        note.Height.Original,
-        note.Color,
-        note.Density.Original,
-        AirCrashPathAttr(note.Attr));
-
-    private static AirCrashPathKey AirCrashEndKey(C2sModel.AirCrash note) => new(
-        note.EndTick.Original,
-        note.EndLane,
-        note.EndWidth,
-        note.EndHeight.Original,
-        note.Color,
-        note.Density.Original,
-        AirCrashPathAttr(note.Attr));
-
     private void ConvertAirCrashes(IEnumerable<C2sModel.AirCrash> source)
     {
-        var active = new Dictionary<AirCrashPathKey, Queue<UmgrModel.AirCrash>>();
-
-        foreach (var segment in source
-                     .Select((segment, index) => (Segment: segment, SourceOrder: index))
-                     .OrderBy(x => x.Segment.Tick.Original)
-                     .ThenBy(x => x.SourceOrder)
-                     .Select(x => x.Segment))
+        foreach (var path in C2sAirCrashPaths.Build(source))
         {
-            var startKey = AirCrashStartKey(segment);
-            UmgrModel.AirCrash crash;
-
-            if (active.TryGetValue(startKey, out var startQueue) && startQueue.Count > 0)
+            var root = path[0];
+            var crash = new UmgrModel.AirCrash
             {
-                crash = startQueue.Dequeue();
-                if (startQueue.Count == 0)
+                Height = root.Height.Original,
+                Color = root.Color,
+                Density = root.Density,
+                Attr = root.Attr
+            };
+            Copy(root, crash);
+            _target.Notes.AppendChild(crash);
+            foreach (var segment in path)
+            {
+                crash.AppendChild(new UmgrModel.AirCrashJoint
                 {
-                    active.Remove(startKey);
-                }
+                    Tick = segment.EndTick,
+                    Lane = segment.EndLane,
+                    Width = segment.EndWidth,
+                    Timeline = Timeline(segment),
+                    Height = segment.EndHeight.Original
+                });
             }
-            else
-            {
-                crash = new UmgrModel.AirCrash
-                {
-                    Height = segment.Height.Original,
-                    Color = segment.Color,
-                    Density = segment.Density,
-                    Attr = segment.Attr
-                };
-                Copy(segment, crash);
-                _target.Notes.AppendChild(crash);
-            }
-
-            crash.AppendChild(new UmgrModel.AirCrashJoint
-            {
-                Tick = segment.EndTick,
-                Lane = segment.EndLane,
-                Width = segment.EndWidth,
-                Timeline = Timeline(segment),
-                Height = segment.EndHeight.Original
-            });
-
-            var endKey = AirCrashEndKey(segment);
-            if (!active.TryGetValue(endKey, out var endQueue))
-            {
-                endQueue = new Queue<UmgrModel.AirCrash>();
-                active[endKey] = endQueue;
-            }
-
-            endQueue.Enqueue(crash);
         }
     }
 

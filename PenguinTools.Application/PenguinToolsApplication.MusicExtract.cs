@@ -49,7 +49,6 @@ public sealed partial class PenguinToolsApplication
         Directory.CreateDirectory(outputParent);
         var stage = Path.Combine(outputParent, $".PenguinTools-reverse-{Guid.NewGuid():N}");
         Directory.CreateDirectory(stage);
-        var artifacts = new List<ApplicationArtifact>();
         var chartSummaries = new List<MusicExtractChartSummary>();
         var diagnostics = OperationResult.Success().Diagnostics;
         var musicFileName = $"{songId}_music.wav";
@@ -125,21 +124,7 @@ public sealed partial class PenguinToolsApplication
                     Total: totalSteps));
             }
 
-            Directory.CreateDirectory(songFolder);
-            foreach (var file in Directory.EnumerateFiles(stage, "*", SearchOption.TopDirectoryOnly))
-            {
-                var destination = Path.Combine(songFolder, Path.GetFileName(file));
-                File.Move(file, destination, true);
-                var kind = Path.GetExtension(file).ToLowerInvariant() switch
-                {
-                    ".mgxc" => "chart.mgxc",
-                    ".ugc" => "chart.ugc",
-                    ".wav" => "audio.wav",
-                    ".png" => "jacket.png",
-                    _ => "music.file"
-                };
-                artifacts.Add(new ApplicationArtifact(kind, destination));
-            }
+            var artifacts = PublishExtractedMusic(stage, songFolder);
             return OperationResult<MusicExtractResult>.Success(new MusicExtractResult(
                 xmlPath, songFolder, songId, title, artist, chartSummaries, artifacts)).WithDiagnostics(diagnostics);
         }
@@ -150,6 +135,27 @@ public sealed partial class PenguinToolsApplication
                 Directory.Delete(stage, true);
             }
         }
+    }
+
+    private static List<ApplicationArtifact> PublishExtractedMusic(string stage, string songFolder)
+    {
+        Directory.CreateDirectory(songFolder);
+        var artifacts = new List<ApplicationArtifact>();
+        foreach (var file in Directory.EnumerateFiles(stage, "*", SearchOption.TopDirectoryOnly))
+        {
+            var destination = Path.Combine(songFolder, Path.GetFileName(file));
+            File.Move(file, destination, true);
+            var kind = Path.GetExtension(file).ToLowerInvariant() switch
+            {
+                ".mgxc" => "chart.mgxc",
+                ".ugc" => "chart.ugc",
+                ".wav" => "audio.wav",
+                ".png" => "jacket.png",
+                _ => "music.file"
+            };
+            artifacts.Add(new ApplicationArtifact(kind, destination));
+        }
+        return artifacts;
     }
 
     private async Task ExtractMusicJacketAsync(string? jacket, string destination, CancellationToken cancellationToken)

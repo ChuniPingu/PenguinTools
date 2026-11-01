@@ -18,6 +18,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
     private readonly HashSet<U.Note> _written = [];
     private readonly HashSet<(int Tick, int Lane, int Width)> _effectCarriers = [];
     private U.Chart _chart = null!;
+    private UgcSnapshotTracker _snapshots = new();
     private string Position(int tick)
     {
         var beat = _chart.Events.Children.OfType<U.BeatEvent>().Where(b => b.Tick.Original <= tick).MaxBy(b => b.Bar);
@@ -78,7 +79,12 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         AirDirection.DR => "DR",
         _ => "UC"
     };
-    private void Head(U.Note note, string payload) => _lines.Add($"#{Position(note.Tick.Original)}:{payload}");
+    private void Head(U.Note note, string payload)
+    {
+        var line = $"#{Position(note.Tick.Original)}:{payload}";
+        _lines.Add(line);
+        _snapshots.Begin(note, line, note.Timeline);
+    }
 
     public async Task<OperationResult> WriteAsync(CancellationToken ct = default)
     {
@@ -93,6 +99,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.CarrierEncodingVersion = 1;
             _chart.Extras.EditorFieldColorName = _chart.Meta.FieldColorName;
             _lines.Clear();
+            _snapshots = new();
             if (_chart.Extras.FixedZeroOrigin)
             {
                 _lines.Add("'" + ChartExtras.FixedZeroOriginMarker);
@@ -105,6 +112,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.AddRange(_chart.Extras.EditorHeaders);
             _written.Clear();
             _effectCarriers.Clear();
+            _chart.Extras.UgcExTaps.Clear();
             foreach (var carrier in _chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
             {
                 _effectCarriers.Add((carrier.Tick.Original, carrier.Lane, carrier.Width));
@@ -133,6 +141,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.CaptureUserText(m);
             _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             _chart.Extras.UgcContentKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', _lines))));
+            _snapshots.Capture(_chart.Extras, _lines, _chart.Meta.C2sSlaSnapshot);
             var copyright = $"@COPYRIGHT\tMGR_SYNC_REV={Guid.NewGuid():N};MGR_CLKCNT={_chart.Extras.Count(m.BgmInitialNumerator)};" +
                 (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") + _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
             _lines.Insert(0, copyright);
@@ -255,7 +264,9 @@ public sealed class UgcChartWriter(string path, U.Chart source)
                 U.AirCrashJoint a => $"c{childXy}{Height(a.Height)}",
                 _ => $"{marker}{childXy}"
             };
-            _lines.Add($"#{child.Tick.Original - n.Tick.Original}>{body}");
+            var line = $"#{child.Tick.Original - n.Tick.Original}>{body}";
+            _lines.Add(line);
+            _snapshots.Append(line, child.Timeline);
             _written.Add(child);
         }
     }
@@ -276,9 +287,22 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         var xy = $"{Coordinate(n.Lane)}{Digit(n.Width)}";
         if (n is U.ExTapableNote ex && ex.Effect is { } effect && _effectCarriers.Add((n.Tick.Original, n.Lane, n.Width)))
         {
-            Head(n, $"x{xy}{Effect(effect)}");
+            Head(new U.ExTap
+            {
+                Tick = n.Tick,
+                Lane = n.Lane,
+                Width = n.Width,
+                Timeline = n.Timeline,
+                Effect = effect,
+                Role = U.ExTapRole.SharedLongCarrier
+            }, $"x{xy}{Effect(effect)}");
+            _chart.Extras.UgcExTaps.Add(new(U.ExTapRole.SharedLongCarrier, U.AirActionCarrierParent.None, Joint.D, false));
         }
 
+        if (n is U.ExTap exTap)
+        {
+            _chart.Extras.UgcExTaps.Add(new(exTap.Role, exTap.AirActionParent, exTap.AirActionParentJoint, exTap.AirActionParentIsEx));
+        }
         var payload = NotePayload(n, xy);
         Head(n, payload);
         WriteChildren(n);

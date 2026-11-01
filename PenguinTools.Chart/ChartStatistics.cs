@@ -3,7 +3,7 @@ namespace PenguinTools.Chart;
 
 public static class ChartStatistics
 {
-    private sealed record Edge(string Tag, decimal Start, decimal End, string StartKey, string EndKey, string Parent, bool Judge, decimal Density, decimal StartHeight = 0, decimal EndHeight = 0);
+    private sealed record Edge(string Tag, decimal Start, decimal End, string StartKey, string EndKey, string Parent, bool Judge, decimal Density, decimal StartHeight = 0, decimal EndHeight = 0, bool NoLine = false);
 
     public static string Calculate(string text) => new Calculator(text).BuildSummary();
 
@@ -46,7 +46,13 @@ public static class ChartStatistics
             }
 
             CollectParentOrder();
-            var groundPaths = Paths(_ground, _ => true);
+            var groundPaths = C2sSlidePaths.Build(_ground, edge =>
+            {
+                var start = edge.StartKey.Split('|');
+                var end = edge.EndKey.Split('|');
+                return new C2sSlidePaths.Segment(edge.Start, I(start, 1), I(start, 2),
+                    edge.End, I(end, 1), I(end, 2), edge.NoLine);
+            }).Select(path => path.ToList()).ToList();
             CollectSlideOrder(groundPaths);
             CountGround(groundPaths);
             CountAir();
@@ -67,6 +73,7 @@ public static class ChartStatistics
         }
 
         private static decimal N(string[] p, int i) => decimal.Parse(p[i], CultureInfo.InvariantCulture);
+        private static int I(string[] p, int i) => int.Parse(p[i], CultureInfo.InvariantCulture);
         private decimal Tick(string[] p) => N(p, 1) * _resolution + N(p, 2);
         private static string Key(decimal t, string lane, string width, string extra = "") => $"{t}|{lane}|{width}|{extra}";
         private decimal Step(decimal t)
@@ -254,7 +261,7 @@ public static class ChartStatistics
         private void CollectSlide(string[] p, decimal tick)
         {
             decimal end = tick + N(p, 5);
-            _ground.Add(new(p[0], tick, end, Key(tick, p[3], p[4]), Key(end, p[6], p.Length > 7 ? p[7] : p[4]), "", p[0].EndsWith('D'), 0));
+            _ground.Add(new(p[0], tick, end, Key(tick, p[3], p[4]), Key(end, p[6], p.Length > 7 ? p[7] : p[4]), "", p[0].EndsWith('D'), 0, NoLine: p.Length > 8 && p[8] == "NCL"));
         }
 
         private void CollectParentOrder()

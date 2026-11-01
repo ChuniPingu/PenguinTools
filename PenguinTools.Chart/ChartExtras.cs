@@ -126,6 +126,11 @@ public sealed partial class ChartExtras
         }
     }
     public string? UgcContentKey { get; set; }
+    public int UgcSnapshotVersion { get; set; }
+    public string? UgcContextKey { get; set; }
+    public string? UgcMusicalKey { get; set; }
+    public string? UgcSlaKey { get; set; }
+    public List<UgcNoteSnapshot> UgcNoteSnapshots { get; set; } = [];
     [JsonIgnore] public string? ParsedEventModelKey { get; set; }
     public List<MeterSnapshot> Meters { get; set; } = [];
     public string? MeterEditKey { get; set; }
@@ -133,6 +138,7 @@ public sealed partial class ChartExtras
     public List<AirAppearance> AirAppearances { get; set; } = [];
     public List<SlideEffectSnapshot> SlideEffects { get; set; } = [];
     public List<HoldEffectSnapshot> HoldEffects { get; set; } = [];
+    public List<UgcExTapSnapshot> UgcExTaps { get; set; } = [];
     [JsonIgnore] public string? AirModelKey { get; set; }
     [JsonIgnore] public string? SlaModelKey { get; set; }
     public List<string> TraceCrashes { get; set; } = [];
@@ -185,40 +191,13 @@ public sealed partial class ChartExtras
 
         var saved = SourceSnapshot.Split('\n').Select(C2SRoundTrip.Parts).ToArray();
         var sourceResolution = int.Parse(saved.First(p => p.Length > 1 && p[0] == "RESOLUTION")[1], CultureInfo.InvariantCulture);
-        var positions = new Dictionary<string, Queue<int>>();
-        var count = 0;
-        foreach (var row in saved.Where(p => p.Length > 1 && p[0] == "ORDER"))
-        {
-            var key = C2SRoundTrip.Normalize(string.Join('\t', row.Skip(1)), sourceResolution);
-            if (!positions.TryGetValue(key, out var queue))
-            {
-                positions[key] = queue = new();
-            }
-
-            queue.Enqueue(count++);
-        }
-        if (count == 0)
-        {
-            return text;
-        }
-
         var lines = text.Replace("\r", "").Split('\n');
         var indices = Enumerable.Range(0, lines.Length).Where(i => NoteTags.Contains(C2SRoundTrip.Parts(lines[i]).FirstOrDefault() ?? "")).ToArray();
-        var ordered = indices.Select((index, stable) =>
-        {
-            var line = lines[index];
-            var fields = C2SRoundTrip.Parts(line);
-            var key = C2SRoundTrip.Normalize(line, resolution);
-            var order = positions.TryGetValue(key, out var queue) && queue.TryDequeue(out var value) ? value : count + stable;
-            return (line, fields, order, stable);
-        }).OrderBy(v => int.Parse(v.fields[1], CultureInfo.InvariantCulture))
-          .ThenBy(v => int.Parse(v.fields[2], CultureInfo.InvariantCulture))
-          .ThenBy(v => int.Parse(v.fields[3], CultureInfo.InvariantCulture))
-          .ThenBy(v => int.Parse(v.fields[4], CultureInfo.InvariantCulture))
-          .ThenBy(v => v.order).ThenBy(v => v.stable).ToArray();
+        var ordered = C2SRoundTrip.RestoreNoteOrder(indices.Select(i => lines[i]),
+            saved.Where(p => p.Length > 1 && p[0] == "ORDER").Select(p => string.Join('\t', p.Skip(1))), resolution, sourceResolution);
         for (var i = 0; i < indices.Length; i++)
         {
-            lines[indices[i]] = ordered[i].line;
+            lines[indices[i]] = ordered[i];
         }
 
         return string.Join('\n', lines);
@@ -429,6 +408,8 @@ public sealed partial class ChartExtras
 
     internal void CaptureSlideEffects(UmgrModel.Chart chart)
     {
+        TraceCrashes = chart.Notes.Children.OfType<UmgrModel.AirCrash>()
+            .Where(c => c.Attr == Models.AirLadderAttr.Trace).Select(CrashKey).ToList();
         HoldEffects = chart.Notes.Children.OfType<UmgrModel.ExTapableNote>()
             .Select(h => new HoldEffectSnapshot(AirKey(h), h.Effect)).ToList();
         SlideEffects.Clear();
@@ -445,14 +426,23 @@ public sealed partial class ChartExtras
         }
     }
 
-    internal void RestoreAppearance(UmgrModel.Chart chart)
+    internal void RestoreAppearance(UmgrModel.Chart chart, IReadOnlySet<UmgrModel.Note>? eligible = null)
     {
-        RestoreGroundEffects(chart);
+        foreach (var crash in chart.Notes.Children.OfType<UmgrModel.AirCrash>()
+                     .Where(c => (eligible is null || eligible.Contains(c)) && TraceCrashes.Contains(CrashKey(c))))
+        {
+            crash.Attr = Models.AirLadderAttr.Trace;
+        }
+        RestoreGroundEffects(chart, eligible);
         var appearances = AirAppearances.GroupBy(a => a.Key)
             .ToDictionary(g => g.Key, g => new Queue<AirAppearance>(g));
         foreach (var note in chart.Notes.Children)
         {
             if (!appearances.TryGetValue(AirKey(note), out var queue) || !queue.TryDequeue(out var saved))
+            {
+                continue;
+            }
+            if (eligible is not null && !eligible.Contains(note))
             {
                 continue;
             }
@@ -470,27 +460,43 @@ public sealed partial class ChartExtras
         }
     }
 
-    private void RestoreGroundEffects(UmgrModel.Chart chart)
+    private void RestoreGroundEffects(UmgrModel.Chart chart, IReadOnlySet<UmgrModel.Note>? eligible)
     {
         var holds = HoldEffects.GroupBy(h => h.Key).ToDictionary(g => g.Key, g => new Queue<HoldEffectSnapshot>(g));
         foreach (var hold in chart.Notes.Children.OfType<UmgrModel.ExTapableNote>())
         {
-            if (holds.TryGetValue(AirKey(hold), out var savedHolds) && savedHolds.TryDequeue(out var saved))
+            if (!holds.TryGetValue(AirKey(hold), out var savedHolds) || !savedHolds.TryDequeue(out var saved))
             {
-                hold.Effect = saved.Effect;
+                continue;
             }
+            if (eligible is not null && !eligible.Contains(hold))
+            {
+                continue;
+            }
+
+            hold.Effect = saved.Effect;
         }
 
         foreach (var slide in chart.Notes.Children.OfType<UmgrModel.Slide>())
         {
-            var points = slide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
-            foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
+            if (eligible is not null && !eligible.Contains(slide))
             {
-                if (saved.Index >= 0 && saved.Index < points.Length)
-                {
-                    points[saved.Index].HasEffectOverride = true;
-                    points[saved.Index].SegmentEffect = saved.Effect;
-                }
+                continue;
+            }
+
+            RestoreSlideEffects(slide);
+        }
+    }
+
+    private void RestoreSlideEffects(UmgrModel.Slide slide)
+    {
+        var points = slide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
+        foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
+        {
+            if (saved.Index >= 0 && saved.Index < points.Length)
+            {
+                points[saved.Index].HasEffectOverride = true;
+                points[saved.Index].SegmentEffect = saved.Effect;
             }
         }
     }
@@ -506,6 +512,8 @@ public sealed partial class ChartExtras
 
 public sealed record SlideEffectSnapshot(string Key, int Index, PenguinTools.Chart.Models.ExEffect? Effect);
 public sealed record HoldEffectSnapshot(string Key, PenguinTools.Chart.Models.ExEffect? Effect);
+public sealed record UgcExTapSnapshot(UmgrModel.ExTapRole Role, UmgrModel.AirActionCarrierParent Parent,
+    Models.Joint ParentJoint, bool ParentHasExEffect);
 public sealed record AirAppearance(string Key, PenguinTools.Chart.Models.Color Color, PenguinTools.Chart.Models.AirDirection Direction);
 public sealed record MeterSnapshot(int Tick, int Numerator, int Denominator);
 public sealed record SpeedSnapshot(string Tag, int Tick, int Length, decimal Speed, int Timeline);

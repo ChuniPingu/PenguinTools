@@ -25,6 +25,8 @@ public sealed class C2SParser
 
     private readonly List<PendingPair> _pendingPairs = [];
     private readonly HashSet<c2sModel.Note> _usedPairParents = [];
+    private readonly Dictionary<c2sModel.Note, int> _pairRootOrder = [];
+    private readonly HashSet<c2sModel.Slide> _slideTails = [];
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
 
@@ -44,6 +46,24 @@ public sealed class C2SParser
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private c2sModel.Chart C2s { get; } = new();
+
+    internal static Dictionary<c2sModel.Note, string> ParseNoteRecords(IEnumerable<string> lines, int resolution)
+    {
+        var parser = new C2SParser(new C2SParseRequest("snapshot")) { _resolution = resolution };
+        var records = new Dictionary<c2sModel.Note, string>();
+        var number = 0;
+        foreach (var line in lines)
+        {
+            var before = parser.C2s.Notes.Count;
+            parser.ParseTokens(Tokenize(line), line, ++number);
+            foreach (var note in parser.C2s.Notes.Skip(before))
+            {
+                records[note] = C2SRoundTrip.Normalize(line, resolution);
+            }
+        }
+        parser.ResolvePairings();
+        return records;
+    }
 
     public async Task<OperationResult<c2sModel.Chart>> ParseAsync(CancellationToken ct = default)
     {
@@ -909,6 +929,18 @@ public sealed class C2SParser
 
     private void ResolvePairings()
     {
+        for (var i = 0; i < C2s.Notes.Count; i++)
+        {
+            _pairRootOrder[C2s.Notes[i]] = i;
+        }
+        foreach (var path in C2sSlidePaths.Build(C2s.Notes.OfType<c2sModel.Slide>()))
+        {
+            _slideTails.Add(path[^1]);
+            foreach (var segment in path)
+            {
+                _pairRootOrder[segment] = _pairRootOrder[path[0]];
+            }
+        }
         foreach (var pending in _pendingPairs)
         {
             var parent = FindPairParent(pending.Note, pending.ParentId);
@@ -916,6 +948,11 @@ public sealed class C2SParser
             {
                 ((c2sModel.IPairable)pending.Note).Parent = parent;
                 _usedPairParents.Add(parent);
+                if (pending.Note is c2sModel.AirSlide && parent is c2sModel.AirSlide ||
+                    pending.Note is c2sModel.AirHold && parent is c2sModel.AirHold)
+                {
+                    _pairRootOrder[pending.Note] = _pairRootOrder[parent];
+                }
                 continue;
             }
 
@@ -929,9 +966,11 @@ public sealed class C2SParser
     {
         return C2s.Notes
             .Where(candidate => ParentTypeMatches(candidate, parentId))
+            .Where(candidate => candidate is not c2sModel.Slide slide || _slideTails.Contains(slide))
             .Where(candidate => IsAttachPoint(candidate, note))
             .OrderBy(candidate => _usedPairParents.Contains(candidate))
             .ThenBy(candidate => PairDistance(candidate, note))
+            .ThenBy(candidate => _pairRootOrder[candidate])
             .FirstOrDefault();
     }
 
@@ -959,14 +998,11 @@ public sealed class C2SParser
 
     private static bool IsAttachPoint(c2sModel.Note candidate, c2sModel.Note note)
     {
-        if (candidate is c2sModel.LongHeightNote heightNote &&
-            heightNote.EndTick.Original == note.Tick.Original &&
-            heightNote.EndLane == note.Lane &&
-            heightNote.EndWidth == note.Width &&
-            note is c2sModel.LongHeightNote targetHeight &&
-            heightNote.EndHeight.Result == targetHeight.Height.Result)
+        if (candidate is c2sModel.LongHeightNote heightNote && note is c2sModel.LongHeightNote targetHeight)
         {
-            return true;
+            return heightNote.EndTick.Original == note.Tick.Original &&
+                heightNote.EndLane == note.Lane && heightNote.EndWidth == note.Width &&
+                heightNote.EndHeight.Result == targetHeight.Height.Result;
         }
 
         if (candidate is c2sModel.LongNote longNote &&

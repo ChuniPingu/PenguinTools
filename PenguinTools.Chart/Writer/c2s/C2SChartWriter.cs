@@ -251,6 +251,16 @@ public partial class C2SChartWriter
             .Select((note, index) => new { note, index })
             .ToDictionary(x => x.note, x => x.index);
 
+        int AirRootOrder(C2sModel.AirSlide note)
+        {
+            var visited = new HashSet<C2sModel.AirSlide>();
+            while (note.Parent is C2sModel.AirSlide parent && visited.Add(note))
+            {
+                note = parent;
+            }
+            return positions[note];
+        }
+
         var groups = notes
             .OfType<C2sModel.AirSlide>()
             .Where(x => x.Parent is C2sModel.AirSlide)
@@ -272,7 +282,7 @@ public partial class C2SChartWriter
                 .ToArray();
 
             var ordered = group
-                .OrderBy(x => positions[x.Parent!])
+                .OrderBy(AirRootOrder)
                 .ToArray();
 
             for (var i = 0; i < slots.Length; i++)
@@ -282,6 +292,17 @@ public partial class C2SChartWriter
             }
         }
 
+        foreach (var group in notes.OfType<C2sModel.AirCrash>()
+                     .GroupBy(n => (n.Tick.Round, n.Lane, n.Width, n.Height, n.Color, n.Density, n.Attr)).Where(g => g.Count() > 1))
+        {
+            var slots = group.Select(n => positions[n]).Order().ToArray();
+            var ordered = group.OrderBy(n => positions[n.PathRoot ?? n]).ToArray();
+            for (var i = 0; i < slots.Length; i++)
+            {
+                notes[slots[i]] = ordered[i];
+                positions[ordered[i]] = slots[i];
+            }
+        }
         return notes;
     }
 

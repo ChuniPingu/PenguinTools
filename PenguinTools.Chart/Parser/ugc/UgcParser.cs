@@ -136,6 +136,7 @@ public partial class UgcParser
     }
     private UmgrModel.Note? _lastNote;
     private UmgrModel.Note? _lastParentNote;
+    private readonly UgcSnapshotTracker _snapshots = new();
 
     static UgcParser()
     {
@@ -215,21 +216,23 @@ public partial class UgcParser
                 !l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal)).ToList();
 
             Ugc.Extras.CheckEventView(Ugc);
+            var (matches, contextValid, slaValid) = _snapshots.Validate(Ugc.Extras, lines.Select(l => l.Text).ToArray(), Ugc.Meta.C2sSlaSnapshot);
+            RestoreExTapSnapshots(matches);
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
             post.Run();
-            Ugc.Extras.BinarySnapshotValid = Ugc.Extras.UgcContentKey == Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', lines.Where(l => !l.Text.StartsWith("@COPYRIGHT", StringComparison.Ordinal)).Select(l => l.Text)))));
-            if (Ugc.Extras.BinarySnapshotValid)
+            var eligible = Ugc.Extras.BinarySnapshotValid ? null : matches.Keys.SelectMany(n => new[] { n }.Concat(n.Children)).ToHashSet();
+            if (Ugc.Extras.BinarySnapshotValid || matches.Count > 0)
             {
-                Ugc.Extras.RestoreAppearance(Ugc);
+                Ugc.Extras.RestoreAppearance(Ugc, eligible);
             }
-            EditorProjection.Restore(Ugc);
+            EditorProjection.Restore(Ugc, eligible, restoreEvents: contextValid);
             Ugc.Extras.EditorFormatVersion = _version;
 
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
             Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Ugc).Split('\n'));
             Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
             Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
+            ValidateSlaSnapshot(slaValid);
             ProcessMeta();
 
             await Task.WhenAll(Tasks);
@@ -241,6 +244,51 @@ public partial class UgcParser
             Diagnostic.BackfillTimeCalculator();
             Diagnostic.Report(ex);
             return OperationResult<UmgrModel.Chart>.Failure().WithDiagnostics(Diagnostic);
+        }
+    }
+
+    private void RestoreExTapSnapshots(Dictionary<UmgrModel.Note, UgcNoteSnapshot> matches)
+    {
+        var exTaps = Ugc.Notes.Children.OfType<UmgrModel.ExTap>().ToArray();
+        if (Ugc.Extras.BinarySnapshotValid && exTaps.Length == Ugc.Extras.UgcExTaps.Count)
+        {
+            for (var i = 0; i < exTaps.Length; i++)
+            {
+                RestoreExTap(exTaps[i], Ugc.Extras.UgcExTaps[i]);
+            }
+            return;
+        }
+        foreach (var (note, snapshot) in matches)
+        {
+            if (note is UmgrModel.ExTap ex && snapshot.ExTap is { } saved)
+            {
+                RestoreExTap(ex, saved);
+            }
+        }
+    }
+
+    private static void RestoreExTap(UmgrModel.ExTap ex, UgcExTapSnapshot saved)
+    {
+        ex.Role = saved.Role;
+        ex.AirActionParent = saved.Parent;
+        ex.AirActionParentJoint = saved.ParentJoint;
+        ex.AirActionParentIsEx = saved.ParentHasExEffect;
+    }
+
+    private void ValidateSlaSnapshot(bool valid)
+    {
+        if (Ugc.Extras.UgcSnapshotVersion != 1 || Ugc.Extras.UgcSlaKey is null)
+        {
+            return;
+        }
+        if (valid)
+        {
+            Ugc.Meta.C2sSlaEditKey = Ugc.Extras.SlaModelKey;
+        }
+        else
+        {
+            Ugc.Meta.C2sSlaSnapshot = null;
+            Ugc.Meta.C2sSlaEditKey = null;
         }
     }
 
@@ -282,11 +330,25 @@ public partial class UgcParser
             }
             else if (line.Text.StartsWith('#'))
             {
-                DispatchBodyLine(line.Text);
+                ParseBodyLine(line.Text);
             }
         }
 
         ClearCurrentLine();
+    }
+
+    private void ParseBodyLine(string text)
+    {
+        var previous = _lastNote;
+        DispatchBodyLine(text);
+        if (!text.Contains('\''))
+        {
+            _snapshots.Append(text, _currentTimeline);
+        }
+        else if (_lastNote is { } note && !ReferenceEquals(note, previous) && ReferenceEquals(note.Parent, Ugc.Notes))
+        {
+            _snapshots.Begin(note, text, _currentTimeline);
+        }
     }
 
     private static async Task<SourceLine[]> ReadLinesAsync(string path, CancellationToken ct)

@@ -72,29 +72,7 @@ public partial class MgxcParser
         var direction = (Direction)br.ReadSByte();
         var exAttr = (ExAttr)br.ReadSByte();
         var variationId = br.ReadSByte();
-        int x, width, height;
-        if (_version >= 4)
-        {
-            br.ReadByte(); // reserved
-            width = br.ReadByte();
-            x = br.ReadSByte();
-            height = br.ReadUInt16();
-            br.ReadUInt16(); // reserved
-        }
-        else if (_version == 3)
-        {
-            x = br.ReadSByte();
-            width = br.ReadByte();
-            br.ReadByte(); // reserved
-            height = br.ReadUInt16();
-            br.ReadUInt16(); // reserved
-        }
-        else
-        {
-            x = br.ReadSByte();
-            width = br.ReadInt16();
-            height = br.ReadInt32();
-        }
+        var (x, width, height) = ReadNoteGeometry(br);
         var tick = br.ReadInt32();
         var timelineId = br.ReadInt32();
         var optionValue = type == NoteType.AirCrush && longAttr == LongAttr.Begin ? br.ReadInt32() : 0;
@@ -314,25 +292,40 @@ public partial class MgxcParser
         Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF
     };
 
+    private (int X, int Width, int Height) ReadNoteGeometry(BinaryReader reader)
+    {
+        int x, width, height;
+        if (_version >= 4)
+        {
+            reader.ReadByte(); // reserved
+            width = reader.ReadByte();
+            x = reader.ReadSByte();
+            height = reader.ReadUInt16();
+            reader.ReadUInt16(); // reserved
+        }
+        else if (_version == 3)
+        {
+            x = reader.ReadSByte();
+            width = reader.ReadByte();
+            reader.ReadByte(); // reserved
+            height = reader.ReadUInt16();
+            reader.ReadUInt16(); // reserved
+        }
+        else
+        {
+            x = reader.ReadSByte();
+            width = reader.ReadInt16();
+            height = reader.ReadInt32();
+        }
+        return (x, width, height);
+    }
+
     private (UmgrModel.Note Note, bool IsChild, bool IsPair) CreateLongAir(
         NoteType type, LongAttr longAttr, ExAttr exAttr, int height, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
-            UmgrModel.Note parent = type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height);
-            if (_version >= 3)
-            {
-                if (parent is UmgrModel.AirHold hold)
-                {
-                    hold.Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
-                }
-
-                if (parent is UmgrModel.AirSlide slide)
-                {
-                    slide.Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
-                }
-            }
-            return (parent, false, true);
+            return (CreateLongAirHead(type, exAttr, height), false, true);
         }
         if (type == NoteType.AirHold)
         {
@@ -348,6 +341,25 @@ public partial class MgxcParser
             Joint = ParseJoint(longAttr, nameof(UmgrModel.AirSlideJoint), tick),
             Height = height
         }, true, false);
+    }
+
+    private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, int height)
+    {
+        UmgrModel.Note parent = type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height);
+        if (_version < 3)
+        {
+            return parent;
+        }
+        var color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
+        if (parent is UmgrModel.AirHold hold)
+        {
+            hold.Color = color;
+        }
+        if (parent is UmgrModel.AirSlide slide)
+        {
+            slide.Color = color;
+        }
+        return parent;
     }
 
     private UmgrModel.Air? TakeLastAir()

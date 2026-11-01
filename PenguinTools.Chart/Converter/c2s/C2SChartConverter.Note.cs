@@ -212,6 +212,7 @@ public partial class C2SChartConverter
 
     private void ProcessAirCrash(UmgrModel.AirCrash airCrash)
     {
+        C2sModel.AirCrash? root = null;
         var joints = airCrash.Children.OfType<UmgrModel.AirCrashJoint>().Prepend(airCrash.AsChild()).ToArray();
 
         var density = airCrash.Density;
@@ -224,7 +225,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
-            CreateNote<UmgrModel.AirCrashJoint, C2sModel.AirCrash>(curr, x =>
+            var segment = CreateNote<UmgrModel.AirCrashJoint, C2sModel.AirCrash>(curr, x =>
             {
                 x.EndTick = next.Tick;
                 x.EndLane = next.Lane;
@@ -235,6 +236,8 @@ public partial class C2SChartConverter
                 x.Attr = airCrash.Attr;
                 x.Density = density;
             });
+            root ??= segment;
+            segment.PathRoot = root;
         }
     }
 

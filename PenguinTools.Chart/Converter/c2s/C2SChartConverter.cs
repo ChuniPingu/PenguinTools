@@ -156,49 +156,61 @@ public partial class C2SChartConverter
         }
 
         var restored = new List<C2sModel.Air>();
+        var existing = Notes.OfType<C2sModel.Air>().ToList();
 
-        if (snapshot.Length != 0)
+        foreach (var entry in snapshot.Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
-            foreach (var entry in snapshot.Split(
-                         ';',
-                         StringSplitOptions.RemoveEmptyEntries))
+            var air = RestoreAirSnapshotEntry(entry, existing);
+            if (air is null)
             {
-                var fields = entry.Split(',');
-
-                if (fields.Length != 7 ||
-                    !int.TryParse(fields[0], out var tick) ||
-                    !int.TryParse(fields[1], out var timeline) ||
-                    !int.TryParse(fields[2], out var lane) ||
-                    !int.TryParse(fields[3], out var width) ||
-                    !Enum.TryParse<AirDirection>(fields[4], out var direction) ||
-                    !Enum.TryParse<Color>(fields[5], out var color))
-                {
-                    return;
-                }
-
-                var parent = CreateAirSnapshotParent(fields[6]);
-
-                if (parent is null)
-                {
-                    return;
-                }
-
-                restored.Add(new C2sModel.Air
-                {
-                    Tick = tick,
-                    Timeline = timeline,
-                    Lane = lane,
-                    Width = width,
-                    Direction = direction,
-                    Color = color,
-                    Parent = parent
-                });
+                return;
             }
+            restored.Add(air);
         }
 
         Notes.RemoveAll(x => x is C2sModel.Air);
         Notes.AddRange((IEnumerable<C2sModel.Note>)restored);
 
+    }
+
+    private static C2sModel.Air? RestoreAirSnapshotEntry(string entry, List<C2sModel.Air> existing)
+    {
+        var fields = entry.Split(',');
+        if (fields.Length != 7 ||
+            !int.TryParse(fields[0], out var tick) ||
+            !int.TryParse(fields[1], out var timeline) ||
+            !int.TryParse(fields[2], out var lane) ||
+            !int.TryParse(fields[3], out var width) ||
+            !Enum.TryParse<AirDirection>(fields[4], out var direction) ||
+            !Enum.TryParse<Color>(fields[5], out var color))
+        {
+            return null;
+        }
+        var parent = CreateAirSnapshotParent(fields[6]);
+        if (parent is null)
+        {
+            return null;
+        }
+
+        // C2S has no per-AIR timeline field. Its snapshot predates SLA
+        // projection, which may assign a timeline to the editor note.
+        var air = existing.FirstOrDefault(a => a.Tick.Original == tick &&
+            a.Lane == lane && a.Width == width && a.Parent?.GetType() == parent.GetType() &&
+            a.Direction == direction && a.Color == color);
+        air ??= existing.FirstOrDefault(a => a.Tick.Original == tick &&
+            a.Lane == lane && a.Width == width && a.Parent?.GetType() == parent.GetType());
+        if (air is not null)
+        {
+            existing.Remove(air);
+        }
+        else
+        {
+            air = new C2sModel.Air { Tick = tick, Timeline = timeline, Lane = lane, Width = width, Parent = parent };
+        }
+        air.Direction = direction;
+        air.Color = color;
+        air.Timeline = timeline;
+        return air;
     }
 
     private static C2sModel.Note? CreateAirSnapshotParent(string id) =>
@@ -437,7 +449,8 @@ public partial class C2SChartConverter
             var key = new C2sSlidePosition(
                 slide.Tick.Round,
                 slide.Lane,
-                slide.Width);
+                slide.Width,
+                slide.NoLine);
 
             if (!pendingByKey.TryGetValue(key, out var pending))
             {
@@ -484,7 +497,8 @@ public partial class C2SChartConverter
             var end = new C2sSlidePosition(
                 pick.EndTick.Round,
                 pick.EndLane,
-                pick.EndWidth);
+                pick.EndWidth,
+                pick.NoLine);
 
             if (!active.TryGetValue(end, out var endQueue))
             {
@@ -545,101 +559,6 @@ public partial class C2SChartConverter
             list.Add(note);
         }
 
-    }
-
-    private void IndexAirParentEnds(Dictionary<(int Round, int Lane, int Width), List<C2sModel.Slide>> lastSegmentsByEnd)
-    {
-        foreach (var note in Notes)
-        {
-            if (note is not C2sModel.Slide slide)
-            {
-                continue;
-            }
-
-            if (!_slideSegmentSources.TryGetValue(slide, out var src))
-            {
-                continue;
-            }
-
-            if (!_positivePairRealTargets.ContainsKey(src.EndJoint))
-            {
-                continue;
-            }
-
-            var end = (slide.EndTick.Round, slide.EndLane, slide.EndWidth);
-            if (!lastSegmentsByEnd.TryGetValue(end, out var list))
-            {
-                list = [];
-                lastSegmentsByEnd[end] = list;
-            }
-
-            list.Add(slide);
-        }
-
-    }
-
-    private void ScheduleAirParentCell(List<C2sModel.Slide> lastSegments, List<C2sModel.Note> cellAirs,
-        Dictionary<C2sModel.IPairable, C2sModel.Note> intended, Dictionary<C2sModel.Note, int> noteIndex)
-    {
-        var intendedParentRank = new Dictionary<C2sModel.Slide, int>();
-        var rank = 0;
-        foreach (var air in cellAirs)
-        {
-            if (intended.TryGetValue((C2sModel.IPairable)air, out var parent) &&
-                parent is C2sModel.Slide slide &&
-                intendedParentRank.TryAdd(slide, rank))
-            {
-                rank++;
-            }
-        }
-
-        foreach (var startRoundGroup in lastSegments.GroupBy(s => s.Tick.Round))
-        {
-            var tied = startRoundGroup.ToList();
-            if (tied.Count <= 1)
-            {
-                continue;
-            }
-
-            var desired = tied
-                .OrderBy(s =>
-                    intendedParentRank.TryGetValue(s, out var r)
-                        ? r
-                        : int.MaxValue)
-                .ThenBy(s => noteIndex[s])
-                .ToList();
-
-            if (OverridesSlideFifo(tied, desired, noteIndex))
-            {
-                desired = tied.OrderBy(s => noteIndex[s]).ToList();
-            }
-
-            ApplyNoteOrder((IReadOnlyList<C2sModel.Note>)desired, noteIndex);
-        }
-
-    }
-
-    private static bool OverridesSlideFifo(List<C2sModel.Slide> tied, List<C2sModel.Slide> desired, Dictionary<C2sModel.Note, int> noteIndex)
-    {
-        // Same start (lane, width) order belongs to the slide FIFO.
-        foreach (var startKey in tied.GroupBy(s => (s.Lane, s.Width)))
-        {
-            var scheduledOrder = startKey
-                .OrderBy(s => noteIndex[s])
-                .ToList();
-            var desiredOrder = desired
-                .Where(s =>
-                    s.Lane == startKey.Key.Lane &&
-                    s.Width == startKey.Key.Width)
-                .ToList();
-
-            if (!scheduledOrder.SequenceEqual(desiredOrder))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void RebuildNotesWithScheduledSlides(
@@ -744,24 +663,16 @@ public partial class C2SChartConverter
             return;
         }
 
-        // Index last segments that can own Air once; Air cells look up by end cell.
-        var lastSegmentsByEnd =
-            new Dictionary<(int Round, int Lane, int Width), List<C2sModel.Slide>>();
-        IndexAirParentEnds(lastSegmentsByEnd);
-
-        foreach (var (cell, cellAirs) in airsByCell)
+        foreach (var cellAirs in airsByCell.Values)
         {
-            lastSegmentsByEnd.TryGetValue(cell, out var lastSegments);
-            lastSegments ??= [];
-
-            ScheduleAirParentCell(lastSegments, cellAirs, intended, noteIndex);
-
             var orderedAirs = cellAirs
                 .OrderBy(a =>
                 {
                     if (intended.TryGetValue((C2sModel.IPairable)a, out var parent))
                     {
-                        return noteIndex.GetValueOrDefault(parent, int.MaxValue);
+                        return parent is C2sModel.Slide slide && _slideSegmentSources.TryGetValue(slide, out var source)
+                            ? _slideRootOrder[source.SourceSlide]
+                            : noteIndex.GetValueOrDefault(parent, int.MaxValue);
                     }
 
                     return int.MaxValue;
@@ -774,7 +685,7 @@ public partial class C2SChartConverter
     }
 
     private void ApplyNoteOrder(
-        IReadOnlyList<C2sModel.Note> desiredOrder,
+        List<C2sModel.Note> desiredOrder,
         Dictionary<C2sModel.Note, int> noteIndex)
     {
         if (desiredOrder.Count <= 1)
@@ -871,25 +782,10 @@ public partial class C2SChartConverter
             list.Add(slide);
         }
 
-        foreach (var note in Notes)
+        foreach (var slide in _positivePairRealTargets.Values.OfType<C2sModel.Slide>()
+                     .OrderBy(s => _slideRootOrder[_slideSegmentSources[s].SourceSlide]))
         {
-            if (note is not C2sModel.Slide slide)
-            {
-                continue;
-            }
-
-            AddCandidate(slide, slide.Tick.Original, slide.Lane, slide.Width);
-
-            if (slide.EndTick.Original != slide.Tick.Original ||
-                slide.EndLane != slide.Lane ||
-                slide.EndWidth != slide.Width)
-            {
-                AddCandidate(
-                    slide,
-                    slide.EndTick.Original,
-                    slide.EndLane,
-                    slide.EndWidth);
-            }
+            AddCandidate(slide, slide.EndTick.Original, slide.EndLane, slide.EndWidth);
         }
 
         return candidatesByCell;
@@ -957,77 +853,28 @@ public partial class C2SChartConverter
 
     private void ValidateAmbiguousC2sSlidePaths()
     {
-        // Replay endpoint linking in root source order. Times
-        // are rounded here because distinct UMIGURI ticks can serialize to the
-        // same 1/384 C2S tick and become ambiguous only after conversion.
-        // Order matches the writer: Round, then scheduled list index.
-        var active = new Dictionary<C2sSlidePosition, Queue<OpenC2sSlidePath>>();
-
-        foreach (var note in Notes
-                     .OfType<C2sModel.Slide>()
-                     .Select((slide, index) => new { Slide = slide, SourceOrder = index })
-                     .OrderBy(x => x.Slide.Tick.Round)
-                     .ThenBy(x => x.SourceOrder)
-                     .Select(x => x.Slide))
+        // Replay the reader at serialized C2S precision, including line groups.
+        foreach (var path in C2sSlidePaths.Build(Notes.OfType<C2sModel.Slide>(), rounded: true))
         {
-            var source = _slideSegmentSources[note];
-            var start = new C2sSlidePosition(
-                note.Tick.Round,
-                note.Lane,
-                note.Width);
-
-            OpenC2sSlidePath? open = null;
-            if (active.TryGetValue(start, out var queue) && queue.Count > 0)
+            var root = _slideSegmentSources[path[0]].SourceSlide;
+            for (var i = 1; i < path.Length; i++)
             {
-                if (queue.Count > 1)
+                var note = path[i];
+                var source = _slideSegmentSources[note];
+                if (!source.IsRoot || ReferenceEquals(root, source.SourceSlide))
                 {
-                    active[start] = queue = new Queue<OpenC2sSlidePath>(queue.OrderBy(p => _slideRootOrder[p.SourceSlide]));
+                    continue;
                 }
-
-                open = queue.Dequeue();
-                if (queue.Count == 0)
-                {
-                    active.Remove(start);
-                }
-            }
-
-            if (source.IsRoot &&
-                open is not null &&
-                !ReferenceEquals(open.SourceSlide, source.SourceSlide))
-            {
-                var message = Msg.Create(
-                    MsgKeys.Mg_Ambiguous_c2s_slide_path,
-                    start.Lane,
-                    start.Width);
 
                 Diagnostic.Report(new TimedDiagnostic(
                     Severity.Information,
-                    message,
-                    start.Tick)
+                    Msg.Create(MsgKeys.Mg_Ambiguous_c2s_slide_path, note.Lane, note.Width),
+                    note.Tick.Round)
                 {
-                    Target = NotePairDiagnosticTarget.From(
-                            source.SourceSlide,
-                            open.EndJoint)
-                        .WithTime(
-                            Diagnostic.TimeCalculator!,
-                            start.Tick)
+                    Target = NotePairDiagnosticTarget.From(source.SourceSlide, _slideSegmentSources[path[i - 1]].EndJoint)
+                        .WithTime(Diagnostic.TimeCalculator!, note.Tick.Round)
                 });
             }
-
-            var end = new C2sSlidePosition(
-                note.EndTick.Round,
-                note.EndLane,
-                note.EndWidth);
-
-            if (!active.TryGetValue(end, out var endQueue))
-            {
-                endQueue = new Queue<OpenC2sSlidePath>();
-                active[end] = endQueue;
-            }
-
-            endQueue.Enqueue(new OpenC2sSlidePath(
-                open?.SourceSlide ?? source.SourceSlide,
-                source.EndJoint));
         }
     }
 
@@ -1105,14 +952,11 @@ public partial class C2SChartConverter
     private readonly record struct C2sSlidePosition(
         int Tick,
         int Lane,
-        int Width);
+        int Width,
+        bool NoLine);
 
     private sealed record C2sSlideSegmentSource(
         UmgrModel.Slide SourceSlide,
         UmgrModel.SlideJoint EndJoint,
         bool IsRoot);
-
-    private sealed record OpenC2sSlidePath(
-        UmgrModel.Slide SourceSlide,
-        UmgrModel.SlideJoint EndJoint);
 }
