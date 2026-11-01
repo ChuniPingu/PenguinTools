@@ -342,36 +342,27 @@ public sealed class UgcChartConverter
 
     private void ConvertSlides(IEnumerable<C2sModel.Slide> source)
     {
-        var segments = source.OrderBy(n => n.Tick.Original).ThenBy(n => n.Lane).ThenBy(n => n.Width).ToArray();
-        var used = new HashSet<C2sModel.Slide>();
-        foreach (var root in segments)
+        foreach (var path in C2sSlidePaths.Build(source))
         {
-            if (!used.Add(root))
-            {
-                continue;
-            }
-
+            var root = path[0];
             var slide = new UmgrModel.Slide { Effect = root.Effect, NoLine = root.NoLine };
             Copy(root, slide);
             _target.Notes.AppendChild(slide);
-            var current = root;
-            while (true)
+            for (var i = 0; i < path.Length; i++)
             {
+                var current = path[i];
                 var joint = CreateSlideJoint(current);
                 slide.AppendChild(joint);
                 _positiveNotes[current] = joint;
-                var next = segments.FirstOrDefault(n => !used.Contains(n) &&
-                    n.Tick.Original == current.EndTick.Original && n.Lane == current.EndLane && n.Width == current.EndWidth);
-                if (next is null)
+                if (i + 1 == path.Length)
                 {
                     break;
                 }
 
-                used.Add(next);
+                var next = path[i + 1];
                 joint.HasEffectOverride = true;
                 joint.SegmentEffect = next.Effect;
                 joint.NoLine = next.NoLine;
-                current = next;
             }
         }
     }

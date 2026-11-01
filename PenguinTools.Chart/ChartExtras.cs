@@ -209,6 +209,10 @@ public sealed partial class ChartExtras
           .ThenBy(v => int.Parse(v.fields[3], CultureInfo.InvariantCulture))
           .ThenBy(v => int.Parse(v.fields[4], CultureInfo.InvariantCulture))
           .ThenBy(v => v.order).ThenBy(v => v.stable).ToArray();
+        if (!C2sSlidePaths.PreservesPaths(indices.Select(i => lines[i]), ordered.Select(v => v.line), resolution))
+        {
+            return text;
+        }
         for (var i = 0; i < indices.Length; i++)
         {
             lines[indices[i]] = ordered[i].line;

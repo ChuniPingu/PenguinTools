@@ -33,6 +33,103 @@ public sealed class OfficialEditorFormatTests
         return result.Value!;
     }
 
+    [Theory]
+    [InlineData(false, 65535)]
+    [InlineData(true, 1295)]
+    public async Task HighAirHeights_AreEncodedWithoutClamping(bool ugc, int maximum)
+    {
+        var chart = Chart();
+        var crash = new U.AirCrash { Tick = 0, Lane = 0, Width = 4, Height = 361 };
+        crash.AppendChild(new U.AirCrashJoint { Tick = 480, Lane = 4, Width = 4, Height = 780 });
+        crash.AppendChild(new U.AirCrashJoint { Tick = 960, Lane = 8, Width = 4, Height = 800 });
+        crash.AppendChild(new U.AirCrashJoint { Tick = 1440, Lane = 12, Width = 4, Height = maximum });
+        chart.Notes.AppendChild(crash);
+        var tap = new U.Tap { Tick = 1920, Lane = 0, Width = 4 };
+        var air = new U.AirSlide { Height = 780 };
+        tap.MakePair(air);
+        air.AppendChild(new U.AirSlideJoint { Tick = 2400, Lane = 4, Width = 4, Height = 800 });
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(air);
+        var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            Assert.DoesNotContain(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            if (!ugc)
+            {
+                var bytes = await File.ReadAllBytesAsync(path, ct);
+                Assert.Equal([361, 780, 800, maximum], MgxcHeights(bytes, 0x0A));
+                Assert.Equal([780, 800], MgxcHeights(bytes, 0x09));
+            }
+            else
+            {
+                var lines = await File.ReadAllLinesAsync(path, ct);
+                Assert.Contains("#480>cK4LO", lines);
+                Assert.Contains("#960>cO4M8", lines);
+                Assert.Contains("#1440>cS4ZZ", lines);
+            }
+            var parsed = await Read(path);
+            var actual = Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>());
+            Assert.Equal(361, actual.Height);
+            Assert.Equal<decimal>([780, 800, maximum], actual.Children.Cast<U.AirCrashJoint>().Select(j => j.Height));
+            var actualAir = Assert.Single(parsed.Notes.Children.OfType<U.AirSlide>());
+            Assert.Equal(780, actualAir.Height);
+            Assert.Equal(800, Assert.IsType<U.AirSlideJoint>(actualAir.LastChild).Height);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(false, -1, 0)]
+    [InlineData(false, 65536, 65535)]
+    [InlineData(true, -1, 0)]
+    [InlineData(true, 1296, 1295)]
+    public async Task UnencodableAirHeight_ClampsSilentlyAndRetainsOriginalInMetadata(bool ugc, int height, int encoded)
+    {
+        var chart = Chart();
+        var crash = new U.AirCrash { Tick = 480, Lane = 0, Width = 4, Height = 80 };
+        crash.AppendChild(new U.AirCrashJoint { Tick = 960, Lane = 4, Width = 4, Height = height });
+        chart.Notes.AppendChild(crash);
+        var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            Assert.Empty(written.Diagnostics.Diagnostics);
+            if (ugc)
+            {
+                Assert.Contains($"#480>cK4{(encoded == 0 ? "00" : "ZZ")}", await File.ReadAllLinesAsync(path, ct));
+            }
+            else
+            {
+                Assert.Equal([80, encoded], MgxcHeights(await File.ReadAllBytesAsync(path, ct), 0x0A));
+            }
+            var restored = Assert.Single((await Read(path)).Notes.Children.OfType<U.AirCrash>());
+            Assert.Equal(height, Assert.IsType<U.AirCrashJoint>(restored.LastChild).Height);
+        }
+        finally { File.Delete(path); }
+    }
+
+    private static List<int> MgxcHeights(byte[] bytes, byte type)
+    {
+        var block = bytes.AsSpan().IndexOf("dat2"u8);
+        var end = block + 8 + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(block + 4));
+        var heights = new List<int>();
+        for (var offset = block + 8; offset < end; offset += bytes[offset] == 0x0A && bytes[offset + 1] == 1 ? 24 : 20)
+        {
+            if (bytes[offset] == type)
+            {
+                heights.Add(BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 8)));
+            }
+        }
+        return heights;
+    }
+
     [Fact]
     public async Task OfficialWireFormat_EncodesExtendedLanesNoLineAndCrushAxes()
     {

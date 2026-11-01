@@ -69,7 +69,8 @@ internal static class EditorProjection
             n.Lane = Math.Clamp(n.Lane, expanded ? -16 : 0, (expanded ? 32 : 16) - n.Width);
             if (GetHeight(n) is { } height)
             {
-                SetHeight(n, Math.Clamp(decimal.Round(height, 0, MidpointRounding.AwayFromZero), 0, ugc ? 1295 : 360));
+                var maxHeight = ugc ? 1295 : ushort.MaxValue;
+                SetHeight(n, Math.Clamp(decimal.Round(height, 0, MidpointRounding.AwayFromZero), 0, maxHeight));
             }
             if (GetColor(n) is not (null or Color.DEF or Color.PNK))
             {
@@ -95,8 +96,8 @@ internal static class EditorProjection
             }
 
             extras.EditorNoteProjections.AddRange(snapshots.Select(p => p.Before));
-            // Line visibility is path-wide in C2S; normalizing joint flags is routine.
-            foreach (var p in snapshots.Where(p => (p.Before with { NoLine = p.After.NoLine }) != p.After))
+            // Line flags and height encoding limits are normalized silently.
+            foreach (var p in snapshots.Where(p => (p.Before with { NoLine = p.After.NoLine, Height = p.After.Height }) != p.After))
             {
                 Warn(diagnostics, format, p.Note.GetType().Name, Describe(p.Before), Describe(p.After), p.Note.Tick.Original);
             }

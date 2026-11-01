@@ -957,77 +957,28 @@ public partial class C2SChartConverter
 
     private void ValidateAmbiguousC2sSlidePaths()
     {
-        // Replay endpoint linking in root source order. Times
-        // are rounded here because distinct UMIGURI ticks can serialize to the
-        // same 1/384 C2S tick and become ambiguous only after conversion.
-        // Order matches the writer: Round, then scheduled list index.
-        var active = new Dictionary<C2sSlidePosition, Queue<OpenC2sSlidePath>>();
-
-        foreach (var note in Notes
-                     .OfType<C2sModel.Slide>()
-                     .Select((slide, index) => new { Slide = slide, SourceOrder = index })
-                     .OrderBy(x => x.Slide.Tick.Round)
-                     .ThenBy(x => x.SourceOrder)
-                     .Select(x => x.Slide))
+        // Replay the reader at serialized C2S precision, including line groups.
+        foreach (var path in C2sSlidePaths.Build(Notes.OfType<C2sModel.Slide>(), rounded: true))
         {
-            var source = _slideSegmentSources[note];
-            var start = new C2sSlidePosition(
-                note.Tick.Round,
-                note.Lane,
-                note.Width);
-
-            OpenC2sSlidePath? open = null;
-            if (active.TryGetValue(start, out var queue) && queue.Count > 0)
+            var root = _slideSegmentSources[path[0]].SourceSlide;
+            for (var i = 1; i < path.Length; i++)
             {
-                if (queue.Count > 1)
+                var note = path[i];
+                var source = _slideSegmentSources[note];
+                if (!source.IsRoot || ReferenceEquals(root, source.SourceSlide))
                 {
-                    active[start] = queue = new Queue<OpenC2sSlidePath>(queue.OrderBy(p => _slideRootOrder[p.SourceSlide]));
+                    continue;
                 }
-
-                open = queue.Dequeue();
-                if (queue.Count == 0)
-                {
-                    active.Remove(start);
-                }
-            }
-
-            if (source.IsRoot &&
-                open is not null &&
-                !ReferenceEquals(open.SourceSlide, source.SourceSlide))
-            {
-                var message = Msg.Create(
-                    MsgKeys.Mg_Ambiguous_c2s_slide_path,
-                    start.Lane,
-                    start.Width);
 
                 Diagnostic.Report(new TimedDiagnostic(
                     Severity.Information,
-                    message,
-                    start.Tick)
+                    Msg.Create(MsgKeys.Mg_Ambiguous_c2s_slide_path, note.Lane, note.Width),
+                    note.Tick.Round)
                 {
-                    Target = NotePairDiagnosticTarget.From(
-                            source.SourceSlide,
-                            open.EndJoint)
-                        .WithTime(
-                            Diagnostic.TimeCalculator!,
-                            start.Tick)
+                    Target = NotePairDiagnosticTarget.From(source.SourceSlide, _slideSegmentSources[path[i - 1]].EndJoint)
+                        .WithTime(Diagnostic.TimeCalculator!, note.Tick.Round)
                 });
             }
-
-            var end = new C2sSlidePosition(
-                note.EndTick.Round,
-                note.EndLane,
-                note.EndWidth);
-
-            if (!active.TryGetValue(end, out var endQueue))
-            {
-                endQueue = new Queue<OpenC2sSlidePath>();
-                active[end] = endQueue;
-            }
-
-            endQueue.Enqueue(new OpenC2sSlidePath(
-                open?.SourceSlide ?? source.SourceSlide,
-                source.EndJoint));
         }
     }
 
@@ -1111,8 +1062,4 @@ public partial class C2SChartConverter
         UmgrModel.Slide SourceSlide,
         UmgrModel.SlideJoint EndJoint,
         bool IsRoot);
-
-    private sealed record OpenC2sSlidePath(
-        UmgrModel.Slide SourceSlide,
-        UmgrModel.SlideJoint EndJoint);
 }

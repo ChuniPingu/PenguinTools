@@ -322,11 +322,12 @@ public sealed partial class ChartExtras
 
             queue.Enqueue(sourceIndex++);
         }
-        return notes.Select((s, i) =>
+        var ordered = notes.Select((s, i) =>
         {
             string key = C2SRoundTrip.Normalize(s, Resolution);
             int order = sourceOrder.TryGetValue(key, out var q) && q.Count > 0 ? q.Dequeue() : sourceIndex + i;
             return (s, i, order, p: P(s));
         }).OrderBy(v => I(v.p, 1)).ThenBy(v => I(v.p, 2)).ThenBy(v => I(v.p, 3)).ThenBy(v => I(v.p, 4)).ThenBy(v => v.order).ThenBy(v => v.i).Select(v => v.s).ToList();
+        return C2sSlidePaths.PreservesPaths(notes, ordered, Resolution) ? ordered : notes;
     }
 }
