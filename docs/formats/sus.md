@@ -1,4 +1,4 @@
-Based on the existing English translation of [kb10uy's SUS specification](https://gist.github.com/kb10uy/c171c175ba913dc40a73c6ce69da9859). Examples below correct source typos; the [alternate translation](references/sus-waki285.md) is retained as reference material. Implementation coverage is determined by [the parser](../../PenguinTools.Chart/Parser/sus/) and its tests.
+Based on the existing English translation of [kb10uy's SUS specification](https://gist.github.com/kb10uy/c171c175ba913dc40a73c6ce69da9859). Examples below correct source typos; the [alternate translation](references/sus-waki285.md) is retained as reference material.
 
 # SUS Format Specification v2.7 (rev2)
 

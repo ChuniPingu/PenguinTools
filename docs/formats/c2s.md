@@ -1,6 +1,6 @@
 # C2S note types
 
-Field reference for C2S records. The category IDs and reference names below describe the original format; they are not the current C# class names. Implementation models live in [Models/c2s](../../PenguinTools.Chart/Models/c2s/).
+Field reference for C2S records. The category IDs and reference names below describe the original format.
 
 | #   | Code                          | Reference name   | Meaning                      |
 | --- | ----------------------------- | ---------------- | ---------------------------- |

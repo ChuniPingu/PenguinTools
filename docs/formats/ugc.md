@@ -1,6 +1,6 @@
 # Umiguri Chart v9
 
-Based on [inonote's Umiguri Chart v9 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298). This reference does not imply full implementation of the upstream specification.
+Based on [inonote's Umiguri Chart v9 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298).
 
 ## File structure
 
@@ -98,9 +98,7 @@ Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:tx
 | AIR-SLIDE | `#BarTick:txwhhc`                    | `t = S`; `hh` is height, `c` is color          |
 | AIR-CRUSH | `#BarTick:txwhhca,{interval}`         | `t = C`; `hh` height, `c` color, `a` axis    |
 
-Height `hh` is a two-digit base-36 value. The upstream specification encodes the original height multiplied by 10. PenguinTools decodes the value into native height units: with `HIPRECISION` enabled it uses the value directly; otherwise it multiplies it by 10.
-
-PenguinTools also reads the legacy `H` parent with a height (`#BarTick:txwhhc`) as AIR-SLIDE. Standard AIR-HOLD records have no height field.
+Height `hh` is a two-digit base-36 value. The upstream specification encodes the original height multiplied by 10.
 
 | Parent    | Child format                        | Meaning                                                  |
 | --------- | ----------------------------------- | -------------------------------------------------------- |
@@ -119,7 +117,7 @@ AIR-CRUSH axis `a` is `N` (X), `Y`, or `Z`. `{interval}` is a decimal placement 
 
 EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Right, `R` Left, and `I` In/Out.
 
-An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag. PenguinTools retains original C2S roles and Trace attributes in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them. Older metadata requires the original full-file checksum.
+An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag.
 
 FLICK autoplay direction is `A` Auto, `L` Right, or `R` Left.
 
@@ -146,4 +144,4 @@ AIR-CRUSH colors are:
 | `D`  | Black        |
 | `Z`  | Transparent  |
 
-Implementation: [UGC parser](../../PenguinTools.Chart/Parser/ugc/) and [UGC writer](../../PenguinTools.Chart/Writer/ugc/). Related references: [C2S](c2s.md) and [SUS](sus.md).
+Related references: [C2S](c2s.md) and [SUS](sus.md).

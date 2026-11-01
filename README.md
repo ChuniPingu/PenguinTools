@@ -22,20 +22,22 @@ Builds prepare pinned native tools automatically; a verified tool cache works of
 
 ## Common commands
 
-| Command                                               | Purpose                                             |
-| ----------------------------------------------------- | --------------------------------------------------- |
-| `git submodule update --init --recursive`             | Initialize dependencies after an incomplete clone   |
-| `dotnet build PenguinTools.slnx -c Release`           | Build managed projects                              |
-| `dotnet run --project PenguinTools.Tests`             | Run tests                                           |
-| `dotnet format PenguinTools.slnx --verify-no-changes` | Check C# formatting                                 |
-| `.\build.ps1`                                         | Publish Windows CLI profiles                       |
+| Command                                               | Purpose                                          |
+| ----------------------------------------------------- | ------------------------------------------------ |
+| `git submodule update --init --recursive`              | Initialize dependencies after an incomplete clone |
+| `dotnet build PenguinTools.slnx -c Release`             | Build managed projects                           |
+| `dotnet run --project PenguinTools.Tests -c Release`   | Run tests                                        |
+| `.\scripts\check-style.ps1`                            | Check C# formatting and style after restore       |
+| `.\build.ps1`                                         | Publish Windows CLI profiles                     |
 
 ## Documentation
 
 - [Fan charting workflow](docs/charting-workflow.md)
+- [CLI usage, configuration, and output](docs/cli.md)
 - [Development and releases](docs/development.md)
 - [Project architecture](docs/architecture.md)
 - [Testing and local fixtures](docs/testing.md)
+- [Chart conversion and compatibility](docs/chart-conversion.md)
 - [Chart formats](docs/formats/README.md)
 - [Third-party notices](THIRD-PARTY-NOTICES.md)
 
