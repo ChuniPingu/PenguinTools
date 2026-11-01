@@ -24,13 +24,12 @@ public partial class MgxcParser
         MediaValidator = mediaValidator;
         Path = request.Path;
         Assets = request.Assets;
-        _requestedDialect = request.Dialect;
         Mgxc.Meta.ExVersion = 0;
         Mgxc.Meta.ExLongEnabled = false;
     }
 
-    private readonly PenguinTools.Core.Metadata.ChartDialect _requestedDialect;
     private int _version;
+    private readonly List<byte> _notePayload = [];
     private bool _hasFixedZeroOriginMarker;
     private bool _hasPrerollBar1Marker;
     private IMediaValidator MediaValidator { get; }
@@ -124,11 +123,11 @@ public partial class MgxcParser
     private void ReadMetadata(BinaryReader br)
     {
         br.ReadBlock(HeaderMeta, ParseMeta);
-        if (_privateMetadata.Length > 0 || _copyright.Contains("PT_C2S_", StringComparison.Ordinal))
+        if (_copyright.Contains("PT_C2S_", StringComparison.Ordinal))
         {
             var clickEnabled = Mgxc.Extras.ClickEnabled;
             var tutorial = Mgxc.Extras.Tutorial;
-            Mgxc.Extras = ChartExtras.FromCopyright(_copyright + _privateMetadata);
+            Mgxc.Extras = ChartExtras.FromCopyright(_copyright);
             Mgxc.Extras.ClickEnabled = clickEnabled;
             Mgxc.Extras.Tutorial = tutorial;
         }
@@ -140,13 +139,7 @@ public partial class MgxcParser
         br.ReadBlock(HeaderEvnt, reader => CapturePayload(reader, payload, ParseEvent, true));
         ApplyEventMetadata();
 
-        var legacyEncoding = Mgxc.Extras.EncodingDialect == ChartDialect.Auto && Mgxc.Extras.HasCarrierMarkers;
-        Mgxc.Extras.EncodingDialect = ResolveEncodingDialect(legacyEncoding);
         br.ReadBlock(HeaderDat2, reader => CapturePayload(reader, payload, ParseNote, false));
-        if (_version < 3 && _requestedDialect == ChartDialect.Auto && !legacyEncoding && UsesExtendedCoordinates())
-        {
-            Mgxc.Extras.EncodingDialect = ChartDialect.Extended;
-        }
 
         RestoreBinarySnapshot(payload);
     }
@@ -162,14 +155,19 @@ public partial class MgxcParser
         }
 
         reader.BaseStream.Position = start;
-        payload.Write(reader.ReadBytes(checked((int)(end - start))));
+        var bytes = reader.ReadBytes(checked((int)(end - start)));
+        payload.Write(bytes);
+        if (!isEvent)
+        {
+            _notePayload.AddRange(bytes);
+        }
     }
 
     private void ApplyEventMetadata()
     {
         Mgxc.Extras.FixedZeroOrigin |= _hasFixedZeroOriginMarker || ChartExtras.HasFixedZeroOrigin(_copyright);
         Mgxc.Extras.PrerollBar1Applied |= _hasPrerollBar1Marker || ChartExtras.HasPrerollBar1(_copyright);
-        Mgxc.Extras.ApplyEditorMode(_version >= 3 ? ChartDialect.Auto : _requestedDialect, Mgxc.Meta);
+        Mgxc.Extras.ApplyCoordinateOrigin(Mgxc.Meta);
         Mgxc.Extras.EditorImageEvents = _imageEvents;
         Mgxc.Extras.RestoreEditorMetadata(Mgxc.Meta);
         C2sRoundTripComment.Absorb(Mgxc.Meta, Mgxc.Extras.RoundTripBookmarks);
@@ -181,32 +179,6 @@ public partial class MgxcParser
 
         Diagnostic.TimeCalculator = Mgxc.GetCalculator();
     }
-
-    private ChartDialect ResolveEncodingDialect(bool legacyEncoding)
-    {
-        if (_version >= 3)
-        {
-            return ChartDialect.Original;
-        }
-
-        if (_requestedDialect != ChartDialect.Auto)
-        {
-            return _requestedDialect;
-        }
-
-        if (Mgxc.Extras.EncodingDialect != ChartDialect.Auto)
-        {
-            return Mgxc.Extras.EncodingDialect;
-        }
-
-        return legacyEncoding ? ChartDialect.Extended : ChartDialect.Original;
-    }
-
-    private bool UsesExtendedCoordinates() =>
-        Mgxc.Events.Children.OfType<UmgrModel.BeatEvent>().Any(b => b.Numerator == 0) ||
-        Mgxc.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).Any(n =>
-            n is UmgrModel.Slide { NoLine: true } or UmgrModel.SlideJoint { NoLine: true } ||
-            n.Lane < 0 || (long)n.Lane + n.Width > 16);
 
     private void RestoreBinarySnapshot(MemoryStream payload)
     {
@@ -223,6 +195,8 @@ public partial class MgxcParser
 
     private void PostProcessChart()
     {
+        MgxcNoteRoles.Restore(_notePayload.ToArray(), Mgxc.Extras.MgxcNoteSnapshots,
+            Mgxc.Notes.Children.OfType<UmgrModel.ExTap>());
         Mgxc.Extras.CheckEventView(Mgxc);
         var post = new ChartPostProcessor(Mgxc, Diagnostic, Assets);
         post.Run();

@@ -1,6 +1,5 @@
 using System.CommandLine;
 using PenguinTools.Application;
-using PenguinTools.Core.Metadata;
 
 namespace PenguinTools.CLI;
 
@@ -17,13 +16,11 @@ internal static class ChartCommands
     private static Command BuildInspectCommand()
     {
         var input = InputArgument();
-        var inputDialect = InputDialectOption();
         var command = new Command("inspect", "Inspect a chart and print its metadata.");
         command.Arguments.Add(input);
-        command.Options.Add(inputDialect);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunAsync("chart.inspect", (app, ct) => app.InspectChartAsync(
-                    new ChartInspectRequest(parseResult.GetRequiredValue(input), parseResult.GetValue(inputDialect)), ct),
+                    new ChartInspectRequest(parseResult.GetRequiredValue(input)), ct),
                 _ => null,
                 CliJsonSerializerContext.Default.ChartInspectResult, cancellationToken, parseResult));
         return command;
@@ -60,8 +57,6 @@ internal static class ChartCommands
         command.Options.Add(insertBlank);
         command.Options.Add(noInsertBlank);
         command.Options.Add(debugTil);
-        var inputDialect = InputDialectOption();
-        command.Options.Add(inputDialect);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
             CliCommandRunner.RunWithProgressAsync("chart.convert", (app, progress, ct) => app.ConvertChartAsync(
@@ -73,19 +68,12 @@ internal static class ChartCommands
                             parseResult.GetValue(noInsertBlank)
                                 ? false
                                 : parseResult.GetValue(insertBlank),
-                            parseResult.GetValue(debugTil)),
-                        parseResult.GetValue(inputDialect)), progress, ct),
+                            parseResult.GetValue(debugTil))), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_written, value.OutputPath),
                 CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));
         return command;
     }
-
-    private static Option<ChartDialect> InputDialectOption() => new("--input-dialect")
-    {
-        Description = "Legacy input editor format: Auto (detect format), Original, or Extended. MGXC v3/v4 and UGC v9 use official semantics.",
-        DefaultValueFactory = _ => ChartDialect.Auto
-    };
 
     private static Argument<string> InputArgument()
     {

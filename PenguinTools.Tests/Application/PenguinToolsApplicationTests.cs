@@ -16,11 +16,9 @@ namespace PenguinTools.Tests.Application;
 public sealed partial class PenguinToolsApplicationTests
 {
     [Theory]
-    [InlineData(false, ChartDialect.Original)]
-    [InlineData(false, ChartDialect.Extended)]
-    [InlineData(true, ChartDialect.Original)]
-    [InlineData(true, ChartDialect.Extended)]
-    public async Task ChartInspection_UsesTheSelectedConversionMode(bool ugc, ChartDialect dialect)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChartInspection_UsesOfficialPreroll(bool ugc)
     {
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -36,53 +34,25 @@ public sealed partial class PenguinToolsApplicationTests
                 : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart)).WriteAsync(ct)).Succeeded);
             await LegacyEditorFixture.DowngradeAsync(input, ct);
             var bytes = await File.ReadAllBytesAsync(input, ct);
-            var result = await application.InspectChartAsync(new ChartInspectRequest(input, dialect), ct);
+            var result = await application.InspectChartAsync(new ChartInspectRequest(input), ct);
             Assert.True(result.Succeeded, result.ToString());
             Assert.NotNull(result.Value!.Metadata);
             Assert.True(result.Value.Metadata.BgmEnableBarOffset);
             Assert.Equal(.75m, result.Value.Metadata.BgmManualOffset);
-            Assert.Equal(dialect == ChartDialect.Original ? 2.75m : .75m, result.Value.Metadata.BgmRealOffset);
+            Assert.Equal(2.75m, result.Value.Metadata.BgmRealOffset);
             Assert.Equal(bytes, await File.ReadAllBytesAsync(input, ct));
         }
         finally { Directory.Delete(root, true); }
     }
 
-    [Theory]
-    [InlineData(".c2s", ".mgxc")]
-    [InlineData(".mgxc", ".c2s")]
-    public async Task ChartConversion_RejectsUndefinedModesBeforeWriting(
-        string inputExtension, string outputExtension)
-    {
-        var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        var output = Path.Combine(root, "output" + outputExtension);
-        var ct = TestContext.Current.CancellationToken;
-        using var store = new TrackingAssetStore(root);
-        using var application = CreateInjectedApplication(root, store);
-        try
-        {
-            await File.WriteAllTextAsync(output, "existing chart", ct);
-            var result = await application.ConvertChartAsync(new ChartConvertRequest(
-                Path.Combine(root, "input" + inputExtension), output,
-                InputDialect: (ChartDialect)999), cancellationToken: ct);
-            Assert.False(result.Succeeded);
-            Assert.Contains(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Invalid_Header);
-            Assert.Equal("existing chart", await File.ReadAllTextAsync(output, ct));
-        }
-        finally { Directory.Delete(root, true); }
-    }
 
     [Theory]
-    [InlineData(false, false, ChartDialect.Original)]
-    [InlineData(false, true, ChartDialect.Original)]
-    [InlineData(true, false, ChartDialect.Original)]
-    [InlineData(true, true, ChartDialect.Original)]
-    [InlineData(false, false, ChartDialect.Extended)]
-    [InlineData(false, true, ChartDialect.Extended)]
-    [InlineData(true, false, ChartDialect.Extended)]
-    [InlineData(true, true, ChartDialect.Extended)]
-    public async Task ChartConversion_UsesSelectedEditorModeWithoutMigratingInput(
-        bool ugc, bool blank, ChartDialect dialect)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ChartConversion_AppliesOfficialPrerollWithoutChangingInput(
+        bool ugc, bool blank)
     {
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -100,11 +70,11 @@ public sealed partial class PenguinToolsApplicationTests
             await LegacyEditorFixture.DowngradeAsync(input, ct);
             var bytes = await File.ReadAllBytesAsync(input, ct);
             Assert.True((await application.InspectChartAsync(new ChartInspectRequest(input), ct)).Succeeded);
-            var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output, InputDialect: dialect), cancellationToken: ct);
+            var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output), cancellationToken: ct);
             Assert.True(result.Succeeded, result.ToString());
             var parsed = await new C2SParser(new C2SParseRequest(output)).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
-            var offset = dialect == ChartDialect.Original && blank ? 1920 : 0;
+            var offset = blank ? 1920 : 0;
             Assert.Equal(offset, Assert.Single(parsed.Value!.Notes.OfType<PenguinTools.Chart.Models.c2s.Tap>()).Tick.Original);
             var hold = Assert.Single(parsed.Value.Notes.OfType<PenguinTools.Chart.Models.c2s.Hold>());
             Assert.Equal(240 + offset, hold.Tick.Original);
@@ -133,11 +103,9 @@ public sealed partial class PenguinToolsApplicationTests
         try
         {
             Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, OriginFixture(blank))).WriteAsync(ct)).Succeeded);
-            var rewritten = await application.ConvertChartAsync(new ChartConvertRequest(input, saved,
-                InputDialect: ChartDialect.Original), cancellationToken: ct);
+            var rewritten = await application.ConvertChartAsync(new ChartConvertRequest(input, saved), cancellationToken: ct);
             Assert.True(rewritten.Succeeded, rewritten.ToString());
-            var back = await application.ConvertChartAsync(new ChartConvertRequest(saved, output,
-                InputDialect: ChartDialect.Original), cancellationToken: ct);
+            var back = await application.ConvertChartAsync(new ChartConvertRequest(saved, output), cancellationToken: ct);
             Assert.True(back.Succeeded, back.ToString());
             var parsed = await new C2SParser(new C2SParseRequest(output)).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
@@ -583,7 +551,7 @@ public sealed partial class PenguinToolsApplicationTests
             Assert.NotNull(inspected.Value.Metadata.Stage);
 
             var converted = await application.ConvertChartAsync(new ChartConvertRequest(input, output,
-                    new ChartConvertOverrides(4321, "Override Designer", 2, 198.5m, true), InputDialect: ChartDialect.Extended),
+                    new ChartConvertOverrides(4321, "Override Designer", 2, 198.5m, true)),
                 cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(converted.Succeeded);
             Assert.Equal(4321, converted.Value!.Chart.SongId);

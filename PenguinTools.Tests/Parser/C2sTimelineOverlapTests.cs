@@ -31,7 +31,7 @@ public sealed class C2sTimelineOverlapTests
             await File.WriteAllTextAsync(path,
                 $"@VER\t{version}\n@TICKS\t480\n@BPM\t0'0\t120\n@BEAT\t0\t1\t{denominator}\n@FLAG\tSOFFSET\t{offset}\n" + body,
                 TestContext.Current.CancellationToken);
-            var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), ChartDialect.Original),
+            var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()),
                 TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(parsed.Succeeded, parsed.ToString());
             Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);

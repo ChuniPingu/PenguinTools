@@ -15,17 +15,17 @@ The format references describe the source specifications. Implementation coverag
 
 ## Input compatibility
 
-Legacy editor inputs support Original and Extended semantics. MGXC v3/v4 and UGC v9 use their version's official semantics.
+MGXC and UGC inputs use the official semantics of their declared versions, including older official versions.
 
-For UGC height values, PenguinTools maps the decoded value to its internal height units directly when `HIPRECISION` is enabled, and multiplies it by 10 otherwise. It also accepts the legacy `H` parent with a height (`#BarTick:txwhhc`) as AIR-SLIDE; standard AIR-HOLD records have no height field.
+For UGC height values, PenguinTools maps the decoded value to its internal height units directly when `HIPRECISION` is enabled, and multiplies it by 10 otherwise.
 
 ## Timing and coordinate origins
 
-For an Original MGXC/UGC chart with `sofs`/`SOFFSET` enabled, audio export inserts one measure of silence. Its length uses the initial time signature, independently of the manual audio offset.
+For an MGXC/UGC chart with `sofs`/`SOFFSET` enabled, audio export inserts one measure of silence. Its length uses the initial time signature, independently of the manual audio offset.
 
 C2S conversion shifts notes, long-note endpoints, speed intervals, and later tempo/meter events by that measure; the initial tempo and meter stay at tick zero. Speed intervals starting at zero remain active during the silence and extend to the shifted endpoint.
 
-Legacy Extended input uses fixed zero-based coordinates without this extra measure. C2S imports retain their coordinates even after edits invalidate saved snapshots. The C2S coordinate origin is retained in MGXC/UGC round-trip metadata.
+C2S imports retain their coordinates even after edits invalidate saved snapshots. The C2S coordinate origin is retained in MGXC/UGC round-trip metadata.
 
 For example, at an initial BPM of 120 with `SOFFSET` enabled, a 4/4 chart receives 2 seconds of opening silence; a 3/4 chart receives 1.5 seconds. Notes and later timing events move by the corresponding measure. The initial BPM and meter remain at the start, and the manual audio offset is applied independently.
 
@@ -39,7 +39,9 @@ MGXC retains Bezier handles; UGC and C2S expand curves. Unsupported geometry, AI
 
 Saved C2S record order is restored only when it preserves paths and AIR relationships. C2S judgement totals are recalculated from the final emitted records, including accepted AIR attachments, `PROGJUDGE_AER`, and tutorial stop exclusions. Compressed round-trip metadata has a 64 MiB decoded-size limit.
 
-In UGC output, PenguinTools retains original C2S roles and Trace attributes in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them. Older UGC metadata requires the original full-file checksum.
+MGXC stores EXTAP roles in validated metadata without repurposing native height fields. Note edits invalidate roles in the same timing group; title and artist edits preserve them.
+
+In UGC output, PenguinTools retains original C2S roles and Trace attributes in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them.
 
 Two examples illustrate which information survives edits:
 

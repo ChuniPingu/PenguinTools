@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
@@ -95,8 +94,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             var diagnostics = new DiagnosticCollector();
             _chart = EditorProjection.Create(source, ugc: true, diagnostics);
             CurveExpansion.Expand(_chart);
+            _chart.Extras.MgxcNoteSnapshots.Clear();
             _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
-            _chart.Extras.CarrierEncodingVersion = 1;
             _chart.Extras.EditorFieldColorName = _chart.Meta.FieldColorName;
             _lines.Clear();
             _snapshots = new();
@@ -112,7 +111,6 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.AddRange(_chart.Extras.EditorHeaders);
             _written.Clear();
             _effectCarriers.Clear();
-            _chart.Extras.UgcExTaps.Clear();
             _chart.Extras.AirAppearances.Clear();
             foreach (var carrier in _chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
             {
@@ -141,9 +139,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.CaptureEditorEvents(_chart);
             _chart.Extras.CaptureUserText(m);
             _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
-            _chart.Extras.UgcContentKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', _lines))));
             _snapshots.Capture(_chart.Extras, _lines, _chart.Meta.C2sSlaSnapshot);
-            var copyright = $"@COPYRIGHT\tMGR_SYNC_REV={Guid.NewGuid():N};MGR_CLKCNT={_chart.Extras.Count(m.BgmInitialNumerator)};" +
+            var copyright = "@COPYRIGHT\t" +
                 (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") + _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
             _lines.Insert(0, copyright);
             await AtomicFile.WriteAsync(path, async (stream, token) =>
@@ -297,13 +294,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
                 Effect = effect,
                 Role = U.ExTapRole.SharedLongCarrier
             }, $"x{xy}{Effect(effect)}");
-            _chart.Extras.UgcExTaps.Add(new(U.ExTapRole.SharedLongCarrier, U.AirActionCarrierParent.None, Joint.D, false));
         }
 
-        if (n is U.ExTap exTap)
-        {
-            _chart.Extras.UgcExTaps.Add(new(exTap.Role, exTap.AirActionParent, exTap.AirActionParentJoint, exTap.AirActionParentIsEx));
-        }
         if (n is U.AirHold airHold)
         {
             _chart.Extras.AirAppearances.Add(new(ChartExtras.AirKey(airHold), airHold.Color, airHold.Direction));

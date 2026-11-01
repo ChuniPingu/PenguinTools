@@ -37,18 +37,10 @@ public sealed partial class ChartExtras
         copy.InteropSourceText = InteropSourceText;
         return copy;
     }
-    public PenguinTools.Core.Metadata.ChartDialect EncodingDialect { get; set; }
-    public int CarrierEncodingVersion { get; set; }
-    [JsonIgnore]
-    internal bool HasCarrierMarkers =>
-        CarrierEncodingVersion == 1 || !string.IsNullOrEmpty(SourceKey) || SourceSnapshot.Length > 0;
     [GeneratedRegex(@"(?:^|;)(PT_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)", RegexOptions.None, 1000)]
     private static partial Regex CopyrightMetadataRegex();
 
-    [GeneratedRegex(@"(?:^|;)MGR_CLKCNT=(\d+)(?:;|$)", RegexOptions.None, 1000)]
-    private static partial Regex ClickCountRegex();
     internal const string BookmarkPrefix = "PT_EXTRAS_V2:";
-    private const string LegacyBookmarkPrefix = "PT_EXTRAS_V1:";
     public int? ClickCount { get; set; }
     public int? SourceResolution { get; set; }
     public string? SourceMetaKey { get; set; }
@@ -86,18 +78,9 @@ public sealed partial class ChartExtras
     internal bool UsesFixedCoordinateOrigin => FixedZeroOrigin || PrerollBar1Applied || C2sCoordinateOrigin ||
         SourceKey is not null || SourceSnapshot.Length > 0;
 
-    internal void ApplyEditorMode(PenguinTools.Core.Metadata.ChartDialect requested,
-        PenguinTools.Core.Metadata.Meta meta)
-    {
-        if (!Enum.IsDefined(requested))
-        {
-            throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, requested, "Original or Extended editor format"));
-        }
-        // The extended editor writes absolute zero-based coordinates. Original
-        // charts retain their sofs setting; conversion applies its preroll once.
-        FixedZeroOrigin |= requested == PenguinTools.Core.Metadata.ChartDialect.Extended;
+    internal void ApplyCoordinateOrigin(PenguinTools.Core.Metadata.Meta meta) =>
         meta.BgmFixedZeroOrigin = UsesFixedCoordinateOrigin;
-    }
+
     internal static bool HasFixedZeroOrigin(string? value) =>
         HasTimingMarker(value, "MGR_ORIGIN=", FixedZeroOriginMarker);
 
@@ -126,12 +109,12 @@ public sealed partial class ChartExtras
                 token, "chart without pending snapshot translation"));
         }
     }
-    public string? UgcContentKey { get; set; }
+    public List<EditorNoteSnapshot> MgxcNoteSnapshots { get; set; } = [];
     public int UgcSnapshotVersion { get; set; }
     public string? UgcContextKey { get; set; }
     public string? UgcMusicalKey { get; set; }
     public string? UgcSlaKey { get; set; }
-    public List<UgcNoteSnapshot> UgcNoteSnapshots { get; set; } = [];
+    public List<EditorNoteSnapshot> UgcNoteSnapshots { get; set; } = [];
     [JsonIgnore] public string? ParsedEventModelKey { get; set; }
     public List<MeterSnapshot> Meters { get; set; } = [];
     public string? MeterEditKey { get; set; }
@@ -139,7 +122,6 @@ public sealed partial class ChartExtras
     public List<AirAppearance> AirAppearances { get; set; } = [];
     public List<SlideEffectSnapshot> SlideEffects { get; set; } = [];
     public List<HoldEffectSnapshot> HoldEffects { get; set; } = [];
-    public List<UgcExTapSnapshot> UgcExTaps { get; set; } = [];
     [JsonIgnore] public string? AirModelKey { get; set; }
     [JsonIgnore] public string? SlaModelKey { get; set; }
     public List<string> TraceCrashes { get; set; } = [];
@@ -165,7 +147,7 @@ public sealed partial class ChartExtras
     internal static string CopyrightText(string value)
     {
         var text = Regex.Replace(value,
-            @"(?:MGR_SYNC_REV=[A-Za-z0-9]+;|MGR_CLKCNT=\d+;|MGR_CLK_DEF=[\d.]+;|(?:MGR|PT)_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)",
+            @"(?:MGR|PT)_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;",
             string.Empty, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         return string.Join(';', text.Split(';').Where(token =>
             token.Trim() != FixedZeroOriginMarker && token.Trim() != PrerollBar1Marker));
@@ -230,11 +212,6 @@ public sealed partial class ChartExtras
         FixedZeroOrigin |= HasFixedZeroOrigin(value);
         PrerollBar1Applied |= HasPrerollBar1(value);
         SourceSnapshot = C2SRoundTrip.Decode(value ?? "");
-        var match = ClickCountRegex().Match(value ?? "");
-        if (match.Success)
-        {
-            ClickCount = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-        }
     }
 
     public int Count(int initial) => Math.Max(0, ClickCount ?? initial);
@@ -379,8 +356,7 @@ public sealed partial class ChartExtras
         (SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(SourceSnapshot, true) : "");
 
     internal static bool IsExtrasBookmark(string tag) =>
-        tag.StartsWith(BookmarkPrefix, StringComparison.Ordinal) ||
-        tag.StartsWith(LegacyBookmarkPrefix, StringComparison.Ordinal);
+        tag.StartsWith(BookmarkPrefix, StringComparison.Ordinal);
 
     public static ChartExtras FromBookmark(string tag)
     {
@@ -389,10 +365,7 @@ public sealed partial class ChartExtras
             return FromCopyright(tag[BookmarkPrefix.Length..]);
         }
 
-        var extras = JsonSerializer.Deserialize(Convert.FromBase64String(tag[LegacyBookmarkPrefix.Length..]),
-            ChartExtrasJsonContext.Default.ChartExtras) ?? throw new FormatException("Empty chart extension.");
-        extras.ClickTicks.Clear(); // Explicit clicks are read from the native note block.
-        return extras;
+        throw new FormatException("Invalid chart metadata bookmark.");
     }
 
     internal static string BeatKey(UmgrModel.Chart chart) => string.Join(";",
@@ -544,11 +517,13 @@ public sealed record SlideEffectSnapshot(string Key, int Index, PenguinTools.Cha
     public int? Occurrence { get; init; }
 }
 public sealed record HoldEffectSnapshot(string Key, PenguinTools.Chart.Models.ExEffect? Effect);
-public sealed record UgcExTapSnapshot(UmgrModel.ExTapRole Role, UmgrModel.AirActionCarrierParent Parent,
+public sealed record EditorNoteSnapshot(string Key, ExTapRoleSnapshot? ExTap);
+public sealed record ExTapRoleSnapshot(UmgrModel.ExTapRole Role, UmgrModel.AirActionCarrierParent Parent,
     Models.Joint ParentJoint, bool ParentHasExEffect);
 public sealed record AirAppearance(string Key, PenguinTools.Chart.Models.Color Color, PenguinTools.Chart.Models.AirDirection Direction);
 public sealed record MeterSnapshot(int Tick, int Numerator, int Denominator);
 public sealed record SpeedSnapshot(string Tag, int Tick, int Length, decimal Speed, int Timeline);
 
+[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ChartExtras))]
 internal partial class ChartExtrasJsonContext : JsonSerializerContext;

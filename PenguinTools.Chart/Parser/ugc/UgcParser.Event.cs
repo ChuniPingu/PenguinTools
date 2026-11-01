@@ -97,13 +97,8 @@ public partial class UgcParser
                && int.TryParse(s.AsSpan(idx + 1), out tick);
     }
 
-    // Original UGC uses musical bars; extended UGC uses a fixed four-quarter axis.
     internal int BarTickToAbsTick(int bar, int tick)
     {
-        if (Extended)
-        {
-            return checked(bar * ChartResolution.UmiguriTick + ScaleTick(tick));
-        }
         var beat = Ugc.Events.Children.OfType<UmgrModel.BeatEvent>().Where(b => b.Bar <= bar).MaxBy(b => b.Bar);
         return beat is null ? checked(bar * ChartResolution.UmiguriTick + ScaleTick(tick)) :
             checked(beat.Tick.Original + (bar - beat.Bar) * (ChartResolution.UmiguriTick * beat.Numerator / beat.Denominator) + ScaleTick(tick));

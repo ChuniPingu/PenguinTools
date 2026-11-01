@@ -18,7 +18,7 @@ public class UgcNoteTests
     private const string Header =
         "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n";
 
-    private static async Task<Chart.Models.umgr.Chart> Parse(string body, ChartDialect dialect = ChartDialect.Extended)
+    private static async Task<Chart.Models.umgr.Chart> Parse(string body)
     {
         var ct = TestContext.Current.CancellationToken;
         var tmp = TestTempPaths.Create(".ugc");
@@ -26,7 +26,7 @@ public class UgcNoteTests
         try
         {
             var r =
-                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct);
+                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(r.Succeeded, r.ToString());
             return r.Value!;
         }
@@ -390,16 +390,12 @@ public class UgcNoteTests
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, false, "84")]
-    [InlineData(ChartDialect.Original, false, "02")]
-    [InlineData(ChartDialect.Original, true, "84")]
-    [InlineData(ChartDialect.Original, true, "02")]
-    [InlineData(ChartDialect.Extended, false, "84")]
-    [InlineData(ChartDialect.Extended, false, "02")]
-    [InlineData(ChartDialect.Extended, true, "84")]
-    [InlineData(ChartDialect.Extended, true, "02")]
+    [InlineData(false, "84")]
+    [InlineData(false, "02")]
+    [InlineData(true, "84")]
+    [InlineData(true, "02")]
     public async Task AirLong_PreservesUnrelatedAirAtSameTick(
-        ChartDialect dialect, bool slide, string position)
+        bool slide, string position)
     {
         var ground = $"#0'0:t04\n#0'0:t{position}\n";
         var air = "#0'0:a04ULI\n";
@@ -409,7 +405,7 @@ public class UgcNoteTests
         string[]? expectedRecords = null;
         foreach (var body in new[] { ground + air + action, ground + action + air })
         {
-            var chart = await Parse(body, dialect);
+            var chart = await Parse(body);
             var standalone = Assert.Single(chart.Notes.Children.OfType<Air>());
             Assert.Equal(0, standalone.Lane);
             Assert.Equal(4, standalone.Width);
@@ -441,14 +437,12 @@ public class UgcNoteTests
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, false)]
-    [InlineData(ChartDialect.Original, true)]
-    [InlineData(ChartDialect.Extended, false)]
-    [InlineData(ChartDialect.Extended, true)]
-    public async Task AirLong_StillConsumesItsMatchingAirPrefix(ChartDialect dialect, bool slide)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AirLong_StillConsumesItsMatchingAirPrefix(bool slide)
     {
         var action = slide ? "#0'0:S0428N\n#480:s0428\n" : "#0'0:H04N\n#480:s\n";
-        var chart = await Parse("#0'0:t04\n#0'0:a04ULI\n" + action, dialect);
+        var chart = await Parse("#0'0:t04\n#0'0:a04ULI\n" + action);
         Assert.Empty(chart.Notes.Children.OfType<Air>());
         if (slide)
         {
@@ -468,28 +462,9 @@ public class UgcNoteTests
     }
 
     [Fact]
-    public async Task LegacyAirSlide_HWithHeight_PreservesHeightAndConvertsToC2s()
-    {
-        var chart = await Parse("#0'0:t04\n#0'0:H0428N\n#480:s0428\n");
-        var airHold = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
-        Assert.Equal(Color.DEF, airHold.Color);
-        Assert.Single(airHold.Children.OfType<AirSlideJoint>());
-        Assert.Equal(80m, airHold.Height);
-
-        var convert = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
-
-        Assert.True(convert.Succeeded, convert.ToString());
-        Assert.Empty(convert.Value!.Notes.OfType<Chart.Models.c2s.Air>());
-        var c2sAirHold = Assert.Single(convert.Value.Notes.OfType<Chart.Models.c2s.AirSlide>());
-        Assert.Equal("ASD", c2sAirHold.Id);
-        Assert.Equal(480, c2sAirHold.EndTick.Original);
-        Assert.Equal(Joint.D, c2sAirHold.Joint);
-    }
-
-    [Fact]
     public async Task AirCrush_WithIntervalAndColor()
     {
-        var chart = await Parse("#0'0:C140A1,$\n#480:c24ZZ\n");
+        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n#0'0:C140A1,$\n#480:c24ZZ\n");
         var crash = Assert.Single(chart.Notes.Children.OfType<AirCrash>());
         Assert.Equal(Color.RED, crash.Color);
         Assert.Equal(10m, crash.Height);
@@ -498,43 +473,10 @@ public class UgcNoteTests
         Assert.Equal(1295m, end.Height);
     }
 
-    [Theory]
-    [InlineData("C04286Y240", 240, AirLadderAttr.AxisY, Color.AQA)]
-    [InlineData("C04286Z120", 120, AirLadderAttr.AxisZ, Color.AQA)]
-    [InlineData("C0428N240", 240, AirLadderAttr.DEF, Color.DEF)]
-    [InlineData("C0428N0", 0, AirLadderAttr.DEF, Color.DEF)]
-    [InlineData("C0428N$", int.MaxValue, AirLadderAttr.DEF, Color.DEF)]
-    [InlineData("C04286Y240,120", 120, AirLadderAttr.AxisY, Color.AQA)]
-    [InlineData("C04286Y240,", 0, AirLadderAttr.AxisY, Color.AQA)]
-    public async Task ExtendedAirCrush_InlineIntervalPreservesDensityAndColor(
-        string payload, int density, AirLadderAttr attribute, Color color)
-    {
-        var chart = await Parse($"#0'0:{payload}\n#480>c4428\n");
-        var crash = Assert.Single(chart.Notes.Children.OfType<AirCrash>());
-        Assert.Equal(density, crash.Density.Original);
-        Assert.Equal(attribute, crash.Attr);
-        Assert.Equal(color, crash.Color);
-        Assert.Equal(480, Assert.Single(crash.Children).Tick.Original);
-
-        var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
-        Assert.True(converted.Succeeded, converted.ToString());
-        var c2s = Assert.Single(converted.Value!.Notes.OfType<Chart.Models.c2s.AirCrash>());
-        Assert.Equal(density == int.MaxValue ? 960 : density, c2s.Density.Original);
-        Assert.Equal(attribute, c2s.Attr);
-        Assert.Equal(color, c2s.Color);
-    }
-
-    [Fact]
-    public async Task OriginalAirCrush_DoesNotInterpretExtendedInlineInterval()
-    {
-        var chart = await Parse("#0'0:C0428N240\n#480:c4428\n", ChartDialect.Original);
-        Assert.Equal(0, Assert.Single(chart.Notes.Children.OfType<AirCrash>()).Density.Original);
-    }
-
     [Fact]
     public async Task AirSlide_UsesTwoDigitHeightAndSpecChildSyntax()
     {
-        var chart = await Parse("#0'0:t14\n#0'0:S140AI\n#480:s24ZZ\n");
+        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n#0'0:t14\n#0'0:S140AI\n#480:s24ZZ\n");
         var airSlide = Assert.Single(chart.Notes.Children.OfType<AirSlide>());
         Assert.Equal(10m, airSlide.Height);
         Assert.Equal(Color.PNK, airSlide.Color);

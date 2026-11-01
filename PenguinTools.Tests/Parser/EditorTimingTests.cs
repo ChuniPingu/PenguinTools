@@ -13,14 +13,14 @@ using U = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Tests.Parser;
 
-public sealed class EditorDialectTests
+public sealed class EditorTimingTests
 {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task OfficialOutput_PreservesOriginalPrerollWithoutMutatingSource(bool ugc)
     {
-        var chart = await Parse("@FLAG\tSOFFSET\tTRUE\n@BEAT\t0\t3\t8\n#0'0:t04\n", ChartDialect.Original);
+        var chart = await Parse("@FLAG\tSOFFSET\tTRUE\n@BEAT\t0\t3\t8\n#0'0:t04\n");
         var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
         var ct = TestContext.Current.CancellationToken;
         try
@@ -37,7 +37,6 @@ public sealed class EditorDialectTests
                 }
             }
             Assert.NotEqual("existing output", await File.ReadAllTextAsync(path, ct));
-            Assert.Equal(ChartDialect.Original, chart.Extras.EncodingDialect);
             Assert.False(chart.Extras.FixedZeroOrigin);
             Assert.False(chart.Meta.BgmFixedZeroOrigin);
             Assert.True(chart.Meta.BgmEnableBarOffset);
@@ -50,20 +49,18 @@ public sealed class EditorDialectTests
     }
 
     [Theory]
-    [InlineData(false, ChartDialect.Original, false, 4, false)]
-    [InlineData(true, ChartDialect.Original, false, 4, false)]
-    [InlineData(false, ChartDialect.Original, true, 0, false)]
-    [InlineData(true, ChartDialect.Original, true, 0, false)]
-    [InlineData(false, ChartDialect.Original, true, 4, true)]
-    [InlineData(true, ChartDialect.Original, true, 4, true)]
-    [InlineData(false, ChartDialect.Auto, true, 4, false)]
-    [InlineData(true, ChartDialect.Auto, true, 4, false)]
+    [InlineData(false, false, 4, false)]
+    [InlineData(true, false, 4, false)]
+    [InlineData(false, true, 0, false)]
+    [InlineData(true, true, 0, false)]
+    [InlineData(false, true, 4, true)]
+    [InlineData(true, true, 4, true)]
+    [InlineData(false, true, 4, false)]
+    [InlineData(true, true, 4, false)]
     public async Task OfficialOutput_PreservesSourceOrigin(
-        bool ugc, ChartDialect sourceDialect, bool blank, int numerator, bool fixedOrigin)
+        bool ugc, bool blank, int numerator, bool fixedOrigin)
     {
-        var chart = await Parse($"@FLAG\tSOFFSET\t{blank}\n@BEAT\t0\t{numerator}\t4\n#0'0:t04\n",
-            ChartDialect.Original);
-        chart.Extras.EncodingDialect = sourceDialect;
+        var chart = await Parse($"@FLAG\tSOFFSET\t{blank}\n@BEAT\t0\t{numerator}\t4\n#0'0:t04\n");
         chart.Extras.FixedZeroOrigin = fixedOrigin;
         var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
         var ct = TestContext.Current.CancellationToken;
@@ -73,8 +70,8 @@ public sealed class EditorDialectTests
                 ? (await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded
                 : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct)).Succeeded);
             var parsed = ugc
-                ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), ChartDialect.Extended), TestMediaTool.Instance).ParseAsync(ct)
-                : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load(), ChartDialect.Extended), TestMediaTool.Instance).ParseAsync(ct);
+                ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
             Assert.True(converted.Succeeded, converted.ToString());
@@ -89,7 +86,7 @@ public sealed class EditorDialectTests
     [InlineData(true)]
     public async Task NativeWriters_RejectDanglingCurveWithoutReplacingOutput(bool ugc)
     {
-        var chart = await Parse("#0'0:t04\n", ChartDialect.Original);
+        var chart = await Parse("#0'0:t04\n");
         var slide = new U.Slide { Tick = 0, Lane = 0, Width = 4 };
         slide.AppendChild(new U.SlideJoint { Tick = 240, Lane = 4, Width = 4, Joint = Joint.C, IsCurveControl = true });
         chart.Notes.AppendChild(slide);
@@ -110,7 +107,6 @@ public sealed class EditorDialectTests
                 }
             });
             Assert.Equal("existing output", await File.ReadAllTextAsync(path, ct));
-            Assert.Equal(ChartDialect.Original, chart.Extras.EncodingDialect);
         }
         finally { File.Delete(path); }
     }
@@ -156,14 +152,14 @@ public sealed class EditorDialectTests
         finally { File.Delete(path); }
     }
 
-    private static async Task<U.Chart> Parse(string body, ChartDialect dialect = ChartDialect.Auto)
+    private static async Task<U.Chart> Parse(string body)
     {
         var path = TestTempPaths.Create(".ugc");
         try
         {
             await File.WriteAllTextAsync(path, "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120\n" + body,
                 TestContext.Current.CancellationToken);
-            var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance)
+            var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded, result.ToString());
             return result.Value!;
@@ -175,12 +171,11 @@ public sealed class EditorDialectTests
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, 1440)]
-    [InlineData(ChartDialect.Extended, 3840)]
-    public async Task MusicalAndFixedAxes_PositionNotesAndAllTimedEvents(ChartDialect dialect, int tick)
+    [InlineData(1440)]
+    public async Task MusicalBars_PositionNotesAndAllTimedEvents(int tick)
     {
         var chart = await Parse("@BEAT\t0\t3\t8\n@BEAT\t2\t4\t4\n@BPM\t2'0\t180\n" +
-            "@TIL\t0\t0'0\t1\n@TIL\t0\t2'0\t2\n@SPDMOD\t2'0\t1.5\n#2'0:h04\n#240:s\n#2'0:c\n", dialect);
+            "@TIL\t0\t0'0\t1\n@TIL\t0\t2'0\t2\n@SPDMOD\t2'0\t1.5\n#2'0:h04\n#240:s\n#2'0:c\n");
         var hold = Assert.Single(chart.Notes.Children.OfType<U.Hold>());
         Assert.Equal(tick, hold.Tick.Original);
         Assert.Equal(tick + 240, Assert.Single(hold.Children).Tick.Original);
@@ -223,12 +218,10 @@ public sealed class EditorDialectTests
         Assert.Equal(color, Assert.Single(chart.Notes.Children.OfType<U.AirCrash>()).Color);
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task OfficialWriters_KeepLegacyTimingEffectsAndUserText(ChartDialect dialect)
+    [Fact]
+    public async Task OfficialWriters_KeepTimingEffectsAndUserText()
     {
-        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n@BEAT\t0\t3\t8\n@BEAT\t2\t4\t4\n#2'0:x04L\n", dialect);
+        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n@BEAT\t0\t3\t8\n@BEAT\t2\t4\t4\n#2'0:x04L\n");
         chart.Meta.Copyright = "Copyright author; literal text";
         chart.Meta.License = "MIT";
         chart.Meta.LicenseUrl = "https://example.org/license";
@@ -247,12 +240,10 @@ public sealed class EditorDialectTests
                 Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);
                 Assert.Contains("@VER\t9", text);
-                Assert.DoesNotContain("'PenguinTools dialect: margrete-", text);
                 var parsed = await new UgcParser(new UgcParseRequest(ugc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
                 Assert.True(parsed.Succeeded, parsed.ToString());
                 chart = parsed.Value!;
-                Assert.Equal(ChartDialect.Original, chart.Extras.EncodingDialect);
                 Assert.Equal(expectedTick, Assert.Single(chart.Notes.Children.OfType<U.ExTap>()).Tick.Original);
                 Assert.Equal(expectedEffect, Assert.Single(chart.Notes.Children.OfType<U.ExTap>()).Effect);
                 Assert.Equal("Copyright author; literal text", chart.Meta.Copyright);
@@ -307,36 +298,12 @@ public sealed class EditorDialectTests
     }
 
     [Fact]
-    public async Task LegacyNoLine_WritesOfficialMgxc()
+    public async Task NativePreroll_FollowsInitialMeter()
     {
-        var chart = await Parse("#0'0:s04\n#480:n44\n", ChartDialect.Extended);
-        var path = TestTempPaths.Create(".mgxc");
-        try
-        {
-            await File.WriteAllTextAsync(path, "keep existing output", TestContext.Current.CancellationToken);
-            var written = await new MgxcChartWriter(new MgxcWriteRequest(path, chart))
-                .WriteAsync(TestContext.Current.CancellationToken);
-            Assert.True(written.Succeeded);
-            var parsed = await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
-                .ParseAsync(TestContext.Current.CancellationToken);
-            Assert.True(parsed.Succeeded);
-            Assert.True(Assert.Single(parsed.Value!.Notes.Children.OfType<U.Slide>()).NoLine);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task NativePreroll_FollowsSelectedEditorMode(ChartDialect dialect)
-    {
-        var chart = await Parse("@FLAG\tSOFFSET\tTRUE\n@BEAT\t0\t3\t8\n#0'0:t04\n", dialect);
+        var chart = await Parse("@FLAG\tSOFFSET\tTRUE\n@BEAT\t0\t3\t8\n#0'0:t04\n");
         var result = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         Assert.True(result.Succeeded, result.ToString());
-        Assert.Equal(dialect == ChartDialect.Original ? 720 : 0, Assert.Single(result.Value!.Notes).Tick.Original);
+        Assert.Equal(720, Assert.Single(result.Value!.Notes).Tick.Original);
     }
 
     [Fact]
@@ -373,13 +340,10 @@ public sealed class EditorDialectTests
         }
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task ChildTimeline_SurvivesUgcSave(ChartDialect dialect)
+    [Fact]
+    public async Task ChildTimeline_SurvivesUgcSave()
     {
-        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n#0'0:C04280,240\n@USETIL\t1\n#480:c4428\n",
-            dialect);
+        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n#0'0:C04280,240\n@USETIL\t1\n#480:c4428\n");
         var path = TestTempPaths.Create(".ugc");
         try
         {
@@ -398,11 +362,10 @@ public sealed class EditorDialectTests
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, false)]
-    [InlineData(ChartDialect.Extended, false)]
-    public async Task AirLongHead_UsesOfficialSyntax(ChartDialect dialect, bool separateAir)
+    [InlineData(false)]
+    public async Task AirLongHead_UsesOfficialSyntax(bool separateAir)
     {
-        var chart = await Parse("#0'0:t04\n#0'0:H04N\n#480>s\n", dialect);
+        var chart = await Parse("#0'0:t04\n#0'0:H04N\n#480>s\n");
         var path = TestTempPaths.Create(".ugc");
         try
         {
@@ -421,8 +384,7 @@ public sealed class EditorDialectTests
     [Fact]
     public async Task CoincidentCrashPoints_AreApproximatedWithWarning()
     {
-        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n#0'0:C04280,240\n#480>c4428\n#480>c8428\n",
-            ChartDialect.Extended);
+        var chart = await Parse("@FLAG\tHIPRECISION\tTRUE\n#0'0:C04280,240\n#480>c4428\n#480>c8428\n");
         var path = TestTempPaths.Create(".ugc");
         try
         {
@@ -512,70 +474,21 @@ public sealed class EditorDialectTests
         }
     }
 
-    [Fact]
-    public async Task NativeVersionStamp_WithUtf8Bom_SelectsFixedAxis()
-    {
-        var path = TestTempPaths.Create(".ugc");
-        try
-        {
-            await File.WriteAllTextAsync(path,
-                "\uFEFF' Created with Margrete v2.3.2\n@VER\t8\n@MAINBPM\t120\n@BEAT\t0\t3\t8\n#2'0:t04\n",
-                TestContext.Current.CancellationToken);
-            var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
-                .ParseAsync(TestContext.Current.CancellationToken);
-            Assert.True(parsed.Succeeded, parsed.ToString());
-            Assert.Equal(3840, Assert.Single(parsed.Value!.Notes.Children.OfType<U.Tap>()).Tick.Original);
-            Assert.Equal(ChartDialect.Extended, parsed.Value.Extras.EncodingDialect);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
     [Theory]
-    [InlineData("original", ChartDialect.Original, 1440)]
-    [InlineData("extended", ChartDialect.Extended, 3840)]
-    [InlineData("margrete-1.8.0", ChartDialect.Original, 1440)]
-    [InlineData("margrete-2.3.2", ChartDialect.Extended, 3840)]
-    public async Task FormatMarkers_OverrideEditorRelease(string marker, ChartDialect dialect, int tick)
+    [InlineData(1440)]
+    public async Task OfficialVersion_SurvivesChangedCreator(int tick)
     {
-        var chart = await Parse($"' Created with Margrete v99.0.0\n'PenguinTools dialect: {marker}\n" +
-            "@BEAT\t0\t3\t8\n#2'0:t04\n");
-        Assert.Equal(dialect, chart.Extras.EncodingDialect);
-        Assert.Equal(tick, Assert.Single(chart.Notes.Children.OfType<U.Tap>()).Tick.Original);
-    }
-
-    [Theory]
-    [InlineData("Auto", 0)]
-    [InlineData("Original", 1)]
-    [InlineData("Extended", 2)]
-    [InlineData("Margrete180", 1)]
-    [InlineData("Margrete232", 2)]
-    public void FormatNames_KeepExistingSerializedValues(string name, int value)
-    {
-        Assert.True(Enum.TryParse<ChartDialect>(name, out var dialect));
-        Assert.Equal(value, (int)dialect);
-    }
-
-    [Theory]
-    [InlineData(ChartDialect.Original, 1440)]
-    [InlineData(ChartDialect.Extended, 3840)]
-    public async Task OfficialVersion_SurvivesChangedCreator(ChartDialect dialect, int tick)
-    {
-        var chart = await Parse("@BEAT\t0\t3\t8\n#2'0:t04\n", dialect);
+        var chart = await Parse("@BEAT\t0\t3\t8\n#2'0:t04\n");
         var path = TestTempPaths.Create(".ugc");
         try
         {
             Assert.True((await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
             var lines = await File.ReadAllLinesAsync(path, TestContext.Current.CancellationToken);
             await File.WriteAllLinesAsync(path,
-                lines.Where(l => !l.StartsWith("'PenguinTools dialect:", StringComparison.Ordinal))
-                    .Prepend("' Created with Margrete v99.0.0"), TestContext.Current.CancellationToken);
+                lines.Prepend("' Created with Margrete v99.0.0"), TestContext.Current.CancellationToken);
             var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded, result.ToString());
-            Assert.Equal(ChartDialect.Original, result.Value!.Extras.EncodingDialect);
             Assert.Equal(tick, Assert.Single(result.Value.Notes.Children.OfType<U.Tap>()).Tick.Original);
         }
         finally
@@ -585,85 +498,16 @@ public sealed class EditorDialectTests
     }
 
     [Theory]
-    [InlineData("1.9.0")]
-    [InlineData("2.4.0")]
-    [InlineData("3.0.0")]
-    public async Task UnknownCreator_RequiresFormatInsteadOfGuessing(string version)
-    {
-        var body = $"' Created with Margrete v{version}\n@BEAT\t0\t3\t8\n#2'0:t04\n";
-        var path = TestTempPaths.Create(".ugc");
-        try
-        {
-            await File.WriteAllTextAsync(path, "@MAINBPM\t120\n" + body, TestContext.Current.CancellationToken);
-            var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
-                .ParseAsync(TestContext.Current.CancellationToken);
-            Assert.False(result.Succeeded);
-            foreach (var (dialect, tick) in new[] { (ChartDialect.Original, 1440), (ChartDialect.Extended, 3840) })
-            {
-                var chart = await Parse(body, dialect);
-                Assert.Equal(tick, Assert.Single(chart.Notes.Children.OfType<U.Tap>()).Tick.Original);
-            }
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task LegacySnapshotWithoutClockSpan_SelectsItsOriginalFixedAxis(bool compressed)
-    {
-        var snapshot = "HASH\tlegacy\nRESOLUTION\t384\n";
-        var retained = C2SRoundTrip.Pack(snapshot, compressed);
-        var chart = await Parse($"@COPYRIGHT\tMGR_CLKCNT=4;{retained}\n" +
-            "@BEAT\t0\t3\t8\n#2'0:t\uE0004\n");
-        Assert.Equal(ChartDialect.Extended, chart.Extras.EncodingDialect);
-        var tap = Assert.Single(chart.Notes.Children.OfType<U.Tap>());
-        Assert.Equal(3840, tap.Tick.Original);
-        Assert.Equal(-1, tap.Lane);
-    }
-
-    [Fact]
-    public async Task ClockCountAnnotationAlone_DoesNotEnableExtendedEncoding()
-    {
-        var chart = await Parse("@COPYRIGHT\tMGR_CLKCNT=3;User copyright\n@BEAT\t0\t3\t8\n#2'0:t04\n");
-        Assert.Equal(ChartDialect.Original, chart.Extras.EncodingDialect);
-        Assert.Equal(1440, Assert.Single(chart.Notes.Children.OfType<U.Tap>()).Tick.Original);
-        Assert.Equal("User copyright", chart.Meta.Copyright);
-    }
-
-    [Theory]
-    [InlineData(null, ChartDialect.Auto, 3840)]
-    [InlineData("1.8.0", ChartDialect.Auto, 1440)]
-    [InlineData(null, ChartDialect.Original, 1440)]
-    public async Task LegacyC2sImporterHeader_IdentifiesFixedAxisWithoutOverridingNativeCreator(
-        string? creator, ChartDialect dialect, int tick)
-    {
-        var header = creator is null ? "" : $"' Created with Margrete v{creator}\n";
-        var chart = await Parse(header + "@C2S_BASECOUNT\t1\n@BEAT\t0\t3\t8\n" +
-            "#2'0:t04\n#2'0:C8428Y,240\n#240:cc428\n", dialect);
-        Assert.Equal(tick, Assert.Single(chart.Notes.Children.OfType<U.Tap>()).Tick.Original);
-        Assert.Equal(Color.PNK, Assert.Single(chart.Notes.Children.OfType<U.AirCrash>()).Color);
-        Assert.Equal(creator is null && dialect != ChartDialect.Original, chart.Meta.BgmFixedZeroOrigin);
-    }
-
-    [Theory]
-    [InlineData(ChartDialect.Original, 4, 4, 4, true, 384)]
-    [InlineData(ChartDialect.Extended, 4, 4, 4, true, 384)]
-    [InlineData(ChartDialect.Original, 3, 8, 3, true, 144)]
-    [InlineData(ChartDialect.Extended, 3, 8, 7, true, 336)]
-    [InlineData(ChartDialect.Original, 3, 8, 0, true, 0)]
-    [InlineData(ChartDialect.Extended, 3, 8, 3, false, 0)]
-    [InlineData(ChartDialect.Original, 6, 8, -1, true, 288)]
-    [InlineData(ChartDialect.Extended, 3, 8, -1, true, 144)]
+    [InlineData(4, 4, 4, true, 384)]
+    [InlineData(3, 8, 3, true, 144)]
+    [InlineData(3, 8, 0, true, 0)]
+    [InlineData(6, 8, -1, true, 288)]
     public async Task MetronomeCountSwitchAndExplicitClicks_SurviveBothContainers(
-        ChartDialect dialect, int numerator, int denominator, int count, bool enabled, int span)
+        int numerator, int denominator, int count, bool enabled, int span)
     {
         var countHeader = count < 0 ? "" : $"@CLKCNT\t{count}\n";
         var chart = await Parse($"@BEAT\t0\t{numerator}\t{denominator}\n" +
-            $"@FLAG\tCLICK\t{enabled}\n{countHeader}#0'0:t04\n#0'240:c\n#1'0:c\n", dialect);
+            $"@FLAG\tCLICK\t{enabled}\n{countHeader}#0'0:t04\n#0'240:c\n#1'0:c\n");
         var clicks = chart.Extras.ClickTicks.ToArray();
         var ugc = TestTempPaths.Create(".ugc");
         var mgxc = TestTempPaths.Create(".mgxc");

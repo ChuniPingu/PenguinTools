@@ -5,8 +5,6 @@ using U = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart;
 
-public sealed record UgcNoteSnapshot(string Key, UgcExTapSnapshot? ExTap);
-
 // Native note blocks are checked together with notes that can affect their
 // pairing or EX coverage. Presentation metadata does not participate.
 internal sealed class UgcSnapshotTracker
@@ -28,7 +26,7 @@ internal sealed class UgcSnapshotTracker
 
     internal void Capture(ChartExtras extras, IEnumerable<string> lines, string? slaSnapshot)
     {
-        extras.UgcSnapshotVersion = 1;
+        extras.UgcSnapshotVersion = 2;
         extras.UgcContextKey = ContextKey(lines, extras);
         extras.UgcMusicalKey = MusicalKey(lines, extras);
         var keys = Keys().ToArray();
@@ -39,19 +37,18 @@ internal sealed class UgcSnapshotTracker
         bool NeedsSnapshot(U.Note note) =>
             note is U.ExTap or U.ExTapableNote or U.AirSlide or U.AirHold or U.AirCrash ||
             new[] { note }.Concat(note.Children).Any(n => projected.Contains(EditorProjection.Key(n)));
-        extras.UgcNoteSnapshots = keys.Where(item => NeedsSnapshot(item.Note)).Select(item => new UgcNoteSnapshot(item.Key,
+        extras.UgcNoteSnapshots = keys.Where(item => NeedsSnapshot(item.Note)).Select(item => new EditorNoteSnapshot(item.Key,
             item.Note is U.ExTap ex ? new(ex.Role, ex.AirActionParent, ex.AirActionParentJoint, ex.AirActionParentIsEx) : null)).ToList();
     }
 
-    internal (Dictionary<U.Note, UgcNoteSnapshot> Matches, bool ContextValid, bool SlaValid) Validate(
+    internal (Dictionary<U.Note, EditorNoteSnapshot> Matches, bool ContextValid, bool SlaValid) Validate(
         ChartExtras extras, string[] lines, string? slaSnapshot)
     {
-        var matches = new Dictionary<U.Note, UgcNoteSnapshot>();
-        if (extras.UgcSnapshotVersion != 1)
+        var matches = new Dictionary<U.Note, EditorNoteSnapshot>();
+        if (extras.UgcSnapshotVersion != 2)
         {
-            extras.BinarySnapshotValid = extras.UgcContentKey == Hash(string.Join('\n',
-                lines.Where(l => !l.StartsWith("@COPYRIGHT", StringComparison.Ordinal))));
-            return (matches, extras.BinarySnapshotValid, extras.BinarySnapshotValid);
+            extras.BinarySnapshotValid = false;
+            return (matches, false, false);
         }
         extras.BinarySnapshotValid = extras.UgcMusicalKey == MusicalKey(lines, extras);
         if (extras.UgcContextKey != ContextKey(lines, extras))
@@ -59,7 +56,7 @@ internal sealed class UgcSnapshotTracker
             return (matches, false, false);
         }
         var saved = extras.UgcNoteSnapshots.GroupBy(n => n.Key)
-            .ToDictionary(g => g.Key, g => new Queue<UgcNoteSnapshot>(g));
+            .ToDictionary(g => g.Key, g => new Queue<EditorNoteSnapshot>(g));
         var keys = Keys().ToArray();
         foreach (var (note, key) in keys)
         {
@@ -199,7 +196,7 @@ internal sealed class UgcSnapshotTracker
                 }
                 return string.Join('\t', p);
             });
-        return Hash($"{extras.FixedZeroOrigin},{extras.PrerollBar1Applied},{extras.EncodingDialect}\n" +
+        return Hash($"{extras.FixedZeroOrigin},{extras.PrerollBar1Applied}\n" +
             string.Join('\n', headers.OrderBy(h => h.StartsWith("@FLAG\t", StringComparison.Ordinal)
                 ? string.Join('\t', h.Split('\t').Take(2)) : h.Split('\t')[0], StringComparer.Ordinal)));
     }

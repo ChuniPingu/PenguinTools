@@ -112,9 +112,6 @@ public partial class UgcParser
             case "COPYRIGHT":
                 HandleCopyright(args);
                 break;
-            case "C2S_BOUNDS":
-            case "C2S_BASECOUNT":
-                break;
             case "LICENSE":
                 HandleLicense(args);
                 break;
@@ -181,6 +178,7 @@ public partial class UgcParser
 
     private void PreserveUnknownHeader(string name, string[] args, string line)
     {
+        // C2S statistics are recomputed from notes, not carried as editor headers.
         if (!name.StartsWith("T_JUDGE_", StringComparison.Ordinal))
         {
             Ugc.Extras.EditorHeaders.Add(line);

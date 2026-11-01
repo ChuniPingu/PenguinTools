@@ -58,25 +58,11 @@ public partial class UgcParser
         HandleParentPayload(absTick, payloadStr, suffixStr);
     }
 
-    private (string Payload, string Suffix) SplitParentPayload(string rhs)
+    private static (string Payload, string Suffix) SplitParentPayload(string rhs)
     {
         var commaIdx = rhs.IndexOf(',');
         var payloadStr = commaIdx >= 0 ? rhs[..commaIdx] : rhs;
         var suffixStr = commaIdx >= 0 ? rhs[(commaIdx + 1)..] : string.Empty;
-
-        // Some extended exporters append the interval directly after color/axis.
-        // Keep comma-delimited intervals authoritative, including an empty one.
-        if (Extended && commaIdx < 0 && payloadStr.Length > 6 && payloadStr[0] == 'C')
-        {
-            var intervalIndex = payloadStr[6] is 'Y' or 'Z' ? 7 : 6;
-            var interval = payloadStr.AsSpan(intervalIndex);
-            if (interval.SequenceEqual("$") ||
-                int.TryParse(interval, NumberStyles.None, CultureInfo.InvariantCulture, out _))
-            {
-                suffixStr = interval.ToString();
-                payloadStr = payloadStr[..intervalIndex];
-            }
-        }
 
         return (payloadStr, suffixStr);
     }
@@ -113,13 +99,13 @@ public partial class UgcParser
             return;
         }
 
-        if (typeChar == 'H' && extras.Length < 3)
+        if (typeChar == 'H')
         {
             HandleAirHoldParent(absTick, x, w, extras);
             return;
         }
 
-        if (typeChar is 'S' or 'H')
+        if (typeChar == 'S')
         {
             HandleAirSlideParent(absTick, x, w, extras, payload);
             return;
@@ -270,7 +256,7 @@ public partial class UgcParser
 
         var crash = new UmgrModel.AirCrash
         {
-            Color = UgcPayload.CrushColorChar(extras[2], _legacyColors),
+            Color = UgcPayload.CrushColorChar(extras[2]),
             Height = height,
             Density = suffix == "$" ? int.MaxValue : ScaleTick(UgcPayload.AirCrashInterval(suffix)),
             Attr = ParseAirLadderAttribute(extras),
@@ -295,9 +281,9 @@ public partial class UgcParser
         return Ugc.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).OfType<UmgrModel.PositiveNote>().LastOrDefault(p => p.Tick.Original == absTick && p.Lane == lane && p.Width == width);
     }
 
-    private static AirLadderAttr ParseAirLadderAttribute(string extras)
+    private AirLadderAttr ParseAirLadderAttribute(string extras)
     {
-        if (extras.Length <= 3)
+        if (_version < 9 || extras.Length <= 3)
         {
             return AirLadderAttr.DEF;
         }
@@ -310,21 +296,10 @@ public partial class UgcParser
         };
     }
 
-    private static UmgrModel.ExTapRole ParseExTapRole(string extras)
-    {
-        if (extras.Contains('!'))
-        {
-            return UmgrModel.ExTapRole.Explicit;
-        }
-
-        return extras.Contains('~') ? UmgrModel.ExTapRole.SharedLongCarrier : UmgrModel.ExTapRole.Auto;
-    }
-
     private static UmgrModel.ExTap MakeExTap(string extras)
     {
         var exNote = new UmgrModel.ExTap
         {
-            Role = ParseExTapRole(extras),
             Effect = extras.Length >= 1 ? UgcPayload.ExEffectChar(extras[0]) : ExEffect.UP
         };
         return exNote;
@@ -349,40 +324,7 @@ public partial class UgcParser
 
     private static Color ParseAirHoldColor(string extras)
     {
-        if (extras.Length >= 3)
-        {
-            return UgcPayload.AirColorChar(extras[2]);
-        }
-
         return extras.Length >= 1 ? UgcPayload.AirColorChar(extras[0]) : Color.DEF;
-    }
-
-    private string NormalizeSlidePayload(string payload)
-    {
-        if (_version >= 9)
-        {
-            return payload;
-        }
-
-        if (_lastParentNote is UmgrModel.Slide slide && payload.Length > 0)
-        {
-            var noLine = payload[0] is 'n' or 'N' or 'V';
-            var previous = slide.Children.OfType<UmgrModel.SlideJoint>().LastOrDefault();
-            if (previous is null)
-            {
-                slide.NoLine = noLine;
-            }
-            else
-            {
-                previous.NoLine = noLine;
-            }
-
-            if (noLine)
-            {
-                payload = (payload[0] == 'n' ? "s" : "c") + payload[1..];
-            }
-        }
-        return payload;
     }
 
     private bool HandleCompactChild(int offsetTick, string payload)
@@ -458,7 +400,6 @@ public partial class UgcParser
     private void HandleChildPayload(int offsetTick, string payload)
     {
         offsetTick = ScaleTick(offsetTick);
-        payload = NormalizeSlidePayload(payload);
         if (_lastParentNote is null)
         {
             if (_version >= 9)

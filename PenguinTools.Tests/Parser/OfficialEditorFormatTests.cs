@@ -146,11 +146,11 @@ public sealed class OfficialEditorFormatTests
         return chart;
     }
 
-    private static async Task<U.Chart> Read(string path, ChartDialect dialect = ChartDialect.Auto)
+    private static async Task<U.Chart> Read(string path)
     {
         var result = Path.GetExtension(path) == ".mgxc"
-            ? await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken)
-            : await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken);
+            ? await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken)
+            : await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, result.ToString());
         return result.Value!;
     }
@@ -291,8 +291,7 @@ public sealed class OfficialEditorFormatTests
 
             foreach (var path in new[] { binary, text })
             {
-                var parsed = await Read(path, ChartDialect.Extended);
-                Assert.Equal(ChartDialect.Original, parsed.Extras.EncodingDialect);
+                var parsed = await Read(path);
                 Assert.True(parsed.Meta.ExtendedField);
                 Assert.Equal(new[] { -16, 31 }, parsed.Notes.Children.OfType<U.Tap>().Select(n => n.Lane));
                 Assert.True(Assert.Single(parsed.Notes.Children.OfType<U.Slide>()).NoLine);
@@ -327,7 +326,7 @@ public sealed class OfficialEditorFormatTests
                 bytes[offset + 11] = 0xEF;
             }
             await File.WriteAllBytesAsync(path, bytes, ct);
-            var parsed = Assert.Single((await Read(path, ChartDialect.Extended)).Notes.Children.OfType<U.Slide>());
+            var parsed = Assert.Single((await Read(path)).Notes.Children.OfType<U.Slide>());
             Assert.Equal((-2, 4, true), (parsed.Lane, parsed.Width, parsed.NoLine));
             Assert.Equal((2, 4), (parsed.LastChild!.Lane, parsed.LastChild.Width));
         }

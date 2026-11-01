@@ -6,7 +6,6 @@ namespace PenguinTools.Chart.Parser.mgxc;
 
 public partial class MgxcParser
 {
-    private string _privateMetadata = "";
     private string _copyright = "";
     private void ParseMeta(BinaryReader br)
     {
@@ -86,9 +85,6 @@ public partial class MgxcParser
                 break;
             case "lcpy":
                 ApplyCopyright((string)data);
-                break;
-            case "ptmd":
-                _privateMetadata += (string)data;
                 break;
             case "cmmt":
                 Mgxc.Meta.Comment = (string)data;

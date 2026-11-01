@@ -357,8 +357,7 @@ public partial class C2SChartConverter
         foreach (var e in Events)
         {
             // Original initial speeds cover the preroll, but their ends still move with the notes.
-            if (e.Tick.Original == 0 && e is C2sModel.SpeedEventBase speed &&
-                Mgxc.Extras.EncodingDialect == PenguinTools.Core.Metadata.ChartDialect.Original)
+            if (e.Tick.Original == 0 && e is C2sModel.SpeedEventBase speed)
             {
                 speed.Length = checked(speed.Length.Original + offset);
             }

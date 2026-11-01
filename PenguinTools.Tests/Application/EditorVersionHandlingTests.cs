@@ -11,13 +11,9 @@ namespace PenguinTools.Tests.Application;
 public sealed partial class PenguinToolsApplicationTests
 {
     [Theory]
-    [InlineData(".mgxc", ChartDialect.Auto)]
-    [InlineData(".mgxc", ChartDialect.Original)]
-    [InlineData(".mgxc", ChartDialect.Extended)]
-    [InlineData(".ugc", ChartDialect.Auto)]
-    [InlineData(".ugc", ChartDialect.Original)]
-    [InlineData(".ugc", ChartDialect.Extended)]
-    public async Task NewEditor_InspectionAndConversionParseNotes(string extension, ChartDialect dialect)
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task NewEditor_InspectionAndConversionParseNotes(string extension)
     {
         var ct = TestContext.Current.CancellationToken;
         var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
@@ -30,7 +26,7 @@ public sealed partial class PenguinToolsApplicationTests
             var version = extension == ".mgxc" ? 4 : 9;
             await WriteNewEditorFixtureAsync(input, version, ct);
             var original = await File.ReadAllBytesAsync(input, ct);
-            var inspected = await application.InspectChartAsync(new ChartInspectRequest(input, dialect), ct);
+            var inspected = await application.InspectChartAsync(new ChartInspectRequest(input), ct);
             Assert.True(inspected.Succeeded);
             Assert.NotNull(inspected.Value);
             Assert.True(inspected.Value.NotesParsed);
@@ -52,8 +48,7 @@ public sealed partial class PenguinToolsApplicationTests
 
             var output = Path.Combine(root, "existing.c2s");
             await File.WriteAllTextAsync(output, "keep output", ct);
-            var converted = await application.ConvertChartAsync(new ChartConvertRequest(input, output,
-                InputDialect: dialect), cancellationToken: ct);
+            var converted = await application.ConvertChartAsync(new ChartConvertRequest(input, output), cancellationToken: ct);
             Assert.True(converted.Succeeded);
             Assert.DoesNotContain(converted.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Chart_version_too_new);
             Assert.NotEqual("keep output", await File.ReadAllTextAsync(output, ct));

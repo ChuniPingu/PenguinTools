@@ -19,7 +19,7 @@ Use command-specific `--help` for the full parameter list. For scripts, invoke t
 & $cli chart convert .\charts\sample.ugc .\out\sample.c2s --no-progress
 ```
 
-Inspection fully parses the chart and reports metadata and diagnostics. Conversion writes the requested output file; its extension selects the output format. `--input-dialect Auto` is the default; `Original` and `Extended` select legacy input semantics. See [chart conversion](chart-conversion.md) for supported formats, timing, and round-trip behavior.
+Inspection fully parses the chart and reports metadata and diagnostics. Conversion writes the requested output file; its extension selects the output format. See [chart conversion](chart-conversion.md) for supported formats, timing, and round-trip behavior.
 
 ### Scan and build an option
 

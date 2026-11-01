@@ -20,7 +20,6 @@ internal static class EditorProjection
         var chart = ChartCopy.Create(source);
         var format = ugc ? "UGC v9" : "MGXC v4";
         PrepareSnapshots(chart);
-        chart.Extras.EncodingDialect = ChartDialect.Original;
         chart.Extras.EditorFormatVersion = ugc ? 9 : 4;
         NormalizeMeters(chart, diagnostics, format);
         diagnostics.TimeCalculator = chart.GetCalculator();

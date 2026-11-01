@@ -15,12 +15,13 @@ namespace PenguinTools.Chart.Writer.mgxc;
 public sealed class MgxcChartWriter(MgxcWriteRequest request)
 {
     private const int Version = 4;
-    private const int DefaultHeight = MgxcExTapMarkers.DefaultHeight;
+    private const int DefaultHeight = 80;
     private const sbyte NoLineVariation = 35;
     private const string DefaultBookmarkColor = "FFFFFF";
 
     private UmgrModel.Chart _chart = null!;
     private bool _timingBookmarksRequired;
+    private readonly List<ExTapRoleSnapshot> _writtenExTapRoles = [];
 
     private readonly record struct EffectCarrierKey(
         int Tick,
@@ -30,7 +31,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private readonly record struct EffectCarrierPlan(
         ExEffect Effect,
         int Timeline,
-        int CarrierHeight);
+        UmgrModel.ExTapRole Role);
 
     public async Task<OperationResult> WriteAsync(CancellationToken ct = default)
     {
@@ -42,7 +43,11 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
         _timingBookmarksRequired = (_chart.Extras.FixedZeroOrigin || _chart.Extras.PrerollBar1Applied) &&
             Encoding.UTF8.GetByteCount(_chart.Extras.CopyrightWithTiming(_chart.Meta.Copyright)) > short.MaxValue;
-        _chart.Extras.CarrierEncodingVersion = 1;
+        _chart.Extras.UgcNoteSnapshots.Clear();
+        _chart.Extras.UgcSnapshotVersion = 0;
+        _chart.Extras.UgcContextKey = null;
+        _chart.Extras.UgcMusicalKey = null;
+        _chart.Extras.UgcSlaKey = null;
         await AtomicFile.WriteAsync(request.Path, async (stream, token) =>
         {
             await using var buffer = new MemoryStream();
@@ -67,8 +72,11 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             using var contentWriter = new BinaryWriter(payload, Encoding.UTF8, leaveOpen: true);
             WriteEvents(contentWriter, includeExtras: false);
+            var noteOffset = checked((int)payload.Position);
             WriteNotes(contentWriter);
             contentWriter.Flush();
+            _chart.Extras.MgxcNoteSnapshots = MgxcNoteRoles.Capture(
+                payload.ToArray().AsSpan(noteOffset), _writtenExTapRoles);
             _chart.Extras.BinaryContentKey = Convert.ToHexString(SHA256.HashData(payload.ToArray()));
         }
         bw.Write(Encoding.ASCII.GetBytes("MGXC"));
@@ -250,6 +258,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private void WriteNotes(BinaryWriter bw)
     {
+        _writtenExTapRoles.Clear();
         _chart.Extras.AirAppearances.Clear();
         foreach (var tick in _chart.Extras.ClickTicks)
         {
@@ -312,18 +321,9 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private void WriteExTapNote(BinaryWriter bw, UmgrModel.ExTap ex)
     {
-        var exTapHeight = ex.Role switch
-        {
-            UmgrModel.ExTapRole.Explicit =>
-                MgxcExTapMarkers.ExplicitChr,
-            UmgrModel.ExTapRole.HoldOnlyCarrier =>
-                MgxcExTapMarkers.HoldOnlyCarrier,
-            _ =>
-                DefaultHeight
-        };
-
+        _writtenExTapRoles.Add(RoleOf(ex));
         WriteNote(bw, new NoteFormat(NoteType.ExTap, LongAttr.None, EffectDirection(ex.Effect), ExAttr.None, 0),
-            new NotePosition(ex.Lane, ex.Width, exTapHeight, ex.Tick.Original, ex.Timeline));
+            new NotePosition(ex.Lane, ex.Width, DefaultHeight, ex.Tick.Original, ex.Timeline));
 
         WritePairedAirActionIfNeeded(bw, ex);
     }
@@ -371,7 +371,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         }
     }
 
-    private static void WriteAirNote(BinaryWriter bw, UmgrModel.Air air)
+    private void WriteAirNote(BinaryWriter bw, UmgrModel.Air air)
     {
         if (air.PairNote is UmgrModel.ExTap
             {
@@ -468,8 +468,9 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             return;
         }
 
+        _writtenExTapRoles.Add(new(plan.Role, UmgrModel.AirActionCarrierParent.None, Joint.D, false));
         WriteNote(bw, new NoteFormat(NoteType.ExTap, LongAttr.None, EffectDirection(plan.Effect), ExAttr.None, 0),
-            new NotePosition(note.Lane, note.Width, plan.CarrierHeight, note.Tick.Original, plan.Timeline));
+            new NotePosition(note.Lane, note.Width, DefaultHeight, note.Tick.Original, plan.Timeline));
     }
 
     private static EffectCarrierKey EffectCarrierKeyOf(UmgrModel.Note note) =>
@@ -491,8 +492,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                         selected.Effect ?? ExEffect.UP,
                         selected.Timeline,
                         selected is UmgrModel.Slide
-                            ? DefaultHeight
-                            : MgxcExTapMarkers.HoldOnlyCarrier);
+                            ? UmgrModel.ExTapRole.SharedLongCarrier
+                            : UmgrModel.ExTapRole.HoldOnlyCarrier);
                 });
     }
 
@@ -580,7 +581,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         }
     }
 
-    private static void WriteAirActionCarrier(
+    private void WriteAirActionCarrier(
         BinaryWriter bw,
         UmgrModel.NegativeNote action)
     {
@@ -592,40 +593,14 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             return;
         }
 
-        var height = carrier.AirActionParent switch
-        {
-            UmgrModel.AirActionCarrierParent.Tap =>
-                MgxcExTapMarkers.AirActionCarrierTap,
-            UmgrModel.AirActionCarrierParent.ExTap =>
-                MgxcExTapMarkers.AirActionCarrierExTap,
-            UmgrModel.AirActionCarrierParent.Flick =>
-                MgxcExTapMarkers.AirActionCarrierFlick,
-            UmgrModel.AirActionCarrierParent.Damage =>
-                MgxcExTapMarkers.AirActionCarrierDamage,
-            UmgrModel.AirActionCarrierParent.Hold
-                when carrier.AirActionParentIsEx =>
-                MgxcExTapMarkers.AirActionCarrierExHold,
-            UmgrModel.AirActionCarrierParent.Hold =>
-                MgxcExTapMarkers.AirActionCarrierHold,
-            UmgrModel.AirActionCarrierParent.Slide
-                when carrier.AirActionParentIsEx &&
-                     carrier.AirActionParentJoint == Joint.C =>
-                MgxcExTapMarkers.AirActionCarrierExSlideC,
-            UmgrModel.AirActionCarrierParent.Slide
-                when carrier.AirActionParentIsEx =>
-                MgxcExTapMarkers.AirActionCarrierExSlideD,
-            UmgrModel.AirActionCarrierParent.Slide
-                when carrier.AirActionParentJoint == Joint.C =>
-                MgxcExTapMarkers.AirActionCarrierSlideC,
-            UmgrModel.AirActionCarrierParent.Slide =>
-                MgxcExTapMarkers.AirActionCarrierSlideD,
-            _ =>
-                MgxcExTapMarkers.AirActionCarrierTap
-        };
+        _writtenExTapRoles.Add(RoleOf(carrier));
 
         WriteNote(bw, new NoteFormat(NoteType.ExTap, LongAttr.None, EffectDirection(carrier.Effect), ExAttr.None, 0),
-            new NotePosition(carrier.Lane, carrier.Width, height, carrier.Tick.Original, carrier.Timeline));
+            new NotePosition(carrier.Lane, carrier.Width, DefaultHeight, carrier.Tick.Original, carrier.Timeline));
     }
+
+    private static ExTapRoleSnapshot RoleOf(UmgrModel.ExTap note) =>
+        new(note.Role, note.AirActionParent, note.AirActionParentJoint, note.AirActionParentIsEx);
 
     private static void WriteAirBase(
         BinaryWriter bw,

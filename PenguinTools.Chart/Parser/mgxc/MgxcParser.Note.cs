@@ -86,7 +86,7 @@ public partial class MgxcParser
                 note = new UmgrModel.Tap();
                 break;
             case NoteType.ExTap:
-                note = CreateExTap(direction, height);
+                note = CreateExTap(direction);
                 break;
             case NoteType.Flick:
                 note = new UmgrModel.Flick
@@ -112,7 +112,7 @@ public partial class MgxcParser
                 (note, isChildNote, isPairNote) = CreateLongAir(type, longAttr, exAttr, height, tick);
                 break;
             case NoteType.AirCrush:
-                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, direction, exAttr, tick);
+                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, exAttr, tick);
                 break;
             case NoteType.Click:
                 Mgxc.Extras.ClickTicks.Add(tick);
@@ -170,80 +170,22 @@ public partial class MgxcParser
         _lastNote = note;
     }
 
-    private UmgrModel.ExTap CreateExTap(Direction direction, int height)
+    private static UmgrModel.ExTap CreateExTap(Direction direction) => new()
     {
-        if (!Mgxc.Extras.HasCarrierMarkers)
+        Effect = direction switch
         {
-            height = MgxcExTapMarkers.DefaultHeight;
+            Direction.Up => ExEffect.UP,
+            Direction.Down => ExEffect.DW,
+            Direction.Center => ExEffect.CE,
+            Direction.Left => ExEffect.LS,
+            Direction.Right => ExEffect.RS,
+            Direction.RotateLeft => ExEffect.LC,
+            Direction.RotateRight => ExEffect.RC,
+            Direction.InOut => ExEffect.BS,
+            Direction.OutIn => ExEffect.CE,
+            _ => ExEffect.UP
         }
-        var exNote = new UmgrModel.ExTap
-        {
-            Effect = direction switch
-            {
-                Direction.Up => ExEffect.UP,
-                Direction.Down => ExEffect.DW,
-                Direction.Center => ExEffect.CE,
-                Direction.Left => ExEffect.LS,
-                Direction.Right => ExEffect.RS,
-                Direction.RotateLeft => ExEffect.LC,
-                Direction.RotateRight => ExEffect.RC,
-                Direction.InOut => ExEffect.BS,
-                Direction.OutIn => ExEffect.CE,
-                _ => ExEffect.UP
-            },
-            Role = height switch
-            {
-                MgxcExTapMarkers.ExplicitChr =>
-                    UmgrModel.ExTapRole.Explicit,
-                MgxcExTapMarkers.HoldOnlyCarrier =>
-                    UmgrModel.ExTapRole.HoldOnlyCarrier,
-                MgxcExTapMarkers.AirActionCarrierTap or
-                MgxcExTapMarkers.AirActionCarrierExTap or
-                MgxcExTapMarkers.AirActionCarrierFlick or
-                MgxcExTapMarkers.AirActionCarrierDamage or
-                MgxcExTapMarkers.AirActionCarrierHold or
-                MgxcExTapMarkers.AirActionCarrierSlideD or
-                MgxcExTapMarkers.AirActionCarrierSlideC or
-                MgxcExTapMarkers.AirActionCarrierExHold or
-                MgxcExTapMarkers.AirActionCarrierExSlideD or
-                MgxcExTapMarkers.AirActionCarrierExSlideC =>
-                    UmgrModel.ExTapRole.AirActionCarrier,
-                _ =>
-                    UmgrModel.ExTapRole.Auto
-            },
-            AirActionParent = height switch
-            {
-                MgxcExTapMarkers.AirActionCarrierTap =>
-                    UmgrModel.AirActionCarrierParent.Tap,
-                MgxcExTapMarkers.AirActionCarrierExTap =>
-                    UmgrModel.AirActionCarrierParent.ExTap,
-                MgxcExTapMarkers.AirActionCarrierFlick =>
-                    UmgrModel.AirActionCarrierParent.Flick,
-                MgxcExTapMarkers.AirActionCarrierDamage =>
-                    UmgrModel.AirActionCarrierParent.Damage,
-                MgxcExTapMarkers.AirActionCarrierHold or
-                MgxcExTapMarkers.AirActionCarrierExHold =>
-                    UmgrModel.AirActionCarrierParent.Hold,
-                MgxcExTapMarkers.AirActionCarrierSlideD or
-                MgxcExTapMarkers.AirActionCarrierSlideC or
-                MgxcExTapMarkers.AirActionCarrierExSlideD or
-                MgxcExTapMarkers.AirActionCarrierExSlideC =>
-                    UmgrModel.AirActionCarrierParent.Slide,
-                _ =>
-                    UmgrModel.AirActionCarrierParent.None
-            },
-            AirActionParentJoint =
-                height is MgxcExTapMarkers.AirActionCarrierSlideC or
-                    MgxcExTapMarkers.AirActionCarrierExSlideC
-                    ? Joint.C
-                    : Joint.D,
-            AirActionParentIsEx =
-                height is MgxcExTapMarkers.AirActionCarrierExHold or
-                    MgxcExTapMarkers.AirActionCarrierExSlideD or
-                    MgxcExTapMarkers.AirActionCarrierExSlideC
-        };
-        return exNote;
-    }
+    };
 
     private (UmgrModel.Note? Note, bool IsChild) CreateHold(LongAttr longAttr, int tick)
     {
@@ -263,7 +205,7 @@ public partial class MgxcParser
 
     private (UmgrModel.Note Note, bool IsChild) CreateSlide(LongAttr longAttr, sbyte variationId, int tick)
     {
-        var noLine = _version >= 3 ? variationId == 35 : variationId == 0x7F;
+        var noLine = _version >= 3 && variationId == 35;
         if (longAttr == LongAttr.Begin)
         {
             return (new UmgrModel.Slide { NoLine = noLine }, false);
@@ -271,7 +213,7 @@ public partial class MgxcParser
 
         return (new UmgrModel.SlideJoint
         {
-            NoLine = _version >= 3 ? (_lastParentNote as UmgrModel.Slide)?.NoLine ?? noLine : noLine,
+            NoLine = (_lastParentNote as UmgrModel.Slide)?.NoLine ?? noLine,
             IsCurveControl = longAttr == LongAttr.CurveControl,
             Joint = ParseJoint(longAttr, nameof(UmgrModel.SlideJoint), tick)
         }, true);
@@ -419,7 +361,7 @@ public partial class MgxcParser
     }
 
     private (UmgrModel.Note Note, bool IsChild) CreateAirCrash(
-        LongAttr longAttr, sbyte variationId, int height, int optionValue, Direction direction, ExAttr exAttr, int tick)
+        LongAttr longAttr, sbyte variationId, int height, int optionValue, ExAttr exAttr, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
@@ -433,12 +375,7 @@ public partial class MgxcParser
                     4 => AirLadderAttr.AxisY,
                     5 => AirLadderAttr.AxisZ,
                     _ => AirLadderAttr.DEF
-                } : direction switch
-                {
-                    Direction.RotateLeft => AirLadderAttr.AxisY,
-                    Direction.RotateRight => AirLadderAttr.AxisZ,
-                    _ => AirLadderAttr.DEF
-                }
+                } : AirLadderAttr.DEF
             }, false);
         }
 

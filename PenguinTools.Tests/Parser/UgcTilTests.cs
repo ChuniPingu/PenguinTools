@@ -20,14 +20,14 @@ public class UgcTilTests
         "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n";
 
     private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(
-        string body, ChartDialect mode = ChartDialect.Auto, string header = Header)
+        string body, string header = Header)
     {
         var ct = TestContext.Current.CancellationToken;
         var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, header + body, ct);
         try
         {
-            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load(), mode), TestMediaTool.Instance)
+            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(ct);
         }
         finally
@@ -46,10 +46,10 @@ public class UgcTilTests
     private static SoflanArea[] GetSoflanAreas(Chart.Models.umgr.Chart chart) =>
         chart.Notes.Children.OfType<SoflanArea>().ToArray();
 
-    private static async Task<string[]> WriteC2s(string body, ChartDialect mode, string header = Header,
+    private static async Task<string[]> WriteC2s(string body, string header = Header,
         bool throughMgxc = false)
     {
-        var parsed = await ParseResult(body, mode, header);
+        var parsed = await ParseResult(body, header);
         Assert.True(parsed.Succeeded, parsed.ToString());
         if (throughMgxc)
         {
@@ -105,7 +105,7 @@ public class UgcTilTests
             "@USETIL\t2\n#0'0:t44\n#0'100:t44\n" +
             "@USETIL\t1\n#0'50:t04\n#0'150:t44\n@USETIL\t0\n#0'200:tC4\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original);
+        var lines = await WriteC2s(body);
 
         Assert.Equal([2, 1, 2, 1, 0],
             TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4), (40, 12, 4)));
@@ -119,7 +119,7 @@ public class UgcTilTests
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n#1'0:t04\n@USETIL\t3\n#0'0:t12\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original);
+        var lines = await WriteC2s(body);
 
         Assert.Equal([2, 3, 2], TimelinesInFile(lines, (0, 0, 4), (0, 1, 2), (384, 0, 4)));
         Assert.Equal(2, lines.Count(line => line.StartsWith("SLA\t", StringComparison.Ordinal)));
@@ -133,7 +133,7 @@ public class UgcTilTests
             "@USETIL\t2\n#0'0:t44\n#0'0:S440AN\n#100:s440A\n" +
             "@USETIL\t1\n#0'50:t04\n#0'150:t44\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original);
+        var lines = await WriteC2s(body);
 
         var airSlide = Assert.Single(lines, line => line.StartsWith("ASD\t", StringComparison.Ordinal)).Split('\t');
         Assert.Equal(["0", "0", "4", "4"], airSlide[1..5]);
@@ -148,30 +148,29 @@ public class UgcTilTests
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'100:t44\n@USETIL\t0\n#0'105:t44\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original);
+        var lines = await WriteC2s(body);
 
         Assert.Single(lines, line => line.StartsWith("SLA\t", StringComparison.Ordinal));
         Assert.Equal([2, 2, 0], TimelinesInFile(lines, (0, 4, 4), (20, 4, 4), (21, 4, 4)));
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, 4)]
-    [InlineData(ChartDialect.Original, 19)]
-    [InlineData(ChartDialect.Original, 14)]
-    [InlineData(ChartDialect.Original, 13)]
-    [InlineData(ChartDialect.Original, 7)]
-    [InlineData(ChartDialect.Extended, 7)]
+    [InlineData(4)]
+    [InlineData(19)]
+    [InlineData(14)]
+    [InlineData(13)]
+    [InlineData(7)]
     public async Task Til_SerializedRectangleDoesNotCaptureOffGridNoteAfterOpeningMeasure(
-        ChartDialect mode, int denominator)
+        int denominator)
     {
         const string body =
             "@FLAG\tSOFFSET\tTRUE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n#0'100:t44\n@USETIL\t0\n#0'103:t04\n";
         var header = $"@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120\n@BEAT\t0\t1\t{denominator}\n";
 
-        var lines = await WriteC2s(body, mode, header);
+        var lines = await WriteC2s(body, header);
 
-        var offset = mode == ChartDialect.Original ? (int)Math.Round(1920m / denominator) : 0;
+        var offset = (int)Math.Round(1920m / denominator);
         var start = (int)Math.Round(offset / 5m);
         var last = (int)Math.Round((offset + 100) / 5m);
         var outside = (int)Math.Round((offset + 103) / 5m);
@@ -194,7 +193,7 @@ public class UgcTilTests
             $"@USETIL\t2\n#0'{startTick}:CG40A1,24\n#{480 - startTick}:cG40A\n" +
             "@USETIL\t0\n#0'240:tH1\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original, header, throughMgxc);
+        var lines = await WriteC2s(body, header, throughMgxc);
 
         var offset = (int)Math.Round(1920m / denominator);
         var start = (int)Math.Round((offset + startTick) / 5m);
@@ -213,7 +212,7 @@ public class UgcTilTests
             "@USETIL\t2\n#0'0:CG20A1,30\n#240:cK30A\n#480:cO40A\n" +
             "@USETIL\t0\n#0'240:tI1\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original, Header.Replace("@VER\t8", "@VER\t9"));
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
 
         var rungs = Enumerable.Range(0, 17)
             .Select(i => (i * 6, i / 2m, 2m + i / 8m)).ToArray();
@@ -227,7 +226,7 @@ public class UgcTilTests
         const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:CG40A1,30\n@USETIL\t0\n#240:cG40A\n#480:cG40A\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original, Header.Replace("@VER\t8", "@VER\t9"));
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
 
         var mainSpeed = Assert.Single(lines.Where(line => line.StartsWith("SLP\t", StringComparison.Ordinal))
             .Select(line => line.Split('\t')), fields => fields[5] == "0");
@@ -242,7 +241,7 @@ public class UgcTilTests
             "@USETIL\t0\n#0'0:CH20A1,25\n#480:cH20A\n" +
             "@USETIL\t2\n#0'103:tG4\n#0'403:tG4\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original, Header.Replace("@VER\t8", "@VER\t9"));
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
 
         var rungs = Enumerable.Range(0, 20).Select(i => (i * 5, 1m, 2m)).ToArray();
         Assert.All(TimelinesInFile(lines, rungs), timeline => Assert.Equal(0, timeline));
@@ -255,7 +254,7 @@ public class UgcTilTests
         const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:CG40A1,30\n@USETIL\t1\n#240:cG40A\n#480:cG40A\n";
 
-        var lines = await WriteC2s(body, ChartDialect.Original, Header.Replace("@VER\t8", "@VER\t9"));
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
 
         var rungs = Enumerable.Range(0, 17).Select(i => (i * 6, 0m, 4m)).ToArray();
         Assert.Equal(Enumerable.Range(0, 17).Select(i => i < 8 ? 2 : 1), TimelinesInFile(lines, rungs));
@@ -266,7 +265,7 @@ public class UgcTilTests
     {
         const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:CGG0A1,30\n#480:cHG0A\n";
-        var parsed = await ParseResult(body, ChartDialect.Original, Header.Replace("@VER\t8", "@VER\t9"));
+        var parsed = await ParseResult(body, Header.Replace("@VER\t8", "@VER\t9"));
 
         Assert.True(parsed.Succeeded, parsed.ToString());
         Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_ald_timeline_changed);
