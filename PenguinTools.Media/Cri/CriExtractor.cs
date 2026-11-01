@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
-using PenguinTools.Media;
 using SonicAudioLib.Archives;
 using SonicAudioLib.CriMw;
 using VGAudio.Codecs.CriHca;
@@ -9,11 +8,11 @@ using VGAudio.Containers.Hca;
 using VGAudio.Containers.Wave;
 using VGAudio.Formats.Pcm16;
 
-namespace PenguinTools.CRI;
+namespace PenguinTools.Media;
 
-public static class ExtractService
+public static class CriExtractor
 {
-    static ExtractService()
+    static CriExtractor()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
@@ -150,7 +149,7 @@ public static class ExtractService
             var audio = reader.Read(hcaStream);
             var pcm = audio.GetFormat<Pcm16Format>(new CriHcaParameters
             {
-                Progress = new CancellationProgress(cancellationToken)
+                Progress = new CodecCancellationProgress(cancellationToken)
             });
 
             using var wavStream = new MemoryStream();

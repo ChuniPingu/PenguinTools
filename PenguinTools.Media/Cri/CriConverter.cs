@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,17 +8,17 @@ using VGAudio.Codecs.CriHca;
 using VGAudio.Containers.Hca;
 using VGAudio.Containers.Wave;
 
-namespace PenguinTools.CRI;
+namespace PenguinTools.Media;
 
 public sealed record CriEncodingOptions(long PreviewStartMs, long PreviewStopMs,
-    ulong HcaKey, uint Bitrate = ConvertService.DefaultBitrate);
+    ulong HcaKey, uint Bitrate = CriConverter.DefaultBitrate);
 
-public static class ConvertService
+public static class CriConverter
 {
     public const ulong DefaultHcaKey = 32931609366120192UL;
     public const uint DefaultBitrate = 16384 * 8;
 
-    static ConvertService()
+    static CriConverter()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
@@ -62,7 +61,7 @@ public static class ConvertService
             Quality = CriHcaQuality.Highest,
             TrimFile = false,
             EncryptionKey = new CriHcaKey(hcaKey),
-            Progress = new CancellationProgress(cancellationToken)
+            Progress = new CodecCancellationProgress(cancellationToken)
         };
 
         using var hcaStream = new MemoryStream();
@@ -149,17 +148,9 @@ public static class ConvertService
         return (uint)value;
     }
 
-    private static Stream OpenDummyAcb()
-    {
-        var assembly = Assembly.GetExecutingAssembly();
-        var stream = assembly.GetManifestResourceStream("PenguinTools.CRI.Assets.dummy.acb");
-        if (stream is null)
-        {
-            throw new InvalidOperationException("Embedded dummy.acb resource is missing");
-        }
-
-        return stream;
-    }
+    private static Stream OpenDummyAcb() =>
+        typeof(CriConverter).Assembly.GetManifestResourceStream("PenguinTools.Media.Cri.Assets.dummy.acb")
+        ?? throw new InvalidOperationException("Embedded dummy.acb resource is missing");
 }
 
 file static class BinaryWriterExtensions

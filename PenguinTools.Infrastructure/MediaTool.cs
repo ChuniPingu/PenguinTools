@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Text.Json;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
-using PenguinTools.CRI;
 using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
@@ -149,9 +148,9 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
         ArgumentNullException.ThrowIfNull(options);
         try
         {
-            return await Task.Run(() => ExtractService.Extract(
+            return await Task.Run(() => CriExtractor.Extract(
                 options.SourcePath, options.OutputDirectory, options.PairedInputPath,
-                options.HcaKey ?? ConvertService.DefaultHcaKey, ct), ct);
+                options.HcaKey ?? CriConverter.DefaultHcaKey, ct), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -172,7 +171,7 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
 
         try
         {
-            await Task.Run(() => ConvertService.Convert(
+            await Task.Run(() => CriConverter.Convert(
                 wav, acb, awb, name, new CriEncodingOptions(previewStartMs, previewStopMs, hcaKey), ct), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
