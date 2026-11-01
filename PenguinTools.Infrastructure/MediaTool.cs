@@ -4,7 +4,6 @@ using System.Text.Json;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.CRI;
-using PenguinTools.Image;
 using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
@@ -20,6 +19,7 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
 
     private ImageService Images { get; } = new(
         Path.Combine(RequireDirectory(assetDirectory, nameof(assetDirectory)), "texconv", "texconv.exe"),
+        Path.Combine(RequireDirectory(assetDirectory, nameof(assetDirectory)), "image-tools", "image-tools.exe"),
         temporaryWorkDirectory ?? Path.Combine(Path.GetTempPath(), "PenguinTools.Temp"));
 
     private string FfmpegDirectory => Path.Combine(AssetDirectory, "ffmpeg");
@@ -45,23 +45,30 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
         try
         {
             var analysisArgs = CreateAnalysisArguments(sourcePath, offset, statsFileName);
-            var analysis = await RunAsync(FfmpegExecutablePath, analysisArgs, outputDirectory, ct);
-            analysis.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
+            var analysisStart = NativeProcess.CreateStartInfo(FfmpegExecutablePath, analysisArgs, outputDirectory);
+            var analysis = await NativeProcess.RunAsync(analysisStart, ct);
+            if (analysis.ExitCode != InterExitCode.Success)
+            {
+                throw new DiagnosticException(MsgKeys.Error_Invalid_audio, analysis);
+            }
 
             if (!TryReadLoudnessStats(statsPath, out var stats, out var parseError))
             {
                 var failure = new ProcessCommandResult(
-                    CreateStartInfo(FfmpegExecutablePath, analysisArgs, outputDirectory),
+                    analysisStart,
                     (int)InterExitCode.Failure,
                     analysis.StandardOutput,
                     string.Join(Environment.NewLine, analysis.StandardError, parseError).Trim());
-                failure.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
-                throw new UnreachableException();
+                throw new DiagnosticException(MsgKeys.Error_Invalid_audio, failure);
             }
 
             var conversionArgs = CreateConversionArguments(sourcePath, temporaryPath, offset, CalculateGainDb(stats));
-            var converted = await RunAsync(FfmpegExecutablePath, conversionArgs, outputDirectory, ct);
-            converted.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
+            var converted = await NativeProcess.RunAsync(
+                NativeProcess.CreateStartInfo(FfmpegExecutablePath, conversionArgs, outputDirectory), ct);
+            if (converted.ExitCode != InterExitCode.Success)
+            {
+                throw new DiagnosticException(MsgKeys.Error_Invalid_audio, converted);
+            }
             File.Move(temporaryPath, destinationPath, true);
             return converted;
         }
@@ -75,7 +82,7 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
     public async Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(src);
-        var result = await RunAsync(FfmpegExecutablePath, [
+        var start = NativeProcess.CreateStartInfo(FfmpegExecutablePath, [
             "-hide_banner",
             "-nostdin",
             "-nostats",
@@ -88,8 +95,11 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
             "-dn",
             "-f", "null",
             "-"
-        ], ct: ct);
-        return result.IsSuccess ? MediaValidationResult.Valid : MediaValidationResult.Invalid(result);
+        ]);
+        var result = await NativeProcess.RunAsync(start, ct);
+        return result.ExitCode == InterExitCode.Success
+            ? MediaValidationResult.Valid
+            : MediaValidationResult.Invalid(result);
     }
 
     public async Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default)
@@ -101,7 +111,7 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return MediaValidationResult.Invalid(ex);
+            return MediaValidationResult.Invalid(ex is DiagnosticException { Target: { } target } ? target : ex);
         }
     }
 
@@ -114,7 +124,7 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
             MsgKeys.Error_Invalid_bg_image);
 
     public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default) =>
-        RunImageAsync(() => Images.ExtractDdsAsync(src, dst, ct), MsgKeys.Error_Invalid_bg_image);
+        RunImageAsync(() => ImageService.ExtractDdsAsync(src, dst, ct), MsgKeys.Error_Invalid_bg_image);
 
     public async Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
     {
@@ -130,7 +140,7 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            throw new DiagnosticException(messageKey, ex);
+            throw new DiagnosticException(messageKey, ex is DiagnosticException { Target: { } target } ? target : ex);
         }
     }
     public async Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options,
@@ -317,93 +327,6 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
         }
 
         return directoryPath;
-    }
-
-    private static async Task<ProcessCommandResult> RunAsync(string executablePath, IEnumerable<string> args,
-        string? workingDirectory = null, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        var startInfo = CreateStartInfo(executablePath, args, workingDirectory);
-        if (!File.Exists(executablePath))
-        {
-            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty,
-                $"Executable was not found: {executablePath}");
-        }
-
-        using var proc = new Process();
-        proc.StartInfo = startInfo;
-
-        try
-        {
-            proc.Start();
-        }
-        catch (Exception ex)
-        {
-            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure, string.Empty, ex.Message);
-        }
-
-        var stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
-        var stderrTask = proc.StandardError.ReadToEndAsync(ct);
-        try
-        {
-            await Task.WhenAll(proc.WaitForExitAsync(ct), stdoutTask, stderrTask);
-        }
-        catch (OperationCanceledException)
-        {
-            if (!proc.HasExited)
-            {
-                proc.Kill(entireProcessTree: true);
-            }
-
-            await proc.WaitForExitAsync(CancellationToken.None);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            if (!proc.HasExited)
-            {
-                try
-                {
-                    proc.Kill(entireProcessTree: true);
-                    await proc.WaitForExitAsync(CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    // Best effort cleanup after a failed tool invocation.
-                }
-            }
-
-            return new ProcessCommandResult(startInfo, (int)InterExitCode.Failure,
-                stdoutTask.IsCompletedSuccessfully ? stdoutTask.Result : string.Empty,
-                string.Join(Environment.NewLine,
-                    stderrTask.IsCompletedSuccessfully ? stderrTask.Result : string.Empty, ex.Message));
-        }
-
-        return new ProcessCommandResult(startInfo, proc.ExitCode, await stdoutTask, await stderrTask);
-    }
-
-    private static ProcessStartInfo CreateStartInfo(string executablePath, IEnumerable<string> argumentList,
-        string? workingDirectory = null)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        if (!string.IsNullOrWhiteSpace(workingDirectory))
-        {
-            psi.WorkingDirectory = workingDirectory;
-        }
-
-        foreach (var arg in argumentList)
-        {
-            psi.ArgumentList.Add(arg);
-        }
-
-        return psi;
     }
 }
 

@@ -16,15 +16,17 @@ namespace PenguinTools.Tests.Workflow;
 
 public sealed class OptionExporterCacheTests
 {
-    [Fact]
-    public void ImageMigration_InvalidatesVersionFourImagesAndPreservesAudioCache()
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void ImageMigration_InvalidatesPreviousImagesAndPreservesAudioCache(int version)
     {
         var entry = new OptionConversionCacheEntry { RecipeHash = "old" };
         var cache = new OptionConversionCache
         {
             Image = new OptionConversionCachePartition
             {
-                Version = 4,
+                Version = version,
                 Entries = new Dictionary<string, OptionConversionCacheEntry> { ["jacket:old"] = entry, ["stage:old"] = entry }
             }
         };
@@ -34,7 +36,7 @@ public sealed class OptionExporterCacheTests
         Assert.Same(entry, cache.GetEntry("audio:existing"));
         cache.SetEntry("jacket:new", entry);
         Assert.Same(entry, cache.GetEntry("jacket:new"));
-        Assert.Equal(5, cache.Image.Version);
+        Assert.Equal(OptionConversionCache.ImageCurrentVersion, cache.Image.Version);
         Assert.Single(cache.Image.Entries);
     }
 

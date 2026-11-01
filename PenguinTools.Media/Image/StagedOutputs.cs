@@ -1,4 +1,4 @@
-namespace PenguinTools.Image;
+namespace PenguinTools.Media;
 
 internal static class StagedOutputs
 {

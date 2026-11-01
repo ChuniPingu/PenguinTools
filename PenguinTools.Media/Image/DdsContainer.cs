@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace PenguinTools.Image;
+namespace PenguinTools.Media;
 
 internal readonly record struct DdsChunk(int Offset, int Length, int Width, int Height, int MipLevels, string Format);
 

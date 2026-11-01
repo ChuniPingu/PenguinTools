@@ -4,7 +4,7 @@
 
 Install Git, the .NET SDK selected by [global.json](../global.json), and Visual Studio C++ x64 build tools. Managed target frameworks and package versions are declared in [Common.props](../Common.props) and the project files.
 
-Builds automatically prepare the pinned FFmpeg and texconv binaries from [native-tools.json](../PenguinTools.Assets/native-tools.json), verifying hashes and reusing `artifacts/tools` offline.
+Builds automatically prepare the pinned FFmpeg, texconv, and image-tools binaries from [native-tools.json](../PenguinTools.Assets/native-tools.json), verifying hashes and reusing `artifacts/tools` offline.
 
 Initialize the pinned dependencies:
 
@@ -40,7 +40,7 @@ For the complete Windows payload:
 
 The script publishes the CLI using `WinX64-NativeAOT` and `WinX64` profiles. NativeAOT is self-contained; `WinX64` requires the matching .NET runtime.
 
-CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the complete folder, including libvips, `assets/`, and license notices. Runtime needs no network.
+CLI publish output is under `PenguinTools.CLI/bin/Release/<TargetFramework>/publish/<Profile>/`. Ship the complete folder, including `assets/` and its tool binaries, native libraries, and license notices. Runtime needs no network.
 
 ## Checks and contributions
 

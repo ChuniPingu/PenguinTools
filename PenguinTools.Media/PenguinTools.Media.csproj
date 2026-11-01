@@ -8,6 +8,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\PenguinTools.Core\PenguinTools.Core.csproj"/>
+        <InternalsVisibleTo Include="PenguinTools.Tests"/>
+        <EmbeddedResource Include="Image\Assets\*.afb"/>
     </ItemGroup>
 
 </Project>

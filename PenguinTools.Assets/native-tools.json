@@ -22,6 +22,27 @@
         "legal/NOTICE.md",
         "legal/FFMPEG-SOURCE-OFFER.md"
       ]
+    },
+    {
+      "id": "image-tools",
+      "release": "v0.1.0",
+      "type": "zip",
+      "url": "https://github.com/ChuniPingu/image-tools/releases/download/v0.1.0/image-tools-win-x64.zip",
+      "sha256": "58b2bd04762ee57913b8c2c44ab70de608f635baa7503a67359769b9807c9722",
+      "requiredFiles": [
+        "image-tools.exe",
+        "libvips-42.dll",
+        "build-metadata.json",
+        "build-manifest.json",
+        "dependency-versions.json",
+        "LICENSE",
+        "THIRD-PARTY-NOTICES.md",
+        "licenses/LGPL-3.0.txt",
+        "licenses/GPL-3.0.txt",
+        "licenses/libvips-LICENSE.txt",
+        "licenses/libvips-THIRD-PARTY-NOTICES.md",
+        "licenses/dependencies/SOURCES.json"
+      ]
     }
   ]
 }

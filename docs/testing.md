@@ -30,6 +30,6 @@ The sample theories enumerate during discovery, so empty optional sample sets ar
 
 ## Native and asset tests
 
-Windows builds prepare and copy native tools into the test output; see [development](development.md#windows-prerequisites) for setup. Image integration tests use libvips and `assets/texconv/texconv.exe` relative to that output. CRI integration tests use generated WAV fixtures and the in-process library.
+Windows builds prepare and copy native tools into the test output; see [development](development.md#windows-prerequisites) for setup.
 
 Tests using the shared asset catalog locate `assets.json` by walking upward from the test output; see [TestAssets](../PenguinTools.Tests/TestAssets.cs) for asset overrides.
