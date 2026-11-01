@@ -129,16 +129,6 @@ public partial class C2SChartWriter
         {
             text += "\n" + string.Join("\n", Chart.Extras.SourceStatistics) + "\n";
         }
-        else if (Chart.Extras.SourceKey is null && Chart.Meta.TryGetC2sJudgeSummary(out _, out _, out _, out _, out _, out _))
-        {
-            var summary = new StringBuilder();
-            AppendJudgeSummary(summary);
-            text += "\n" + summary;
-        }
-        else
-        {
-            text += ChartStatistics.Calculate(text);
-        }
 
         if (Chart.Extras.SourceSnapshot.Length > 0 &&
             (Chart.Extras.SourceKey is null || !Chart.Extras.BinarySnapshotValid || !Chart.Extras.HasSpeedSnapshot))
@@ -147,50 +137,6 @@ public partial class C2SChartWriter
             text = Chart.Extras.FinalizeText(Chart, text);
         }
         return text;
-    }
-
-    private void AppendJudgeSummary(StringBuilder sb)
-    {
-        if (!Chart.Meta.TryGetC2sJudgeSummary(
-                out _,
-                out var hld,
-                out var sld,
-                out var air,
-                out _,
-                out _))
-        {
-            return;
-        }
-
-        var tap = C2SJudgeSummaryCalculator.CalculateTap(Chart);
-        var flk = C2SJudgeSummaryCalculator.CalculateFlick(Chart);
-
-        hld = AdjustJudgeCount(hld, Chart.Meta.C2sJudgeHldProxyBaseline,
-            () => C2SJudgeSummaryCalculator.CalculateHoldProxy(Chart));
-        sld = AdjustJudgeCount(sld, Chart.Meta.C2sJudgeSldProxyBaseline,
-            () => C2SJudgeSummaryCalculator.CalculateSlideProxy(Chart));
-        air = AdjustJudgeCount(air, Chart.Meta.C2sJudgeAirProxyBaseline,
-            () => C2SJudgeSummaryCalculator.CalculateAirProxy(Chart));
-
-        var all = tap + hld + sld + air + flk;
-
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_TAP\t{tap}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_HLD\t{hld}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_SLD\t{sld}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_AIR\t{air}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_FLK\t{flk}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_ALL\t{all}");
-    }
-
-    private static int AdjustJudgeCount(int count, int? baseline, Func<int> calculateProxy)
-    {
-        if (baseline is not { } value || value < 0)
-        {
-            return count;
-        }
-
-        var adjusted = (long)count + calculateProxy() - value;
-        return adjusted is >= 0 and <= int.MaxValue ? (int)adjusted : count;
     }
 
     internal static string GetContentKey(C2sModel.Chart chart)

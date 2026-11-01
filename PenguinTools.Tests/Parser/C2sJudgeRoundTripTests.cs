@@ -291,7 +291,7 @@ public sealed class C2sJudgeRoundTripTests
     }
 
     [Fact]
-    public async Task C2sWriter_AppliesHoldProxyDeltaToSourceJudgeSummary()
+    public async Task C2sWriter_RecalculatesHoldJudgesDespiteProxyBaseline()
     {
         var source = new C2sChart
         {
@@ -355,7 +355,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_HLD\t505",
+                "T_JUDGE_HLD\t6",
                 lines);
 
             Assert.Contains(
@@ -371,7 +371,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_ALL\t506",
+                "T_JUDGE_ALL\t7",
                 lines);
         }
         finally
@@ -383,7 +383,7 @@ public sealed class C2sJudgeRoundTripTests
     }
 
     [Fact]
-    public async Task C2sWriter_PreservesSourceHoldJudgeWithoutProxyBaseline()
+    public async Task C2sWriter_RecalculatesHoldJudgesWithoutProxyBaseline()
     {
         var source = new C2sChart
         {
@@ -446,7 +446,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_HLD\t500",
+                "T_JUDGE_HLD\t6",
                 lines);
 
             Assert.Contains(
@@ -462,7 +462,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_ALL\t501",
+                "T_JUDGE_ALL\t7",
                 lines);
         }
         finally
@@ -544,7 +544,7 @@ public sealed class C2sJudgeRoundTripTests
     }
 
     [Fact]
-    public async Task C2sWriter_AppliesSlideProxyDeltaToSourceJudgeSummary()
+    public async Task C2sWriter_RecalculatesSlideJudgesDespiteProxyBaseline()
     {
         var source = new C2sChart
         {
@@ -616,7 +616,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_SLD\t1005",
+                "T_JUDGE_SLD\t4",
                 lines);
 
             Assert.Contains(
@@ -628,7 +628,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_ALL\t1007",
+                "T_JUDGE_ALL\t6",
                 lines);
         }
         finally
@@ -640,7 +640,7 @@ public sealed class C2sJudgeRoundTripTests
     }
 
     [Fact]
-    public async Task C2sWriter_PreservesSourceSlideJudgeWithoutProxyBaseline()
+    public async Task C2sWriter_RecalculatesSlideJudgesWithoutProxyBaseline()
     {
         var source = new C2sChart
         {
@@ -700,7 +700,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_SLD\t1000",
+                "T_JUDGE_SLD\t2",
                 lines);
 
             Assert.Contains(
@@ -712,7 +712,7 @@ public sealed class C2sJudgeRoundTripTests
                 lines);
 
             Assert.Contains(
-                "T_JUDGE_ALL\t1001",
+                "T_JUDGE_ALL\t3",
                 lines);
         }
         finally
@@ -983,7 +983,7 @@ public sealed class C2sJudgeRoundTripTests
     }
 
     [Fact]
-    public async Task C2sWriter_AppliesAirProxyDeltaToSourceJudgeSummary()
+    public async Task C2sWriter_RecalculatesAcceptedAirJudgesDespiteProxyBaseline()
     {
         var source = new C2sChart
         {
@@ -1046,8 +1046,8 @@ public sealed class C2sJudgeRoundTripTests
                 path,
                 TestContext.Current.CancellationToken);
 
-            Assert.Contains("T_JUDGE_AIR\t11", lines);
-            Assert.Contains("T_JUDGE_ALL\t12", lines);
+            Assert.Contains("T_JUDGE_AIR\t1", lines);
+            Assert.Contains("T_JUDGE_ALL\t2", lines);
         }
         finally
         {

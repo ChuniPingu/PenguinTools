@@ -35,7 +35,7 @@ Overlapping C2S SLP/SFL/STP intervals become TIL speeds of `1 + Σ(speed − 1)`
 
 MGXC retains Bezier handles; UGC and C2S expand curves. Unsupported geometry, AIR colors, and meter changes are approximated with `diag.warn.editor_approximation`; original values are retained in checksum-validated metadata. SLIDE line visibility follows the start without a warning.
 
-Saved C2S record order is restored only when it preserves paths and AIR relationships. Compressed round-trip metadata has a 64 MiB decoded-size limit.
+Saved C2S record order is restored only when it preserves paths and AIR relationships. C2S judgement totals are recalculated from the final emitted records, including accepted AIR attachments, `PROGJUDGE_AER`, and tutorial stop exclusions. Compressed round-trip metadata has a 64 MiB decoded-size limit.
 
 In UGC output, PenguinTools retains original C2S roles and Trace attributes in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them. Older UGC metadata requires the original full-file checksum.
 

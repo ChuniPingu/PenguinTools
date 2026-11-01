@@ -23,15 +23,14 @@ public partial class C2SChartWriter
             lines[i] = FormatGameLine(lines[i], sourceResolution, ref timingChanged);
         }
 
-        // Saved judge/progress summaries describe the pre-quantization chart.
-        // Keep them only when all note and event positions remain exact.
-        if (timingChanged)
-        {
-            lines = lines.Where(line => !(C2SRoundTrip.Parts(line).FirstOrDefault() ?? "").StartsWith("T_", StringComparison.Ordinal)).ToArray();
-        }
-
+        // Judge counts describe the final accepted statements, after ordering,
+        // snapshot restoration and quantization. Saved totals cannot prove that
+        // the emitted note relationships remain valid.
+        var prefix = timingChanged ? "T_" : "T_JUDGE_";
+        lines = lines.Where(line => !(C2SRoundTrip.Parts(line).FirstOrDefault() ?? "")
+            .StartsWith(prefix, StringComparison.Ordinal)).ToArray();
         var result = string.Join('\n', lines);
-        return timingChanged ? result + ChartStatistics.Calculate(result) : result;
+        return result + ChartStatistics.Calculate(result);
     }
     private static decimal Number(string value) => decimal.Parse(value, CultureInfo.InvariantCulture);
     // Match the original Time.Round implementation's Math.Round semantics.
