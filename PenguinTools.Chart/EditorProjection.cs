@@ -143,10 +143,10 @@ internal static class EditorProjection
     private static IEnumerable<U.Note> AllNotes(U.Chart chart) =>
         chart.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children));
 
-    internal static void Restore(U.Chart chart)
+    internal static void Restore(U.Chart chart, IReadOnlySet<U.Note>? eligible = null, bool restoreEvents = false)
     {
         var extras = chart.Extras;
-        if (!extras.BinarySnapshotValid)
+        if (!extras.BinarySnapshotValid && eligible is null)
         {
             return;
         }
@@ -160,6 +160,11 @@ internal static class EditorProjection
             {
                 continue;
             }
+            if (eligible is not null && !eligible.Contains(note))
+            {
+                continue;
+            }
+
             note.Lane = p.Lane;
             note.Width = p.Width;
             if (p.Height is { } height)
@@ -190,6 +195,10 @@ internal static class EditorProjection
         foreach (var (note, key) in matches)
         {
             if (!paths.TryGetValue(key, out var queue) || !queue.TryDequeue(out var savedPath))
+            {
+                continue;
+            }
+            if (eligible is not null && !eligible.Contains(note))
             {
                 continue;
             }
@@ -238,6 +247,11 @@ internal static class EditorProjection
                 note.AppendChild(child);
             }
         }
+        if (!extras.BinarySnapshotValid && !restoreEvents)
+        {
+            return;
+        }
+
         if (extras.EditorBeatProjections.Count > 0)
         {
             foreach (var beat in chart.Events.Children.OfType<U.BeatEvent>().ToArray())
@@ -263,7 +277,7 @@ internal static class EditorProjection
         }
     }
 
-    private static string Key(U.Note n) =>
+    internal static string Key(U.Note n) =>
         (n.Parent?.Parent is not null ? Key(n.Parent) + "/" : "") +
         string.Create(CultureInfo.InvariantCulture, $"{n.GetType().Name},{n.Tick.Original},{n.Timeline},{n.Lane},{n.Width}");
 

@@ -126,6 +126,11 @@ public sealed partial class ChartExtras
         }
     }
     public string? UgcContentKey { get; set; }
+    public int UgcSnapshotVersion { get; set; }
+    public string? UgcContextKey { get; set; }
+    public string? UgcMusicalKey { get; set; }
+    public string? UgcSlaKey { get; set; }
+    public List<UgcNoteSnapshot> UgcNoteSnapshots { get; set; } = [];
     [JsonIgnore] public string? ParsedEventModelKey { get; set; }
     public List<MeterSnapshot> Meters { get; set; } = [];
     public string? MeterEditKey { get; set; }
@@ -421,18 +426,23 @@ public sealed partial class ChartExtras
         }
     }
 
-    internal void RestoreAppearance(UmgrModel.Chart chart)
+    internal void RestoreAppearance(UmgrModel.Chart chart, IReadOnlySet<UmgrModel.Note>? eligible = null)
     {
-        foreach (var crash in chart.Notes.Children.OfType<UmgrModel.AirCrash>().Where(c => TraceCrashes.Contains(CrashKey(c))))
+        foreach (var crash in chart.Notes.Children.OfType<UmgrModel.AirCrash>()
+                     .Where(c => (eligible is null || eligible.Contains(c)) && TraceCrashes.Contains(CrashKey(c))))
         {
             crash.Attr = Models.AirLadderAttr.Trace;
         }
-        RestoreGroundEffects(chart);
+        RestoreGroundEffects(chart, eligible);
         var appearances = AirAppearances.GroupBy(a => a.Key)
             .ToDictionary(g => g.Key, g => new Queue<AirAppearance>(g));
         foreach (var note in chart.Notes.Children)
         {
             if (!appearances.TryGetValue(AirKey(note), out var queue) || !queue.TryDequeue(out var saved))
+            {
+                continue;
+            }
+            if (eligible is not null && !eligible.Contains(note))
             {
                 continue;
             }
@@ -450,19 +460,29 @@ public sealed partial class ChartExtras
         }
     }
 
-    private void RestoreGroundEffects(UmgrModel.Chart chart)
+    private void RestoreGroundEffects(UmgrModel.Chart chart, IReadOnlySet<UmgrModel.Note>? eligible)
     {
         var holds = HoldEffects.GroupBy(h => h.Key).ToDictionary(g => g.Key, g => new Queue<HoldEffectSnapshot>(g));
         foreach (var hold in chart.Notes.Children.OfType<UmgrModel.ExTapableNote>())
         {
             if (holds.TryGetValue(AirKey(hold), out var savedHolds) && savedHolds.TryDequeue(out var saved))
             {
+                if (eligible is not null && !eligible.Contains(hold))
+                {
+                    continue;
+                }
+
                 hold.Effect = saved.Effect;
             }
         }
 
         foreach (var slide in chart.Notes.Children.OfType<UmgrModel.Slide>())
         {
+            if (eligible is not null && !eligible.Contains(slide))
+            {
+                continue;
+            }
+
             var points = slide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
             foreach (var saved in SlideEffects.Where(s => s.Key == SlideKey(slide)))
             {

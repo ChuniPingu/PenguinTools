@@ -119,7 +119,7 @@ AIR-CRUSH axis `a` is `N` (X), `Y`, or `Z`. `{interval}` is a decimal placement 
 
 EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Right, `R` Left, and `I` In/Out.
 
-An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag. PenguinTools retains original C2S roles and Trace attributes in checksum-validated metadata; native edits invalidate that restoration.
+An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag. PenguinTools retains original C2S roles and Trace attributes in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them. Older metadata requires the original full-file checksum.
 
 FLICK autoplay direction is `A` Auto, `L` Right, or `R` Left.
 
