@@ -102,13 +102,7 @@ public sealed class C2SParser
         }
         if (text.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal))
         {
-            var fields = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (fields.Length != 3 || !int.TryParse(fields[1], out var count) || count < 0 || fields[2] is not ("0" or "1"))
-            {
-                ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "metronome extension"), line.Number);
-            }
-            else
-            { C2s.Extras.ClickCount = count; C2s.Extras.ClickEnabled = fields[2] == "1"; }
+            ParseMetronomeExtension(text, line.Number);
             return;
         }
         if (text.Length == 0 || text.StartsWith("//", StringComparison.Ordinal))
@@ -133,6 +127,19 @@ public sealed class C2SParser
         }
 
         ParseTokens(tokens, text, line.Number);
+    }
+
+    private void ParseMetronomeExtension(string text, int lineNumber)
+    {
+        var fields = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (fields.Length != 3 || !int.TryParse(fields[1], out var count) || count < 0 || fields[2] is not ("0" or "1"))
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "metronome extension"), lineNumber);
+            return;
+        }
+
+        C2s.Extras.ClickCount = count;
+        C2s.Extras.ClickEnabled = fields[2] == "1";
     }
 
     private void ParseTokens(string[] tokens, string text, int lineNumber)

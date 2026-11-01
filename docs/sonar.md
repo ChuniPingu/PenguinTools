@@ -12,7 +12,21 @@ Create or connect the repository's project in SonarQube Cloud and disable automa
 | `SONAR_ORGANIZATION` | Variable | SonarQube Cloud organization key |
 | `SONAR_TOKEN` | Secret | Analysis token with permission to analyze this project |
 
-Missing configuration fails the job with the missing setting's name. The workflow does not print token values. Connect the SonarQube Cloud project to the GitHub repository for pull request decoration, and require `Sonar quality gate` in the repository's merge rules where appropriate.
+Missing configuration fails the job with the missing setting's name. The workflow does not print token values. An authentication failure in **Begin Sonar analysis** requires replacing the `SONAR_TOKEN` repository secret with a valid analysis token for this project.
+
+## Pull request merge checks
+
+Bind the SonarQube Cloud project to this GitHub repository for pull request decoration. GitHub Actions supplies the pull request number and branch information to the scanner automatically; `sonar.branch.name` is passed only for branch analysis.
+
+The `main` branch ruleset requires a pull request with these checks passing on an up-to-date branch:
+
+- `C# checks (Windows)` from GitHub Actions: build, formatting, tests, and CLI publishing.
+- `Sonar quality gate` from GitHub Actions: scanner execution and the server's quality gate result.
+- `SonarCloud Code Analysis` from the SonarQube Cloud GitHub App: confirmation that SonarQube Cloud analyzed the pull request and passed its gate.
+
+Require the Sonar App check as well as the workflow job: GitHub treats a skipped job as successful, and the workflow skips analysis for fork and Dependabot pull requests. To merge those contributions through the same checks, maintainers must review the changes and place them on a branch in this repository, then open a pull request from that branch. Keep the secret-bearing build on `pull_request`; do not compile fork code with `pull_request_target`.
+
+See the official [GitHub project binding instructions](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/administering-your-projects/devops-platform-integration/github) for the Sonar App check and [GitHub status check behavior](https://docs.github.com/en/pull-requests/reference/status-checks) for skipped jobs.
 
 ## Scope and checks
 

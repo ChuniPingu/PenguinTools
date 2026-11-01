@@ -12,60 +12,7 @@ public partial class MgxcParser
         var recordStart = br.BaseStream.Position;
         _lastEventWasExtras = false;
         var name = br.ReadUtf8String(4);
-        UmgrModel.Event? e = null;
-
-        if (name == "beat")
-        {
-            e = new UmgrModel.BeatEvent
-            {
-                Bar = (int)br.ReadField(),
-                Numerator = (int)br.ReadField(),
-                Denominator = (int)br.ReadField()
-            };
-        }
-        else if (name == "bpm ")
-        {
-            e = new UmgrModel.BpmEvent
-            {
-                Tick = (int)br.ReadField(),
-                Bpm = br.ReadField().Round()
-            };
-        }
-        else if (name == "smod")
-        {
-            e = new UmgrModel.NoteSpeedEvent
-            {
-                Tick = (int)br.ReadField(),
-                Speed = br.ReadField().Round()
-            };
-        }
-        else if (name == "til ")
-        {
-            e = new UmgrModel.ScrollSpeedEvent
-            {
-                Timeline = (int)br.ReadField(),
-                Tick = (int)br.ReadField(),
-                Speed = br.ReadField().Round()
-            };
-        }
-        else if (name == "bmrk")
-        {
-            e = new UmgrModel.BookmarkEvent
-            {
-                Id = (string)br.ReadWideField(),
-                Tick = (int)br.ReadField(),
-                Tag = (string)br.ReadWideField(),
-                Rgb = (string)br.ReadWideField()
-            };
-        }
-        else if (name == "mbkm")
-        {
-            e = new UmgrModel.BreakingMarker
-            {
-                Tick = (int)br.ReadField()
-            };
-        }
-        else if (name == "rimg")
+        if (name == "rimg")
         {
             br.ReadField();
             br.ReadField();
@@ -76,6 +23,44 @@ public partial class MgxcParser
             _imageEvents.Add(br.ReadBytes(checked((int)(end - recordStart))));
             return;
         }
+
+        UmgrModel.Event? e = name switch
+        {
+            "beat" => new UmgrModel.BeatEvent
+            {
+                Bar = (int)br.ReadField(),
+                Numerator = (int)br.ReadField(),
+                Denominator = (int)br.ReadField()
+            },
+            "bpm " => new UmgrModel.BpmEvent
+            {
+                Tick = (int)br.ReadField(),
+                Bpm = br.ReadField().Round()
+            },
+            "smod" => new UmgrModel.NoteSpeedEvent
+            {
+                Tick = (int)br.ReadField(),
+                Speed = br.ReadField().Round()
+            },
+            "til " => new UmgrModel.ScrollSpeedEvent
+            {
+                Timeline = (int)br.ReadField(),
+                Tick = (int)br.ReadField(),
+                Speed = br.ReadField().Round()
+            },
+            "bmrk" => new UmgrModel.BookmarkEvent
+            {
+                Id = (string)br.ReadWideField(),
+                Tick = (int)br.ReadField(),
+                Tag = (string)br.ReadWideField(),
+                Rgb = (string)br.ReadWideField()
+            },
+            "mbkm" => new UmgrModel.BreakingMarker
+            {
+                Tick = (int)br.ReadField()
+            },
+            _ => null
+        };
 
         if (e == null)
         {
