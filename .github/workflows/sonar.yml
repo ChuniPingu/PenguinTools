@@ -52,7 +52,7 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', 'global.json') }}
           restore-keys: nuget-${{ runner.os }}-
       - name: Install SonarScanner for .NET
-        run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
+        run: dotnet tool install --global dotnet-sonarscanner --version 12.0.0
       - run: dotnet restore PenguinTools.slnx
       - name: Begin Sonar analysis
         env:
