@@ -12,6 +12,8 @@ namespace PenguinTools.Chart.Writer.ugc;
 /// <summary>Writes official UGC v9.</summary>
 public sealed class UgcChartWriter(string path, U.Chart source)
 {
+    private const string FalseValue = "FALSE";
+
     private readonly List<string> _lines = [];
     private readonly HashSet<U.Note> _written = [];
     private readonly HashSet<(int Tick, int Lane, int Width)> _effectCarriers = [];
@@ -177,9 +179,9 @@ public sealed class UgcChartWriter(string path, U.Chart source)
     private void AppendMetadata(Meta m)
     {
         _lines.Add($"@EXVER\t{m.ExVersion}");
-        _lines.Add($"@FLAG\tEXFIELD\t{(m.ExtendedField ? "TRUE" : "FALSE")}");
-        _lines.Add($"@FLAG\tEXLONG\t{(m.ExLongEnabled ? "TRUE" : "FALSE")}");
-        _lines.Add($"@FLAG\tBGMWCMP\t{(m.WaitBgmEnd ? "TRUE" : "FALSE")}");
+        _lines.Add($"@FLAG\tEXFIELD\t{(m.ExtendedField ? "TRUE" : FalseValue)}");
+        _lines.Add($"@FLAG\tEXLONG\t{(m.ExLongEnabled ? "TRUE" : FalseValue)}");
+        _lines.Add($"@FLAG\tBGMWCMP\t{(m.WaitBgmEnd ? "TRUE" : FalseValue)}");
         _lines.Add($"@LEVEL\t{(m.Difficulty == Difficulty.WorldsEnd
             ? PenguinTools.Chart.Writer.mgxc.MgxcChartWriter.WeLevel(m.WeDifficulty)
             : PenguinTools.Chart.Writer.mgxc.MgxcChartWriter.FormatPlayLevel(m.Level))}");
@@ -197,7 +199,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         _lines.Add($"@BGMPRV\t{m.BgmPreviewStart}\t{m.BgmPreviewStop}");
         _lines.Add($"@BGIMG\t{Clean(m.BgiFilePath)}");
         _lines.Add($"@BGSCENE\t{Clean(m.BackgroundScene)}");
-        _lines.Add($"@BGMODE\t{Clean(_chart.Extras.EditorBackgroundMode)}\t{(m.BackgroundSync ? "FALSE" : "TRUE")}");
+        _lines.Add($"@BGMODE\t{Clean(_chart.Extras.EditorBackgroundMode)}\t{(m.BackgroundSync ? FalseValue : "TRUE")}");
         _lines.Add($"@FLDCOL\t{m.FieldColorIndex}");
         _lines.Add($"@FLDIMG\t{Clean(m.FieldImage)}");
         _lines.Add($"@FLDSCENE\t{Clean(m.FieldScene)}");
