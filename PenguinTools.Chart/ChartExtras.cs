@@ -164,10 +164,17 @@ public sealed partial class ChartExtras
             token.Trim() != FixedZeroOriginMarker && token.Trim() != PrerollBar1Marker));
     }
 
-    internal string CopyrightWithTiming(string value) => FixedZeroOrigin || PrerollBar1Applied
-        ? (FixedZeroOrigin ? FixedZeroOriginMarker + ";" : "") +
-          (PrerollBar1Applied ? PrerollBar1Marker + ";" : "") + CopyrightText(value)
-        : value;
+    internal string CopyrightWithTiming(string value)
+    {
+        if (!FixedZeroOrigin && !PrerollBar1Applied)
+        {
+            return value;
+        }
+
+        var originMarker = FixedZeroOrigin ? FixedZeroOriginMarker + ";" : "";
+        var prerollMarker = PrerollBar1Applied ? PrerollBar1Marker + ";" : "";
+        return originMarker + prerollMarker + CopyrightText(value);
+    }
 
     internal string RestoreSourceOrder(string text, int resolution)
     {

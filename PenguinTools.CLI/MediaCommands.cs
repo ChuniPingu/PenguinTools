@@ -6,6 +6,7 @@ namespace PenguinTools.CLI;
 internal static class MediaCommands
 {
     private const string InputArgumentName = "input";
+    private const string OutputDirectoryDescription = "Output directory.";
     internal static Command BuildJacketCommand()
     {
         var root = new Command("jacket", "Jacket operations.");
@@ -66,7 +67,7 @@ internal static class MediaCommands
     {
         var root = new Command("audio", "Audio operations.");
         var input = InputChart();
-        var output = Output("Output directory.");
+        var output = Output(OutputDirectoryDescription);
         var options = CommandLineOptions.CreateAudioCommandOptions();
         var command = new Command("convert", "Convert chart audio.");
         command.Arguments.Add(input);
@@ -88,7 +89,7 @@ internal static class MediaCommands
     private static Command BuildAudioConvertFileCommand()
     {
         var input = new Argument<string>(InputArgumentName) { Description = "Input WAV, OGG, or MP3 file." };
-        var output = Output("Output directory.");
+        var output = Output(OutputDirectoryDescription);
         var songId = new Option<int>("--song-id") { Description = "Song ID." };
         var previewStart = new Option<decimal>("--preview-start") { Description = "Preview start in seconds." };
         var previewStop = new Option<decimal>("--preview-stop") { Description = "Preview stop in seconds." };
@@ -143,7 +144,7 @@ internal static class MediaCommands
     {
         var root = new Command("stage", "Stage operations.");
         var input = InputChart();
-        var output = Output("Output directory.");
+        var output = Output(OutputDirectoryDescription);
         var options = CommandLineOptions.CreateStageCommandOptions();
         var command = new Command("build", "Build stage assets.");
         command.Arguments.Add(input);
@@ -157,7 +158,7 @@ internal static class MediaCommands
                 CliJsonSerializerContext.Default.StageBuildResult, cancellationToken, parseResult));
         root.Subcommands.Add(command);
         var background = new Argument<string>("background") { Description = "Input stage background image." };
-        var filesOutput = Output("Output directory.");
+        var filesOutput = Output(OutputDirectoryDescription);
         var fileOptions = CommandLineOptions.CreateStageCommandOptions();
         var buildFiles = new Command("build-files", "Build a stage directly from image files and explicit metadata.");
         buildFiles.Arguments.Add(background);
@@ -173,7 +174,7 @@ internal static class MediaCommands
         root.Subcommands.Add(buildFiles);
 
         var afbInput = new Argument<string>(InputArgumentName) { Description = "Input AFB file." };
-        var afbOutput = Output("Output directory.");
+        var afbOutput = Output(OutputDirectoryDescription);
         var extract = new Command("extract", "Extract stage textures from an AFB file.");
         extract.Arguments.Add(afbInput);
         extract.Arguments.Add(afbOutput);

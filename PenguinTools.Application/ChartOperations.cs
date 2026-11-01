@@ -41,13 +41,16 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
                     Msg.Create(MsgKeys.Warn_Chart_metadata_only, header.Format, header.Version), input)
             ]));
         }
-        return parsed.Succeeded && parsed.Value is { } chart
-            ? OperationResult<ChartInspectResult>
-                .Success(new ChartInspectResult(input, ChartMetadata.CreateChartSummary(chart.Meta),
-                    ChartMetadata.CreateChartConversionMetadata(chart.Meta))
-                { FormatVersion = chart.Extras.EditorFormatVersion == 0 ? null : chart.Extras.EditorFormatVersion })
-                .WithDiagnostics(parsed.Diagnostics)
-            : OperationResult<ChartInspectResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+        if (!parsed.Succeeded || parsed.Value is not { } chart)
+        {
+            return OperationResult<ChartInspectResult>.Failure().WithDiagnostics(parsed.Diagnostics);
+        }
+
+        return OperationResult<ChartInspectResult>
+            .Success(new ChartInspectResult(input, ChartMetadata.CreateChartSummary(chart.Meta),
+                ChartMetadata.CreateChartConversionMetadata(chart.Meta))
+            { FormatVersion = chart.Extras.EditorFormatVersion == 0 ? null : chart.Extras.EditorFormatVersion })
+            .WithDiagnostics(parsed.Diagnostics);
     }
 
     internal async Task<OperationResult<ChartConvertResult>> ConvertAsync(
