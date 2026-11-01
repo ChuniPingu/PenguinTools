@@ -278,10 +278,11 @@ public partial class C2SChartConverter
             C2s.Extras = Mgxc.Extras;
 
             var restoredSla = RestoreSlaSnapshot();
+            C2s.Extras.RebuiltSla = false;
 
             foreach (var note in Mgxc.Notes.Children)
             {
-                if (restoredSla && note is UmgrModel.SoflanArea)
+                if (note is UmgrModel.SoflanArea)
                 {
                     continue;
                 }
@@ -326,6 +327,10 @@ public partial class C2SChartConverter
             }
             RestoreMeterDefSnapshot();
             ApplyBgmBarOffset();
+            if (!restoredSla)
+            {
+                AssignSoflanTimelines();
+            }
 
             return ValidatePairings()
                 ? OperationResult<C2sModel.Chart>.Success(C2s).WithDiagnostics(Diagnostic)

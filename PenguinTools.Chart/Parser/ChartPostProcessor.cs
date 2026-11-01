@@ -154,11 +154,19 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
     {
         GroupEventByTimeline(chart.Events);
         GroupNoteByTimeline(chart.Notes);
+        foreach (var point in AirCrashSoflanPoints.Create(chart, C2sTickOffset))
+        {
+            if (point.Width > 16)
+            {
+                point.Timeline = chart.Meta.MainTil;
+            }
+            CreateGroup(point.Timeline);
+            _noteGroups[point.Timeline].Add(point);
+        }
         MoveMainTimeline(chart.Meta.MainTil);
         ClearEmptyGroups();
-        var slaSources = PlaceSoflanArea();
+        PlaceSoflanArea();
         FinalizeEvent();
-        FindNoteViolations(slaSources);
 
         _tilGroups.Clear();
         _noteGroups.Clear();
@@ -192,15 +200,19 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
     }
 
-    private HashSet<UmgrModel.Note> PlaceSoflanArea()
+    private int C2sTickOffset => chart.Meta.BgmEnableBarOffset && !chart.Extras.UsesFixedCoordinateOrigin
+        ? (int)Math.Round((decimal)ChartResolution.UmiguriTick * chart.Meta.BgmInitialNumerator / chart.Meta.BgmInitialDenominator)
+        : 0;
+
+    private void PlaceSoflanArea()
     {
         foreach (var tils in _tilGroups.Values.ToArray())
         {
             tils.Sort((a, b) => a.Tick.CompareTo(b.Tick));
         }
 
+        var tickOffset = C2sTickOffset;
         var slaSet = new HashSet<(int Tick, int Timeline, int Lane, int Width)>();
-        var slaSources = new HashSet<UmgrModel.Note>();
         var legacyAreas = new List<SlaPlacement>();
         foreach (var (id, notes) in _noteGroups)
         {
@@ -228,9 +240,8 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
                 }
 
                 slaSet.Add((note.Tick.Original, id, note.Lane, note.Width));
-                slaSources.Add(note);
                 legacyAreas.Add(new SlaPlacement(
-                    note.Tick.Round,
+                    new Time(checked(note.Tick.Original + tickOffset)).Round - tickOffset,
                     id,
                     note.Lane,
                     note.Width,
@@ -239,7 +250,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
 
         var allNotes = _noteGroups.Values.SelectMany(x => x).ToArray();
-        foreach (var area in SlaPlacementOptimizer.Optimize(allNotes, legacyAreas))
+        foreach (var area in SlaPlacementOptimizer.Optimize(allNotes, legacyAreas, tickOffset))
         {
             var head = new UmgrModel.SoflanArea
             {
@@ -253,8 +264,6 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             head.AppendChild(tail);
             chart.Notes.AppendChild(head);
         }
-
-        return slaSources;
     }
 
     private void GroupEventByTimeline(UmgrModel.Event events)
@@ -376,37 +385,6 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         _noteGroups.Remove(bId);
         _noteGroups[aId] = bNotes;
         _noteGroups[bId] = aNotes;
-    }
-
-    private void FindNoteViolations(HashSet<UmgrModel.Note> slaSources)
-    {
-        var notes = _noteGroups.Values
-            .SelectMany(n => n)
-            .GroupBy(n => n.Tick.Original)
-            .Where(g => g.Count() > 1);
-
-        foreach (var group in notes)
-        {
-            var notesInGroup = group.ToArray();
-            for (var i = 0; i < notesInGroup.Length; i++)
-            {
-                for (var j = i + 1; j < notesInGroup.Length; j++)
-                {
-                    var left = notesInGroup[i];
-                    var right = notesInGroup[j];
-                    if (!left.IsViolate(right, slaSources.Contains(left), slaSources.Contains(right)))
-                    {
-                        continue;
-                    }
-
-                    diag.Report(new TimedDiagnostic(Severity.Warning,
-                        Msg.Key(MsgKeys.Mg_Note_overlapped_in_different_TIL), left.Tick.Original)
-                    {
-                        Target = NotePairDiagnosticTarget.From(left, right, diag.TimeCalculator)
-                    });
-                }
-            }
-        }
     }
 
     private void MetaEntryHandler(string name, string[] args, Action<Entry> setter, AssetType type)

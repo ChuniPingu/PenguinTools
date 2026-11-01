@@ -274,8 +274,34 @@ public sealed class UgcChartConverter
 #pragma warning restore CS0612
         foreach (var group in scrolls)
         {
-            AddDurationEvents(group, (tick, speed) => new UmgrModel.ScrollSpeedEvent
+            AddScrollEvents(group, (tick, speed) => new UmgrModel.ScrollSpeedEvent
             { Tick = tick, Speed = speed, Timeline = group.Key });
+        }
+    }
+
+    private void AddScrollEvents(IEnumerable<C2sModel.SpeedEventBase> source,
+        Func<int, decimal, UmgrModel.Event> factory)
+    {
+        var changes = new SortedDictionary<int, decimal>();
+        foreach (var item in source.Where(item => item.Length.Original > 0))
+        {
+            var start = item.Tick.Original;
+            var end = checked(start + item.Length.Original);
+            var delta = item.Speed - 1m;
+            changes[start] = changes.GetValueOrDefault(start) + delta;
+            changes[end] = changes.GetValueOrDefault(end) - delta;
+        }
+
+        var speed = 1m;
+        foreach (var (tick, delta) in changes)
+        {
+            if (delta == 0m)
+            {
+                continue;
+            }
+
+            speed += delta;
+            _target.Events.AppendChild(factory(tick, speed));
         }
     }
 

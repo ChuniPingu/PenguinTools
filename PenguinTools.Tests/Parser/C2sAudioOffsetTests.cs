@@ -296,7 +296,16 @@ public sealed class C2sAudioOffsetTests
                 source = result.Value!;
                 Assert.Equal(edited ? 2400 : 1920, Assert.Single(source.Notes.OfType<C.Tap>()).Tick.Original);
                 Assert.Equal(480, Assert.Single(source.Events.OfType<C.Slp>()).Tick.Original);
-                Assert.Equal(1920, Assert.Single(source.Notes.OfType<C.Sla>()).Tick.Original);
+                if (edited)
+                {
+                    // Moving a main-timeline note now invalidates the SLA snapshot.
+                    // The source's id-0 region has no effect and needs no replacement.
+                    Assert.Empty(source.Notes.OfType<C.Sla>());
+                }
+                else
+                {
+                    Assert.Equal(1920, Assert.Single(source.Notes.OfType<C.Sla>()).Tick.Original);
+                }
             }
         }
         finally

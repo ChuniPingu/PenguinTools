@@ -22,7 +22,7 @@ internal static class SlaPlacementOptimizer
 
     public static IReadOnlyList<SlaPlacement> Optimize(
         IReadOnlyList<UmgrModel.Note> notes,
-        IReadOnlyList<SlaPlacement> legacyAreas)
+        IReadOnlyList<SlaPlacement> legacyAreas, int tickOffset = 0)
     {
         if (legacyAreas.Count == 0)
         {
@@ -31,7 +31,7 @@ internal static class SlaPlacementOptimizer
 
         var noteInfos = notes.Select((note, index) => new NoteInfo(
             index,
-            note.Tick.Round,
+            new Time(checked(note.Tick.Original + tickOffset)).Round - tickOffset,
             note.Lane,
             note.Lane + note.Width)).ToArray();
         var effectiveTimelines = ComputeEffectiveTimelines(noteInfos, legacyAreas);
@@ -100,9 +100,8 @@ internal static class SlaPlacementOptimizer
         IReadOnlyList<NoteInfo> notes, int[] ticks, IReadOnlyList<SlaPlacement> areas, int phase)
     {
         var result = new int[notes.Count];
-        // Match C2SChartWriter's stable Tick/Lane/Width order. The last matching
-        // SLA wins, even when its timeline number is lower than an earlier one.
-        foreach (var area in areas.OrderBy(area => area.Tick).ThenBy(area => area.Lane).ThenBy(area => area.Width))
+        // Overlapping regions select the largest timeline id, independently of row order.
+        foreach (var area in areas)
         {
             var start = SerializeTick(area.Tick, phase);
             var end = SerializeTick(area.EndTick, phase);
@@ -114,7 +113,7 @@ internal static class SlaPlacementOptimizer
                     : Contains(area.Lane, area.Lane + area.Width, note);
                 if (contains)
                 {
-                    result[note.Index] = area.Timeline;
+                    result[note.Index] = Math.Max(result[note.Index], area.Timeline);
                 }
             }
         }
@@ -165,7 +164,7 @@ internal static class SlaPlacementOptimizer
         {
             foreach (var right in rightBounds)
             {
-                if (right <= left)
+                if (right <= left || right - left > 16)
                 {
                     continue;
                 }

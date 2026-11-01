@@ -82,6 +82,7 @@ Records advance paths in statement order. A continuation matches the endpoint ti
 | ------- | ------- | ------ | ---- | ----- | -------- | -------- |
 
 - **Timeline** — SLP timeline id this region belongs to.
+- A region applies at `start ≤ tick < end` when it contains the object's full lane span. Overlaps select the largest timeline id; row order does not affect this choice. AIR-CRUSH rungs are checked at their interpolated positions.
 
 ## AIR / AUL / AUR / ADW / ADL / ADR
 

@@ -112,6 +112,7 @@ public sealed class C2sTimelineConversionTests
 
         var target = new UgcChartConverter(new UgcConvertRequest(source)).Convert().Value!;
         var scroll = target.Events.Children.OfType<PenguinTools.Chart.Models.umgr.ScrollSpeedEvent>().ToArray();
+        Assert.Contains(scroll, x => x.Tick.Original == 240 && x.Speed == 5m);
         Assert.Contains(scroll, x => x.Tick.Original == 480 && x.Speed == 2m);
         Assert.Contains(scroll, x => x.Tick.Original == 960 && x.Speed == 1m);
         Assert.Contains(target.Events.Children.OfType<PenguinTools.Chart.Models.umgr.NoteSpeedEvent>(),
@@ -142,8 +143,8 @@ public sealed class C2sTimelineConversionTests
         Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 0, Speed: 1000m });
         Assert.Contains(scrolls, x => x is { Timeline: 14, Tick.Original: 480, Speed: 0m });
         Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 480, Speed: 0m });
-        Assert.Contains(scrolls, x => x is { Timeline: 14, Tick.Original: 1439, Speed: 24m });
-        Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 1919, Speed: 48m });
+        Assert.Contains(scrolls, x => x is { Timeline: 14, Tick.Original: 1439, Speed: 23m });
+        Assert.Contains(scrolls, x => x is { Timeline: 15, Tick.Original: 1919, Speed: 47m });
     }
 
     [Fact]

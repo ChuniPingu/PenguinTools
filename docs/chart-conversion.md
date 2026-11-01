@@ -29,6 +29,8 @@ Legacy Extended input uses fixed zero-based coordinates without this extra measu
 
 For example, at an initial BPM of 120 with `SOFFSET` enabled, a 4/4 chart receives 2 seconds of opening silence; a 3/4 chart receives 1.5 seconds. Notes and later timing events move by the corresponding measure. The initial BPM and meter remain at the start, and the manual audio offset is applied independently.
 
+Overlapping C2S SLP/SFL/STP intervals become TIL speeds of `1 + Σ(speed − 1)` at each interval boundary. SLA placement includes generated AIR-CRUSH rungs as well as explicit note endpoints. C2S output assigns higher timeline IDs to nested objects when needed, copying their complete scroll curves without changing editor timelines. Conversion warns only when the resulting scroll curve differs, such as coincident objects with incompatible curves.
+
 ## Approximation and round trips
 
 MGXC retains Bezier handles; UGC and C2S expand curves. Unsupported geometry, AIR colors, and meter changes are approximated with `diag.warn.editor_approximation`; original values are retained in checksum-validated metadata. SLIDE line visibility follows the start without a warning.

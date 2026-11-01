@@ -26,6 +26,7 @@ public partial class C2SChartConverter
 
         action?.Invoke(note);
         Notes.Add(note);
+        RegisterSoflanPoint(source);
 
         return note;
     }
@@ -225,6 +226,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var segment = CreateNote<UmgrModel.AirCrashJoint, C2sModel.AirCrash>(curr, x =>
             {
                 x.EndTick = next.Tick;
@@ -258,6 +260,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var prevSeg = previousSegment;
             var segment = CreateNote<UmgrModel.AirSlideJoint, C2sModel.AirSlide>(curr, x =>
             {
@@ -295,6 +298,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var prevSeg = previousSegment;
             var segment = CreateNote<UmgrModel.AirHoldJoint, C2sModel.AirHold>(curr, x =>
             {
@@ -337,6 +341,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var note = CreateNote<UmgrModel.SlideJoint, C2sModel.Slide>(curr, x =>
             {
                 x.Joint = next.Joint;
@@ -380,6 +385,7 @@ public partial class C2SChartConverter
             x.EndTick = tail.Tick;
             x.Effect = hold.Effect;
         });
+        RegisterSoflanPoint(tail);
         RegisterPositivePairTarget(tail, note);
     }
 }

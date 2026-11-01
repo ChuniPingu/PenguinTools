@@ -13,6 +13,7 @@ public sealed partial class ChartExtras
         get; set;
     }
     public List<string> RoundTripBookmarks { get; set; } = [];
+    internal bool RebuiltSla { get; set; }
     [JsonIgnore] public HashSet<string> UnchangedEventKinds { get; } = [];
     [JsonIgnore] public int Resolution { get; set; } = 384;
     [JsonIgnore]
@@ -148,7 +149,7 @@ public sealed partial class ChartExtras
         RestoreSlideExceptions(snapshot, sourceRes, notes, usedExceptions);
         events = RestoreEvents(snapshot, sourceRes, events);
         var regions = snapshot.Where(p => p[0] == "SLA").ToArray();
-        bool slaCompatible = MatchesSlaTimelines(chart, regions, sourceRes) || MatchesSlaRegions(chart, regions, sourceRes);
+        bool slaCompatible = !RebuiltSla && (MatchesSlaTimelines(chart, regions, sourceRes) || MatchesSlaRegions(chart, regions, sourceRes));
         if (slaCompatible)
         {
             notes = RestoreSlaRegions(notes, regions, sourceRes);
@@ -273,7 +274,7 @@ public sealed partial class ChartExtras
                 decimal start = (decimal)I(p, 1) * 1920 + (decimal)I(p, 2) * 1920 / sourceRes, end = start + (decimal)I(p, 5) * 1920 / sourceRes;
                 if (n.Tick.Original >= start && n.Tick.Original < end && n.Lane >= I(p, 3) && n.Lane + n.Width <= I(p, 3) + I(p, 4))
                 {
-                    timeline = I(p, 6);
+                    timeline = Math.Max(timeline, I(p, 6));
                 }
             }
             if (n.Timeline != timeline)

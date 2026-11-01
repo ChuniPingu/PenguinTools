@@ -84,11 +84,12 @@ public partial class C2SChartConverter
 
         var tilGroups = tilEvents.GroupBy(til => til.Timeline).ToDictionary(g => g.Key, g => g.ToArray());
         var convertSlp = new List<C2sModel.Slp>();
+        // Use the whole chart horizon so coincident notes on equivalent patterns
+        // can share a pattern even when their long-note tails end at different times.
+        Time lastTilTick = mgxc.GetLastTick();
 
         foreach (var (id, grouped) in tilGroups)
         {
-            Time lastTilTick = mgxc.GetLastTick(p => p.Timeline == id);
-
             if (grouped.Length <= 0)
             {
                 continue;
