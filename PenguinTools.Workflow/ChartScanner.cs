@@ -82,7 +82,7 @@ public static class ChartScanner
                 StringComparison.OrdinalIgnoreCase))
         {
             var r = await new UgcParser(new UgcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
-            diagnostics.Report(r.Diagnostics);
+            ReportParseDiagnostics(r.Diagnostics, diagnostics);
             if (!r.Succeeded)
             {
                 return;
@@ -94,7 +94,7 @@ public static class ChartScanner
                      StringComparison.OrdinalIgnoreCase))
         {
             var r = await new MgxcParser(new MgxcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
-            diagnostics.Report(r.Diagnostics);
+            ReportParseDiagnostics(r.Diagnostics, diagnostics);
             if (!r.Succeeded)
             {
                 return;
@@ -139,6 +139,20 @@ public static class ChartScanner
             }
 
             book.Items[meta.Difficulty] = item;
+        }
+    }
+
+    private static void ReportParseDiagnostics(DiagnosticSnapshot result, IDiagnosticSink sink)
+    {
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            sink.Report(diagnostic.Message.Key == MsgKeys.Error_Chart_version_too_new
+                ? diagnostic with
+                {
+                    Severity = Severity.Warning,
+                    Message = diagnostic.Message with { Key = MsgKeys.Warn_Chart_skipped_version }
+                }
+                : diagnostic);
         }
     }
 

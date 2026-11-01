@@ -28,6 +28,8 @@ Conversion tests cover metadata, timing, note relationships, payloads, and C2S r
 
 MGXC header versions above 2 and UGC versions above 8 fail with `diag.error.chart_version_too_new` before note parsing, even when an input dialect is specified. UGC checks the version before the creator and dialect. Failed conversions preserve existing output files.
 
+`chart inspect` can read the common header fields verified in MGXC v4 and UGC v9 without parsing their events or notes. These results carry `notesParsed: false`, `formatVersion`, and `diag.warn.chart_metadata_only`; conversion metadata is absent because timing has not been validated. Other unsupported versions continue to fail. This inspection fallback does not enable conversion or change dialect detection.
+
 `chart inspect` and `chart convert` default to `--input-dialect Auto`, matching the application API. Auto honors embedded format metadata and supported legacy markers; ordinary unmarked editor charts use Original. Explicit `--input-dialect Original` or `Extended` overrides detection. Conversion selects the output mode independently with `--output-dialect`; its Auto default preserves the detected editor mode and uses Extended for C2S input. This lets default CLI conversions read their own output using the same coordinate system, including non-4/4 UGC charts.
 
 For an Original MGXC/UGC chart with `sofs`/`SOFFSET` enabled, audio export inserts one measure of silence. Its length uses the initial time signature, independently of the manual audio offset.
@@ -39,6 +41,8 @@ Extended mode uses fixed zero-based coordinates without this extra measure. C2S 
 [Format references](formats/README.md) describe syntax and provenance. A source specification does not imply that every command is implemented; check the parser and its tests.
 
 ## Option scanning
+
+During option scanning and building, an unsupported chart version is skipped with a path-specific `diag.warn.chart_skipped_version`. Supported charts continue through the batch. Scan/build results expose `skippedCharts` and `isPartial`; an incomplete batch has `Succeeded = false` and CLI exit code 1 while retaining its usable result data and exported artifacts. The CLI reports `cli.msg.option_partial` instead of the completion message. If every input is skipped, building fails with the per-file reasons and the no-charts diagnostic. These fields count version-related skips; other existing diagnostics retain their behavior.
 
 `--chart-file-discovery` accepts a comma-separated list of MGXC, UGC, and SUS formats. If a song ID and difficulty occur in several formats, the first format in the list takes priority. `--batch-size` sets the maximum parallelism; `-1` selects automatic parallelism.
 

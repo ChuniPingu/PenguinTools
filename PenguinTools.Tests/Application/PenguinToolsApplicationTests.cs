@@ -13,7 +13,7 @@ using Xunit;
 
 namespace PenguinTools.Tests.Application;
 
-public sealed class PenguinToolsApplicationTests
+public sealed partial class PenguinToolsApplicationTests
 {
     [Theory]
     [InlineData(false, ChartDialect.Original)]
@@ -37,7 +37,8 @@ public sealed class PenguinToolsApplicationTests
             var bytes = await File.ReadAllBytesAsync(input, ct);
             var result = await application.InspectChartAsync(new ChartInspectRequest(input, dialect), ct);
             Assert.True(result.Succeeded, result.ToString());
-            Assert.True(result.Value!.Metadata.BgmEnableBarOffset);
+            Assert.NotNull(result.Value!.Metadata);
+            Assert.True(result.Value.Metadata.BgmEnableBarOffset);
             Assert.Equal(.75m, result.Value.Metadata.BgmManualOffset);
             Assert.Equal(dialect == ChartDialect.Original ? 2.75m : .75m, result.Value.Metadata.BgmRealOffset);
             Assert.Equal(bytes, await File.ReadAllBytesAsync(input, ct));
@@ -575,6 +576,7 @@ public sealed class PenguinToolsApplicationTests
                 cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(inspected.Succeeded);
             Assert.NotNull(inspected.Value);
+            Assert.NotNull(inspected.Value.Metadata);
             Assert.InRange(inspected.Value.Metadata.DifficultyId, 0, 5);
             Assert.NotNull(inspected.Value.Metadata.NotesFieldLine);
             Assert.NotNull(inspected.Value.Metadata.Stage);

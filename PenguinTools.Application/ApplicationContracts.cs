@@ -87,7 +87,11 @@ public sealed record ChartInspectRequest(
 public sealed record ChartInspectResult(
     string InputPath,
     ChartSummary Chart,
-    ChartConversionMetadata Metadata);
+    ChartConversionMetadata? Metadata)
+{
+    public bool NotesParsed { get; init; } = true;
+    public int? FormatVersion { get; init; }
+}
 
 public sealed record ChartConvertOverrides(
     int? SongId = null,
@@ -217,7 +221,17 @@ public sealed record OptionScanResult(
     IReadOnlyList<OptionScanBook> Books,
     IReadOnlyList<ApplicationDiagnostic> UnmatchedDiagnostics,
     string? ConfigPath = null,
-    OptionScanConfig? Config = null);
+    OptionScanConfig? Config = null) : IChartBatchResult
+{
+    public IReadOnlyList<ApplicationDiagnostic> SkippedCharts { get; init; } = [];
+    public bool IsPartial => SkippedCharts.Count > 0;
+}
+
+public interface IChartBatchResult
+{
+    IReadOnlyList<ApplicationDiagnostic> SkippedCharts { get; }
+    bool IsPartial { get; }
+}
 
 public sealed record OptionBuildOverrides(
     string? OptionName = null,
@@ -258,7 +272,11 @@ public sealed record OptionBuildResult(
     string OptionName,
     int BookCount,
     int ChartCount,
-    IReadOnlyList<ApplicationArtifact> Artifacts);
+    IReadOnlyList<ApplicationArtifact> Artifacts) : IChartBatchResult
+{
+    public IReadOnlyList<ApplicationDiagnostic> SkippedCharts { get; init; } = [];
+    public bool IsPartial => SkippedCharts.Count > 0;
+}
 
 public sealed record AudioOverrides(
     string? WorkingAudioPath = null,

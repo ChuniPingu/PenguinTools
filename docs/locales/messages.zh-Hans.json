@@ -23,6 +23,7 @@
       "jacket_written": "已写入封面：{0}",
       "operation_cancelled": "操作已取消。",
       "option_build_complete": "已将 Option {0} 写入 {1}。",
+      "option_partial": "跳过 {0} 个不支持的谱面。",
       "option_scan_complete": "找到 {0} 首歌曲、{1} 个谱面。"
     }
   },
@@ -50,7 +51,7 @@
       "chart_format_brackets_mismatch": "谱面格式列表的 [ 与 ] 括号必须成对匹配。",
       "chart_format_specify_at_least_one": "请至少指定一种谱面格式，例如 [mgxc, ugc, sus] 或 [ugc, sus]。",
       "chart_format_unsupported": "不支持的谱面格式“{0}”。支持的值为 mgxc、ugc 和 sus。",
-      "chart_version_too_new": "暂不支持谱面 {0} 的版本 {1}，当前最高支持的版本为 {2}。",
+      "chart_version_too_new": "暂不支持 {0} v{1}，最高支持 v{2}。",
       "command_failed": "命令执行失败。",
       "effect_file_not_found": "未找到指定的背景效果文件。",
       "file_ignored_due_to_id_missing": "该文件因缺少歌曲 ID 已被忽略。请在 Margrete 中为歌曲 ID 设置一个数字。",
@@ -119,6 +120,8 @@
       "unsupported_tap_point_type": "不支持的 SUS TAP 点类型“{0}”。"
     },
     "warn": {
+      "chart_metadata_only": "仅读取 {0} v{1} 元数据。",
+      "chart_skipped_version": "已跳过 {0} v{1}，最高支持 v{2}。",
       "config_invalid": "无法读取 options.json：{0}",
       "duplicate_id_and_difficulty": "存在多个相同歌曲 ID 与难度的谱面，将使用最后扫描到的文件。",
       "more_than_one_chart_marked_main": "该歌曲 ID 下有多个谱面在注释中标记了 `#meta main`，将使用最先匹配的谱面作为基准难度。",

@@ -116,9 +116,9 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
         var (value, unmatchedDiagnostics) = CreateScanResult(input, applicationDiscovery, request.BatchSize,
             scanned.Value, scanned.Diagnostics, configPath, config);
-        return (scanned.Succeeded
+        return (scanned.Succeeded && !value.IsPartial
                 ? OperationResult<OptionScanResult>.Success(value)
-                : OperationResult<OptionScanResult>.Failure())
+                : OperationResult<OptionScanResult>.Failure(value))
             .WithDiagnostics(unmatchedDiagnostics.Merge(configDiagnostics));
     }
 
@@ -180,8 +180,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
         if (scanned.Value.Count == 0)
         {
-            return ApplicationDiagnostics.Failure<OptionBuildResult>(
-                Msg.Key(MsgKeys.App_No_charts_to_export));
+            return OperationResult<OptionBuildResult>.Failure()
+                .WithDiagnostics(scanned.Diagnostics.Merge(DiagnosticSnapshot.Create([
+                    new Diagnostic(Severity.Error, Msg.Key(MsgKeys.App_No_charts_to_export))
+                ])));
         }
 
         var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
@@ -210,8 +212,12 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
             : [];
         var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
-            scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts);
-        return OperationResult<OptionBuildResult>.Success(value).WithDiagnostics(diagnostics);
+            scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts)
+        {
+            SkippedCharts = SkippedVersionCharts(scanned.Diagnostics)
+        };
+        return (value.IsPartial ? OperationResult<OptionBuildResult>.Failure(value)
+            : OperationResult<OptionBuildResult>.Success(value)).WithDiagnostics(diagnostics);
     }
 
     public async Task<OperationResult<MusicBuildResult>> BuildMusicAsync(
@@ -646,9 +652,16 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         }).ToArray();
         var unmatched = remaining.Select(x => x.value).ToArray();
         var result = new OptionScanResult(input, discovery.Select(ToChartFormatName).ToArray(), batchSize, books,
-            unmatched.Select(ToApplicationDiagnostic).ToArray(), configPath, config);
+            unmatched.Select(ToApplicationDiagnostic).ToArray(), configPath, config)
+        {
+            SkippedCharts = SkippedVersionCharts(diagnostics)
+        };
         return (result, DiagnosticSnapshot.Create(unmatched));
     }
+
+    private static ApplicationDiagnostic[] SkippedVersionCharts(DiagnosticSnapshot diagnostics) =>
+        diagnostics.Diagnostics.Where(d => d.Message.Key == MsgKeys.Warn_Chart_skipped_version)
+            .OrderBy(d => d.Path, StringComparer.Ordinal).Select(ToApplicationDiagnostic).ToArray();
 
     private static ApplicationDiagnostic ToApplicationDiagnostic(Diagnostic value)
     {

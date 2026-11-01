@@ -68,6 +68,10 @@ internal static class CliCommandRunner
     {
         var exitCode = result.Succeeded ? CliExitCodes.Success : CliExitCodes.Failure;
         var message = result.Value is { } value && result.Succeeded ? successMessage(value) : null;
+        if (result.Value is IChartBatchResult { IsPartial: true } partial)
+        {
+            message = Msg.Create(MsgKeys.Cli_Msg_option_partial, partial.SkippedCharts.Count);
+        }
         CliOutput.Write(operation, result, message, typeInfo, exitCode);
         return exitCode;
     }

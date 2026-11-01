@@ -31,6 +31,7 @@ public static class MsgKeys
     public const string Cli_Msg_operation_cancelled = "cli.msg.operation_cancelled";
     public const string Cli_Msg_option_build_complete = "cli.msg.option_build_complete";
     public const string Cli_Msg_option_scan_complete = "cli.msg.option_scan_complete";
+    public const string Cli_Msg_option_partial = "cli.msg.option_partial";
     public const string Error_Audio_file_not_found = "diag.error.audio_file_not_found";
     public const string Error_Background_file_is_not_set = "diag.error.background_file_is_not_set";
     public const string Error_Background_file_not_found = "diag.error.background_file_not_found";
@@ -104,6 +105,8 @@ public static class MsgKeys
     public const string Sus_Unsupported_slide_point_type = "diag.sus.unsupported_slide_point_type";
     public const string Sus_Unsupported_tap_point_type = "diag.sus.unsupported_tap_point_type";
     public const string Warn_Config_invalid = "diag.warn.config_invalid";
+    public const string Warn_Chart_metadata_only = "diag.warn.chart_metadata_only";
+    public const string Warn_Chart_skipped_version = "diag.warn.chart_skipped_version";
     public const string Warn_Duplicate_id_and_difficulty = "diag.warn.duplicate_id_and_difficulty";
     public const string Warn_More_than_one_chart_marked_main = "diag.warn.more_than_one_chart_marked_main";
     public const string Warn_No_chart_marked_main = "diag.warn.no_chart_marked_main";

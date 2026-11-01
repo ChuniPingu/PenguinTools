@@ -1,5 +1,6 @@
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
+using PenguinTools.Chart.Parser;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.sus;
@@ -26,6 +27,20 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         ValidateDialect(request.InputDialect);
         var input = FullPath(request.InputPath);
         var parsed = await ParseChartAsync(input, cancellationToken, request.InputDialect);
+        if (!parsed.Succeeded && parsed.Diagnostics.Diagnostics.Any(d =>
+                d.Message.Key == MsgKeys.Error_Chart_version_too_new) &&
+            await EditorMetadataReader.ReadAsync(input, cancellationToken) is { } header)
+        {
+            var result = new ChartInspectResult(input, ChartMetadata.CreateChartSummary(header.Metadata), null)
+            {
+                NotesParsed = false,
+                FormatVersion = header.Version
+            };
+            return OperationResult<ChartInspectResult>.Success(result).WithDiagnostics(DiagnosticSnapshot.Create([
+                new PathDiagnostic(Severity.Warning,
+                    Msg.Create(MsgKeys.Warn_Chart_metadata_only, header.Format, header.Version), input)
+            ]));
+        }
         return parsed.Succeeded && parsed.Value is { } chart
             ? OperationResult<ChartInspectResult>
                 .Success(new ChartInspectResult(input, ChartMetadata.CreateChartSummary(chart.Meta),

@@ -56,6 +56,13 @@ public readonly record struct OperationResult<T>
         return new OperationResult<T>(false, default);
     }
 
+    /// <summary>Reports an incomplete operation while retaining its usable results.</summary>
+    public static OperationResult<T> Failure(T value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new OperationResult<T>(false, value);
+    }
+
     public OperationResult ToResult()
     {
         return (Succeeded ? OperationResult.Success() : OperationResult.Failure()).WithDiagnostics(Diagnostics);
