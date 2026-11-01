@@ -236,15 +236,16 @@ public partial class C2SChartWriter
 
     private List<C2sModel.Note> OrderedNotesForWrite()
     {
-        // Sort by rounded C2S tick, then stable list index. Same-Round order is
-        // the slide/Air FIFO schedule produced by the converter.
-        var notes = Chart.Notes
+        // Ground SLIDE statement order defines the paths. Emit those records
+        // first so their final endpoints exist before any AIR attachment.
+        var notes = Chart.Notes.OfType<C2sModel.Slide>().Cast<C2sModel.Note>().Concat(Chart.Notes
+            .Where(note => note is not C2sModel.Slide)
             .Select((note, index) => (note, index))
             .OrderBy(x => x.note.Tick.Round)
             .ThenBy(x => x.note.Lane)
             .ThenBy(x => x.note.Width)
             .ThenBy(x => x.index)
-            .Select(x => x.note)
+            .Select(x => x.note))
             .ToList();
 
         var positions = notes

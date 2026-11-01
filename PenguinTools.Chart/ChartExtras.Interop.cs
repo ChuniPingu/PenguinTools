@@ -72,7 +72,6 @@ public sealed partial class ChartExtras
         }
         RestoreHeaders(headers);
         events = SortEvents(events);
-        notes = SortNotes(notes);
         UpdateDefaultBpm(chart, headers, events);
         var snapshot = RestoreSnapshot(chart, headers, ref events, ref notes);
         var result = string.Join("\r\n", headers) + "\r\n\r\n" + string.Join("\r\n", events) + "\r\n\r\n" + string.Join("\r\n", notes) + "\r\n";
@@ -118,7 +117,6 @@ public sealed partial class ChartExtras
     private static string[] P(string s) => C2SRoundTrip.Parts(s);
     private static int Rank(string tag) => Array.IndexOf(EventOrder, tag);
     private static List<string> SortEvents(List<string> events) => events.Select((s, i) => (s, i, p: P(s))).OrderBy(v => Rank(v.p[0])).ThenBy(v => I(v.p, 1)).ThenBy(v => I(v.p, 2)).ThenBy(v => v.i).Select(v => v.s).ToList();
-    private static List<string> SortNotes(List<string> notes) => notes.Select((s, i) => (s, i, p: P(s))).OrderBy(v => I(v.p, 1)).ThenBy(v => I(v.p, 2)).ThenBy(v => I(v.p, 3)).ThenBy(v => I(v.p, 4)).ThenBy(v => v.i).Select(v => v.s).ToList();
 
     private void UpdateDefaultBpm(C.Chart chart, List<string> headers, List<string> events)
     {
@@ -306,7 +304,7 @@ public sealed partial class ChartExtras
             p[5] = ((decimal)I(p, 5) * Resolution / sourceRes).ToString(CultureInfo.InvariantCulture);
             notes.Add(string.Join("\t", p));
         }
-        return SortNotes(notes);
+        return notes;
     }
 
     private List<string> RestoreNoteOrder(List<string> notes, string[][] snapshot, int sourceRes) =>

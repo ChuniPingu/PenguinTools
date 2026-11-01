@@ -62,7 +62,7 @@ Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that categ
 - **`SXD` / `SXC`** — ExSlide.
 - **Link** — usually `SLD`; `NCL` = no line.
 
-Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches height and the parent node type.
+Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. Independent slides touching end to start require the later slide's first record before the earlier slide's final segment; sorting these records by time merges the paths. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches height and the parent node type.
 
 ## FLK (Flick)
 

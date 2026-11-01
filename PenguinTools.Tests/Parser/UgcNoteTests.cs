@@ -125,7 +125,7 @@ public class UgcNoteTests
     }
 
     [Fact]
-    public async Task SlideStartAtOtherSlideEndAfterRounding_ReportsAmbiguousC2sPath()
+    public async Task SlideStartAtOtherSlideEndAfterRounding_PreservesIndependentPaths()
     {
         var chart = await Parse("""
             #0'0:s0G
@@ -139,14 +139,12 @@ public class UgcNoteTests
 
         Assert.True(result.Succeeded, result.ToString());
 
-        var information = Assert.Single(
+        Assert.DoesNotContain(
             result.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key ==
                           MsgKeys.Mg_Ambiguous_c2s_slide_path);
-
-        Assert.Equal(Severity.Information, information.Severity);
-        Assert.Equal(480, information.Time);
-        Assert.IsType<NotePairDiagnosticTarget>(information.Target);
+        var roundTripped = await RoundTripThroughC2s(chart);
+        Assert.Equal(2, roundTripped.Notes.Children.OfType<Slide>().Count());
     }
 
     [Fact]

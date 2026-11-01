@@ -385,161 +385,16 @@ public partial class C2SChartConverter
 
     private void ScheduleC2sSlidePaths()
     {
-        var slideCount = 0;
-        for (var i = 0; i < Notes.Count; i++)
+        var paths = Notes.OfType<C2sModel.Slide>()
+            .GroupBy(n => _slideSegmentSources[n].SourceSlide)
+            .Select(g => g.ToArray());
+        var scheduled = C2sSlideScheduler.Schedule(paths);
+        foreach (var segment in scheduled)
         {
-            if (Notes[i] is C2sModel.Slide)
-            {
-                slideCount++;
-            }
+            var source = _slideSegmentSources[segment].SourceSlide;
+            _slideRootOrder.TryAdd(source, _slideRootOrder.Count);
         }
-
-        if (slideCount == 0)
-        {
-            return;
-        }
-
-        var originalIndex = new Dictionary<C2sModel.Note, int>(Notes.Count);
-        for (var i = 0; i < Notes.Count; i++)
-        {
-            originalIndex[Notes[i]] = i;
-        }
-
-        // Readers follow each root's path in source order. Arrival order at a
-        // shared endpoint can differ when the paths have different segments.
-        foreach (var root in Notes.OfType<C2sModel.Slide>()
-                     .Where(n => _slideSegmentSources[n].IsRoot)
-                     .OrderBy(n => n.Tick.Round).ThenBy(n => n.Lane).ThenBy(n => n.Width)
-                     .ThenBy(n => originalIndex[n]))
-        {
-            _slideRootOrder.TryAdd(_slideSegmentSources[root].SourceSlide, _slideRootOrder.Count);
-        }
-
-        // One bucket per (Round, lane, width), already in list order.
-        var pendingByKey =
-            new Dictionary<C2sSlidePosition, LinkedList<C2sModel.Slide>>();
-        var pendingBySource =
-            new Dictionary<(C2sSlidePosition Key, UmgrModel.Slide Source),
-                LinkedListNode<C2sModel.Slide>>();
-
-        CollectPendingSlides(pendingByKey, pendingBySource);
-
-        var keysByRound = pendingByKey.Keys
-            .GroupBy(k => k.Tick)
-            .OrderBy(g => g.Key)
-            .Select(g => g.OrderBy(k => k.Lane).ThenBy(k => k.Width).ToArray())
-            .ToArray();
-
-        var active = new Dictionary<C2sSlidePosition, Queue<UmgrModel.Slide>>();
-        var scheduled = new List<C2sModel.Slide>(slideCount);
-
-        foreach (var key in keysByRound.SelectMany(keys => keys))
-        {
-            SchedulePendingSlides(key, pendingByKey[key], pendingBySource, active, scheduled);
-        }
-
-        RebuildNotesWithScheduledSlides(scheduled, originalIndex);
-    }
-
-    private void CollectPendingSlides(Dictionary<C2sSlidePosition, LinkedList<C2sModel.Slide>> pendingByKey,
-        Dictionary<(C2sSlidePosition Key, UmgrModel.Slide Source), LinkedListNode<C2sModel.Slide>> pendingBySource)
-    {
-        for (var i = 0; i < Notes.Count; i++)
-        {
-            if (Notes[i] is not C2sModel.Slide slide)
-            {
-                continue;
-            }
-
-            var key = new C2sSlidePosition(
-                slide.Tick.Round,
-                slide.Lane,
-                slide.Width,
-                slide.NoLine);
-
-            if (!pendingByKey.TryGetValue(key, out var pending))
-            {
-                pending = new LinkedList<C2sModel.Slide>();
-                pendingByKey[key] = pending;
-            }
-
-            var node = pending.AddLast(slide);
-            var source = _slideSegmentSources[slide].SourceSlide;
-            pendingBySource[(key, source)] = node;
-        }
-
-    }
-
-    private void SchedulePendingSlides(C2sSlidePosition key, LinkedList<C2sModel.Slide> pending,
-        Dictionary<(C2sSlidePosition Key, UmgrModel.Slide Source), LinkedListNode<C2sModel.Slide>> pendingBySource,
-        Dictionary<C2sSlidePosition, Queue<UmgrModel.Slide>> active, List<C2sModel.Slide> scheduled)
-    {
-        while (pending.Count > 0)
-        {
-            active.TryGetValue(key, out var queue);
-            if (queue is { Count: > 1 })
-            {
-                active[key] = queue = new Queue<UmgrModel.Slide>(queue.OrderBy(s => _slideRootOrder[s]));
-            }
-
-            var pickNode = SelectPendingSlide(key, pending, pendingBySource, queue);
-
-            var pick = pickNode.Value;
-            var source = _slideSegmentSources[pick];
-            pendingBySource.Remove((key, source.SourceSlide));
-            pending.Remove(pickNode);
-            scheduled.Add(pick);
-
-            if (queue is { Count: > 0 })
-            {
-                queue.Dequeue();
-                if (queue.Count == 0)
-                {
-                    active.Remove(key);
-                }
-            }
-
-            var end = new C2sSlidePosition(
-                pick.EndTick.Round,
-                pick.EndLane,
-                pick.EndWidth,
-                pick.NoLine);
-
-            if (!active.TryGetValue(end, out var endQueue))
-            {
-                endQueue = new Queue<UmgrModel.Slide>();
-                active[end] = endQueue;
-            }
-
-            endQueue.Enqueue(source.SourceSlide);
-        }
-    }
-
-    private LinkedListNode<C2sModel.Slide> SelectPendingSlide(C2sSlidePosition key, LinkedList<C2sModel.Slide> pending,
-        Dictionary<(C2sSlidePosition Key, UmgrModel.Slide Source), LinkedListNode<C2sModel.Slide>> pendingBySource,
-        Queue<UmgrModel.Slide>? queue)
-    {
-        if (queue is { Count: > 0 } &&
-            pendingBySource.TryGetValue(
-                (key, queue.Peek()),
-                out var continuation) &&
-            continuation.List == pending)
-        {
-            return continuation;
-        }
-
-        for (var node = pending.First;
-             node is not null;
-             node = node.Next)
-        {
-            if (_slideSegmentSources[node.Value].IsRoot)
-            {
-                return node;
-            }
-        }
-
-        return pending.First!;
-
+        RebuildNotesWithScheduledSlides(scheduled);
     }
 
     private void IndexAirCells(Dictionary<(int Round, int Lane, int Width), List<C2sModel.Note>> airsByCell, Dictionary<C2sModel.Note, int> noteIndex)
@@ -566,68 +421,12 @@ public partial class C2SChartConverter
 
     }
 
-    private void RebuildNotesWithScheduledSlides(
-        List<C2sModel.Slide> scheduled,
-        Dictionary<C2sModel.Note, int> originalIndex)
+    private void RebuildNotesWithScheduledSlides(List<C2sModel.Slide> scheduled)
     {
-        // Single-pass group: avoid O(rounds × notes) rescans.
-        var slidesByRound = new Dictionary<int, List<C2sModel.Slide>>();
-        foreach (var slide in scheduled)
-        {
-            var round = slide.Tick.Round;
-            if (!slidesByRound.TryGetValue(round, out var list))
-            {
-                list = [];
-                slidesByRound[round] = list;
-            }
-
-            list.Add(slide);
-        }
-
-        var othersByRound = new Dictionary<int, List<C2sModel.Note>>();
-        foreach (var note in Notes)
-        {
-            if (note is C2sModel.Slide)
-            {
-                continue;
-            }
-
-            var round = note.Tick.Round;
-            if (!othersByRound.TryGetValue(round, out var list))
-            {
-                list = [];
-                othersByRound[round] = list;
-            }
-
-            list.Add(note);
-        }
-
-        foreach (var list in othersByRound.Values)
-        {
-            list.Sort((a, b) => originalIndex[a].CompareTo(originalIndex[b]));
-        }
-
-        var rounds = slidesByRound.Keys
-            .Concat(othersByRound.Keys)
-            .Distinct()
-            .OrderBy(r => r);
-
-        var rebuilt = new List<C2sModel.Note>(Notes.Count);
-        foreach (var round in rounds)
-        {
-            if (slidesByRound.TryGetValue(round, out var slides))
-            {
-                rebuilt.AddRange((IEnumerable<C2sModel.Note>)slides);
-            }
-
-            if (othersByRound.TryGetValue(round, out var others))
-            {
-                rebuilt.AddRange(others);
-            }
-        }
-
+        var others = Notes.Where(note => note is not C2sModel.Slide).ToArray();
         Notes.Clear();
-        Notes.AddRange(rebuilt);
+        Notes.AddRange(scheduled);
+        Notes.AddRange(others);
     }
 
     private Dictionary<C2sModel.IPairable, C2sModel.Note> BuildIntendedAirParents()
@@ -953,12 +752,6 @@ public partial class C2SChartConverter
 
         return !hasError;
     }
-
-    private readonly record struct C2sSlidePosition(
-        int Tick,
-        int Lane,
-        int Width,
-        bool NoLine);
 
     private sealed record C2sSlideSegmentSource(
         UmgrModel.Slide SourceSlide,
