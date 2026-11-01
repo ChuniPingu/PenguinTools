@@ -143,14 +143,14 @@ public partial class UgcParser
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public UgcParser(UgcParseRequest request, IMediaTool mediaTool)
+    public UgcParser(UgcParseRequest request, IMediaValidator mediaValidator)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(mediaValidator);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Assets);
 
-        MediaTool = mediaTool;
+        MediaValidator = mediaValidator;
         Path = request.Path;
         Assets = request.Assets;
         _requestedDialect = request.Dialect;
@@ -158,7 +158,7 @@ public partial class UgcParser
         Ugc.Meta.ExLongEnabled = false;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IMediaValidator MediaValidator { get; }
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
@@ -481,7 +481,7 @@ public partial class UgcParser
         if (Ugc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Ugc.Meta.FullBgiFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Ugc.Meta.FullBgiFilePath),
+                MediaValidator.CheckImageValidAsync(Ugc.Meta.FullBgiFilePath),
                 Ugc.Meta.FullBgiFilePath,
                 MsgKeys.Error_Invalid_bg_image,
                 () =>

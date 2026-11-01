@@ -14,14 +14,14 @@ public partial class MgxcParser
     private const string HeaderEvnt = "evnt"; // 65 76 6E 74
     private const string HeaderDat2 = "dat2"; // 64 61 74 32
 
-    public MgxcParser(MgxcParseRequest request, IMediaTool mediaTool)
+    public MgxcParser(MgxcParseRequest request, IMediaValidator mediaValidator)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(mediaValidator);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Assets);
 
-        MediaTool = mediaTool;
+        MediaValidator = mediaValidator;
         Path = request.Path;
         Assets = request.Assets;
         _requestedDialect = request.Dialect;
@@ -33,7 +33,7 @@ public partial class MgxcParser
     private int _version;
     private bool _hasFixedZeroOriginMarker;
     private bool _hasPrerollBar1Marker;
-    private IMediaTool MediaTool { get; }
+    private IMediaValidator MediaValidator { get; }
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
@@ -256,7 +256,7 @@ public partial class MgxcParser
         if (Mgxc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Mgxc.Meta.FullBgiFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Mgxc.Meta.FullBgiFilePath),
+                MediaValidator.CheckImageValidAsync(Mgxc.Meta.FullBgiFilePath),
                 Mgxc.Meta.FullBgiFilePath,
                 MsgKeys.Error_Invalid_bg_image,
                 () =>

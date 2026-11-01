@@ -68,7 +68,7 @@ public sealed class ImageServiceIntegrationTests : IDisposable
     public async Task Validation_UsesExplicitToolPathAndImageContent()
     {
         var service = new ImageService(TexconvPath, ImageToolsPath, Workspace);
-        await service.ValidateAsync(Fixture("透明 source.unknown"), Ct);
+        Assert.True((await service.CheckImageValidAsync(Fixture("透明 source.unknown"), Ct)).IsSuccess);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ImageServiceIntegrationTests : IDisposable
         await File.WriteAllTextAsync(source, "not an image", Ct);
         await File.WriteAllTextAsync(destination, "existing", Ct);
         var error = await Assert.ThrowsAsync<DiagnosticException>(() => service.ConvertJacketAsync(source, destination, Ct));
-        Assert.Equal(MsgKeys.Error_Command_failed, error.Descriptor.Key);
+        Assert.Equal(MsgKeys.Error_Invalid_jk_image, error.Descriptor.Key);
         var result = Assert.IsType<ProcessCommandResult>(error.Target);
         Assert.NotEqual(InterExitCode.Success, result.ExitCode);
         Assert.NotEmpty(result.StandardError);
@@ -97,17 +97,19 @@ public sealed class ImageServiceIntegrationTests : IDisposable
         var executable = Path.Combine(_root.FullName, "missing image-tools.exe");
         var source = Fixture();
         var service = new ImageService(TexconvPath, executable, Workspace);
-        var error = await Assert.ThrowsAsync<DiagnosticException>(() => service.ValidateAsync(source, Ct));
-        Assert.Equal(MsgKeys.Error_Command_failed, error.Descriptor.Key);
-        var result = Assert.IsType<ProcessCommandResult>(error.Target);
+        var validation = await service.CheckImageValidAsync(source, Ct);
+        Assert.True(validation.IsFailure);
+        var result = Assert.IsType<ProcessCommandResult>(validation.Failure);
         Assert.Equal(InterExitCode.Failure, result.ExitCode);
         Assert.Contains(executable, result.Command, StringComparison.Ordinal);
         Assert.Contains(source, result.Command, StringComparison.Ordinal);
         Assert.NotEmpty(result.StandardError);
     }
 
-    [Fact]
-    public async Task NativeExitCodeTwo_IsRejectedAndPreservesDestination()
+    [Theory]
+    [InlineData(false, MsgKeys.Error_Invalid_jk_image)]
+    [InlineData(true, MsgKeys.Error_Invalid_bg_image)]
+    public async Task NativeExitCodeTwo_IsRejectedAndPreservesDestination(bool stage, string messageKey)
     {
         var process = new RecordingProcess(exitCode: 2);
         var service = Service(process);
@@ -115,9 +117,11 @@ public sealed class ImageServiceIntegrationTests : IDisposable
         var destination = Path.Combine(_root.FullName, "keep.dds");
         await File.WriteAllTextAsync(destination, "existing", Ct);
 
-        var error = await Assert.ThrowsAsync<DiagnosticException>(() => service.ConvertJacketAsync(source, destination, Ct));
+        var error = await Assert.ThrowsAsync<DiagnosticException>(() => stage
+            ? service.ConvertStageAsync(source, destination, null, ct: Ct)
+            : service.ConvertJacketAsync(source, destination, Ct));
 
-        Assert.Equal(MsgKeys.Error_Command_failed, error.Descriptor.Key);
+        Assert.Equal(messageKey, error.Descriptor.Key);
         var result = Assert.IsType<ProcessCommandResult>(error.Target);
         Assert.Equal(2, (int)result.ExitCode);
         Assert.Equal("tool output", result.StandardOutput);

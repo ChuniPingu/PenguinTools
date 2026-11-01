@@ -7,7 +7,7 @@ using PenguinTools.Media;
 
 namespace PenguinTools.Infrastructure;
 
-public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirectory = null) : IMediaTool
+public sealed class AudioService(string assetDirectory) : IAudioService
 {
     internal const double TargetLoudnessLufs = -8.5;
     internal const double TargetTruePeakDbtp = 0.0;
@@ -15,11 +15,6 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
     private const double OffsetToleranceSeconds = 0.000_1;
 
     private string AssetDirectory { get; } = RequireDirectory(assetDirectory, nameof(assetDirectory));
-
-    private ImageService Images { get; } = new(
-        Path.Combine(RequireDirectory(assetDirectory, nameof(assetDirectory)), "texconv", "texconv.exe"),
-        Path.Combine(RequireDirectory(assetDirectory, nameof(assetDirectory)), "image-tools", "image-tools.exe"),
-        temporaryWorkDirectory ?? Path.Combine(Path.GetTempPath(), "PenguinTools.Temp"));
 
     private string FfmpegDirectory => Path.Combine(AssetDirectory, "ffmpeg");
 
@@ -101,47 +96,6 @@ public sealed class MediaTool(string assetDirectory, string? temporaryWorkDirect
             : MediaValidationResult.Invalid(result);
     }
 
-    public async Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default)
-    {
-        try
-        {
-            await Images.ValidateAsync(src, ct);
-            return MediaValidationResult.Valid;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return MediaValidationResult.Invalid(ex is DiagnosticException { Target: { } target } ? target : ex);
-        }
-    }
-
-    public Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default) =>
-        RunImageAsync(() => Images.ConvertJacketAsync(src, dst, ct), MsgKeys.Error_Invalid_jk_image);
-
-    public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
-        int backgroundOffset, CancellationToken ct = default) =>
-        RunImageAsync(() => Images.ConvertStageAsync(bg, stDst, nfDst, fxPaths, backgroundOffset, ct: ct),
-            MsgKeys.Error_Invalid_bg_image);
-
-    public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default) =>
-        RunImageAsync(() => ImageService.ExtractDdsAsync(src, dst, ct), MsgKeys.Error_Invalid_bg_image);
-
-    public async Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)
-    {
-        await RunImageAsync(() => Images.DecodeDdsAsync(src, dst, ct), MsgKeys.Error_Invalid_bg_image);
-        return new DdsDecodeResult(src, dst);
-    }
-
-    private static async Task RunImageAsync(Func<Task> action, string messageKey)
-    {
-        try
-        {
-            await action();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new DiagnosticException(messageKey, ex is DiagnosticException { Target: { } target } ? target : ex);
-        }
-    }
     public async Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options,
         CancellationToken ct = default)
     {

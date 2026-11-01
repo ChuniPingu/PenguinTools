@@ -80,14 +80,14 @@ public class CriRoundTripTests
     [InlineData(false, null)]
     [InlineData(true, null)]
     [InlineData(false, 123456789UL)]
-    public async Task Media_tool_round_trip_works_without_external_CRI_executable(bool useAwb, ulong? key)
+    public async Task Audio_service_round_trip_works_without_external_CRI_executable(bool useAwb, ulong? key)
     {
         using var dir = new TempDirectory();
         var wavPath = Path.Combine(dir.Path, "input with spaces.wav");
         WriteStereo48kWav(wavPath, sampleFrames: 2400);
         var acbPath = Path.Combine(dir.Path, "output with spaces.acb");
         var awbPath = Path.Combine(dir.Path, "output with spaces.awb");
-        var tool = new MediaTool(Path.Combine(dir.Path, "absent assets"));
+        var tool = new AudioService(Path.Combine(dir.Path, "absent assets"));
         var ct = TestContext.Current.CancellationToken;
 
         await tool.ConvertCriAsync(new CriConvertRequest(wavPath, acbPath, awbPath, "cueFile000002", 100, 200,
@@ -110,10 +110,10 @@ public class CriRoundTripTests
     }
 
     [Fact]
-    public async Task Media_tool_reports_CRI_failure_as_invalid_audio()
+    public async Task Audio_service_reports_CRI_failure_as_invalid_audio()
     {
         using var dir = new TempDirectory();
-        var tool = new MediaTool(dir.Path);
+        var tool = new AudioService(dir.Path);
         var ct = TestContext.Current.CancellationToken;
 
         var convertError = await Assert.ThrowsAsync<DiagnosticException>(() => tool.ConvertCriAsync(new CriConvertRequest(
@@ -129,12 +129,12 @@ public class CriRoundTripTests
     }
 
     [Fact]
-    public async Task Media_tool_propagates_CRI_cancellation_before_creating_outputs()
+    public async Task Audio_service_propagates_CRI_cancellation_before_creating_outputs()
     {
         using var dir = new TempDirectory();
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var tool = new MediaTool(dir.Path);
+        var tool = new AudioService(dir.Path);
         var acbPath = Path.Combine(dir.Path, "out.acb");
         var awbPath = Path.Combine(dir.Path, "out.awb");
         var decodedPath = Path.Combine(dir.Path, "decoded");

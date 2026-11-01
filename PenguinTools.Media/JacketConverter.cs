@@ -4,19 +4,19 @@ namespace PenguinTools.Media;
 
 public class JacketConverter
 {
-    public JacketConverter(JacketConvertRequest request, IMediaTool mediaTool)
+    public JacketConverter(JacketConvertRequest request, IImageService images)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(images);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.InPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutPath);
 
-        MediaTool = mediaTool;
+        Images = images;
         InPath = request.InPath;
         OutPath = request.OutPath;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IImageService Images { get; }
     private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private string InPath { get; }
     private string OutPath { get; }
@@ -29,7 +29,7 @@ public class JacketConverter
         }
 
         ct.ThrowIfCancellationRequested();
-        await MediaTool.ConvertJacketAsync(InPath, OutPath, ct);
+        await Images.ConvertJacketAsync(InPath, OutPath, ct);
         ct.ThrowIfCancellationRequested();
         return OperationResult.Success().WithDiagnostics(Diagnostic);
     }

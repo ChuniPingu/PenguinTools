@@ -15,14 +15,14 @@ public static class ChartScanner
 {
     public static async Task<OperationResult<IReadOnlyList<OptionBook>>> ScanDirectoryAsync(
         AssetManager assets,
-        IMediaTool mediaTool,
+        IMediaValidator mediaValidator,
         string directory,
         IReadOnlyList<ChartFileFormat>? discovery,
         OptionExportProcessContext processContext)
     {
         var diagnostics = processContext.Diagnostics;
         var ct = processContext.CancellationToken;
-        var scanMediaTool = new ScanMediaTool(mediaTool, ct);
+        var scanMediaValidator = new ScanMediaValidator(mediaValidator, ct);
         var booksById = new ConcurrentDictionary<int, BookAccumulator>();
 
         var batch = DiagnosticSnapshot.Empty;
@@ -37,7 +37,7 @@ public static class ChartScanner
                     ChartFileDiscoveryFormats.GetGlob(format),
                     booksById,
                     assets,
-                    scanMediaTool,
+                    scanMediaValidator,
                     processContext,
                     i > 0));
         }
@@ -52,7 +52,7 @@ public static class ChartScanner
         string fileGlob,
         ConcurrentDictionary<int, BookAccumulator> booksById,
         AssetManager assets,
-        IMediaTool mediaTool,
+        IMediaValidator mediaValidator,
         OptionExportProcessContext processContext,
         bool skipIfDifficultyFilled)
     {
@@ -60,7 +60,7 @@ public static class ChartScanner
         var chartPaths = Directory.EnumerateFiles(directory, fileGlob, SearchOption.AllDirectories);
         return await OptionExportBatch.BatchAsync(
             chartPaths,
-            (filePath, innerDiagnostics) => LoadChartAsync(filePath, assets, mediaTool, booksById, innerDiagnostics,
+            (filePath, innerDiagnostics) => LoadChartAsync(filePath, assets, mediaValidator, booksById, innerDiagnostics,
                 skipIfDifficultyFilled, ct),
             filePath => filePath,
             processContext,
@@ -70,7 +70,7 @@ public static class ChartScanner
     private static async Task LoadChartAsync(
         string filePath,
         AssetManager assets,
-        IMediaTool mediaTool,
+        IMediaValidator mediaValidator,
         ConcurrentDictionary<int, BookAccumulator> booksById,
         IDiagnosticSink diagnostics,
         bool skipIfDifficultyFilled,
@@ -82,7 +82,7 @@ public static class ChartScanner
         if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Ugc),
                 StringComparison.OrdinalIgnoreCase))
         {
-            var r = await new UgcParser(new UgcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
+            var r = await new UgcParser(new UgcParseRequest(filePath, assets), mediaValidator).ParseAsync(ct);
             ReportParseDiagnostics(r.Diagnostics, diagnostics);
             if (!r.Succeeded)
             {
@@ -94,7 +94,7 @@ public static class ChartScanner
         else if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Mgxc),
                      StringComparison.OrdinalIgnoreCase))
         {
-            var r = await new MgxcParser(new MgxcParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
+            var r = await new MgxcParser(new MgxcParseRequest(filePath, assets), mediaValidator).ParseAsync(ct);
             ReportParseDiagnostics(r.Diagnostics, diagnostics);
             if (!r.Succeeded)
             {
@@ -106,7 +106,7 @@ public static class ChartScanner
         else if (string.Equals(ext, ChartFileDiscoveryFormats.GetExtension(ChartFileFormat.Sus),
                      StringComparison.OrdinalIgnoreCase))
         {
-            var r = await new SusParser(new SusParseRequest(filePath, assets), mediaTool).ParseAsync(ct);
+            var r = await new SusParser(new SusParseRequest(filePath, assets), mediaValidator).ParseAsync(ct);
             diagnostics.Report(r.Diagnostics);
             if (!r.Succeeded)
             {

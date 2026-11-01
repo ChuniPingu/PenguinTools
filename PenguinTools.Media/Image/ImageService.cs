@@ -6,7 +6,7 @@ using PenguinTools.Core.IO;
 namespace PenguinTools.Media;
 
 /// <summary>Raster and DDS operations using supplied native tools, with managed AFB handling.</summary>
-public sealed class ImageService
+public sealed class ImageService : IImageService
 {
     private readonly string _texconvPath;
     private readonly string _imageToolsPath;
@@ -29,11 +29,19 @@ public sealed class ImageService
         _runProcess = runProcess;
     }
 
-    public async Task ValidateAsync(string source, CancellationToken ct = default)
+    public async Task<MediaValidationResult> CheckImageValidAsync(string source, CancellationToken ct = default)
     {
-        ct.ThrowIfCancellationRequested();
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        await RunToolAsync(_imageToolsPath, ["validate", "--input", source], ct).ConfigureAwait(false);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            ArgumentException.ThrowIfNullOrWhiteSpace(source);
+            await RunToolAsync(_imageToolsPath, ["validate", "--input", source], ct).ConfigureAwait(false);
+            return MediaValidationResult.Valid;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return MediaValidationResult.Invalid(ex is DiagnosticException { Target: { } target } ? target : ex);
+        }
     }
 
     public Task ConvertJacketAsync(string source, string destination, CancellationToken ct = default) =>
@@ -52,13 +60,13 @@ public sealed class ImageService
             }
 
             await PublishBytesAsync(destination, bytes, token).ConfigureAwait(false);
-        }, ct);
+        }, MsgKeys.Error_Invalid_jk_image, ct);
 
     public Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
-        IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? template = null,
+        IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
         CancellationToken ct = default) => WithWorkspaceAsync(async (workspace, token) =>
     {
-        var templateBytes = template is null ? ReadTemplate("st_dummy.afb") : await File.ReadAllBytesAsync(template, token).ConfigureAwait(false);
+        var templateBytes = templatePath is null ? ReadTemplate("st_dummy.afb") : await File.ReadAllBytesAsync(templatePath, token).ConfigureAwait(false);
         // Validate before starting expensive image work or writing outputs.
         var chunks = DdsContainer.Locate(templateBytes);
         if (chunks.Count < 2)
@@ -93,32 +101,41 @@ public sealed class ImageService
         }
 
         await StagedOutputs.WriteAsync(outputs, token).ConfigureAwait(false);
-    }, ct);
+    }, MsgKeys.Error_Invalid_bg_image, ct);
 
-    public static async Task<IReadOnlyList<string>> ExtractDdsAsync(string source, string outputDirectory, CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> ExtractDdsAsync(string source, string outputDirectory, CancellationToken ct = default)
     {
-        ct.ThrowIfCancellationRequested();
-        var data = await File.ReadAllBytesAsync(source, ct).ConfigureAwait(false);
-        var chunks = DdsContainer.Locate(data);
-        var stem = Path.GetFileNameWithoutExtension(source);
-        if (string.IsNullOrWhiteSpace(stem))
+        try
         {
-            stem = "chunk";
-        }
+            ct.ThrowIfCancellationRequested();
+            var data = await File.ReadAllBytesAsync(source, ct).ConfigureAwait(false);
+            var chunks = DdsContainer.Locate(data);
+            var stem = Path.GetFileNameWithoutExtension(source);
+            if (string.IsNullOrWhiteSpace(stem))
+            {
+                stem = "chunk";
+            }
 
-        var paths = new List<string>(chunks.Count);
-        for (var i = 0; i < chunks.Count; i++)
-        {
-            var chunk = chunks[i];
-            var destination = Path.Combine(outputDirectory, $"{stem}_{i + 1:D4}.dds");
-            await PublishBytesAsync(destination, data.AsMemory(chunk.Offset, chunk.Length), ct).ConfigureAwait(false);
-            paths.Add(destination);
+            var paths = new List<string>(chunks.Count);
+            for (var i = 0; i < chunks.Count; i++)
+            {
+                var chunk = chunks[i];
+                var destination = Path.Combine(outputDirectory, $"{stem}_{i + 1:D4}.dds");
+                await PublishBytesAsync(destination, data.AsMemory(chunk.Offset, chunk.Length), ct).ConfigureAwait(false);
+                paths.Add(destination);
+            }
+            return paths;
         }
-        return paths;
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new DiagnosticException(MsgKeys.Error_Invalid_bg_image,
+                ex is DiagnosticException { Target: { } target } ? target : ex);
+        }
     }
 
-    public Task DecodeDdsAsync(string source, string destination, CancellationToken ct = default) =>
-        WithWorkspaceAsync(async (workspace, token) =>
+    public async Task<DdsDecodeResult> DecodeDdsAsync(string source, string destination, CancellationToken ct = default)
+    {
+        await WithWorkspaceAsync(async (workspace, token) =>
         {
             // A stable name also lets texconv sniff DDS input regardless of the caller's extension.
             var input = Path.Combine(workspace, "decode.dds");
@@ -127,7 +144,9 @@ public sealed class ImageService
                 "--ignore-srgb", "-o", workspace, "--", input], token).ConfigureAwait(false);
             var png = Path.Combine(workspace, "decode.png");
             await AtomicFile.WriteAsync(destination, (stream, cancellation) => CopyToAsync(png, stream, cancellation), token).ConfigureAwait(false);
-        }, ct);
+        }, MsgKeys.Error_Invalid_bg_image, ct).ConfigureAwait(false);
+        return new DdsDecodeResult(source, destination);
+    }
 
     private async Task RunToolAsync(string executablePath, IReadOnlyList<string> arguments, CancellationToken ct)
     {
@@ -146,18 +165,26 @@ public sealed class ImageService
         return Path.Combine(workspace, Path.GetFileNameWithoutExtension(source) + ".dds");
     }
 
-    private async Task WithWorkspaceAsync(Func<string, CancellationToken, Task> action, CancellationToken ct)
+    private async Task WithWorkspaceAsync(Func<string, CancellationToken, Task> action, string messageKey,
+        CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
-        var workspace = Path.Combine(_temporaryRoot, "image-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(workspace);
         try
         {
-            await action(workspace, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            var workspace = Path.Combine(_temporaryRoot, "image-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(workspace);
+            try
+            {
+                await action(workspace, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                Directory.Delete(workspace, recursive: true);
+            }
         }
-        finally
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Directory.Delete(workspace, recursive: true);
+            throw new DiagnosticException(messageKey, ex is DiagnosticException { Target: { } target } ? target : ex);
         }
     }
 

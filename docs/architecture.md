@@ -16,6 +16,8 @@ The CLI is a command adapter around application services. Chart and media projec
 
 Treat application request/result records and [CLI JSON output](cli.md#json-output-and-scripts) as interfaces for callers. Preserve message keys and named arguments, diagnostic locations, cancellation, exit codes, and numeric identifier representation when changing them.
 
+Media operations are split between `IAudioService` and `IImageService`. `AudioService` supplies FFmpeg and CRI operations; `ImageService` handles image-tools, texconv, and AFB operations directly. The application composes both services, and converters depend on the service they use. Chart parsers depend only on `IMediaValidator`; `MediaValidator` combines the two services' checks, and `ScanMediaValidator` shares their results within a directory scan.
+
 ## Charts
 
 [Parsers](../PenguinTools.Chart/Parser/) and [writers](../PenguinTools.Chart/Writer/) connect the [editor models](../PenguinTools.Chart/Models/umgr/) and [C2S models](../PenguinTools.Chart/Models/c2s/) through conversion and post-processing. `ChartExtras` carries editor extensions and round-trip state. UGC and C2S share curve expansion, and writers operate on a copy of the chart.

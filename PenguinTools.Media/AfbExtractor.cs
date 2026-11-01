@@ -4,19 +4,19 @@ namespace PenguinTools.Media;
 
 public class AfbExtractor
 {
-    public AfbExtractor(AfbExtractRequest request, IMediaTool mediaTool)
+    public AfbExtractor(AfbExtractRequest request, IImageService images)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(images);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.InPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutFolder);
 
-        MediaTool = mediaTool;
+        Images = images;
         InPath = request.InPath;
         OutFolder = request.OutFolder;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IImageService Images { get; }
     private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private string InPath { get; }
     private string OutFolder { get; }
@@ -28,7 +28,7 @@ public class AfbExtractor
             return OperationResult.Failure().WithDiagnostics(Diagnostic);
         }
 
-        await MediaTool.ExtractDdsAsync(InPath, OutFolder, ct);
+        await Images.ExtractDdsAsync(InPath, OutFolder, ct);
         ct.ThrowIfCancellationRequested();
         return OperationResult.Success().WithDiagnostics(Diagnostic);
     }

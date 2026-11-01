@@ -129,7 +129,7 @@ public static class OptionExporter
                 outputPaths.StageFolder,
                 book.NotesFieldLine,
                 book.BookMeta.BackgroundOffset),
-            ctx.MediaTool);
+            ctx.Images);
         var builtStage = await stageConverter.BuildAsync(ct);
         diagnostics.Report(builtStage.Diagnostics);
         if (!builtStage.Succeeded)
@@ -267,7 +267,7 @@ public static class OptionExporter
 
         var jacketConverter = new JacketConverter(
             new JacketConvertRequest(jacketPath, outputPath),
-            ctx.MediaTool);
+            ctx.Images);
         var convertedJacket = await jacketConverter.ConvertAsync(ct);
         diagnostics.Report(convertedJacket.Diagnostics);
         if (!convertedJacket.Succeeded)
@@ -321,7 +321,7 @@ public static class OptionExporter
                 ctx.AssetStore.GetTempPath(
                     $"c_{Path.GetFileNameWithoutExtension(book.BookMeta.FullBgmFilePath)}.wav"),
                 settings.HcaEncryptionKey),
-            ctx.MediaTool);
+            ctx.Audio);
         var convertedAudio = await audioConverter.ConvertAsync(ct);
         diagnostics.Report(convertedAudio.Diagnostics);
         if (!convertedAudio.Succeeded)

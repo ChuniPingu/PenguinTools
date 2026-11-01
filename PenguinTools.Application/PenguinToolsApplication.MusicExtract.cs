@@ -75,7 +75,7 @@ public sealed partial class PenguinToolsApplication
             {
                 var (acb, awb) = DiscoverCri(request, xmlPath, cueId, cueName);
                 var source = acb ?? awb ?? throw new FileNotFoundException("Required ACB/AWB media was not found.");
-                audio = await _dependencies.MediaTool.ExtractCriAudioAsync(
+                audio = await _dependencies.Audio.ExtractCriAudioAsync(
                     new CriExtractOptions(source, Path.Combine(stage, "audio"), acb is not null ? awb : acb,
                         request.HcaKey), cancellationToken);
                 var selected = SelectCue(audio.Cues, cueName);
@@ -167,7 +167,7 @@ public sealed partial class PenguinToolsApplication
 
         if (Path.GetExtension(jacket).Equals(".dds", StringComparison.OrdinalIgnoreCase))
         {
-            await _dependencies.MediaTool.DecodeDdsAsync(jacket, destination, cancellationToken);
+            await _dependencies.Images.DecodeDdsAsync(jacket, destination, cancellationToken);
         }
         else
         {

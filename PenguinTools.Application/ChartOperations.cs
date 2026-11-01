@@ -17,7 +17,7 @@ using UmgrChart = PenguinTools.Chart.Models.umgr.Chart;
 
 namespace PenguinTools.Application;
 
-internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
+internal sealed class ChartOperations(AssetManager assets, IMediaValidator mediaValidator)
 {
     internal async Task<OperationResult<ChartInspectResult>> InspectAsync(
         ChartInspectRequest request,
@@ -175,19 +175,19 @@ internal sealed class ChartOperations(AssetManager assets, IMediaTool mediaTool)
         var extension = Path.GetExtension(input);
         if (extension.Equals(".ugc", StringComparison.OrdinalIgnoreCase))
         {
-            return await new UgcParser(new UgcParseRequest(input, assets, dialect), mediaTool)
+            return await new UgcParser(new UgcParseRequest(input, assets, dialect), mediaValidator)
                 .ParseAsync(cancellationToken);
         }
 
         if (extension.Equals(".mgxc", StringComparison.OrdinalIgnoreCase))
         {
-            return await new MgxcParser(new MgxcParseRequest(input, assets, dialect), mediaTool)
+            return await new MgxcParser(new MgxcParseRequest(input, assets, dialect), mediaValidator)
                 .ParseAsync(cancellationToken);
         }
 
         if (extension.Equals(".sus", StringComparison.OrdinalIgnoreCase))
         {
-            return await new SusParser(new SusParseRequest(input, assets), mediaTool)
+            return await new SusParser(new SusParseRequest(input, assets), mediaValidator)
                 .ParseAsync(cancellationToken);
         }
 

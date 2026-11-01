@@ -6,7 +6,7 @@ using Xunit;
 
 namespace PenguinTools.Tests.Workflow;
 
-public sealed class ScanMediaToolTests
+public sealed class ScanMediaValidatorTests
 {
     [Fact]
     public async Task ConcurrentAliases_ScaleWithUniqueFilesAndKeepAudioAndImageSeparate()
@@ -14,9 +14,9 @@ public sealed class ScanMediaToolTests
         using var files = new TestFiles();
         var paths = Enumerable.Range(0, 8).Select(i => files.Write($"media-{i}.bin", "media")).ToArray();
         var pending = new TaskCompletionSource<MediaValidationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var inner = new CountingMediaTool { Audio = (_, _) => pending.Task };
+        var inner = new CountingMediaValidator { Audio = (_, _) => pending.Task };
         var ct = TestContext.Current.CancellationToken;
-        var tool = new ScanMediaTool(inner, ct);
+        var tool = new ScanMediaValidator(inner, ct);
         var joined = 0;
         var allStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = Enumerable.Range(0, 512)
@@ -50,9 +50,9 @@ public sealed class ScanMediaToolTests
     {
         using var files = new TestFiles();
         var path = files.Write("media.bin", "first");
-        var inner = new CountingMediaTool();
+        var inner = new CountingMediaValidator();
         var ct = TestContext.Current.CancellationToken;
-        var tool = new ScanMediaTool(inner, ct);
+        var tool = new ScanMediaValidator(inner, ct);
         await tool.CheckAudioValidAsync(path, ct);
         await tool.CheckAudioValidAsync(path, ct);
         Assert.Equal(1, inner.AudioCalls);
@@ -65,7 +65,7 @@ public sealed class ScanMediaToolTests
         await tool.CheckAudioValidAsync(path, ct);
         Assert.Equal(3, inner.AudioCalls);
 
-        await new ScanMediaTool(inner, ct).CheckAudioValidAsync(path, ct);
+        await new ScanMediaValidator(inner, ct).CheckAudioValidAsync(path, ct);
         Assert.Equal(4, inner.AudioCalls);
     }
 
@@ -80,9 +80,9 @@ public sealed class ScanMediaToolTests
             File.WriteAllText(other, "different");
         }
 
-        var inner = new CountingMediaTool();
+        var inner = new CountingMediaValidator();
         var ct = TestContext.Current.CancellationToken;
-        var tool = new ScanMediaTool(inner, ct);
+        var tool = new ScanMediaValidator(inner, ct);
         await tool.CheckAudioValidAsync(path, ct);
         await tool.CheckAudioValidAsync(other, ct);
         Assert.Equal(OperatingSystem.IsWindows() ? 1 : 2, inner.AudioCalls);
@@ -95,13 +95,13 @@ public sealed class ScanMediaToolTests
     public async Task InvalidPath_PreservesUnderlyingValidationResults(string? path)
     {
         var expected = MediaValidationResult.Invalid(new ArgumentException("media implementation failure"));
-        var inner = new CountingMediaTool
+        var inner = new CountingMediaValidator
         {
             Audio = (_, _) => Task.FromResult(expected),
             Image = (_, _) => Task.FromResult(expected)
         };
         var ct = TestContext.Current.CancellationToken;
-        var tool = new ScanMediaTool(inner, ct);
+        var tool = new ScanMediaValidator(inner, ct);
 
         Assert.Same(expected, await tool.CheckAudioValidAsync(path!, ct));
         Assert.Same(expected, await tool.CheckImageValidAsync(path!, ct));
@@ -114,14 +114,14 @@ public sealed class ScanMediaToolTests
     {
         using var files = new TestFiles();
         var path = Path.Combine(files.Directory, "later.bin");
-        var inner = new CountingMediaTool
+        var inner = new CountingMediaValidator
         {
             Audio = (source, _) => Task.FromResult(File.Exists(source)
                 ? MediaValidationResult.Valid
                 : MediaValidationResult.Invalid("missing"))
         };
         var ct = TestContext.Current.CancellationToken;
-        var tool = new ScanMediaTool(inner, ct);
+        var tool = new ScanMediaValidator(inner, ct);
         Assert.False((await tool.CheckAudioValidAsync(path, ct)).IsSuccess);
         files.Write("later.bin", "created");
         Assert.True((await tool.CheckAudioValidAsync(path, ct)).IsSuccess);
@@ -135,8 +135,8 @@ public sealed class ScanMediaToolTests
         using var waiterCancellation = new CancellationTokenSource();
         var path = files.Write("media.bin", "media");
         var pending = new TaskCompletionSource<MediaValidationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var inner = new CountingMediaTool { Audio = (_, _) => pending.Task };
-        var tool = new ScanMediaTool(inner, TestContext.Current.CancellationToken);
+        var inner = new CountingMediaValidator { Audio = (_, _) => pending.Task };
+        var tool = new ScanMediaValidator(inner, TestContext.Current.CancellationToken);
         var cancelled = tool.CheckAudioValidAsync(path, waiterCancellation.Token);
         var other = tool.CheckAudioValidAsync(path, TestContext.Current.CancellationToken);
 
@@ -154,7 +154,7 @@ public sealed class ScanMediaToolTests
         using var files = new TestFiles();
         using var scanCancellation = new CancellationTokenSource();
         var path = files.Write("media.bin", "media");
-        var inner = new CountingMediaTool
+        var inner = new CountingMediaValidator
         {
             Audio = async (_, ct) =>
             {
@@ -162,7 +162,7 @@ public sealed class ScanMediaToolTests
                 return MediaValidationResult.Valid;
             }
         };
-        var tool = new ScanMediaTool(inner, scanCancellation.Token);
+        var tool = new ScanMediaValidator(inner, scanCancellation.Token);
         // Parsers call validation without a token; the scan must still stop the decoder.
 #pragma warning disable xUnit1051 // Exercise the parser's default-token call explicitly.
         var validation = tool.CheckAudioValidAsync(path);
@@ -171,7 +171,7 @@ public sealed class ScanMediaToolTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => validation);
 
         inner.Audio = (_, _) => Task.FromResult(MediaValidationResult.Valid);
-        Assert.True((await new ScanMediaTool(inner, TestContext.Current.CancellationToken)
+        Assert.True((await new ScanMediaValidator(inner, TestContext.Current.CancellationToken)
             .CheckAudioValidAsync(path, TestContext.Current.CancellationToken)).IsSuccess);
         Assert.Equal(2, inner.AudioCalls);
     }
@@ -186,7 +186,7 @@ public sealed class ScanMediaToolTests
         files.Write("first.ugc", ChartText(1001));
         files.Write("second.ugc", ChartText(1002));
         var failure = new IOException("synthetic decoder failure");
-        var inner = new CountingMediaTool
+        var inner = new CountingMediaValidator
         {
             Audio = (_, _) => throws
                 ? Task.FromException<MediaValidationResult>(failure)
@@ -240,7 +240,7 @@ public sealed class ScanMediaToolTests
         }
     }
 
-    private sealed class CountingMediaTool : IMediaTool
+    private sealed class CountingMediaValidator : IMediaValidator
     {
         private int _audioCalls;
         private int _imageCalls;
@@ -262,17 +262,5 @@ public sealed class ScanMediaToolTests
             Interlocked.Increment(ref _imageCalls);
             return Image(src, ct);
         }
-
-        public Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
-            CancellationToken ct = default) => throw new NotSupportedException();
-
-        public Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default) => throw new NotSupportedException();
-
-        public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths, int backgroundOffset,
-            CancellationToken ct = default) => throw new NotSupportedException();
-
-        public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default) => throw new NotSupportedException();
-
-        public Task ConvertCriAsync(CriConvertRequest request, CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

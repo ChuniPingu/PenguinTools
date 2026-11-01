@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using PenguinTools.Assets;
 using PenguinTools.Core;
@@ -52,9 +51,9 @@ public sealed class OptionExporterCacheTests
             await File.WriteAllTextAsync(chartPath, "chart", TestContext.Current.CancellationToken);
             await File.WriteAllTextAsync(jacketPath, "jacket", TestContext.Current.CancellationToken);
             var cache = new OptionConversionCache();
-            var mediaTool = new CountingMediaTool { JacketFailure = new IOException("jacket conversion failed") };
+            var images = new CountingImageService { JacketFailure = new IOException("jacket conversion failed") };
             using var assetStore = new DummyAssetStore(workPath);
-            var context = new MusicExportContext(TestAssets.Load(), mediaTool, assetStore,
+            var context = new MusicExportContext(TestAssets.Load(), TestMediaTool.Instance, images, assetStore,
                 new DummyInfrastructureAssetProvider(workPath));
             var book = CreateBook(CreateMeta(workPath, chartPath) with { JacketFilePath = jacketPath }, false);
 
@@ -65,7 +64,7 @@ public sealed class OptionExporterCacheTests
             Assert.False(result.Succeeded);
             Assert.True(result.Diagnostics.HasError);
             Assert.Contains(result.Diagnostics.Diagnostics, diagnostic =>
-                diagnostic.RelatedException == mediaTool.JacketFailure);
+                diagnostic.RelatedException == images.JacketFailure);
             Assert.Null(cache.GetEntry("jacket:music4321"));
         }
         finally
@@ -88,11 +87,12 @@ public sealed class OptionExporterCacheTests
 
         var cache = new OptionConversionCache();
         var settings = CreateSettings(true, false, cache);
-        var mediaTool = new CountingMediaTool();
+        var images = new CountingImageService();
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
-            mediaTool,
+            TestMediaTool.Instance,
+            images,
             assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
@@ -106,7 +106,7 @@ public sealed class OptionExporterCacheTests
             AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
             AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
 
-            Assert.Equal(1, mediaTool.JacketConversions);
+            Assert.Equal(1, images.JacketConversions);
         }
         finally
         {
@@ -131,11 +131,12 @@ public sealed class OptionExporterCacheTests
 
         var cache = new OptionConversionCache();
         var settings = CreateSettings(true, false, cache);
-        var mediaTool = new CountingMediaTool();
+        var images = new CountingImageService();
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
-            mediaTool,
+            TestMediaTool.Instance,
+            images,
             assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
@@ -151,7 +152,7 @@ public sealed class OptionExporterCacheTests
             await File.WriteAllTextAsync(jacketOutputPath, "edited output", ct);
             AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
 
-            Assert.Equal(2, mediaTool.JacketConversions);
+            Assert.Equal(2, images.JacketConversions);
         }
         finally
         {
@@ -177,11 +178,12 @@ public sealed class OptionExporterCacheTests
         var cache = new OptionConversionCache();
         var settings = CreateSettings(true, false, cache);
         var ignoreCacheSettings = CreateSettings(true, false, cache, ignoreCache: true);
-        var mediaTool = new CountingMediaTool();
+        var images = new CountingImageService();
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
-            mediaTool,
+            TestMediaTool.Instance,
+            images,
             assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
@@ -197,7 +199,7 @@ public sealed class OptionExporterCacheTests
 
             AssertExportSucceeded(await OptionExporter.ExportAsync(context, ignoreCacheSettings, outputPaths, [book], workPath, ct));
 
-            Assert.Equal(2, mediaTool.JacketConversions);
+            Assert.Equal(2, images.JacketConversions);
             Assert.NotNull(cache.GetEntry("jacket:music4321"));
         }
         finally
@@ -223,11 +225,12 @@ public sealed class OptionExporterCacheTests
 
         var cache = new OptionConversionCache();
         var settings = CreateSettings(false, true, cache);
-        var mediaTool = new CountingMediaTool();
+        var images = new CountingImageService();
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
-            mediaTool,
+            TestMediaTool.Instance,
+            images,
             assetStore,
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
@@ -241,7 +244,7 @@ public sealed class OptionExporterCacheTests
             AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
             AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
 
-            Assert.Equal(1, mediaTool.StageConversions);
+            Assert.Equal(1, images.StageConversions);
         }
         finally
         {
@@ -556,22 +559,11 @@ public sealed class OptionExporterCacheTests
         }
     }
 
-    private sealed class CountingMediaTool : IMediaTool
+    private sealed class CountingImageService : IImageService
     {
         public int JacketConversions { get; private set; }
         public int StageConversions { get; private set; }
         public Exception? JacketFailure { get; init; }
-
-        public Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
-            CancellationToken ct = default)
-        {
-            return Task.FromResult(Ok());
-        }
-
-        public Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
-        {
-            return Task.FromResult(MediaValidationResult.Valid);
-        }
 
         public Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default)
         {
@@ -590,36 +582,28 @@ public sealed class OptionExporterCacheTests
             await File.WriteAllTextAsync(dst, await File.ReadAllTextAsync(src, ct), ct);
         }
 
-        public async Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths,
-            int backgroundOffset,
+        public async Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
+            IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
             CancellationToken ct = default)
         {
             StageConversions++;
-            Directory.CreateDirectory(Path.GetDirectoryName(stDst)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(nfDst)!);
-            await File.WriteAllTextAsync(stDst, await File.ReadAllTextAsync(bg, ct), ct);
-            await File.WriteAllTextAsync(nfDst, "notes-field", ct);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            await File.WriteAllTextAsync(destination, await File.ReadAllTextAsync(background, ct), ct);
+            if (notesFieldDestination is not null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(notesFieldDestination)!);
+                await File.WriteAllTextAsync(notesFieldDestination, "notes-field", ct);
+            }
         }
 
-        public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
+        public Task<IReadOnlyList<string>> ExtractDdsAsync(string source, string outputDirectory, CancellationToken ct = default)
         {
-            return Task.CompletedTask;
+            return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        public Task ConvertCriAsync(
-        CriConvertRequest request,
-            CancellationToken ct = default)
+        public Task<DdsDecodeResult> DecodeDdsAsync(string source, string destination, CancellationToken ct = default)
         {
-            return Task.CompletedTask;
-        }
-
-        private static ProcessCommandResult Ok()
-        {
-            return new ProcessCommandResult(
-                new ProcessStartInfo { FileName = "null" },
-                (int)InterExitCode.Success,
-                "",
-                "");
+            return Task.FromResult(new DdsDecodeResult(source, destination));
         }
     }
 

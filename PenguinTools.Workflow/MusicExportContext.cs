@@ -6,6 +6,7 @@ namespace PenguinTools.Workflow;
 
 public sealed record MusicExportContext(
     AssetManager Assets,
-    IMediaTool MediaTool,
+    IAudioService Audio,
+    IImageService Images,
     IAssetStore AssetStore,
     IInfrastructureAssetProvider AssetProvider);

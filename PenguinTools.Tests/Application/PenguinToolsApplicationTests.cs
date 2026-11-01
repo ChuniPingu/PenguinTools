@@ -727,7 +727,7 @@ public sealed partial class PenguinToolsApplicationTests
     {
         var paths = new TestPaths(root);
         var dependencies = new PenguinToolsApplicationDependencies(paths, store,
-            TestAssets.Load(), TestMediaTool.Instance, new TestAssetProvider(root));
+            TestAssets.Load(), TestMediaTool.Instance, TestMediaTool.Instance, new TestAssetProvider(root));
         return new PenguinToolsApplication(dependencies);
     }
 

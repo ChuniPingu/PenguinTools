@@ -7,14 +7,14 @@ using Xunit;
 
 namespace PenguinTools.Tests.Infrastructure;
 
-public sealed class MediaToolTests
+public sealed class AudioServiceTests
 {
     [Fact]
     public void CalculateGainDb_UsesGameTarget_WhenItFitsPeakCeiling()
     {
         var stats = new FfmpegLoudnessStats(-6.21, 2.11, 8.3);
 
-        var gain = MediaTool.CalculateGainDb(stats);
+        var gain = AudioService.CalculateGainDb(stats);
 
         Assert.InRange(gain, -2.291, -2.289);
     }
@@ -24,7 +24,7 @@ public sealed class MediaToolTests
     {
         var stats = new FfmpegLoudnessStats(-12.0, -0.1, 4.0);
 
-        var gain = MediaTool.CalculateGainDb(stats);
+        var gain = AudioService.CalculateGainDb(stats);
 
         Assert.InRange(gain, 0.099, 0.101);
     }
@@ -43,7 +43,7 @@ public sealed class MediaToolTests
                                     }
                                     """);
 
-            var success = MediaTool.TryReadLoudnessStats(path, out var stats, out var error);
+            var success = AudioService.TryReadLoudnessStats(path, out var stats, out var error);
 
             Assert.True(success, error);
             Assert.Equal(-8.5, stats.InputIntegratedLufs);
@@ -64,7 +64,7 @@ public sealed class MediaToolTests
 
         try
         {
-            var tool = new MediaTool(workDir);
+            var tool = new AudioService(workDir);
             var result = await tool.CheckAudioValidAsync(
                 Path.Combine(workDir, "missing.wav"),
                 TestContext.Current.CancellationToken);
@@ -86,7 +86,7 @@ public sealed class MediaToolTests
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var tool = new MediaTool(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        var tool = new AudioService(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             tool.CheckAudioValidAsync("input.wav", cancellation.Token));

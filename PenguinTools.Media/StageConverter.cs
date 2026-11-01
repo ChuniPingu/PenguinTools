@@ -4,15 +4,15 @@ namespace PenguinTools.Media;
 
 public class StageConverter
 {
-    public StageConverter(StageBuildRequest request, IMediaTool mediaTool)
+    public StageConverter(StageBuildRequest request, IImageService images)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(request.Assets);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.BackgroundPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutFolder);
 
-        MediaTool = mediaTool;
+        Images = images;
         Assets = request.Assets;
         BackgroundPath = request.BackgroundPath;
         EffectPaths = request.EffectPaths;
@@ -22,7 +22,7 @@ public class StageConverter
         BackgroundOffset = request.BackgroundOffset;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IImageService Images { get; }
     private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private AssetManager Assets { get; }
     private string BackgroundPath { get; }
@@ -49,7 +49,7 @@ public class StageConverter
 
         var nfPath = Path.Combine(outputDir, xml.NotesFieldFile);
         var stPath = Path.Combine(outputDir, xml.BaseFile);
-        await MediaTool.ConvertStageAsync(BackgroundPath, stPath, nfPath, EffectPaths, BackgroundOffset, ct);
+        await Images.ConvertStageAsync(BackgroundPath, stPath, nfPath, EffectPaths, BackgroundOffset, ct: ct);
 
         return OperationResult<Entry>.Success(xml.Name).WithDiagnostics(Diagnostic);
     }
@@ -78,7 +78,7 @@ public class StageConverter
         }
         else
         {
-            var ret = await MediaTool.CheckImageValidAsync(BackgroundPath, ct);
+            var ret = await Images.CheckImageValidAsync(BackgroundPath, ct);
             if (ret.IsFailure)
             {
                 Diagnostic.Report(
@@ -114,7 +114,7 @@ public class StageConverter
                     continue;
                 }
 
-                var ret = await MediaTool.CheckImageValidAsync(p, ct);
+                var ret = await Images.CheckImageValidAsync(p, ct);
                 if (ret.IsFailure)
                 {
                     Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Invalid_bg_fx_image), p)

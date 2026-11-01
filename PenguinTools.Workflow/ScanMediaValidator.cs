@@ -4,7 +4,7 @@ using PenguinTools.Media;
 namespace PenguinTools.Workflow;
 
 /// <summary>Shares validation work between charts for the lifetime of one directory scan.</summary>
-internal sealed class ScanMediaTool(IMediaTool mediaTool, CancellationToken scanCancellationToken) : IMediaTool
+internal sealed class ScanMediaValidator(IMediaValidator mediaValidator, CancellationToken scanCancellationToken) : IMediaValidator
 {
     private readonly ConcurrentDictionary<ValidationFile, Lazy<Task<MediaValidationResult>>> _audioValidations =
         new(ValidationFileComparer.Instance);
@@ -12,10 +12,10 @@ internal sealed class ScanMediaTool(IMediaTool mediaTool, CancellationToken scan
         new(ValidationFileComparer.Instance);
 
     public Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default) =>
-        ValidateAsync(src, _audioValidations, mediaTool.CheckAudioValidAsync, ct);
+        ValidateAsync(src, _audioValidations, mediaValidator.CheckAudioValidAsync, ct);
 
     public Task<MediaValidationResult> CheckImageValidAsync(string src, CancellationToken ct = default) =>
-        ValidateAsync(src, _imageValidations, mediaTool.CheckImageValidAsync, ct);
+        ValidateAsync(src, _imageValidations, mediaValidator.CheckImageValidAsync, ct);
 
     private async Task<MediaValidationResult> ValidateAsync(
         string path,
@@ -77,25 +77,4 @@ internal sealed class ScanMediaTool(IMediaTool mediaTool, CancellationToken scan
         public int GetHashCode(ValidationFile obj) =>
             HashCode.Combine(PathComparer.GetHashCode(obj.Path), obj.Length, obj.LastWriteTimeUtc);
     }
-
-    public Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
-        CancellationToken ct = default) => mediaTool.NormalizeAudioAsync(src, dst, offset, ct);
-
-    public Task ConvertJacketAsync(string src, string dst, CancellationToken ct = default) =>
-        mediaTool.ConvertJacketAsync(src, dst, ct);
-
-    public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths, int backgroundOffset,
-        CancellationToken ct = default) => mediaTool.ConvertStageAsync(bg, stDst, nfDst, fxPaths, backgroundOffset, ct);
-
-    public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default) =>
-        mediaTool.ExtractDdsAsync(src, dst, ct);
-
-    public Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default) =>
-        mediaTool.DecodeDdsAsync(src, dst, ct);
-
-    public Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options, CancellationToken ct = default) =>
-        mediaTool.ExtractCriAudioAsync(options, ct);
-
-    public Task ConvertCriAsync(CriConvertRequest request, CancellationToken ct = default) =>
-        mediaTool.ConvertCriAsync(request, ct);
 }

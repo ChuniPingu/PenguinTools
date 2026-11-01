@@ -402,7 +402,7 @@ public partial class UgcParser
         if (!string.IsNullOrWhiteSpace(Ugc.Meta.BgmFilePath))
         {
             QueueValidation(
-                MediaTool.CheckAudioValidAsync(Ugc.Meta.FullBgmFilePath),
+                MediaValidator.CheckAudioValidAsync(Ugc.Meta.FullBgmFilePath),
                 Ugc.Meta.FullBgmFilePath,
                 MsgKeys.Error_Invalid_audio,
                 () => Ugc.Meta.BgmFilePath = string.Empty);
@@ -433,7 +433,7 @@ public partial class UgcParser
         if (!string.IsNullOrWhiteSpace(Ugc.Meta.JacketFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Ugc.Meta.FullJacketFilePath),
+                MediaValidator.CheckImageValidAsync(Ugc.Meta.FullJacketFilePath),
                 Ugc.Meta.FullJacketFilePath,
                 MsgKeys.Error_Invalid_jk_image,
                 () => Ugc.Meta.JacketFilePath = string.Empty);

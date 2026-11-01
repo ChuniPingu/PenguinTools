@@ -19,7 +19,8 @@ public sealed record PenguinToolsApplicationDependencies(
     IApplicationPaths Paths,
     IAssetStore AssetStore,
     AssetManager Assets,
-    IMediaTool MediaTool,
+    IAudioService Audio,
+    IImageService Images,
     IInfrastructureAssetProvider AssetProvider);
 
 public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
@@ -28,12 +29,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
     private readonly IDisposable? _ownedResource;
     private bool _disposed;
     private readonly ChartOperations _charts;
+    private readonly IMediaValidator _mediaValidator;
 
     public PenguinToolsApplication(PenguinToolsApplicationDependencies dependencies)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
         _dependencies = dependencies;
-        _charts = new ChartOperations(dependencies.Assets, dependencies.MediaTool);
+        _mediaValidator = new MediaValidator(dependencies.Audio, dependencies.Images);
+        _charts = new ChartOperations(dependencies.Assets, _mediaValidator);
     }
 
     private PenguinToolsApplication(PenguinToolsApplicationDependencies dependencies, IDisposable ownedResource)
@@ -269,7 +272,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var source = OptionalFullPath(request.JacketInputPath) ?? chart.Meta.FullJacketFilePath;
             EnsureParentDirectory(output);
             var converted =
-                await new JacketConverter(new MediaJacketConvertRequest(source, output), _dependencies.MediaTool)
+                await new JacketConverter(new MediaJacketConvertRequest(source, output), _dependencies.Images)
                     .ConvertAsync(cancellationToken);
             var value = new JacketConvertResult(input, source, output,
                 [new ApplicationArtifact("jacket.dds", output)]);
@@ -288,7 +291,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var output = FullPath(request.OutputPath);
             EnsureParentDirectory(output);
             var converted = await new JacketConverter(
-                    new MediaJacketConvertRequest(input, output), _dependencies.MediaTool)
+                    new MediaJacketConvertRequest(input, output), _dependencies.Images)
                 .ConvertAsync(cancellationToken);
             var value = new JacketConvertResult(input, input, output,
                 [new ApplicationArtifact("jacket.dds", output)]);
@@ -431,7 +434,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             }
 
             progress?.Report(new ProgressReport(Item: Path.GetFileName(source), Completed: 0, Total: 1));
-            var extracted = await _dependencies.MediaTool.ExtractCriAudioAsync(
+            var extracted = await _dependencies.Audio.ExtractCriAudioAsync(
                 new MediaCriExtractOptions(source, output, paired, request.HcaKey), cancellationToken);
             var cues = extracted.Cues.Select(x => new CriCueSummary(
                 x.CueId, x.Name, x.WavPath, x.Channels, x.SampleRate, x.BitsPerSample, x.SampleFrames,
@@ -454,7 +457,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputDirectory);
             progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 0, Total: 1));
-            var extracted = await new AfbExtractor(new MediaAfbExtractRequest(input, output), _dependencies.MediaTool)
+            var extracted = await new AfbExtractor(new MediaAfbExtractRequest(input, output), _dependencies.Images)
                 .ExtractAsync(cancellationToken);
             var artifacts = Directory.Exists(output)
                 ? Directory.EnumerateFiles(output, "*.dds").OrderBy(x => x, StringComparer.Ordinal)
@@ -542,9 +545,13 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 ? null
                 : Path.GetFullPath(options.UserAssetsPath.Trim());
             var assets = new AssetManager(assetsStream, userAssetsPath);
-            var mediaTool = new MediaTool(assetsDirectory, paths.TempWorkPath);
+            var audio = new AudioService(assetsDirectory);
+            var images = new ImageService(
+                Path.Combine(assetsDirectory, "texconv", "texconv.exe"),
+                Path.Combine(assetsDirectory, "image-tools", "image-tools.exe"),
+                paths.TempWorkPath);
             var dependencies = new PenguinToolsApplicationDependencies(
-                paths, assetStore, assets, mediaTool, assetProvider);
+                paths, assetStore, assets, audio, images, assetProvider);
             return new PenguinToolsApplication(dependencies, assetStore);
         }
         catch
@@ -576,7 +583,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         IProgress<ProgressReport>? progress, CancellationToken cancellationToken)
     {
         var diagnostics = new DiagnosticCollector();
-        return ChartScanner.ScanDirectoryAsync(_dependencies.Assets, _dependencies.MediaTool, input, discovery,
+        return ChartScanner.ScanDirectoryAsync(_dependencies.Assets, _mediaValidator, input, discovery,
             new OptionExportProcessContext(diagnostics, batchSize, workingDirectory, cancellationToken, progress));
     }
 
@@ -809,7 +816,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
     private MusicExportContext CreateExportContext()
     {
         return new MusicExportContext(
-            _dependencies.Assets, _dependencies.MediaTool, _dependencies.AssetStore, _dependencies.AssetProvider);
+            _dependencies.Assets, _dependencies.Audio, _dependencies.Images, _dependencies.AssetStore, _dependencies.AssetProvider);
     }
 
     private static IReadOnlyList<OptionBook> ApplyMainDifficultyOverrides(
