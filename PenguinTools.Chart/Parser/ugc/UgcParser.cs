@@ -215,10 +215,22 @@ public partial class UgcParser
                 !l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal)).ToList();
 
             Ugc.Extras.CheckEventView(Ugc);
-            var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
-            post.Run();
             Ugc.Extras.BinarySnapshotValid = Ugc.Extras.UgcContentKey == Convert.ToHexString(
                 System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', lines.Where(l => !l.Text.StartsWith("@COPYRIGHT", StringComparison.Ordinal)).Select(l => l.Text)))));
+            var exTaps = Ugc.Notes.Children.OfType<UmgrModel.ExTap>().ToArray();
+            if (Ugc.Extras.BinarySnapshotValid && exTaps.Length == Ugc.Extras.UgcExTaps.Count)
+            {
+                for (var i = 0; i < exTaps.Length; i++)
+                {
+                    var saved = Ugc.Extras.UgcExTaps[i];
+                    exTaps[i].Role = saved.Role;
+                    exTaps[i].AirActionParent = saved.Parent;
+                    exTaps[i].AirActionParentJoint = saved.ParentJoint;
+                    exTaps[i].AirActionParentIsEx = saved.ParentHasExEffect;
+                }
+            }
+            var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
+            post.Run();
             if (Ugc.Extras.BinarySnapshotValid)
             {
                 Ugc.Extras.RestoreAppearance(Ugc);

@@ -308,26 +308,7 @@ public sealed partial class ChartExtras
         return SortNotes(notes);
     }
 
-    private List<string> RestoreNoteOrder(List<string> notes, string[][] snapshot, int sourceRes)
-    {
-        var sourceOrder = new Dictionary<string, Queue<int>>();
-        int sourceIndex = 0;
-        foreach (var p in snapshot.Where(p => p[0] == "ORDER"))
-        {
-            string key = C2SRoundTrip.Normalize(string.Join("\t", p.Skip(1)), sourceRes);
-            if (!sourceOrder.TryGetValue(key, out var queue))
-            {
-                sourceOrder[key] = queue = new Queue<int>();
-            }
-
-            queue.Enqueue(sourceIndex++);
-        }
-        var ordered = notes.Select((s, i) =>
-        {
-            string key = C2SRoundTrip.Normalize(s, Resolution);
-            int order = sourceOrder.TryGetValue(key, out var q) && q.Count > 0 ? q.Dequeue() : sourceIndex + i;
-            return (s, i, order, p: P(s));
-        }).OrderBy(v => I(v.p, 1)).ThenBy(v => I(v.p, 2)).ThenBy(v => I(v.p, 3)).ThenBy(v => I(v.p, 4)).ThenBy(v => v.order).ThenBy(v => v.i).Select(v => v.s).ToList();
-        return C2sSlidePaths.PreservesPaths(notes, ordered, Resolution) ? ordered : notes;
-    }
+    private List<string> RestoreNoteOrder(List<string> notes, string[][] snapshot, int sourceRes) =>
+        C2SRoundTrip.RestoreNoteOrder(notes,
+            snapshot.Where(p => p[0] == "ORDER").Select(p => string.Join('\t', p.Skip(1))), Resolution, sourceRes);
 }

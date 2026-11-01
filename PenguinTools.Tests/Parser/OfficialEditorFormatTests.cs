@@ -15,6 +15,128 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class OfficialEditorFormatTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Ugc_ExplicitChrAndGeneratedCarrier_RetainSeparateRoles(bool longFirst)
+    {
+        var chart = Chart();
+        var hold = new U.Hold { Tick = 0, Lane = 4, Width = 4, Effect = ExEffect.DW };
+        hold.AppendChild(new U.HoldJoint { Tick = 960 });
+        var chr = new U.ExTap { Tick = 0, Lane = 4, Width = 4, Effect = ExEffect.UP, Role = U.ExTapRole.Explicit };
+        chart.Notes.AppendChild(longFirst ? hold : chr);
+        chart.Notes.AppendChild(longFirst ? chr : hold);
+        var path = TestTempPaths.Create(".ugc");
+        try
+        {
+            Assert.True((await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
+            var parsed = await Read(path);
+            var converted = new C2SChartConverter(new C2SConvertRequest(parsed)).Convert();
+            Assert.True(converted.Succeeded);
+            Assert.Equal(ExEffect.UP, Assert.Single(converted.Value!.Notes.OfType<C.ExTap>()).Effect);
+            Assert.Equal(ExEffect.DW, Assert.Single(converted.Value.Notes.OfType<C.Hold>()).Effect);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(4, 4)]
+    [InlineData(2, 8)]
+    public async Task Ugc_NativeExTapCover_AppliesToLongHead(int lane, int width)
+    {
+        var chart = Chart();
+        var hold = new U.Hold { Tick = 0, Lane = 4, Width = 4 };
+        hold.AppendChild(new U.HoldJoint { Tick = 960 });
+        chart.Notes.AppendChild(new U.ExTap { Tick = 0, Lane = lane, Width = width, Effect = ExEffect.DW, Role = U.ExTapRole.Explicit });
+        chart.Notes.AppendChild(hold);
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.True((await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded);
+            var lines = await File.ReadAllLinesAsync(path, ct);
+            await File.WriteAllLinesAsync(path, lines.Where(l => !l.StartsWith("@COPYRIGHT", StringComparison.Ordinal)), ct);
+            var parsed = await Read(path);
+            Assert.Equal(ExEffect.DW, Assert.Single(parsed.Notes.Children.OfType<U.Hold>()).Effect);
+            var converted = new C2SChartConverter(new C2SConvertRequest(parsed)).Convert();
+            Assert.True(converted.Succeeded);
+            Assert.Equal(ExEffect.DW, Assert.Single(converted.Value!.Notes.OfType<C.Hold>()).Effect);
+            Assert.Equal(lane == 4 ? 0 : 1, converted.Value.Notes.OfType<C.ExTap>().Count());
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Ugc_FractionalBarLength_PreservesAbsoluteTicksAndAirPair()
+    {
+        var chart = Chart();
+        var beat = Assert.Single(chart.Events.Children.OfType<U.BeatEvent>());
+        beat.Numerator = 1;
+        beat.Denominator = 35;
+        var slide = new U.Slide { Tick = 108, Lane = 0, Width = 2 };
+        var tail = new U.SlideJoint { Tick = 324, Lane = 7, Width = 2, Joint = Joint.D };
+        slide.AppendChild(tail);
+        var air = new U.Air();
+        tail.MakePair(air);
+        chart.Notes.AppendChild(slide);
+        chart.Notes.AppendChild(air);
+        var path = TestTempPaths.Create(".ugc");
+        try
+        {
+            Assert.True((await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
+            var parsed = await Read(path);
+            var result = Assert.Single(parsed.Notes.Children.OfType<U.Slide>());
+            Assert.Equal(108, result.Tick.Original);
+            Assert.Equal(324, result.LastChild!.Tick.Original);
+            Assert.Same(result.LastChild, Assert.Single(parsed.Notes.Children.OfType<U.Air>()).PairNote);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Ugc_TraceMetadata_IsDiscardedAfterNativeEdit()
+    {
+        var chart = Chart();
+        var crash = new U.AirCrash { Tick = 0, Lane = 0, Width = 4, Attr = AirLadderAttr.Trace };
+        crash.AppendChild(new U.AirCrashJoint { Tick = 480, Lane = 4, Width = 4, Height = 20 });
+        chart.Notes.AppendChild(crash);
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.True((await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded);
+            Assert.Equal(AirLadderAttr.Trace, Assert.Single((await Read(path)).Notes.Children.OfType<U.AirCrash>()).Attr);
+            var text = await File.ReadAllTextAsync(path, ct);
+            await File.WriteAllTextAsync(path, text.Replace("#480>", "#960>", StringComparison.Ordinal), ct);
+            Assert.Equal(AirLadderAttr.DEF, Assert.Single((await Read(path)).Notes.Children.OfType<U.AirCrash>()).Attr);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void LargeMetadata_RoundTripsWithinBoundedLimit()
+    {
+        var text = new string('a', 4_100_000);
+        Assert.Equal(text, PenguinTools.Chart.C2SRoundTrip.Decode(PenguinTools.Chart.C2SRoundTrip.Pack(text)));
+        Assert.Throws<FormatException>(() => PenguinTools.Chart.C2SRoundTrip.Decode("MGR_C2S_LZ1=/wAAAQ==;"));
+    }
+
+    [Fact]
+    public void MetadataExpansion_RejectsDataBeyondTheLimit()
+    {
+        var repeats = PenguinTools.Chart.C2SRoundTrip.MaxDecodedBytes / 258 + 1;
+        var compressed = new byte[1 + repeats * 4];
+        compressed[0] = (byte)'a';
+        for (var i = 1; i < compressed.Length; i += 4)
+        {
+            compressed[i] = 255;
+            compressed[i + 2] = 1;
+            compressed[i + 3] = 255;
+        }
+        var metadata = "MGR_C2S_LZ1=" + Convert.ToBase64String(compressed) + ";";
+        Assert.Throws<FormatException>(() => PenguinTools.Chart.C2SRoundTrip.Decode(metadata));
+    }
+
     private static U.Chart Chart()
     {
         var chart = new U.Chart();

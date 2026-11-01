@@ -102,14 +102,10 @@ public sealed class SlideNoLineConversionTests
             var toUmgr = new UgcChartConverter(new UgcConvertRequest(parsed.Value)).Convert();
             Assert.True(toUmgr.Succeeded, toUmgr.ToString());
 
-            var umgrSlide = Assert.Single(toUmgr.Value!.Notes.Children.OfType<UmgrModel.Slide>());
-            Assert.True(umgrSlide.NoLine);
-
-            var joints = umgrSlide.Children.OfType<UmgrModel.SlideJoint>().ToArray();
-            Assert.Equal(3, joints.Length);
-            Assert.False(joints[0].NoLine);
-            Assert.True(joints[1].NoLine);
-            Assert.False(joints[2].NoLine);
+            // C2S starts a separate path when the line type changes.
+            var paths = toUmgr.Value!.Notes.Children.OfType<UmgrModel.Slide>().ToArray();
+            Assert.Equal(ExpectedNoLineSegments, paths.Select(s => s.NoLine));
+            Assert.All(paths, path => Assert.Single(path.Children));
 
             var reconverted = new C2SChartConverter(
                 new C2SConvertRequest(toUmgr.Value)).Convert();

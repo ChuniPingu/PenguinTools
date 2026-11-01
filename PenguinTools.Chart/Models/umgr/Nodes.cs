@@ -256,7 +256,10 @@ public class Note : TimeNode<Note>
                 continue;
             }
 
-            InsertBefore(pair, child);
+            if (ChildNodes.IndexOf(child) < ChildNodes.IndexOf(pair))
+            {
+                InsertBefore(child, pair.NextSibling);
+            }
         }
     }
 

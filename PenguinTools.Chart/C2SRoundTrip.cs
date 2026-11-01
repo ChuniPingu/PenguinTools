@@ -11,6 +11,7 @@ namespace PenguinTools.Chart;
 // It is carried by MGXC/UGC only, never emitted as a private C2S command.
 public static partial class C2SRoundTrip
 {
+    internal const int MaxDecodedBytes = 64 * 1024 * 1024;
     [GeneratedRegex(@"(?:^|;)MGR_C2S_(V1|LZ1)=([A-Za-z0-9+/=]+);", RegexOptions.None, 1000)]
     private static partial Regex MetadataRegex();
     public const string Records = "BPM MET SLP SFL DCM STP CLK TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD";
@@ -259,10 +260,63 @@ public static partial class C2SRoundTrip
             saved.AddRange(group.Select(line => "ORDER\t" + line));
         }
     }
+
+    internal static List<string> RestoreNoteOrder(IEnumerable<string> source, IEnumerable<string> saved, int resolution, int sourceResolution)
+    {
+        var notes = source.ToList();
+        var positions = new Dictionary<string, Queue<int>>();
+        var rank = 0;
+        foreach (var line in saved)
+        {
+            var key = Normalize(line, sourceResolution);
+            if (!positions.TryGetValue(key, out var queue))
+            {
+                positions[key] = queue = new();
+            }
+            queue.Enqueue(rank++);
+        }
+        var groups = new Dictionary<string, List<(int Index, int Rank)>>();
+        for (var i = 0; i < notes.Count; i++)
+        {
+            var key = Normalize(notes[i], resolution);
+            var p = Parts(key);
+            if (p.Length < 5 || !positions.TryGetValue(key, out var queue) || !queue.TryDequeue(out var order))
+            {
+                continue;
+            }
+            var family = LongNoteFamily(p[0]);
+            if (family.Length == 0)
+            {
+                continue;
+            }
+            var groupKey = LongNoteKey(p, family);
+            if (!groups.TryGetValue(groupKey, out var group))
+            {
+                groups[groupKey] = group = [];
+            }
+            group.Add((i, order));
+        }
+        var ordered = notes.ToList();
+        foreach (var group in groups.Values)
+        {
+            var values = group.OrderBy(item => item.Rank).Select(item => notes[item.Index]).ToArray();
+            for (var i = 0; i < group.Count; i++)
+            {
+                // Partial snapshots only own their original slots. Moving an
+                // unsaved AIR past a saved AHD changes its parent assignment.
+                ordered[group[i].Index] = values[i];
+            }
+        }
+        return C2sSlidePaths.PreservesPaths(notes, ordered, resolution) ? ordered : notes;
+    }
     // Byte-oriented LZ encoding keeps lossless snapshots within MGXC string limits.
     public static string Pack(string text, bool forceCompression = false)
     {
         byte[] data = Encoding.UTF8.GetBytes(text);
+        if (data.Length > MaxDecodedBytes)
+        {
+            throw new FormatException("Chart metadata exceeds limit");
+        }
         if (!forceCompression && data.Length < 12000)
         {
             return "MGR_C2S_V1=" + Convert.ToBase64String(data) + ";";
@@ -357,6 +411,10 @@ public static partial class C2SRoundTrip
         byte[] data = Convert.FromBase64String(m.Groups[2].Value);
         if (m.Groups[1].Value == "V1")
         {
+            if (data.Length > MaxDecodedBytes)
+            {
+                throw new FormatException("Chart metadata exceeds limit");
+            }
             return Encoding.UTF8.GetString(data);
         }
 
@@ -373,7 +431,7 @@ public static partial class C2SRoundTrip
                 CopyReference(data, i, output);
                 i += 3;
             }
-            if (output.Count > 4000000)
+            if (output.Count > MaxDecodedBytes)
             {
                 throw new FormatException("Chart metadata exceeds limit");
             }

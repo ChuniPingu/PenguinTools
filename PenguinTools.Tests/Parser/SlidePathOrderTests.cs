@@ -16,6 +16,210 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class SlidePathOrderTests
 {
+    [Theory]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task EditedAirParents_AreNotOverwrittenBySnapshots(string extension)
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            SLC 0 0 0 2 48 1 2 SLD
+            SLC 0 0 0 2 48 13 2 SLD
+            SLD 0 48 1 2 48 7 2 SLD
+            SLD 0 48 13 2 48 7 2 SLD
+            AIR 0 96 7 2 SLD DEF
+            AUL 0 96 7 2 SLD DEF
+            """);
+        chart = await ThroughEditor(chart, extension);
+        var airs = chart.Notes.Children.OfType<U.Air>().OrderBy(a => a.Direction).ToArray();
+        var firstParent = airs[0].PairNote!;
+        var secondParent = airs[1].PairNote!;
+        var expected = airs.ToDictionary(a => a.Direction, a => a.PairNote!.Parent!.Children[0].Lane);
+        airs[0].MakePair(secondParent);
+        airs[1].MakePair(firstParent);
+        var result = await ThroughC2s(chart);
+        foreach (var air in result.Notes.Children.OfType<U.Air>())
+        {
+            Assert.NotEqual(expected[air.Direction], air.PairNote!.Parent!.Children[0].Lane);
+        }
+    }
+
+    [Theory]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task AirCrash_SharedPointKeepsCreatedPathOrder(string extension)
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            ALD 0 0 0 1 0 1.0 48 1 1 2.0 DEF DEF
+            ALD 0 0 14 1 0 1.0 96 7 1 3.0 DEF DEF
+            ALD 0 48 1 1 0 2.0 48 7 1 3.0 DEF DEF
+            ALD 0 96 7 1 0 3.0 96 0 1 5.0 DEF DEF
+            ALD 0 96 7 1 0 3.0 96 14 1 6.0 DEF DEF
+            """);
+        var result = await ThroughC2s(await ThroughEditor(chart, extension));
+        var paths = result.Notes.Children.OfType<U.AirCrash>().OrderBy(c => c.Lane).ToArray();
+        Assert.Equal(2, paths.Length);
+        Assert.Equal([1, 7, 0], paths[0].Children.Select(n => n.Lane));
+        Assert.Equal([7, 14], paths[1].Children.Select(n => n.Lane));
+        Assert.Equal(80, Assert.IsType<U.AirCrashJoint>(paths[0].LastChild).Height);
+        Assert.Equal(100, Assert.IsType<U.AirCrashJoint>(paths[1].LastChild).Height);
+    }
+
+    [Fact]
+    public async Task AirSlide_HeightIsRequiredForContinuation()
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            TAP 0 0 0 2
+            TAP 0 0 12 2
+            ASC 0 0 0 2 TAP 1.0 96 7 2 2.0 DEF
+            ASC 0 0 12 2 TAP 1.0 96 7 2 3.0 DEF
+            ASD 0 96 7 2 ASC 3.0 96 12 2 5.0 DEF
+            ASD 0 96 7 2 ASC 2.0 96 0 2 4.0 DEF
+            """);
+        var result = await ThroughC2s(chart);
+        var paths = result.Notes.Children.OfType<U.AirSlide>().OrderBy(s => s.Lane).ToArray();
+        Assert.Equal([0, 12], paths.Select(s => s.LastChild!.Lane));
+        Assert.Equal<decimal>([60, 80], paths.Select(s => Assert.IsType<U.AirSlideJoint>(s.LastChild).Height));
+    }
+
+    [Theory]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task SourceOrder_SelectsFirstCreatedPathBeforeLaneSorting(string extension)
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            SLC 0 0 12 2 96 7 2 SLD
+            SLC 0 0 0 2 96 7 2 SLD
+            SLD 0 96 7 2 96 0 2 SLD
+            SLD 0 96 7 2 96 12 2 SLD
+            """);
+        void Check(U.Chart result)
+        {
+            var paths = result.Notes.Children.OfType<U.Slide>().OrderBy(s => s.Lane).ToArray();
+            Assert.Equal([12, 0], paths.Select(s => s.Children[^1].Lane));
+        }
+        Check(chart);
+        Check(await ThroughC2s(await ThroughEditor(chart, extension)));
+    }
+
+    [Theory]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task AirPairSorting_PreservesRootCreationOrder(string extension)
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            SLC 0 0 0 2 96 7 2 SLD
+            SLC 0 0 0 2 48 1 2 SLD
+            SLD 0 48 1 2 48 7 2 SLD
+            SLD 0 96 7 2 96 12 2 SLD
+            AIR 0 192 12 2 SLD DEF
+            """);
+        void Check(U.Chart result)
+        {
+            var paths = result.Notes.Children.OfType<U.Slide>().ToArray();
+            Assert.Equal(2, paths.Length);
+            Assert.Contains(paths, s => s.Children.Select(n => n.Lane).SequenceEqual([7, 12]));
+            Assert.Contains(paths, s => s.Children.Select(n => n.Lane).SequenceEqual([1, 7]));
+            Assert.Equal(12, Assert.Single(result.Notes.Children.OfType<U.Air>()).PairNote!.Lane);
+        }
+        Check(chart);
+        Check(await ThroughC2s(await ThroughEditor(chart, extension)));
+    }
+
+    [Fact]
+    public async Task DifferentLineTypes_NeverContinueTheSamePath()
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            SLC 0 0 0 2 96 7 2 SLD
+            SLD 0 96 7 2 96 12 2 NCL
+            """);
+        Assert.Equal(2, chart.Notes.Children.OfType<U.Slide>().Count());
+        Assert.Equal(2, (await ThroughC2s(chart)).Notes.Children.OfType<U.Slide>().Count());
+    }
+
+    [Theory]
+    [InlineData(".mgxc", false)]
+    [InlineData(".ugc", false)]
+    [InlineData(".mgxc", true)]
+    [InlineData(".ugc", true)]
+    public async Task AirAndHold_UseParentRootOrderAfterSnapshotRestoration(string extension, bool clearMetadata)
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            SLC 0 0 0 2 96 7 2 SLD
+            SLD 0 0 6 2 96 7 2 SLD
+            SLC 0 0 12 2 48 13 2 SLD
+            SLD 0 48 13 2 48 7 2 SLD
+            AIR 0 96 7 2 SLD DEF
+            AHD 0 96 7 2 SLD 96 DEF
+            AHD 0 96 7 2 SLD 192 DEF
+            SLA 0 96 0 16 96 1
+            """);
+        chart = await ThroughEditor(chart, extension);
+        if (clearMetadata)
+        {
+            chart.Extras = new() { FixedZeroOrigin = true };
+            chart.Meta.C2sAirSnapshot = null;
+            chart.Meta.C2sAirEditKey = null;
+        }
+        var result = await ThroughC2s(chart);
+        Assert.Equal(0, Assert.Single(result.Notes.Children.OfType<U.Air>()).PairNote!.Parent!.Lane);
+        Assert.Equal([6, 12], result.Notes.Children.OfType<U.AirHold>()
+            .OrderBy(n => n.GetLastTick()).Select(n => n.PairNote!.Parent!.Lane));
+    }
+
+    [Theory]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task AirSlideContinuation_UsesRootOrderAndParentJointType(string extension)
+    {
+        var chart = await ReadC2s("""
+            VERSION 1.15.00 1.15.00
+            RESOLUTION 384
+            BPM_DEF 120 120 120 120
+            MET_DEF 4 4
+            TAP 0 0 0 2
+            TAP 0 0 12 2
+            ASC 0 0 0 2 TAP 1.0 96 7 2 2.0 DEF
+            ASC 0 0 12 2 TAP 1.0 48 13 2 2.0 DEF
+            ASC 0 48 13 2 ASC 2.0 48 7 2 2.0 DEF
+            ASD 0 96 7 2 ASC 2.0 96 0 2 3.0 DEF
+            ASD 0 96 7 2 ASC 2.0 96 12 2 3.0 DEF
+            """);
+        chart.Extras = new() { FixedZeroOrigin = true };
+        var result = await ThroughC2s(await ThroughEditor(chart, extension));
+        var paths = result.Notes.Children.OfType<U.AirSlide>().OrderBy(s => s.Lane).ToArray();
+        Assert.Equal(2, paths.Length);
+        Assert.Equal([7, 0], paths[0].Children.Select(n => n.Lane));
+        Assert.Equal([13, 7, 12], paths[1].Children.Select(n => n.Lane));
+    }
+
     // Four paths meet at the same point. The invisible continuations occur
     // first in the file, although the visible paths started earlier.
     private const string Crossing = """

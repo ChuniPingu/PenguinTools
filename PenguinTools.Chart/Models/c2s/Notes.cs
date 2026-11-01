@@ -83,6 +83,7 @@ public class AirHold : LongNote, IPairable
 
 public class AirCrash : LongHeightNote
 {
+    internal AirCrash? PathRoot { get; set; }
     public Time Density { get; set; }
     public Color Color { get; set; } = Color.DEF;
     public AirLadderAttr Attr { get; set; } = AirLadderAttr.DEF;

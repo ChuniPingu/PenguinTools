@@ -32,6 +32,7 @@ Builds prepare pinned native tools automatically; a verified tool cache works of
 
 ## Documentation
 
+- [Fan charting workflow](docs/charting-workflow.md)
 - [Development and releases](docs/development.md)
 - [Project architecture](docs/architecture.md)
 - [Testing and local fixtures](docs/testing.md)

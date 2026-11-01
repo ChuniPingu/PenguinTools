@@ -32,6 +32,8 @@ Editor output uses MGXC v4 or UGC v9. `music extract` defaults to MGXC; use `--c
 
 MGXC retains Bezier handles; UGC and C2S share a curve expander. Writers operate on a copy. Unsupported geometry, AIR colors, and meter changes are approximated with `diag.warn.editor_approximation`; original values are retained in checksum-validated metadata. SLIDE line visibility follows the start without a warning.
 
+Saved C2S record order is restored only when it preserves paths and AIR relationships. Compressed round-trip metadata has a 64 MiB decoded-size limit.
+
 For an Original MGXC/UGC chart with `sofs`/`SOFFSET` enabled, audio export inserts one measure of silence. Its length uses the initial time signature, independently of the manual audio offset.
 
 C2S conversion shifts notes, long-note endpoints, speed intervals, and later tempo/meter events by that measure; the initial tempo and meter stay at tick zero. Speed intervals starting at zero remain active during the silence and extend to the shifted endpoint.

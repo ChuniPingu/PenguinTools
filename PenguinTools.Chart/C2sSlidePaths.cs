@@ -14,61 +14,38 @@ internal static class C2sSlidePaths
 
     internal static IEnumerable<T[]> Build<T>(IEnumerable<T> source, Func<T, Segment> describe)
     {
-        var entries = source.Select(item => (Item: item, Point: describe(item)))
-            .OrderBy(e => e.Point.Tick).ThenBy(e => e.Point.Lane).ThenBy(e => e.Point.Width).ToArray();
-        var byStart = Enumerable.Range(0, entries.Length)
-            .GroupBy(i => (entries[i].Point.Tick, entries[i].Point.Lane, entries[i].Point.Width))
-            .ToDictionary(g => g.Key, g => g.ToArray());
-        var used = new bool[entries.Length];
-        for (var root = 0; root < entries.Length; root++)
+        var paths = new List<List<T>>();
+        var tails = new Dictionary<(decimal Tick, int Lane, int Width, bool NoLine), PriorityQueue<int, int>>();
+        foreach (var item in source)
         {
-            if (used[root])
+            var point = describe(item);
+            var start = (point.Tick, point.Lane, point.Width, point.NoLine);
+            if (!tails.TryGetValue(start, out var candidates) || !candidates.TryDequeue(out var root, out _))
             {
-                continue;
+                root = paths.Count;
+                paths.Add([]);
             }
-
-            var path = new List<T>();
-            var current = root;
-            while (current >= 0)
+            paths[root].Add(item);
+            var end = (point.EndTick, point.EndLane, point.EndWidth, point.NoLine);
+            if (!tails.TryGetValue(end, out var queue))
             {
-                used[current] = true;
-                var (item, point) = entries[current];
-                path.Add(item);
-                current = -1;
-                if (!byStart.TryGetValue((point.EndTick, point.EndLane, point.EndWidth), out var candidates))
-                {
-                    break;
-                }
-
-                // Keep source order among equally styled paths. A geometry-only
-                // fallback retains legacy charts that change line style mid-path.
-                foreach (var candidate in candidates)
-                {
-                    if (used[candidate])
-                    {
-                        continue;
-                    }
-                    if (current < 0)
-                    {
-                        current = candidate;
-                    }
-                    if (entries[candidate].Point.NoLine == point.NoLine)
-                    {
-                        current = candidate;
-                        break;
-                    }
-                }
+                tails[end] = queue = new();
             }
-            yield return path.ToArray();
+            // Records advance the first matching path in creation order, even
+            // when another path arrived at this endpoint earlier.
+            queue.Enqueue(root, root);
         }
+        return paths.Select(path => path.ToArray());
     }
 
     internal static bool PreservesPaths(IEnumerable<string> before, IEnumerable<string> after, int resolution)
     {
+        var beforeRecords = before.ToArray();
+        var afterRecords = after.ToArray();
         static bool IsSlide(string line) => C2SRoundTrip.Parts(line).FirstOrDefault() is "SLC" or "SLD" or "SXC" or "SXD";
-        var original = before.Where(IsSlide).Select(s => C2SRoundTrip.Normalize(s, resolution)).ToArray();
-        var reordered = after.Where(IsSlide).Select(s => C2SRoundTrip.Normalize(s, resolution)).ToArray();
-        if (original.SequenceEqual(reordered))
+        var original = beforeRecords.Where(IsSlide).Select(s => C2SRoundTrip.Normalize(s, resolution)).ToArray();
+        var reordered = afterRecords.Where(IsSlide).Select(s => C2SRoundTrip.Normalize(s, resolution)).ToArray();
+        if (beforeRecords.SequenceEqual(afterRecords))
         {
             return true;
         }
@@ -84,6 +61,7 @@ internal static class C2sSlidePaths
         static IEnumerable<string> Keys(string[] records) => Build(records, Describe)
             .Select(path => string.Join('\n', path)).Order(StringComparer.Ordinal);
 
-        return Keys(original).SequenceEqual(Keys(reordered));
+        return Keys(original).SequenceEqual(Keys(reordered)) &&
+            C2sNoteRelations.Keys(beforeRecords, resolution).SequenceEqual(C2sNoteRelations.Keys(afterRecords, resolution));
     }
 }

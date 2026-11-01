@@ -105,6 +105,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.AddRange(_chart.Extras.EditorHeaders);
             _written.Clear();
             _effectCarriers.Clear();
+            _chart.Extras.UgcExTaps.Clear();
             foreach (var carrier in _chart.Notes.Children.OfType<U.ExTap>().Where(x => x.Role != U.ExTapRole.Explicit))
             {
                 _effectCarriers.Add((carrier.Tick.Original, carrier.Lane, carrier.Width));
@@ -277,8 +278,13 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         if (n is U.ExTapableNote ex && ex.Effect is { } effect && _effectCarriers.Add((n.Tick.Original, n.Lane, n.Width)))
         {
             Head(n, $"x{xy}{Effect(effect)}");
+            _chart.Extras.UgcExTaps.Add(new(U.ExTapRole.SharedLongCarrier, U.AirActionCarrierParent.None, Joint.D, false));
         }
 
+        if (n is U.ExTap exTap)
+        {
+            _chart.Extras.UgcExTaps.Add(new(exTap.Role, exTap.AirActionParent, exTap.AirActionParentJoint, exTap.AirActionParentIsEx));
+        }
         var payload = NotePayload(n, xy);
         Head(n, payload);
         WriteChildren(n);

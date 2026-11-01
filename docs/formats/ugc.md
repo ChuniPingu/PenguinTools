@@ -119,6 +119,8 @@ AIR-CRUSH axis `a` is `N` (X), `Y`, or `Z`. `{interval}` is a decimal placement 
 
 EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Right, `R` Left, and `I` In/Out.
 
+An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag. PenguinTools retains original C2S roles and Trace attributes in checksum-validated metadata; native edits invalidate that restoration.
+
 FLICK autoplay direction is `A` Auto, `L` Right, or `R` Left.
 
 AIR directions are `UC` Up, `UL` Up-left, `UR` Up-right, `DC` Down, `DL` Down-left, and `DR` Down-right. AIR, AIR-HOLD, and AIR-SLIDE colors are `N` Normal or `I` Inverted.
