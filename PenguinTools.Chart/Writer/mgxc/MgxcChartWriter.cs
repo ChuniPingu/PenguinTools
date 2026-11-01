@@ -541,6 +541,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         UmgrModel.AirHold airHold)
     {
         _chart.Extras.AirAppearances.Add(new AirAppearance(ChartExtras.AirKey(airHold), airHold.Color, airHold.Direction));
+        WriteAirBase(bw, airHold.Direction, airHold.Color, airHold);
         WriteNote(bw, new NoteFormat(NoteType.AirHold, LongAttr.Begin, Direction.Up, AirEx(airHold.Color), 0),
             new NotePosition(airHold.Lane, airHold.Width, DefaultHeight, airHold.Tick.Original, airHold.Timeline));
 
@@ -563,6 +564,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         UmgrModel.AirSlide airSlide)
     {
         _chart.Extras.AirAppearances.Add(new AirAppearance(ChartExtras.AirKey(airSlide), airSlide.Color, airSlide.Direction));
+        WriteAirBase(bw, airSlide.Direction, airSlide.Color, airSlide);
         WriteNote(bw, new NoteFormat(NoteType.AirSlide, LongAttr.Begin, Direction.Up, AirEx(airSlide.Color), 0),
             new NotePosition(airSlide.Lane, airSlide.Width, Height(airSlide.Height), airSlide.Tick.Original, airSlide.Timeline));
 

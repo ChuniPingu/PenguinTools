@@ -116,7 +116,7 @@ public sealed class C2sAirConversionTests
     }
 
     [Fact]
-    public async Task MgxcWriter_EmitsOfficialAirHoldWithoutSeparateAir()
+    public async Task MgxcWriter_EmitsOfficialAirHoldWithSeparateAir()
     {
         var source = new C2sChart();
         source.Meta.MainBpm = 120m;
@@ -191,7 +191,7 @@ public sealed class C2sAirConversionTests
 
                         if (type == 0x08 && longAttr == 0x01)
                         {
-                            Assert.NotEqual((sbyte)0x07, previousType);
+                            Assert.Equal((sbyte)0x07, previousType);
                             sawNativeHold = true;
                         }
 
