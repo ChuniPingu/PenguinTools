@@ -15,6 +15,50 @@ namespace PenguinTools.Tests.Parser;
 public sealed class C2sDcmConversionTests
 {
     [Theory]
+    [InlineData(120, false, 1920)]
+    [InlineData(960, true, 1920)]
+    [InlineData(960, false, 1923)]
+    public async Task PersistentNoteSpeedCoversTheFinalQuantizedNote(int bpm, bool hold, int lastTick)
+    {
+        var chart = new U.Chart();
+        chart.Meta.BgmEnableBarOffset = false;
+        chart.Meta.BgmFixedZeroOrigin = true;
+        chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = bpm });
+        chart.Events.AppendChild(new U.NoteSpeedEvent { Tick = 0, Speed = 2 });
+        if (hold)
+        {
+            var note = new U.Hold { Tick = 0, Lane = 0, Width = 4 };
+            note.AppendChild(new U.HoldJoint { Tick = lastTick });
+            chart.Notes.AppendChild(note);
+        }
+        else
+        {
+            chart.Notes.AppendChild(new U.Tap { Tick = lastTick, Lane = 0, Width = 4 });
+        }
+
+        var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var written = await new C2SChartWriter(new C2SWriteRequest(path, converted.Value!)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var dcm = Assert.Single(parsed.Value!.Events.OfType<C.Dcm>());
+            var noteEnd = parsed.Value.Notes.Max(n => n is C.LongNote span ? span.EndTick.Original : n.Tick.Original);
+            var paddingMilliseconds = (dcm.Tick.Original + dcm.Length.Original - noteEnd) * 60000m / (bpm * 480m);
+            Assert.Equal(2m, dcm.Speed);
+            Assert.True(paddingMilliseconds > 1m, $"Final DCM padding was {paddingMilliseconds} ms.");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
     [InlineData("DCM 0 0 96 2\nDCM 0 48 96 3", "0:2;480:3;720:1")]
     [InlineData("DCM 0 48 96 3\nDCM 0 0 96 2", "0:2;480:3;720:1")]
     [InlineData("DCM 0 0 96 2\nDCM 0 0 192 3", "0:2;480:3;960:1")]

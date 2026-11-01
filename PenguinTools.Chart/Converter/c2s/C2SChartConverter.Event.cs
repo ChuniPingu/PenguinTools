@@ -69,10 +69,21 @@ public partial class C2SChartConverter
         var e = new C2sModel.Dcm
         {
             Tick = lastEvent.Tick,
-            Length = Math.Max(lastTick.Original - lastEvent.Tick.Original, ChartResolution.SingleTick),
+            Length = checked(DcmEndTick(lastTick, lastEvent.Tick) - lastEvent.Tick.Original),
             Speed = lastEvent.Speed
         };
         Events.Add(e);
+    }
+
+    private int DcmEndTick(Time lastTick, Time lastEventTick)
+    {
+        // DCM is sampled one millisecond after a note's time, with an exclusive
+        // end. Keep the final persistent speed active at the last rounded note.
+        // Use the fastest BPM so a change within the padding cannot shorten it.
+        var bpm = Events.OfType<C2sModel.Bpm>().Select(e => e.Value)
+            .Append(Mgxc.Meta.BgmInitialBpm).Append(150m).Max();
+        var padding = checked((int)decimal.Ceiling(bpm * 96m / 60000m) + 1);
+        return checked(Math.Max(lastTick.Round, lastEventTick.Round) + padding * ChartResolution.SingleTick);
     }
 
     private void ConvertSlp(UmgrModel.Chart mgxc, List<UmgrModel.ScrollSpeedEvent> tilEvents)

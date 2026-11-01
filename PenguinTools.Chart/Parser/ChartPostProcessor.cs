@@ -301,6 +301,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
 
         SwapGroup(mainTil, 0);
+        chart.Meta.MainTil = 0;
     }
 
     private void ClearEmptyGroups()

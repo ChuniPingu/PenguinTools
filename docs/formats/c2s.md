@@ -124,12 +124,14 @@ When all segments have positive duration at C2S precision and each ground path h
 - **Color** — see [Colors](#colors).
 - **Attr** — ladder mode (`1.15.00+`):
 
-| Attr    | Id  | Notes                 |
-| ------- | --- | --------------------- |
-| `DEF`   | 0   | Default               |
-| `AxisY` | 1   | Orient along Y        |
-| `AxisZ` | 2   | Orient along Z        |
-| `Trace` | 3   | Trace / trail variant |
+| Attr    | Id  | Notes                   |
+| ------- | --- | ----------------------- |
+| `DEF`   | 0   | X-axis ribbon (default) |
+| `AxisY` | 1   | Y-axis ribbon           |
+| `AxisZ` | 2   | Z-axis ribbon           |
+| `Trace` | 3   | Thin tube               |
+
+`Attr` controls line appearance; `Density = 0` independently disables judgements.
 
 ## ASO (Air Solid)
 

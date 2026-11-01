@@ -111,15 +111,15 @@ Height `hh` is a two-digit base-36 value. The upstream specification encodes the
 | AIR-SLIDE | `#OffsetTick>txwhh`, `t = c`        | Control point or endpoint without AIR-ACTION             |
 | AIR-CRUSH | `#OffsetTick>txwhh`, `t = c`        | Endpoint                                                 |
 
-AIR-CRUSH axis `a` is `N` (X), `Y`, or `Z`. `{interval}` is a decimal placement interval. `0` means AIR-TRACE; `$` creates notes that generate combo only at the starting point.
+AIR-CRUSH axis `a` is `N` (default X), `Y`, or `Z`. `{interval}` is a decimal placement interval. `0` creates a decorative AIR-TRACE without judgements, retaining the selected axis; `$` creates a judgement only at the starting point.
 
 ## Effects, directions, and colors
 
-EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Right, `R` Left, and `I` In/Out.
+EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Left, `R` Right, and `I` In/Out.
 
 An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag.
 
-FLICK autoplay direction is `A` Auto, `L` Right, or `R` Left.
+FLICK autoplay direction is `A` Auto, `L` Left, or `R` Right.
 
 AIR directions are `UC` Up, `UL` Up-left, `UR` Up-right, `DC` Down, `DL` Down-left, and `DR` Down-right. AIR, AIR-HOLD, and AIR-SLIDE colors are `N` Normal or `I` Inverted.
 

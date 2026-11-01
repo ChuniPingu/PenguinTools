@@ -13,6 +13,8 @@ Editor output uses MGXC v4 or UGC v9. MGXC versions above 4 and UGC versions abo
 
 The format references describe the source specifications. Implementation coverage is determined by the parsers, writers, and their tests.
 
+Use binary MGXC only. Do not use text MGXC: PenguinTools does not support it, and Margrete has deprecated it.
+
 ## Input compatibility
 
 MGXC and UGC inputs use the official semantics of their declared versions, including older official versions.
@@ -39,9 +41,11 @@ MGXC retains Bezier handles; UGC and C2S expand curves. Unsupported geometry, AI
 
 Saved C2S record order is restored only when it preserves paths and AIR relationships. C2S judgement totals are recalculated from the final emitted records, including accepted AIR attachments, `PROGJUDGE_AER`, and tutorial stop exclusions. Compressed round-trip metadata has a 64 MiB decoded-size limit.
 
+AIR-CRUSH axes `N/Y/Z` map to C2S `DEF/AxisY/AxisZ`. The separate C2S `Trace` style uses default X-axis lines in MGXC/UGC, with the original attribute restored from validated metadata. Colors follow palette appearance, including `PNK → Y` and `VLT → B`.
+
 MGXC stores EXTAP roles in validated metadata without repurposing native height fields. Note edits invalidate roles in the same timing group; title and artist edits preserve them.
 
-In UGC output, PenguinTools retains original C2S roles and Trace attributes in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them.
+In UGC output, PenguinTools retains original C2S roles in validated metadata. Title and author edits preserve restoration; note edits invalidate the affected group, including AIR attachments and EX coverage. Timing changes invalidate all note snapshots. Meters and SLA regions have separate checks, so unrelated note edits can preserve them.
 
 Two examples illustrate which information survives edits:
 
