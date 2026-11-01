@@ -95,6 +95,7 @@ public class HoldJoint : PositiveNote
         get => (Parent as Hold)?.Lane ?? 0;
         set
         {
+            // The parent hold supplies the lane; direct assignments are ignored.
         }
     }
 
@@ -103,6 +104,7 @@ public class HoldJoint : PositiveNote
         get => (Parent as Hold)?.Width ?? 1;
         set
         {
+            // The parent hold supplies the width; direct assignments are ignored.
         }
     }
 }
@@ -118,6 +120,7 @@ public class Air : NegativeNote
         get => PairNote?.Lane ?? 0;
         set
         {
+            // The paired note supplies the lane; direct assignments are ignored.
         }
     }
 
@@ -126,6 +129,7 @@ public class Air : NegativeNote
         get => PairNote?.Width ?? 1;
         set
         {
+            // The paired note supplies the width; direct assignments are ignored.
         }
     }
 
@@ -134,6 +138,7 @@ public class Air : NegativeNote
         get => PairNote?.Tick ?? 0;
         set
         {
+            // The paired note supplies the tick; direct assignments are ignored.
         }
     }
 }
@@ -148,6 +153,7 @@ public class SoflanAreaJoint : Note
         get => (Parent as SoflanArea)?.Lane ?? 0;
         set
         {
+            // The parent soflan area supplies the lane; direct assignments are ignored.
         }
     }
 
@@ -156,6 +162,7 @@ public class SoflanAreaJoint : Note
         get => (Parent as SoflanArea)?.Width ?? 1;
         set
         {
+            // The parent soflan area supplies the width; direct assignments are ignored.
         }
     }
 }
@@ -172,6 +179,7 @@ public class AirSlide : NegativeNote
         get => PairNote?.Lane ?? 0;
         set
         {
+            // The paired note supplies the lane; direct assignments are ignored.
         }
     }
 
@@ -180,6 +188,7 @@ public class AirSlide : NegativeNote
         get => PairNote?.Width ?? 1;
         set
         {
+            // The paired note supplies the width; direct assignments are ignored.
         }
     }
 
@@ -188,6 +197,7 @@ public class AirSlide : NegativeNote
         get => PairNote?.Tick ?? 0;
         set
         {
+            // The paired note supplies the tick; direct assignments are ignored.
         }
     }
 
@@ -225,6 +235,7 @@ public class AirHold : NegativeNote
         get => PairNote?.Lane ?? 0;
         set
         {
+            // The paired note supplies the lane; direct assignments are ignored.
         }
     }
 
@@ -233,6 +244,7 @@ public class AirHold : NegativeNote
         get => PairNote?.Width ?? 1;
         set
         {
+            // The paired note supplies the width; direct assignments are ignored.
         }
     }
 
@@ -241,6 +253,7 @@ public class AirHold : NegativeNote
         get => PairNote?.Tick ?? 0;
         set
         {
+            // The paired note supplies the tick; direct assignments are ignored.
         }
     }
 
@@ -267,6 +280,7 @@ public class AirHoldJoint : Note
         get => (Parent as AirHold)?.Lane ?? 0;
         set
         {
+            // The parent air hold supplies the lane; direct assignments are ignored.
         }
     }
 
@@ -275,6 +289,7 @@ public class AirHoldJoint : Note
         get => (Parent as AirHold)?.Width ?? 1;
         set
         {
+            // The parent air hold supplies the width; direct assignments are ignored.
         }
     }
 }

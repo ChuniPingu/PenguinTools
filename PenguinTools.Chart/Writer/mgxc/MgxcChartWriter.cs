@@ -17,6 +17,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private const int Version = 4;
     private const int DefaultHeight = MgxcExTapMarkers.DefaultHeight;
     private const sbyte NoLineVariation = 35;
+    private const string DefaultBookmarkColor = "FFFFFF";
 
     private UmgrModel.Chart _chart = null!;
     private bool _timingBookmarksRequired;
@@ -157,20 +158,36 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
 
     private void WriteEvents(BinaryWriter bw, bool includeExtras = true)
     {
+        WriteBookmarks(bw, includeExtras);
+        WriteTimingEvents(bw);
+        foreach (var marker in _chart.Events.Children.OfType<UmgrModel.BreakingMarker>())
+        {
+            bw.Write("mbkm"u8);
+            WriteIntFieldValue(bw, marker.Tick.Original);
+            bw.Write(0);
+        }
+        foreach (var image in _chart.Extras.EditorImageEvents)
+        {
+            bw.Write(image);
+        }
+    }
+
+    private void WriteBookmarks(BinaryWriter bw, bool includeExtras)
+    {
         if (includeExtras)
         {
             if (_timingBookmarksRequired)
             {
                 if (_chart.Extras.FixedZeroOrigin)
                 {
-                    WriteBookmark(bw, 0, ChartExtras.FixedZeroOriginMarker, "FFFFFF");
+                    WriteBookmark(bw, 0, ChartExtras.FixedZeroOriginMarker, DefaultBookmarkColor);
                 }
                 if (_chart.Extras.PrerollBar1Applied)
                 {
-                    WriteBookmark(bw, 0, ChartExtras.PrerollBar1Marker, "FFFFFF");
+                    WriteBookmark(bw, 0, ChartExtras.PrerollBar1Marker, DefaultBookmarkColor);
                 }
             }
-            WriteBookmark(bw, 0, _chart.Extras.ToBookmark(), "FFFFFF");
+            WriteBookmark(bw, 0, _chart.Extras.ToBookmark(), DefaultBookmarkColor);
         }
 
         foreach (var bookmark in _chart.Events.Children.OfType<UmgrModel.BookmarkEvent>()
@@ -181,10 +198,13 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                 bw,
                 bookmark.Tick.Original,
                 bookmark.Tag,
-                string.IsNullOrWhiteSpace(bookmark.Rgb) ? "FFFFFF" : bookmark.Rgb,
+                string.IsNullOrWhiteSpace(bookmark.Rgb) ? DefaultBookmarkColor : bookmark.Rgb,
                 bookmark.Id);
         }
+    }
 
+    private void WriteTimingEvents(BinaryWriter bw)
+    {
         var beats = _chart.Events.Children.OfType<UmgrModel.BeatEvent>()
             .Where(x => x.Numerator >= 0 && x.Denominator > 0)
             .OrderBy(x => x.Bar).ToArray();
@@ -227,16 +247,6 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             WriteIntFieldValue(bw, til.Tick.Original);
             WriteDoubleFieldValue(bw, (double)til.Speed);
             bw.Write(0);
-        }
-        foreach (var marker in _chart.Events.Children.OfType<UmgrModel.BreakingMarker>())
-        {
-            bw.Write("mbkm"u8);
-            WriteIntFieldValue(bw, marker.Tick.Original);
-            bw.Write(0);
-        }
-        foreach (var image in _chart.Extras.EditorImageEvents)
-        {
-            bw.Write(image);
         }
     }
 

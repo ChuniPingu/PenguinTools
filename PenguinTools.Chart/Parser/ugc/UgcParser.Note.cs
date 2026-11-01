@@ -53,7 +53,13 @@ public partial class UgcParser
             return;
         }
 
-        var rhs = rest[(parentIdx + 1)..].ToString();
+        var (payloadStr, suffixStr) = SplitParentPayload(rest[(parentIdx + 1)..].ToString());
+        var absTick = BarTickToAbsTick(bar, tick);
+        HandleParentPayload(absTick, payloadStr, suffixStr);
+    }
+
+    private (string Payload, string Suffix) SplitParentPayload(string rhs)
+    {
         var commaIdx = rhs.IndexOf(',');
         var payloadStr = commaIdx >= 0 ? rhs[..commaIdx] : rhs;
         var suffixStr = commaIdx >= 0 ? rhs[(commaIdx + 1)..] : string.Empty;
@@ -72,8 +78,7 @@ public partial class UgcParser
             }
         }
 
-        var absTick = BarTickToAbsTick(bar, tick);
-        HandleParentPayload(absTick, payloadStr, suffixStr);
+        return (payloadStr, suffixStr);
     }
 
     private void HandleParentPayload(int absTick, string payload, string suffix)
@@ -126,17 +131,7 @@ public partial class UgcParser
             return;
         }
 
-        var note = typeChar switch
-        {
-            't' => new UmgrModel.Tap(),
-            'x' => MakeExTap(extras),
-            'f' => new UmgrModel.Flick
-            {
-                AutoplayDirection = extras.Length > 0 && extras[0] is 'L' or 'R' ? extras[0] : 'A'
-            },
-            'd' => new UmgrModel.Damage(),
-            _ => HandleLongNoteParent(typeChar)
-        };
+        var note = CreateGroundParent(typeChar, extras);
 
         if (note is null)
         {
@@ -335,10 +330,17 @@ public partial class UgcParser
         return exNote;
     }
 
-    private static UmgrModel.Note? HandleLongNoteParent(char typeChar)
+    private static UmgrModel.Note? CreateGroundParent(char typeChar, string extras)
     {
         return typeChar switch
         {
+            't' => new UmgrModel.Tap(),
+            'x' => MakeExTap(extras),
+            'f' => new UmgrModel.Flick
+            {
+                AutoplayDirection = extras.Length > 0 && extras[0] is 'L' or 'R' ? extras[0] : 'A'
+            },
+            'd' => new UmgrModel.Damage(),
             'h' => new UmgrModel.Hold(),
             's' => new UmgrModel.Slide(),
             _ => null

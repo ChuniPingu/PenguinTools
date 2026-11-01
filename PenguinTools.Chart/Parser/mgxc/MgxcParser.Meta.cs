@@ -85,9 +85,7 @@ public partial class MgxcParser
                 Mgxc.Extras.ClickEnabled = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
                 break;
             case "lcpy":
-                _copyright = (string)data;
-                Mgxc.Meta.Copyright = ChartExtras.CopyrightText(_copyright);
-                Mgxc.Extras.ReadCopyright(_copyright);
+                ApplyCopyright((string)data);
                 break;
             case "ptmd":
                 _privateMetadata += (string)data;
@@ -141,10 +139,16 @@ public partial class MgxcParser
             case "\0\0\0\0":
                 break;
             default:
-                MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, data);
-                ReportAtPosition(Severity.Information, msg, br.BaseStream.Position);
+                ReportAtPosition(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_meta, name, data), br.BaseStream.Position);
                 break;
         }
+    }
+
+    private void ApplyCopyright(string copyright)
+    {
+        _copyright = copyright;
+        Mgxc.Meta.Copyright = ChartExtras.CopyrightText(copyright);
+        Mgxc.Extras.ReadCopyright(copyright);
     }
 
     private void ApplyGenre(string genre)

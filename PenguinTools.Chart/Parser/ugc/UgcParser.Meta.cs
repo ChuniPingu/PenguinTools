@@ -79,8 +79,7 @@ public partial class UgcParser
                 HandleBgImg(args);
                 break;
             case "BGMODE":
-                Ugc.Extras.EditorBackgroundMode = Str(args);
-                Ugc.Meta.BackgroundSync = args.Length < 2 || !ParseBool(args[1]);
+                HandleBackgroundMode(args);
                 break;
             case "FLDCOL":
                 HandleFldCol(args);
@@ -105,14 +104,7 @@ public partial class UgcParser
                 break;
 
             case "ATINFO":
-                if (args.Length > 1 && args[0].Equals("AUTHORS", StringComparison.OrdinalIgnoreCase))
-                {
-                    Ugc.Meta.Authors = string.Join('\t', args.Skip(1));
-                }
-                else if (args.Length > 1 && args[0].Equals("SITES", StringComparison.OrdinalIgnoreCase))
-                {
-                    Ugc.Meta.AuthorSites = string.Join('\t', args.Skip(1));
-                }
+                HandleAuthorInfo(args);
                 break;
             case "DLURL":
                 Ugc.Meta.DownloadUrl = Str(args);
@@ -124,8 +116,7 @@ public partial class UgcParser
             case "C2S_BASECOUNT":
                 break;
             case "LICENSE":
-                Ugc.Meta.License = Str(args);
-                Ugc.Meta.LicenseUrl = args.Length > 1 ? args[1] : string.Empty;
+                HandleLicense(args);
                 break;
 
             case "BPM":
@@ -159,13 +150,42 @@ public partial class UgcParser
                 break;
 
             default:
-                if (!name.StartsWith("T_JUDGE_", StringComparison.Ordinal))
-                {
-                    Ugc.Extras.EditorHeaders.Add(line);
-                }
-                HandleUnknownHeader(name, args);
+                PreserveUnknownHeader(name, args, line);
                 break;
         }
+    }
+
+    private void HandleBackgroundMode(string[] args)
+    {
+        Ugc.Extras.EditorBackgroundMode = Str(args);
+        Ugc.Meta.BackgroundSync = args.Length < 2 || !ParseBool(args[1]);
+    }
+
+    private void HandleAuthorInfo(string[] args)
+    {
+        if (args.Length > 1 && args[0].Equals("AUTHORS", StringComparison.OrdinalIgnoreCase))
+        {
+            Ugc.Meta.Authors = string.Join('\t', args.Skip(1));
+        }
+        else if (args.Length > 1 && args[0].Equals("SITES", StringComparison.OrdinalIgnoreCase))
+        {
+            Ugc.Meta.AuthorSites = string.Join('\t', args.Skip(1));
+        }
+    }
+
+    private void HandleLicense(string[] args)
+    {
+        Ugc.Meta.License = Str(args);
+        Ugc.Meta.LicenseUrl = args.Length > 1 ? args[1] : string.Empty;
+    }
+
+    private void PreserveUnknownHeader(string name, string[] args, string line)
+    {
+        if (!name.StartsWith("T_JUDGE_", StringComparison.Ordinal))
+        {
+            Ugc.Extras.EditorHeaders.Add(line);
+        }
+        HandleUnknownHeader(name, args);
     }
 
     private void HandleBgmOffset(string[] args)
