@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using PenguinTools.Core.Diagnostic;
 using U = PenguinTools.Chart.Models.umgr;
 
@@ -5,6 +6,8 @@ namespace PenguinTools.Chart.Converter.c2s;
 
 public partial class C2SChartConverter
 {
+    [SuppressMessage("Reliability", "S1244",
+        Justification = "Only an exact native float32 multiplier of one leaves the note speed unchanged; nearby multipliers still need a warning.")]
     private void WarnIfNoteSpeedIsLost(U.Chart chart, U.NoteSpeedEvent[] modifiers)
     {
         var warnZero = modifiers.Any(e => e.Speed == 0);

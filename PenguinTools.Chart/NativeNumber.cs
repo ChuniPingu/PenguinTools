@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace PenguinTools.Chart;
@@ -54,6 +55,8 @@ internal static class NativeNumber
         return sign * FallbackMagnitude;
     }
 
+    [SuppressMessage("Reliability", "S1244",
+        Justification = "Exact float32 equality is required to preserve native rounding at timing and judgement thresholds.")]
     internal static decimal Project(decimal value, NativeNumberKind kind, out bool adjusted)
     {
         var native = ToDouble(value, preserveSingle: true);
@@ -75,7 +78,10 @@ internal static class NativeNumber
                     adjusted = true;
                     return result;
                 }
-                catch (OverflowException) { }
+                catch (OverflowException)
+                {
+                    // The adjacent double is also outside decimal's range; use the finite fallback below.
+                }
             }
             return Read(native, kind, out adjusted);
         }
@@ -88,6 +94,8 @@ internal static class NativeNumber
         return coefficient.ContainsAnyInRange('1', '9');
     }
 
+    [SuppressMessage("Reliability", "S1244",
+        Justification = "Exact float32 equality determines whether decimal conversion preserves the native value, including midpoint rounding.")]
     internal static decimal ToDecimal(double value, string? shortest = null)
     {
         if (!double.IsFinite(value))
@@ -125,6 +133,8 @@ internal static class NativeNumber
         return result;
     }
 
+    [SuppressMessage("Reliability", "S1244",
+        Justification = "Exact float32 equality detects double rounding; a tolerance would hide a changed native value.")]
     internal static double ToDouble(decimal value, bool preserveSingle)
     {
         // Decimal's direct double cast can round twice near float midpoints.

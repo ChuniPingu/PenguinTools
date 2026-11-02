@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using C = PenguinTools.Chart.Models.c2s;
 
 namespace PenguinTools.Chart;
@@ -227,6 +228,10 @@ internal sealed class C2sAirScheduler
         _ => new(note.Tick.Round, note.Lane, Math.Clamp(note.Width, 1, 16), note.GetType())
     };
 
+    [SuppressMessage("Reliability", "S4158",
+        Justification = "The local Register function populates successors from SLIDE and AIR-CRUSH paths before attachment lookup.")]
+    [SuppressMessage("Maintainability", "S2589",
+        Justification = "The local Register function populates roots, so a matched attachment and root can both be non-null.")]
     private void AddGroundDependencies()
     {
         var roots = new Dictionary<C.Note, C.Note>();

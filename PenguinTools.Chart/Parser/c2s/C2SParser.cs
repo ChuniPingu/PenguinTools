@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using PenguinTools.Chart.Models;
@@ -1177,6 +1178,8 @@ public sealed class C2SParser
         return false;
     }
 
+    [SuppressMessage("Reliability", "S1244",
+        Justification = "The result must round to the exact native float32 value; tolerance comparisons can change timing and judgement thresholds.")]
     private static bool TryKeepSingleValue(decimal parsed, float native, out decimal value)
     {
         value = parsed;

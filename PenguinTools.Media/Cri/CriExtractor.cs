@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using SonicAudioLib.Archives;
@@ -128,6 +129,8 @@ public static class CriExtractor
         }
     }
 
+    [SuppressMessage("Reliability", "S4158",
+        Justification = "CriAfs2Archive.Read populates the inherited entry collection from the AWB stream before enumeration.")]
     private static List<DecodedTrack> DecodeAwb(string awbPath, ulong hcaKey,
         CancellationToken cancellationToken)
     {

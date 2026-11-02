@@ -114,9 +114,9 @@ public static class CriConverter
             var streamAwbHashTbl = new CriTable();
             streamAwbHashTbl.Load(cueSheetTable.Rows[0]["StreamAwbHash"] as byte[]);
             // CRI's StreamAwbHash field requires SHA-1 for format compatibility, not authentication.
-#pragma warning disable CA5350
+#pragma warning disable CA5350, S4790
             var sha = SHA1.HashData(awbStream);
-#pragma warning restore CA5350
+#pragma warning restore CA5350, S4790
             streamAwbHashTbl.Rows[0]["Name"] = name;
             streamAwbHashTbl.Rows[0]["Hash"] = sha;
             cueSheetTable.Rows[0]["StreamAwbHash"] = streamAwbHashTbl.Save();
