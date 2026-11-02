@@ -171,6 +171,8 @@ public class SoflanAreaJoint : Note
 public class AirSlide : NegativeNote
 {
     public Color Color { get; set; }
+    // MGXC stores the arrow separately; null follows the long note's color.
+    public Color? ArrowColor { get; set; }
     public AirDirection Direction { get; set; } = AirDirection.IR;
     public decimal Height { get; set; }
 

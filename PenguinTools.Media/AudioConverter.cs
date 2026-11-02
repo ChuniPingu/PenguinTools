@@ -4,22 +4,22 @@ namespace PenguinTools.Media;
 
 public class AudioConverter
 {
-    public AudioConverter(AudioConvertRequest request, IMediaTool mediaTool)
+    public AudioConverter(AudioConvertRequest request, IAudioService audio)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(audio);
         ArgumentNullException.ThrowIfNull(request.Meta);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutFolder);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.WorkingAudioPath);
 
-        MediaTool = mediaTool;
+        Audio = audio;
         Meta = request.Meta;
         OutFolder = request.OutFolder;
         WorkingAudioPath = request.WorkingAudioPath;
         HcaEncryptionKey = request.HcaEncryptionKey;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IAudioService Audio { get; }
     private ulong HcaEncryptionKey { get; }
     private DiagnosticCollector Diagnostic { get; } = new DiagnosticCollector();
     private Meta Meta { get; }
@@ -43,7 +43,7 @@ public class AudioConverter
         var srcPath = Meta.FullBgmFilePath;
         var wavPath = WorkingAudioPath;
 
-        var ret = await MediaTool.NormalizeAudioAsync(srcPath, wavPath, Meta.BgmRealOffset, ct);
+        var ret = await Audio.NormalizeAudioAsync(srcPath, wavPath, Meta.BgmRealOffset, ct);
         if (ret.IsNoOperation)
         {
             wavPath = srcPath;
@@ -85,7 +85,7 @@ public class AudioConverter
         var acbPath = Path.Combine(outputDir, xml.AcbFile);
         var awbPath = Path.Combine(outputDir, xml.AwbFile);
 
-        await MediaTool.ConvertCriAsync(
+        await Audio.ConvertCriAsync(
             new CriConvertRequest(wavPath,
             acbPath,
             awbPath,

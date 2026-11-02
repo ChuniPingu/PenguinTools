@@ -68,6 +68,8 @@ The source recommends M4A around 3 MB for loading speed, jacket images at 400×4
 | `SPDFLD`  | Speed-definition ID, BarTick, X, width, length; UMGR v2.01 extension  |
 | `USETIL`  | Timeline ID for subsequent note lines                                 |
 
+`SPDDEF` and `SPDFLD` are UMIGURI extensions already documented in the [v8 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298/ad8176e6e3f8ecc21e75ba25e3062033d4539730). `SPDDEF` defines a relative scroll-speed curve, and `SPDFLD` selects notes by time and horizontal range. The curve is applied relative to each selected note's scrolling position, rather than at fixed chart times like C2S `SLP`. With otherwise unit scrolling, it can make each selected note slow down one beat before reaching the judgement line. See [conversion behavior](../chart-conversion.md#input-compatibility) for output support.
+
 `FLAG` attributes:
 
 | Attribute     | Meaning                                 |
@@ -98,7 +100,7 @@ Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:tx
 | AIR-SLIDE | `#BarTick:txwhhc`                    | `t = S`; `hh` is height, `c` is color          |
 | AIR-CRUSH | `#BarTick:txwhhca,{interval}`         | `t = C`; `hh` height, `c` color, `a` axis    |
 
-Height `hh` is a two-digit base-36 value. The upstream specification encodes the original height multiplied by 10.
+With `HIPRECISION`, height `hh` is a two-digit base-36 value encoding the original height multiplied by 10. Without this flag, height occupies one base-36 digit, so the following color and axis fields move one character earlier.
 
 | Parent    | Child format                        | Meaning                                                  |
 | --------- | ----------------------------------- | -------------------------------------------------------- |
@@ -111,15 +113,15 @@ Height `hh` is a two-digit base-36 value. The upstream specification encodes the
 | AIR-SLIDE | `#OffsetTick>txwhh`, `t = c`        | Control point or endpoint without AIR-ACTION             |
 | AIR-CRUSH | `#OffsetTick>txwhh`, `t = c`        | Endpoint                                                 |
 
-AIR-CRUSH axis `a` is `N` (X), `Y`, or `Z`. `{interval}` is a decimal placement interval. `0` means AIR-TRACE; `$` creates notes that generate combo only at the starting point.
+AIR-CRUSH axis `a` is `N` (default X), `Y`, or `Z`. `{interval}` is a decimal placement interval. `0` creates a decorative AIR-TRACE without judgements, retaining the selected axis; `$` creates a judgement only at the starting point.
 
 ## Effects, directions, and colors
 
-EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Right, `R` Left, and `I` In/Out.
+EXTAP effects are `U` Up, `D` Down, `C` Center, `A` Clockwise, `W` Counterclockwise, `L` Left, `R` Right, and `I` In/Out.
 
 An EXTAP fully covering a HOLD or SLIDE head sets its EX effect, including when the EXTAP is wider than the head. The official format has no explicit-note/carrier role flag.
 
-FLICK autoplay direction is `A` Auto, `L` Right, or `R` Left.
+FLICK autoplay direction is `A` Auto, `L` Left, or `R` Right.
 
 AIR directions are `UC` Up, `UL` Up-left, `UR` Up-right, `DC` Down, `DL` Down-left, and `DR` Down-right. AIR, AIR-HOLD, and AIR-SLIDE colors are `N` Normal or `I` Inverted.
 

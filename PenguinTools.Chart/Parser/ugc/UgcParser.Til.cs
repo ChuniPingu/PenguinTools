@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace PenguinTools.Chart.Parser.ugc;
 
 public partial class UgcParser
@@ -21,7 +19,7 @@ public partial class UgcParser
             return;
         }
 
-        if (!decimal.TryParse(args[2], CultureInfo.InvariantCulture, out var speed))
+        if (!TryParseNativeNumber(args[2], "TIL", out var speed))
         {
             return;
         }

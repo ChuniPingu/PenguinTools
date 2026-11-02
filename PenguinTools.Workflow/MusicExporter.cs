@@ -51,7 +51,7 @@ public static class MusicExporter
             noteFieldLane,
             meta.BackgroundOffset);
 
-        return await new StageConverter(request, ctx.MediaTool).BuildAsync(cancellationToken);
+        return await new StageConverter(request, ctx.Images).BuildAsync(cancellationToken);
     }
 
     public static async Task<OperationResult> ConvertAudioAsync(
@@ -68,7 +68,7 @@ public static class MusicExporter
             ctx.AssetStore.GetTempPath($"c_{Path.GetFileNameWithoutExtension(meta.FullBgmFilePath)}.wav"),
             overrides.HcaEncryptionKey ?? AudioConvertRequest.DefaultHcaEncryptionKey);
 
-        return await new AudioConverter(request, ctx.MediaTool).ConvertAsync(cancellationToken);
+        return await new AudioConverter(request, ctx.Audio).ConvertAsync(cancellationToken);
     }
 
     public static async Task<OperationResult> ExportAsync(
@@ -145,7 +145,7 @@ public static class MusicExporter
         var jacketPath = Path.Combine(chartBundleFolder, musicXml.JaketFile);
         var convertedJacket = await new JacketConverter(
             new JacketConvertRequest(jacketInput ?? meta.FullJacketFilePath, jacketPath),
-            ctx.MediaTool).ConvertAsync(cancellationToken);
+            ctx.Images).ConvertAsync(cancellationToken);
         diagnostics = diagnostics.Merge(convertedJacket.Diagnostics);
         if (!convertedJacket.Succeeded)
         {

@@ -33,19 +33,19 @@ public sealed class SusParser
     private int _measureBase;
     private int _susTicksPerBeat = DefaultTicksPerBeat;
 
-    public SusParser(SusParseRequest request, IMediaTool mediaTool)
+    public SusParser(SusParseRequest request, IMediaValidator mediaValidator)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(mediaValidator);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Assets);
 
-        MediaTool = mediaTool;
+        MediaValidator = mediaValidator;
         Path = request.Path;
         Assets = request.Assets;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IMediaValidator MediaValidator { get; }
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
@@ -205,7 +205,7 @@ public sealed class SusParser
                 if (!string.IsNullOrWhiteSpace(value))
                 {
                     QueueValidation(
-                        MediaTool.CheckAudioValidAsync(Sus.Meta.FullBgmFilePath),
+                        MediaValidator.CheckAudioValidAsync(Sus.Meta.FullBgmFilePath),
                         Sus.Meta.FullBgmFilePath,
                         MsgKeys.Error_Invalid_audio,
                         () => Sus.Meta.BgmFilePath = string.Empty);
@@ -224,7 +224,7 @@ public sealed class SusParser
                 if (!string.IsNullOrWhiteSpace(value))
                 {
                     QueueValidation(
-                        MediaTool.CheckImageValidAsync(Sus.Meta.FullJacketFilePath),
+                        MediaValidator.CheckImageValidAsync(Sus.Meta.FullJacketFilePath),
                         Sus.Meta.FullJacketFilePath,
                         MsgKeys.Error_Invalid_jk_image,
                         () => Sus.Meta.JacketFilePath = string.Empty);
@@ -952,7 +952,7 @@ public sealed class SusParser
         if (Sus.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Sus.Meta.FullBgiFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Sus.Meta.FullBgiFilePath),
+                MediaValidator.CheckImageValidAsync(Sus.Meta.FullBgiFilePath),
                 Sus.Meta.FullBgiFilePath,
                 MsgKeys.Error_Invalid_bg_image,
                 () =>

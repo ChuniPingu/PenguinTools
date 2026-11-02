@@ -13,6 +13,7 @@ public sealed partial class ChartExtras
         get; set;
     }
     public List<string> RoundTripBookmarks { get; set; } = [];
+    internal bool RebuiltSla { get; set; }
     [JsonIgnore] public HashSet<string> UnchangedEventKinds { get; } = [];
     [JsonIgnore] public int Resolution { get; set; } = 384;
     [JsonIgnore]
@@ -31,7 +32,8 @@ public sealed partial class ChartExtras
         string Canon(string line) => string.Join("\t", C2SRoundTrip.Parts(line).Select(p => decimal.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n.ToString("0.############################", CultureInfo.InvariantCulture) : p));
         var saved = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEW\t", StringComparison.Ordinal)).Select(s => Canon(s.Substring(5))).ToArray();
         var hashes = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEWHASH\t", StringComparison.Ordinal)).Select(C2SRoundTrip.Parts).ToDictionary(p => p[1], p => p[2]);
-        if (saved.Length == 0 && hashes.Count == 0)
+        var sequenceHashes = SourceSnapshot.Split('\n').Where(s => s.StartsWith("VIEWSEQHASH\t", StringComparison.Ordinal)).Select(C2SRoundTrip.Parts).ToDictionary(p => p[1], p => p[2]);
+        if (saved.Length == 0 && hashes.Count == 0 && sequenceHashes.Count == 0)
         {
             return;
         }
@@ -39,9 +41,17 @@ public sealed partial class ChartExtras
         var current = EventView(chart).Split('\n');
         foreach (string kind in new[] { "BEAT", "BPM", "TIL", "SPDMOD" })
         {
-            var a = saved.Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).OrderBy(s => s, StringComparer.Ordinal);
-            var b = current.Select(Canon).Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).OrderBy(s => s, StringComparer.Ordinal);
-            if (hashes.TryGetValue(kind, out var hash) ? C2SRoundTrip.ViewHash(b) == hash : a.SequenceEqual(b))
+            var a = saved.Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal));
+            var b = current.Select(Canon).Where(s => s.StartsWith(kind + "\t", StringComparison.Ordinal)).ToArray();
+            // Legacy hashes did not retain same-position event order. Such a
+            // snapshot cannot establish that an effective-value edit is unchanged.
+            var unchanged = sequenceHashes.TryGetValue(kind, out var sequenceHash)
+                ? C2SRoundTrip.OrderedViewHash(b) == sequenceHash
+                : hashes.TryGetValue(kind, out var hash)
+                    ? !C2SRoundTrip.HasConcurrentViewEvents(b) && C2SRoundTrip.ViewHash(b) == hash
+                    : C2SRoundTrip.OrderedViewHash(a) == C2SRoundTrip.OrderedViewHash(b);
+            UnchangedEventKinds.Remove(kind);
+            if (unchanged)
             {
                 UnchangedEventKinds.Add(kind);
             }
@@ -55,7 +65,7 @@ public sealed partial class ChartExtras
         var notes = new List<string>();
         foreach (var line in lines)
         {
-            var tag = line.Split('\t')[0];
+            var tag = P(line)[0];
             if (EventTags.Contains(tag))
             {
                 events.Add(line);
@@ -71,7 +81,6 @@ public sealed partial class ChartExtras
         }
         RestoreHeaders(headers);
         events = SortEvents(events);
-        notes = SortNotes(notes);
         UpdateDefaultBpm(chart, headers, events);
         var snapshot = RestoreSnapshot(chart, headers, ref events, ref notes);
         var result = string.Join("\r\n", headers) + "\r\n\r\n" + string.Join("\r\n", events) + "\r\n\r\n" + string.Join("\r\n", notes) + "\r\n";
@@ -96,8 +105,11 @@ public sealed partial class ChartExtras
     {
         for (int i = 0; i < headers.Count; i++)
         {
-            var tag = headers[i].Split('\t')[0];
-            if (tag is not ("VERSION" or "RESOLUTION" or "CLK_DEF" or "MUSIC" or "SEQUENCEID" or "DIFFICULT" or "LEVEL") && Headers.TryGetValue(tag, out var saved))
+            var tag = P(headers[i])[0];
+            // These headers are generated from the editable model. The writer
+            // has already restored unchanged source metadata where appropriate.
+            if (tag is not ("VERSION" or "RESOLUTION" or "CLK_DEF" or "MUSIC" or "SEQUENCEID" or "DIFFICULT" or "LEVEL" or
+                "CREATOR" or "BPM_DEF" or "MET_DEF" or "TUTORIAL") && Headers.TryGetValue(tag, out var saved))
             {
                 headers[i] = saved;
             }
@@ -106,7 +118,7 @@ public sealed partial class ChartExtras
         {
             headers.RemoveAll(s => s.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal));
 
-            foreach (var h in Headers.Where(h => !headers.Any(s => s.Split('\t')[0] == h.Key)))
+            foreach (var h in Headers.Where(h => !headers.Any(s => P(s)[0] == h.Key)))
             {
                 headers.Add(h.Value);
             }
@@ -117,7 +129,6 @@ public sealed partial class ChartExtras
     private static string[] P(string s) => C2SRoundTrip.Parts(s);
     private static int Rank(string tag) => Array.IndexOf(EventOrder, tag);
     private static List<string> SortEvents(List<string> events) => events.Select((s, i) => (s, i, p: P(s))).OrderBy(v => Rank(v.p[0])).ThenBy(v => I(v.p, 1)).ThenBy(v => I(v.p, 2)).ThenBy(v => v.i).Select(v => v.s).ToList();
-    private static List<string> SortNotes(List<string> notes) => notes.Select((s, i) => (s, i, p: P(s))).OrderBy(v => I(v.p, 1)).ThenBy(v => I(v.p, 2)).ThenBy(v => I(v.p, 3)).ThenBy(v => I(v.p, 4)).ThenBy(v => v.i).Select(v => v.s).ToList();
 
     private void UpdateDefaultBpm(C.Chart chart, List<string> headers, List<string> events)
     {
@@ -125,9 +136,9 @@ public sealed partial class ChartExtras
         var bpms = events.Select(P).Where(p => p[0] == "BPM").Select(p => decimal.Parse(p[3], CultureInfo.InvariantCulture)).ToArray();
         if (bpms.Length > 0 && !FromC2S)
         {
-            int h = headers.FindIndex(s => s.StartsWith("BPM_DEF\t", StringComparison.Ordinal));
+            int h = headers.FindIndex(s => P(s)[0] == "BPM_DEF");
             decimal main = chart.Meta.MainBpm > 0 ? chart.Meta.MainBpm : bpms[0];
-            headers[h] = string.Create(CultureInfo.InvariantCulture, $"BPM_DEF\t{bpms[0]:F3}\t{main:F3}\t{bpms.Max():F3}\t{bpms.Min():F3}");
+            headers[h] = $"BPM_DEF\t{C2sNumber.Bpm(bpms[0])}\t{C2sNumber.Bpm(main)}\t{C2sNumber.Bpm(bpms.Max())}\t{C2sNumber.Bpm(bpms.Min())}";
         }
     }
 
@@ -140,7 +151,7 @@ public sealed partial class ChartExtras
 
         var snapshot = SourceSnapshot.Split('\n').Select(P).Where(p => p.Length > 0).ToArray();
         var sourceHash = snapshot.First(p => p[0] == "HASH")[1];
-        int sourceRes = int.Parse(snapshot.First(p => p[0] == "RESOLUTION")[1], CultureInfo.InvariantCulture);
+        int sourceRes = int.Parse(snapshot.FirstOrDefault(p => p.Length > 1 && p[0] == "RESOLUTION")?[1] ?? "384", CultureInfo.InvariantCulture);
         var judgeOptionsUnchanged = (snapshot.FirstOrDefault(p => p[0] == "TUTORIAL")?.ElementAtOrDefault(1) == "1") == Tutorial;
         RestoreJudgeHeaders(snapshot, headers);
         var usedExceptions = new HashSet<int>();
@@ -148,7 +159,7 @@ public sealed partial class ChartExtras
         RestoreSlideExceptions(snapshot, sourceRes, notes, usedExceptions);
         events = RestoreEvents(snapshot, sourceRes, events);
         var regions = snapshot.Where(p => p[0] == "SLA").ToArray();
-        bool slaCompatible = MatchesSlaTimelines(chart, regions, sourceRes) || MatchesSlaRegions(chart, regions, sourceRes);
+        bool slaCompatible = !RebuiltSla && (MatchesSlaTimelines(chart, regions, sourceRes) || MatchesSlaRegions(chart, regions, sourceRes));
         if (slaCompatible)
         {
             notes = RestoreSlaRegions(notes, regions, sourceRes);
@@ -161,9 +172,11 @@ public sealed partial class ChartExtras
 
     private void RestoreJudgeHeaders(string[][] snapshot, List<string> headers)
     {
-        foreach (var p in snapshot.Where(p => p[0] is "PROGJUDGE_BPM" or "PROGJUDGE_AER" || p[0] == "MET_DEF" && UnchangedEventKinds.Contains("BEAT")))
+        foreach (var p in snapshot.Where(p => p[0] is "PROGJUDGE_BPM" or "PROGJUDGE_AER"
+                     ? !Headers.ContainsKey(p[0])
+                     : p[0] == "MET_DEF" && UnchangedEventKinds.Contains("BEAT")))
         {
-            int h = headers.FindIndex(s => s.StartsWith(p[0] + "\t", StringComparison.Ordinal));
+            int h = headers.FindIndex(s => P(s)[0] == p[0]);
             if (h >= 0)
             {
                 headers[h] = string.Join("\t", p);
@@ -173,6 +186,14 @@ public sealed partial class ChartExtras
 
     private void RestoreColors(string[][] snapshot, int sourceRes, List<string> notes, HashSet<int> usedExceptions)
     {
+        // Checked editor metadata already restored each eligible note. Legacy
+        // COLOR rows have no path identity and can overwrite another note after
+        // a color edit moves it into the old projected geometry.
+        if (SourceKey is not null || BinaryContentKey is not null || UgcSnapshotVersion != 0)
+        {
+            return;
+        }
+
         foreach (var entry in snapshot.Where(p => p[0] == "COLOR"))
         {
             var original = entry.Skip(1).ToArray();
@@ -273,7 +294,7 @@ public sealed partial class ChartExtras
                 decimal start = (decimal)I(p, 1) * 1920 + (decimal)I(p, 2) * 1920 / sourceRes, end = start + (decimal)I(p, 5) * 1920 / sourceRes;
                 if (n.Tick.Original >= start && n.Tick.Original < end && n.Lane >= I(p, 3) && n.Lane + n.Width <= I(p, 3) + I(p, 4))
                 {
-                    timeline = I(p, 6);
+                    timeline = Math.Max(timeline, I(p, 6));
                 }
             }
             if (n.Timeline != timeline)
@@ -305,7 +326,7 @@ public sealed partial class ChartExtras
             p[5] = ((decimal)I(p, 5) * Resolution / sourceRes).ToString(CultureInfo.InvariantCulture);
             notes.Add(string.Join("\t", p));
         }
-        return SortNotes(notes);
+        return notes;
     }
 
     private List<string> RestoreNoteOrder(List<string> notes, string[][] snapshot, int sourceRes) =>

@@ -18,5 +18,3 @@ public sealed record CriCue(
     uint? PreviewStopMs = null);
 
 public sealed record CriExtractResult(int SchemaVersion, string Source, IReadOnlyList<CriCue> Cues);
-
-public sealed record DdsDecodeResult(string SourcePath, string OutputPath);

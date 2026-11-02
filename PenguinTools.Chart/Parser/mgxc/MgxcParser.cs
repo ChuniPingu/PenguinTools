@@ -14,26 +14,25 @@ public partial class MgxcParser
     private const string HeaderEvnt = "evnt"; // 65 76 6E 74
     private const string HeaderDat2 = "dat2"; // 64 61 74 32
 
-    public MgxcParser(MgxcParseRequest request, IMediaTool mediaTool)
+    public MgxcParser(MgxcParseRequest request, IMediaValidator mediaValidator)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(mediaValidator);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Assets);
 
-        MediaTool = mediaTool;
+        MediaValidator = mediaValidator;
         Path = request.Path;
         Assets = request.Assets;
-        _requestedDialect = request.Dialect;
         Mgxc.Meta.ExVersion = 0;
         Mgxc.Meta.ExLongEnabled = false;
     }
 
-    private readonly PenguinTools.Core.Metadata.ChartDialect _requestedDialect;
     private int _version;
+    private readonly List<byte> _notePayload = [];
     private bool _hasFixedZeroOriginMarker;
     private bool _hasPrerollBar1Marker;
-    private IMediaTool MediaTool { get; }
+    private IMediaValidator MediaValidator { get; }
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
@@ -124,11 +123,11 @@ public partial class MgxcParser
     private void ReadMetadata(BinaryReader br)
     {
         br.ReadBlock(HeaderMeta, ParseMeta);
-        if (_privateMetadata.Length > 0 || _copyright.Contains("PT_C2S_", StringComparison.Ordinal))
+        if (_copyright.Contains("PT_C2S_", StringComparison.Ordinal))
         {
             var clickEnabled = Mgxc.Extras.ClickEnabled;
             var tutorial = Mgxc.Extras.Tutorial;
-            Mgxc.Extras = ChartExtras.FromCopyright(_copyright + _privateMetadata);
+            Mgxc.Extras = ChartExtras.FromCopyright(_copyright);
             Mgxc.Extras.ClickEnabled = clickEnabled;
             Mgxc.Extras.Tutorial = tutorial;
         }
@@ -140,13 +139,7 @@ public partial class MgxcParser
         br.ReadBlock(HeaderEvnt, reader => CapturePayload(reader, payload, ParseEvent, true));
         ApplyEventMetadata();
 
-        var legacyEncoding = Mgxc.Extras.EncodingDialect == ChartDialect.Auto && Mgxc.Extras.HasCarrierMarkers;
-        Mgxc.Extras.EncodingDialect = ResolveEncodingDialect(legacyEncoding);
         br.ReadBlock(HeaderDat2, reader => CapturePayload(reader, payload, ParseNote, false));
-        if (_version < 3 && _requestedDialect == ChartDialect.Auto && !legacyEncoding && UsesExtendedCoordinates())
-        {
-            Mgxc.Extras.EncodingDialect = ChartDialect.Extended;
-        }
 
         RestoreBinarySnapshot(payload);
     }
@@ -162,14 +155,19 @@ public partial class MgxcParser
         }
 
         reader.BaseStream.Position = start;
-        payload.Write(reader.ReadBytes(checked((int)(end - start))));
+        var bytes = reader.ReadBytes(checked((int)(end - start)));
+        payload.Write(bytes);
+        if (!isEvent)
+        {
+            _notePayload.AddRange(bytes);
+        }
     }
 
     private void ApplyEventMetadata()
     {
         Mgxc.Extras.FixedZeroOrigin |= _hasFixedZeroOriginMarker || ChartExtras.HasFixedZeroOrigin(_copyright);
         Mgxc.Extras.PrerollBar1Applied |= _hasPrerollBar1Marker || ChartExtras.HasPrerollBar1(_copyright);
-        Mgxc.Extras.ApplyEditorMode(_version >= 3 ? ChartDialect.Auto : _requestedDialect, Mgxc.Meta);
+        Mgxc.Extras.ApplyCoordinateOrigin(Mgxc.Meta);
         Mgxc.Extras.EditorImageEvents = _imageEvents;
         Mgxc.Extras.RestoreEditorMetadata(Mgxc.Meta);
         C2sRoundTripComment.Absorb(Mgxc.Meta, Mgxc.Extras.RoundTripBookmarks);
@@ -182,32 +180,6 @@ public partial class MgxcParser
         Diagnostic.TimeCalculator = Mgxc.GetCalculator();
     }
 
-    private ChartDialect ResolveEncodingDialect(bool legacyEncoding)
-    {
-        if (_version >= 3)
-        {
-            return ChartDialect.Original;
-        }
-
-        if (_requestedDialect != ChartDialect.Auto)
-        {
-            return _requestedDialect;
-        }
-
-        if (Mgxc.Extras.EncodingDialect != ChartDialect.Auto)
-        {
-            return Mgxc.Extras.EncodingDialect;
-        }
-
-        return legacyEncoding ? ChartDialect.Extended : ChartDialect.Original;
-    }
-
-    private bool UsesExtendedCoordinates() =>
-        Mgxc.Events.Children.OfType<UmgrModel.BeatEvent>().Any(b => b.Numerator == 0) ||
-        Mgxc.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).Any(n =>
-            n is UmgrModel.Slide { NoLine: true } or UmgrModel.SlideJoint { NoLine: true } ||
-            n.Lane < 0 || (long)n.Lane + n.Width > 16);
-
     private void RestoreBinarySnapshot(MemoryStream payload)
     {
         Mgxc.Extras.BinarySnapshotValid = Mgxc.Extras.BinaryContentKey ==
@@ -218,15 +190,14 @@ public partial class MgxcParser
             return;
         }
 
-        foreach (var crash in Mgxc.Notes.Children.OfType<UmgrModel.AirCrash>()
-                     .Where(crash => Mgxc.Extras.TraceCrashes.Contains(ChartExtras.CrashKey(crash))))
-        {
-            crash.Attr = Models.AirLadderAttr.Trace;
-        }
+        Mgxc.Extras.RestoreCrashAttributes(Mgxc);
     }
 
     private void PostProcessChart()
     {
+        EditorNumbers.Restore(Mgxc);
+        MgxcNoteRoles.Restore(_notePayload.ToArray(), Mgxc.Extras.MgxcNoteSnapshots,
+            Mgxc.Notes.Children.OfType<UmgrModel.ExTap>());
         Mgxc.Extras.CheckEventView(Mgxc);
         var post = new ChartPostProcessor(Mgxc, Diagnostic, Assets);
         post.Run();
@@ -239,7 +210,7 @@ public partial class MgxcParser
         EditorProjection.Restore(Mgxc);
         Mgxc.Extras.EditorFormatVersion = _version;
         Mgxc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Mgxc);
-        Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
+        Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
         Mgxc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Mgxc);
         Mgxc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Mgxc);
         ProcessMeta();
@@ -256,7 +227,7 @@ public partial class MgxcParser
         if (Mgxc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Mgxc.Meta.FullBgiFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Mgxc.Meta.FullBgiFilePath),
+                MediaValidator.CheckImageValidAsync(Mgxc.Meta.FullBgiFilePath),
                 Mgxc.Meta.FullBgiFilePath,
                 MsgKeys.Error_Invalid_bg_image,
                 () =>

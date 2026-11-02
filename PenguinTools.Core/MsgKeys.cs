@@ -18,6 +18,7 @@ public static class MsgKeys
     public const string C2s_Unknown_air_color = "diag.c2s.unknown_air_color";
     public const string C2s_Unknown_air_ladder_attr = "diag.c2s.unknown_air_ladder_attr";
     public const string C2s_Unknown_ex_effect = "diag.c2s.unknown_ex_effect";
+    public const string C2s_Unsupported_note_type = "diag.c2s.unsupported_note_type";
     public const string C2s_Unsupported_version = "diag.c2s.unsupported_version";
     public const string C2s_Version_line_not_found = "diag.c2s.version_line_not_found";
     public const string Cli_Msg_assets_collected = "cli.msg.assets_collected";
@@ -47,6 +48,17 @@ public static class MsgKeys
     public const string Error_Chart_conversion_unsupported = "diag.error.chart_conversion_unsupported";
     public const string Error_Chart_version_too_new = "diag.error.chart_version_too_new";
     public const string Warn_Editor_approximation = "diag.warn.editor_approximation";
+    public const string Warn_Editor_lane_adjusted = "diag.warn.editor_lane_adjusted";
+    public const string Warn_Editor_width_adjusted = "diag.warn.editor_width_adjusted";
+    public const string Warn_Editor_color_defaulted = "diag.warn.editor_color_defaulted";
+    public const string Warn_Editor_crash_points_merged = "diag.warn.editor_crash_points_merged";
+    public const string Warn_Editor_meter_skipped = "diag.warn.editor_meter_skipped";
+    public const string Warn_Editor_ald_timeline_changed = "diag.warn.editor_ald_timeline_changed";
+    public const string Warn_Ugc_relative_speed_not_reproduced = "diag.warn.ugc_relative_speed_not_reproduced";
+    public const string Warn_Zero_note_speed_not_reproduced = "diag.warn.zero_note_speed_not_reproduced";
+    public const string Warn_Editor_undefined_timeline_speed = "diag.warn.editor_undefined_timeline_speed";
+    public const string Warn_Number_adjusted = "diag.warn.number_adjusted";
+    public const string Warn_Air_arrow_color_not_reproduced = "diag.warn.air_arrow_color_not_reproduced";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
     public const string Error_File_ignored_due_to_id_missing = "diag.error.file_ignored_due_to_id_missing";
@@ -67,7 +79,6 @@ public static class MsgKeys
     public const string Error_Unhandled = "diag.error.unhandled";
     public const string Hint_Preview_start_clamped = "diag.hint.preview_start_clamped";
     public const string Hint_Preview_stop_clamped = "diag.hint.preview_stop_clamped";
-    public const string Mg_Ambiguous_c2s_slide_path = "diag.mg.ambiguous_c2s_slide_path";
     public const string Mg_Concurrent_ex_effects = "diag.mg.concurrent_ex_effects";
     public const string Mg_Head_BPM_not_found = "diag.mg.head_bpm_not_found";
     public const string Mg_Head_Time_Signature_event_not_found = "diag.mg.head_time_signature_event_not_found";
@@ -81,7 +92,6 @@ public static class MsgKeys
     public const string Mg_Meta_Unknown_tag = "diag.mg.meta_unknown_tag";
     public const string Mg_No_sortname_provided = "diag.mg.no_sortname_provided";
     public const string Mg_Note_overlapped_in_different_TIL = "diag.mg.note_overlapped_in_different_til";
-    public const string Mg_Overlapping_air_parent_slide = "diag.mg.overlapping_air_parent_slide";
     public const string Mg_String_id_not_found = "diag.mg.string_id_not_found";
     public const string Mg_Unrecognized_meta = "diag.mg.unrecognized_meta";
     public const string Mg_Unrecognized_note = "diag.mg.unrecognized_note";
@@ -90,6 +100,8 @@ public static class MsgKeys
     public const string MgCrit_Hold_has_no_tail = "diag.mgcrit.hold_has_no_tail";
     public const string MgCrit_Invalid_Air_parent = "diag.mgcrit.invalid_air_parent";
     public const string MgCrit_Invalid_AirSlide_parent = "diag.mgcrit.invalid_airslide_parent";
+    public const string MgCrit_Invalid_height_scale = "diag.mgcrit.invalid_height_scale";
+    public const string MgCrit_Invalid_number = "diag.mgcrit.invalid_number";
     public const string MgCrit_Pairing_notes_incompatible = "diag.mgcrit.pairing_notes_incompatible";
     public const string MgCrit_SoflanArea_has_no_tail = "diag.mgcrit.soflanarea_has_no_tail";
     public const string MgCrit_Unrecognized_data_type = "diag.mgcrit.unrecognized_data_type";

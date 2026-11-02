@@ -11,7 +11,7 @@ public partial class C2SChartConverter
     private readonly Dictionary<UmgrModel.NegativeNote, C2sModel.IPairable> _negativePairRoots = [];
     private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairTargets = [];
     private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairRealTargets = [];
-    private readonly Dictionary<C2sModel.Slide, C2sSlideSegmentSource> _slideSegmentSources = [];
+    private readonly List<C2sModel.Slide[]> _slidePaths = [];
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
         where TSource : UmgrModel.Note where T : C2sModel.Note, new()
@@ -26,6 +26,7 @@ public partial class C2SChartConverter
 
         action?.Invoke(note);
         Notes.Add(note);
+        RegisterSoflanPoint(source);
 
         return note;
     }
@@ -40,7 +41,7 @@ public partial class C2SChartConverter
     private void RegisterPositivePairTarget(UmgrModel.PositiveNote source, C2sModel.Note target)
     {
         _positivePairRealTargets[source] = target;
-        _positivePairTargets[source] = CreateGenericAirParent(target);
+        _positivePairTargets[source] = target;
     }
 
     private void RegisterNegativePairRoot(
@@ -50,8 +51,8 @@ public partial class C2SChartConverter
         _negativePairRoots[source] = target;
     }
 
-    // C2S AIR parent tokens are generic HLD/SLD even when the attach point is
-    // an EX or control segment. Keep one dummy shape so pairing and writing agree.
+    // Legacy carriers preserve a parent kind without a matching ground object.
+    // Ordinary AIR keeps the actual parent; the writer normalizes HLD/SLD tokens.
     private static C2sModel.Note CreateGenericAirParent(C2sModel.Note target) => target switch
     {
         C2sModel.Hold => new C2sModel.Hold(),
@@ -112,7 +113,11 @@ public partial class C2SChartConverter
                 RegisterAirActionCarrier(carrier);
             }
 
-            if (_positivePairTargets.TryGetValue(
+            if (_positivePairRealTargets.TryGetValue(source.PairNote, out var real))
+            {
+                root.Parent = real;
+            }
+            else if (_positivePairTargets.TryGetValue(
                     source.PairNote,
                     out var parent))
             {
@@ -225,6 +230,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var segment = CreateNote<UmgrModel.AirCrashJoint, C2sModel.AirCrash>(curr, x =>
             {
                 x.EndTick = next.Tick;
@@ -258,6 +264,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var prevSeg = previousSegment;
             var segment = CreateNote<UmgrModel.AirSlideJoint, C2sModel.AirSlide>(curr, x =>
             {
@@ -295,6 +302,7 @@ public partial class C2SChartConverter
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var prevSeg = previousSegment;
             var segment = CreateNote<UmgrModel.AirHoldJoint, C2sModel.AirHold>(curr, x =>
             {
@@ -333,10 +341,12 @@ public partial class C2SChartConverter
     private void ProcessSlide(UmgrModel.Slide slide)
     {
         var joints = slide.Children.OfType<UmgrModel.SlideJoint>().Prepend(slide.AsChild()).ToArray();
+        var path = new C2sModel.Slide[joints.Length - 1];
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
             var next = joints[i + 1];
+            RegisterSoflanPoint(next);
             var note = CreateNote<UmgrModel.SlideJoint, C2sModel.Slide>(curr, x =>
             {
                 x.Joint = next.Joint;
@@ -346,15 +356,12 @@ public partial class C2SChartConverter
                 x.NoLine = curr.NoLine;
                 x.Effect = curr.HasEffectOverride ? curr.SegmentEffect : slide.Effect;
             });
-            _slideSegmentSources[note] = new C2sSlideSegmentSource(
-                slide,
-                next,
-                i == 0);
-            // Register the final joint as an AIR pairing target.
-            if (i == joints.Length - 2)
-            {
-                RegisterPositivePairTarget(next, note);
-            }
+            path[i] = note;
+            RegisterPositivePairTarget(next, note);
+        }
+        if (path.Length > 0)
+        {
+            _slidePaths.Add(path);
         }
     }
 
@@ -380,6 +387,7 @@ public partial class C2SChartConverter
             x.EndTick = tail.Tick;
             x.Effect = hold.Effect;
         });
+        RegisterSoflanPoint(tail);
         RegisterPositivePairTarget(tail, note);
     }
 }

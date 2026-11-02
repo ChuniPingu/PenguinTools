@@ -6,32 +6,6 @@ internal static class UgcPayload
 {
     private const int TransparentCrashDensity = 0x7FFFFFFF;
 
-    public static int Lane(char c)
-    {
-        if (c is >= '\uE000' and <= '\uE0FF')
-        {
-            return -(c - 0xE000 + 1);
-        }
-
-        if (c is >= '\uE100' and <= '\uE1FF')
-        {
-            return 36 + c - 0xE100;
-        }
-
-        if (c is >= '\uE200' and <= '\uE8FF')
-        {
-            return -(257 + c - 0xE200);
-        }
-
-        if (c is >= '\uE900' and <= '\uF8FF')
-        {
-            return 292 + c - 0xE900;
-        }
-
-        var value = Base36(c);
-        return value >= 0 ? value : throw new FormatException("Invalid UGC coordinate.");
-    }
-
     public static int Base36(char c)
     {
         if (c is >= '0' and <= '9')
@@ -90,11 +64,6 @@ internal static class UgcPayload
         };
     }
 
-    public static decimal Height36(ReadOnlySpan<char> chars)
-    {
-        return chars.Length == 2 ? Lane(chars[0]) * 36 + Base36(chars[1]) : Base36(chars);
-    }
-
     public static AirDirection AirDirectionCode(ReadOnlySpan<char> code)
     {
         return code.ToString().ToUpperInvariant() switch
@@ -115,20 +84,6 @@ internal static class UgcPayload
         {
             'N' => Color.DEF, // normal
             'I' => Color.PNK, // inverted
-            'Z' => Color.NON,
-            'G' => Color.GRN,
-            'M' => Color.LIM,
-            'R' => Color.RED,
-            'K' => Color.BLK,
-            'V' => Color.VLT,
-            'B' => Color.BLU,
-            'D' => Color.DGR,
-            'A' => Color.AQA,
-            'C' => Color.CYN,
-            'Y' => Color.YEL,
-            'O' => Color.ORN,
-            'H' => Color.GRY,
-            'P' => Color.PPL,
             _ => Color.DEF
         };
     }
@@ -148,37 +103,24 @@ internal static class UgcPayload
         return int.TryParse(s, out var density) ? density : 0;
     }
 
-    public static Color CrushColorChar(char c, bool extended = true)
+    public static Color CrushColorChar(char c) => c switch
     {
-        if (!extended)
-        {
-            return c switch
-            {
-                'B' => Color.VLT,
-                'Y' => Color.PNK,
-                _ => CrushColorChar(c)
-            };
-        }
-        return c switch
-        {
-            '0' => Color.DEF,
-            '1' => Color.RED,
-            '2' => Color.ORN,
-            '3' => Color.YEL,
-            '4' => Color.LIM,
-            '5' => Color.GRN,
-            '6' => Color.AQA,
-            '7' => Color.CYN,
-            '8' => Color.DGR,
-            '9' => Color.BLU,
-            'A' => Color.PPL,
-            'Y' => Color.PPL,
-            'B' => Color.VLT,
-            'E' => Color.PNK,
-            'C' => Color.GRY,
-            'D' => Color.BLK,
-            'Z' => Color.NON,
-            _ => Color.DEF
-        };
-    }
+        '0' => Color.DEF,
+        '1' => Color.RED,
+        '2' => Color.ORN,
+        '3' => Color.YEL,
+        '4' => Color.LIM,
+        '5' => Color.GRN,
+        '6' => Color.AQA,
+        '7' => Color.CYN,
+        '8' => Color.DGR,
+        '9' => Color.BLU,
+        'A' => Color.PPL,
+        'Y' => Color.PNK,
+        'B' => Color.VLT,
+        'C' => Color.GRY,
+        'D' => Color.BLK,
+        'Z' => Color.NON,
+        _ => Color.DEF
+    };
 }

@@ -112,9 +112,6 @@ public partial class UgcParser
             case "COPYRIGHT":
                 HandleCopyright(args);
                 break;
-            case "C2S_BOUNDS":
-            case "C2S_BASECOUNT":
-                break;
             case "LICENSE":
                 HandleLicense(args);
                 break;
@@ -181,6 +178,7 @@ public partial class UgcParser
 
     private void PreserveUnknownHeader(string name, string[] args, string line)
     {
+        // C2S statistics are recomputed from notes, not carried as editor headers.
         if (!name.StartsWith("T_JUDGE_", StringComparison.Ordinal))
         {
             Ugc.Extras.EditorHeaders.Add(line);
@@ -198,7 +196,7 @@ public partial class UgcParser
 
     private void HandleMainBpm(string[] args)
     {
-        if (args.Length >= 1 && decimal.TryParse(args[0], CultureInfo.InvariantCulture, out var mbpm))
+        if (args.Length >= 1 && TryParseNativeNumber(args[0], "MAINBPM", out var mbpm))
         {
             Ugc.Meta.MainBpm = mbpm;
         }
@@ -402,7 +400,7 @@ public partial class UgcParser
         if (!string.IsNullOrWhiteSpace(Ugc.Meta.BgmFilePath))
         {
             QueueValidation(
-                MediaTool.CheckAudioValidAsync(Ugc.Meta.FullBgmFilePath),
+                MediaValidator.CheckAudioValidAsync(Ugc.Meta.FullBgmFilePath),
                 Ugc.Meta.FullBgmFilePath,
                 MsgKeys.Error_Invalid_audio,
                 () => Ugc.Meta.BgmFilePath = string.Empty);
@@ -433,7 +431,7 @@ public partial class UgcParser
         if (!string.IsNullOrWhiteSpace(Ugc.Meta.JacketFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Ugc.Meta.FullJacketFilePath),
+                MediaValidator.CheckImageValidAsync(Ugc.Meta.FullJacketFilePath),
                 Ugc.Meta.FullJacketFilePath,
                 MsgKeys.Error_Invalid_jk_image,
                 () => Ugc.Meta.JacketFilePath = string.Empty);

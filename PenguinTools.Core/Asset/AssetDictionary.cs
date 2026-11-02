@@ -187,32 +187,32 @@ public class AssetDictionary()
         return await CollectManyAsync(workDir, specs, ct);
     }
 
-    private static async Task<List<Entry>> ReadEntriesAsync(string path, string entryName,
+    private static async Task<XDocument?> ReadDocumentAsync(string path,
         CancellationToken ct = default)
     {
-        var entries = new List<Entry>();
-        XDocument doc;
-
         try
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            doc = await XDocument.LoadAsync(stream, LoadOptions.PreserveWhitespace, ct);
+            return await XDocument.LoadAsync(stream, LoadOptions.PreserveWhitespace, ct);
         }
         catch (XmlException)
         {
-            return entries;
+            return null;
         }
         catch (IOException)
         {
-            return entries;
+            return null;
         }
+    }
 
+    private static void ReadEntries(XDocument doc, string entryName, SortedSet<Entry> entries,
+        CancellationToken ct)
+    {
         ct.ThrowIfCancellationRequested();
-
         var node = doc.Root?.Element(entryName);
         if (node is null)
         {
-            return entries;
+            return;
         }
 
         var listNode = node.Element("list");
@@ -242,45 +242,60 @@ public class AssetDictionary()
                 entries.Add(new Entry(val, str, data));
             }
         }
-
-        return entries;
-    }
-
-    private static async Task<SortedSet<Entry>> CollectOneAsync(string root, string fileName, string entryName,
-        CancellationToken ct = default)
-    {
-        var result = new SortedSet<Entry>();
-        foreach (var scanRoot in EnumerateCollectionRoots(root))
-        {
-            var walker = Directory.EnumerateFiles(scanRoot, fileName, SearchOption.AllDirectories);
-            foreach (var xmlFile in walker)
-            {
-                ct.ThrowIfCancellationRequested();
-                var entries = await ReadEntriesAsync(xmlFile, entryName, ct);
-                foreach (var entry in entries)
-                {
-                    result.Add(entry);
-                }
-            }
-        }
-
-        return result;
     }
 
     public static async Task<Dictionary<AssetType, SortedSet<Entry>>> CollectManyAsync(string root,
         IEnumerable<(string FileName, AssetType Type)> specs, CancellationToken ct = default)
     {
         var aggregated = CreateDatabase();
-
+        List<CollectionRequest> requests = [];
         foreach (var (fileName, type) in specs)
         {
             ct.ThrowIfCancellationRequested();
-            var entryName = GetEntryName(type);
-            var entries = await CollectOneAsync(root, fileName, entryName, ct);
-            aggregated[type].UnionWith(entries);
+            requests.Add(new CollectionRequest(fileName, type, GetEntryName(type)));
+        }
+
+        if (requests.Count == 0)
+        {
+            return aggregated;
+        }
+
+        var roots = EnumerateCollectionRoots(root, ct).ToArray();
+        foreach (var group in requests.GroupBy(request => request.FileName, StringComparer.Ordinal))
+        {
+            foreach (var scanRoot in roots)
+            {
+                ct.ThrowIfCancellationRequested();
+                foreach (var xmlFile in Directory.EnumerateFiles(scanRoot, group.Key, SearchOption.AllDirectories))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var doc = await ReadDocumentAsync(xmlFile, ct);
+                    if (doc is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var request in group)
+                    {
+                        ReadEntries(doc, request.EntryName, request.Entries, ct);
+                    }
+                }
+            }
+        }
+
+        // Merge in caller order: different filename patterns may supply the same type and ID.
+        foreach (var request in requests)
+        {
+            ct.ThrowIfCancellationRequested();
+            aggregated[request.Type].UnionWith(request.Entries);
         }
 
         return aggregated;
+    }
+
+    private sealed record CollectionRequest(string FileName, AssetType Type, string EntryName)
+    {
+        internal SortedSet<Entry> Entries { get; } = [];
     }
 
     private static Dictionary<AssetType, SortedSet<Entry>> CreateDatabase()
@@ -307,8 +322,9 @@ public class AssetDictionary()
         };
     }
 
-    private static IEnumerable<string> EnumerateCollectionRoots(string root)
+    private static IEnumerable<string> EnumerateCollectionRoots(string root, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (IsAllowedAssetFolder(root))
         {
             yield return root;
@@ -321,6 +337,7 @@ public class AssetDictionary()
 
         while (queue.Count > 0)
         {
+            ct.ThrowIfCancellationRequested();
             var (path, depth) = queue.Dequeue();
             if (depth >= maxDepth)
             {
@@ -331,6 +348,7 @@ public class AssetDictionary()
 
             foreach (var directory in children)
             {
+                ct.ThrowIfCancellationRequested();
                 if (IsAllowedAssetFolder(directory))
                 {
                     yield return directory;

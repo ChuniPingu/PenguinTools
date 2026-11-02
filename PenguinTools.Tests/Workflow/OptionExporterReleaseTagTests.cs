@@ -55,6 +55,7 @@ public sealed class OptionExporterReleaseTagTests
         var context = new MusicExportContext(
             TestAssets.Load(),
             TestMediaTool.Instance,
+            TestMediaTool.Instance,
             assetStore,
             DummyInfrastructureAssetProvider.Instance);
 
@@ -122,6 +123,7 @@ public sealed class OptionExporterReleaseTagTests
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
+            TestMediaTool.Instance,
             TestMediaTool.Instance,
             assetStore,
             DummyInfrastructureAssetProvider.Instance);
@@ -196,6 +198,7 @@ public sealed class OptionExporterReleaseTagTests
         var context = new MusicExportContext(
             TestAssets.Load(),
             TestMediaTool.Instance,
+            TestMediaTool.Instance,
             assetStore,
             DummyInfrastructureAssetProvider.Instance);
 
@@ -263,6 +266,7 @@ public sealed class OptionExporterReleaseTagTests
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
+            TestMediaTool.Instance,
             TestMediaTool.Instance,
             assetStore,
             DummyInfrastructureAssetProvider.Instance);
@@ -333,6 +337,7 @@ public sealed class OptionExporterReleaseTagTests
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
             TestAssets.Load(),
+            TestMediaTool.Instance,
             TestMediaTool.Instance,
             assetStore,
             DummyInfrastructureAssetProvider.Instance);

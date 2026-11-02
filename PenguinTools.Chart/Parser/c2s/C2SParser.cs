@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using PenguinTools.Chart.Models;
@@ -24,11 +25,10 @@ public sealed class C2SParser
     ];
 
     private readonly List<PendingPair> _pendingPairs = [];
-    private readonly HashSet<c2sModel.Note> _usedPairParents = [];
-    private readonly Dictionary<c2sModel.Note, int> _pairRootOrder = [];
-    private readonly HashSet<c2sModel.Slide> _slideTails = [];
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
+    private readonly HashSet<int> _adjustedNumberLines = [];
+    private readonly Dictionary<int, string> _adjustedSourceLines = [];
 
     static C2SParser()
     {
@@ -70,6 +70,7 @@ public sealed class C2SParser
         C2s.Meta.FilePath = Path;
         C2s.Meta.BgmEnableBarOffset = true;
         C2s.Meta.BgmFixedZeroOrigin = true;
+        C2s.Extras.ClickEnabled = false;
 
         var lines = await ReadLinesAsync(Path, ct);
         C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => l.Text));
@@ -77,6 +78,10 @@ public sealed class C2SParser
         {
             ct.ThrowIfCancellationRequested();
             ParseLine(line);
+        }
+        if (_adjustedSourceLines.Count > 0)
+        {
+            C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => _adjustedSourceLines.GetValueOrDefault(l.Number, l.Text)));
         }
 
         if (string.IsNullOrWhiteSpace(_version))
@@ -147,6 +152,15 @@ public sealed class C2SParser
         }
 
         ParseTokens(tokens, text, line.Number);
+        if (_adjustedNumberLines.Contains(line.Number))
+        {
+            var adjusted = string.Join('\t', tokens);
+            _adjustedSourceLines[line.Number] = adjusted;
+            if (C2s.Extras.Headers.ContainsKey(tokens[0]))
+            {
+                C2s.Extras.Headers[tokens[0]] = adjusted;
+            }
+        }
     }
 
     private void ParseMetronomeExtension(string text, int lineNumber)
@@ -182,7 +196,7 @@ public sealed class C2SParser
                 ParseCreator(tokens);
                 break;
             case "BPM_DEF":
-                ParseBpmDefinition(tokens);
+                ParseBpmDefinition(tokens, lineNumber);
                 break;
             case "MET_DEF":
                 ParseMeterDefinition(tokens);
@@ -229,6 +243,12 @@ public sealed class C2SParser
             case "ASD":
             case "ALD":
                 ParseNote(tokens, lineNumber);
+                break;
+            case "ASO":
+            case "HHD":
+            case "HHX":
+                ReportAtLine(Severity.Warning,
+                    Msg.Create(MsgKeys.C2s_Unsupported_note_type, ("noteType", tokens[0])), lineNumber);
                 break;
             case "AHD":
             case "AHX":
@@ -383,20 +403,24 @@ public sealed class C2SParser
         C2s.Meta.Designer = string.Join('\t', tokens.Skip(1));
     }
 
-    private void ParseBpmDefinition(string[] tokens)
+    private void ParseBpmDefinition(string[] tokens, int lineNumber)
     {
         if (tokens.Length < 2)
         {
             return;
         }
 
-        if (!decimal.TryParse(tokens[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var bpm))
+        if (!TryGetDecimal(tokens, 1, lineNumber, "BPM_DEF", out var bpm))
         {
             return;
         }
 
-        C2s.Meta.MainBpm = tokens.Length > 2 && decimal.TryParse(tokens[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var mainBpm) ? mainBpm : bpm;
+        C2s.Meta.MainBpm = tokens.Length > 2 && TryGetDecimal(tokens, 2, lineNumber, "BPM_DEF", out var mainBpm) ? mainBpm : bpm;
         C2s.Meta.BgmInitialBpm = bpm;
+        for (var i = 3; i < Math.Min(tokens.Length, 5); i++)
+        {
+            TryGetDecimal(tokens, i, lineNumber, "BPM_DEF", out _);
+        }
     }
 
     private void ParseMeterDefinition(string[] tokens)
@@ -660,13 +684,9 @@ public sealed class C2SParser
             EndWidth = noteBase.Width
         };
 
-        if (TryReadEffect(tokens, 6, lineNumber, out var effect))
+        if (type == "HXD")
         {
-            note.Effect = effect;
-        }
-        else if (type == "HXD")
-        {
-            note.Effect = ExEffect.UP;
+            note.Effect = TryReadEffect(tokens, 6, lineNumber, out var effect) ? effect : ExEffect.UP;
         }
 
         C2s.Notes.Add(note);
@@ -721,31 +741,21 @@ public sealed class C2SParser
             Width = noteBase.Width,
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = endWidth,
+            EndWidth = Math.Clamp(endWidth, 1, 16),
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
-        var effectIndex = 8;
-        if (HasToken(tokens, 8))
-        {
-            if (tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase))
-            {
-                note.NoLine = true;
-                effectIndex = 9;
-            }
-            else if (tokens[8].Equals("SLD", StringComparison.OrdinalIgnoreCase))
-            {
-                effectIndex = 9;
-            }
-        }
+        note.NoLine = HasToken(tokens, 8) && tokens[8].Equals("NCL", StringComparison.OrdinalIgnoreCase);
+        // Older exporters can omit the link field. Only a recognized effect
+        // identifies that abbreviated form; other link markers use the normal line.
+        var effectIndex = !HasToken(tokens, 9) && HasToken(tokens, 8) &&
+                          Enum.TryParse<ExEffect>(tokens[8], true, out var legacyEffect) && Enum.IsDefined(legacyEffect)
+            ? 8
+            : 9;
 
-        if (TryReadEffect(tokens, effectIndex, lineNumber, out var effect))
+        if (type is "SXD" or "SXC")
         {
-            note.Effect = effect;
-        }
-        else if (type is "SXD" or "SXC")
-        {
-            note.Effect = ExEffect.UP;
+            note.Effect = TryReadEffect(tokens, effectIndex, lineNumber, out var effect) ? effect : ExEffect.UP;
         }
 
         C2s.Notes.Add(note);
@@ -802,7 +812,7 @@ public sealed class C2SParser
             Height = ParseDisplayedHeight(height),
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = endWidth,
+            EndWidth = Math.Clamp(endWidth, 1, 16),
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
@@ -866,7 +876,7 @@ public sealed class C2SParser
             Height = ParseDisplayedHeight(height),
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = endWidth,
+            EndWidth = Math.Clamp(endWidth, 1, 16),
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
@@ -923,110 +933,121 @@ public sealed class C2SParser
             return false;
         }
 
-        noteBase = new NoteBase(tick, lane, width);
+        noteBase = new NoteBase(tick, lane, Math.Clamp(width, 1, 16));
         return true;
     }
 
     private void ResolvePairings()
     {
-        for (var i = 0; i < C2s.Notes.Count; i++)
-        {
-            _pairRootOrder[C2s.Notes[i]] = i;
-        }
+        var roots = new Dictionary<c2sModel.Note, c2sModel.Note>();
         foreach (var path in C2sSlidePaths.Build(C2s.Notes.OfType<c2sModel.Slide>()))
         {
-            _slideTails.Add(path[^1]);
             foreach (var segment in path)
             {
-                _pairRootOrder[segment] = _pairRootOrder[path[0]];
+                roots[segment] = path[0];
             }
         }
-        foreach (var pending in _pendingPairs)
+        foreach (var path in C2sAirCrashPaths.Build(C2s.Notes.OfType<c2sModel.AirCrash>()))
         {
-            var parent = FindPairParent(pending.Note, pending.ParentId);
-            if (parent != null)
+            foreach (var segment in path)
             {
-                ((c2sModel.IPairable)pending.Note).Parent = parent;
-                _usedPairParents.Add(parent);
-                if (pending.Note is c2sModel.AirSlide && parent is c2sModel.AirSlide ||
-                    pending.Note is c2sModel.AirHold && parent is c2sModel.AirHold)
+                roots[segment] = path[0];
+            }
+        }
+
+        var pendingByNote = _pendingPairs.ToDictionary(p => p.Note);
+        var parents = new List<AirParentState>();
+        var stateByRoot = new Dictionary<c2sModel.Note, AirParentState>();
+        foreach (var note in C2s.Notes)
+        {
+            if (!pendingByNote.TryGetValue(note, out var pending))
+            {
+                var root = roots.GetValueOrDefault(note, note);
+                if (!stateByRoot.TryGetValue(root, out var state))
                 {
-                    _pairRootOrder[pending.Note] = _pairRootOrder[parent];
+                    state = new AirParentState(root);
+                    stateByRoot.Add(root, state);
+                    parents.Add(state);
                 }
+                state.Tail = note;
                 continue;
             }
 
+            // Each ground record has one AIR slot. Replay statements so a
+            // later parent or continuation cannot affect an earlier binding.
+            var binding = FindPairParent(note, pending.ParentId, parents);
+            if (binding is { } found)
+            {
+                ((c2sModel.IPairable)note).Parent = found.Parent;
+                found.State.AirTail = note;
+                continue;
+            }
             ReportAtLine(Severity.Warning,
                 Msg.Create(MsgKeys.C2s_Parent_not_resolved, pending.ParentId, pending.Note.Id), pending.LineNumber,
                 pending.Note);
         }
     }
 
-    private c2sModel.Note? FindPairParent(c2sModel.Note note, string parentId)
+    private static AirParentBinding? FindPairParent(c2sModel.Note note, string parentId,
+        List<AirParentState> parents)
     {
-        return C2s.Notes
-            .Where(candidate => ParentTypeMatches(candidate, parentId))
-            .Where(candidate => candidate is not c2sModel.Slide slide || _slideTails.Contains(slide))
-            .Where(candidate => IsAttachPoint(candidate, note))
-            .OrderBy(candidate => _usedPairParents.Contains(candidate))
-            .ThenBy(candidate => PairDistance(candidate, note))
-            .ThenBy(candidate => _pairRootOrder[candidate])
-            .FirstOrDefault();
+        parentId = parentId.ToUpperInvariant();
+        foreach (var state in parents)
+        {
+            if (note is c2sModel.AirHold && parentId is "AHD" or "AHX" or "ASX")
+            {
+                if (state.AirTail is c2sModel.AirHold airHold &&
+                    airHold.EndTick == note.Tick && EndLane(state.Tail) == note.Lane &&
+                    EndWidth(state.Tail) == note.Width)
+                {
+                    return new AirParentBinding(airHold, state);
+                }
+            }
+            else if (note is c2sModel.AirSlide && parentId is "ASD" or "ASC")
+            {
+                if (state.AirTail is c2sModel.AirSlide airSlide && airSlide.Id == parentId &&
+                    IsAttachPoint(airSlide, note) && C2sHeight.Key(airSlide.EndHeight) == C2sHeight.Key(((c2sModel.AirSlide)note).Height))
+                {
+                    return new AirParentBinding(airSlide, state);
+                }
+            }
+            else if (state.AirTail is null && ParentTypeMatches(state.Root, parentId) && IsAttachPoint(state.Tail, note))
+            {
+                return new AirParentBinding(state.Tail, state);
+            }
+        }
+        return null;
     }
 
-    private static bool ParentTypeMatches(c2sModel.Note candidate, string parentId)
+    private static bool ParentTypeMatches(c2sModel.Note candidate, string parentId) => candidate switch
     {
-        // C2S writers use SLD as the generic parent marker even when the
-        // attach-point segment itself is a control (SLC/SXC) segment.
-        if (parentId.Equals("SLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Slide)
-        {
-            return true;
-        }
+        c2sModel.Hold => parentId is "HLD" or "HXD",
+        c2sModel.Slide => parentId is "SLD" or "SXD" or "SLC" or "SXC",
+        _ => candidate.Id == parentId
+    };
 
-        if (parentId.Equals("HLD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.Hold)
-        {
-            return true;
-        }
+    private static bool IsAttachPoint(c2sModel.Note candidate, c2sModel.Note note) =>
+        EndTick(candidate) == note.Tick.Original && EndLane(candidate) == note.Lane && EndWidth(candidate) == note.Width;
 
-        if (parentId.Equals("AHD", StringComparison.OrdinalIgnoreCase) && candidate is c2sModel.AirHold)
-        {
-            return true;
-        }
+    private static int EndTick(c2sModel.Note note) => note switch
+    {
+        c2sModel.LongNote longNote => longNote.EndTick.Original,
+        c2sModel.Sla sla => checked(sla.Tick.Original + sla.Length.Original),
+        _ => note.Tick.Original
+    };
 
-        return string.Equals(candidate.Id, parentId, StringComparison.OrdinalIgnoreCase);
+    private static int EndLane(c2sModel.Note note) => note is c2sModel.LongNote longNote ? longNote.EndLane : note.Lane;
+
+    private static int EndWidth(c2sModel.Note note) => note is c2sModel.LongNote longNote ? longNote.EndWidth : note.Width;
+
+    private sealed class AirParentState(c2sModel.Note root)
+    {
+        public c2sModel.Note Root { get; } = root;
+        public c2sModel.Note Tail { get; set; } = root;
+        public c2sModel.Note? AirTail { get; set; }
     }
 
-    private static bool IsAttachPoint(c2sModel.Note candidate, c2sModel.Note note)
-    {
-        if (candidate is c2sModel.LongHeightNote heightNote && note is c2sModel.LongHeightNote targetHeight)
-        {
-            return heightNote.EndTick.Original == note.Tick.Original &&
-                heightNote.EndLane == note.Lane && heightNote.EndWidth == note.Width &&
-                heightNote.EndHeight.Result == targetHeight.Height.Result;
-        }
-
-        if (candidate is c2sModel.LongNote longNote &&
-            longNote.EndTick.Original == note.Tick.Original &&
-            longNote.EndLane == note.Lane &&
-            longNote.EndWidth == note.Width)
-        {
-            return true;
-        }
-
-        return candidate.Tick.Original == note.Tick.Original &&
-               candidate.Lane == note.Lane &&
-               candidate.Width == note.Width;
-    }
-
-    private static int PairDistance(c2sModel.Note candidate, c2sModel.Note note)
-    {
-        if (candidate is c2sModel.LongNote longNote)
-        {
-            return Math.Abs(longNote.EndTick.Original - note.Tick.Original);
-        }
-
-        return Math.Abs(candidate.Tick.Original - note.Tick.Original);
-    }
+    private readonly record struct AirParentBinding(c2sModel.Note Parent, AirParentState State);
 
     private bool TryReadEffect(string[] tokens, int index, int lineNumber, out ExEffect effect) =>
         TryReadEnum(tokens, index, lineNumber, MsgKeys.C2s_Unknown_ex_effect, default, out effect);
@@ -1131,14 +1152,54 @@ public sealed class C2SParser
     {
         value = default;
         if (index < tokens.Length &&
-            decimal.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+            decimal.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) &&
+            (parsed != 0 || !NativeNumber.HasNonzeroCoefficient(tokens[index])) &&
+            float.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var native) &&
+            float.IsFinite(native) && TryKeepSingleValue(parsed, native, out value))
         {
+            return true;
+        }
+
+        if (index < tokens.Length &&
+            double.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var approximation))
+        {
+            var original = tokens[index];
+            var kind = field.StartsWith("BPM", StringComparison.Ordinal) ? NativeNumberKind.Bpm :
+                field == "event speed" ? NativeNumberKind.Speed : NativeNumberKind.Value;
+            value = NativeNumber.Read(approximation, kind, out _, original: original);
+            tokens[index] = value.ToString("G29", CultureInfo.InvariantCulture);
+            _adjustedNumberLines.Add(lineNumber);
+            ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.Warn_Number_adjusted, $"C2S {field}", original, tokens[index]), lineNumber);
             return true;
         }
 
         ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
             index < tokens.Length ? tokens[index] : null);
         return false;
+    }
+
+    [SuppressMessage("Reliability", "S1244",
+        Justification = "The result must round to the exact native float32 value; tolerance comparisons can change timing and judgement thresholds.")]
+    private static bool TryKeepSingleValue(decimal parsed, float native, out decimal value)
+    {
+        value = parsed;
+        var projected = float.Parse(value.ToString("G29", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        if (projected == native)
+        {
+            return true;
+        }
+
+        var scale = (byte)((decimal.GetBits(value)[3] >> 16) & 0xff);
+        var unit = new decimal(1, 0, 0, false, scale);
+        try
+        {
+            value += projected < native ? unit : -unit;
+            return float.Parse(value.ToString("G29", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture) == native;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     private void ReportAtLine(Severity severity, MessageDescriptor message, int lineNumber, object? target = null)

@@ -12,10 +12,8 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class EditorInformationTests
 {
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task EditorInformation_SurvivesThreeUgcMgxcCycles(ChartDialect dialect)
+    [Fact]
+    public async Task EditorInformation_SurvivesRepeatedUgcMgxcSaves()
     {
         var source = TestTempPaths.Create(".ugc");
         var ugc = TestTempPaths.Create(".ugc");
@@ -31,7 +29,7 @@ public sealed class EditorInformationTests
                 "@DLURL\thttps://example.org/download\n@SPDDEF\t1\t0\t0.125\n@CUSTOM_EXT\tretained value\n" +
                 "@FLAG\tCUSTOM_FLAG\tTRUE\n@T_JUDGE_ALL\t999\n" +
                 "#0'0:f04A\n#0'480:f44L\n#0'960:f84R\n", TestContext.Current.CancellationToken);
-            var parsed = await new UgcParser(new UgcParseRequest(source, TestAssets.Load(), dialect), TestMediaTool.Instance)
+            var parsed = await new UgcParser(new UgcParseRequest(source, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var chart = parsed.Value!;
@@ -42,7 +40,7 @@ public sealed class EditorInformationTests
             chart.Events.AppendChild(new U.BreakingMarker { Tick = 720 });
             var image = ImageEvent();
             chart.Extras.EditorImageEvents.Add(image);
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);

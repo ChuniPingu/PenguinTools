@@ -8,6 +8,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
@@ -116,7 +117,7 @@ public sealed class C2sAirConversionTests
     }
 
     [Fact]
-    public async Task MgxcWriter_EmitsOfficialAirHoldWithoutSeparateAir()
+    public async Task MgxcWriter_EmitsOfficialAirHoldWithSeparateAir()
     {
         var source = new C2sChart();
         source.Meta.MainBpm = 120m;
@@ -191,7 +192,7 @@ public sealed class C2sAirConversionTests
 
                         if (type == 0x08 && longAttr == 0x01)
                         {
-                            Assert.NotEqual((sbyte)0x07, previousType);
+                            Assert.Equal((sbyte)0x07, previousType);
                             sawNativeHold = true;
                         }
 
@@ -213,41 +214,38 @@ public sealed class C2sAirConversionTests
     }
 
     [Fact]
-    public async Task MgxcWriter_PairsUnresolvedAirHoldWithCarrier()
+    public async Task MgxcRoundTrip_DoesNotInventCarriersForRejectedAirHoldChains()
     {
-        var source = new C2sChart();
-        source.Meta.MainBpm = 120m;
-        source.Notes.Add(new AirHold
-        {
-            Tick = 480,
-            Lane = 4,
-            Width = 3,
-            EndTick = 960,
-            EndLane = 4,
-            EndWidth = 3,
-            Color = Color.DEF,
-            Joint = Joint.D
-        });
-
-        var converted = new UgcChartConverter(new UgcConvertRequest(source)).Convert();
-        Assert.True(converted.Succeeded, converted.ToString());
-
-        Assert.Equal(
-            string.Empty,
-            converted.Value!.Meta.C2sAirSnapshot);
-
-        var airHold = Assert.Single(
-            converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.AirHold>());
-        Assert.NotNull(airHold.PairNote);
-        Assert.Equal(480, airHold.Tick.Original);
-        Assert.Equal(4, airHold.Lane);
-        Assert.Equal(3, airHold.Width);
-
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
+        var sourcePath = Path.Combine(directory, "unresolved-air-hold.c2s");
         var path = Path.Combine(directory, "unresolved-air-hold.mgxc");
         try
         {
+            await File.WriteAllTextAsync(sourcePath, """
+                VERSION 1.15.00 1.15.00
+                RESOLUTION 384
+                BPM_DEF 120 120 120 120
+                MET_DEF 4 4
+                BPM 0 0 120
+                MET 0 0 4 4
+                TAP 0 96 12 4
+                AHD 0 96 4 3 TAP 96 DEF
+                AHX 0 192 4 3 AHD 96 DEF
+                """, TestContext.Current.CancellationToken);
+            var source = await new C2SParser(new C2SParseRequest(sourcePath))
+                .ParseAsync(TestContext.Current.CancellationToken);
+            Assert.True(source.Succeeded, source.ToString());
+            var warnings = source.Diagnostics.Diagnostics
+                .Where(d => d.Message.Key == MsgKeys.C2s_Parent_not_resolved).ToArray();
+            Assert.Equal(2, warnings.Length);
+            Assert.All(warnings, d => Assert.Equal(Severity.Warning, d.Severity));
+
+            var converted = new UgcChartConverter(new UgcConvertRequest(source.Value!)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            Assert.Equal(string.Empty, converted.Value!.Meta.C2sAirSnapshot);
+            Assert.IsType<PenguinTools.Chart.Models.umgr.Tap>(Assert.Single(converted.Value.Notes.Children));
+
             var written = await new MgxcChartWriter(new MgxcWriteRequest(path, converted.Value))
                 .WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded, written.ToString());
@@ -258,11 +256,10 @@ public sealed class C2sAirConversionTests
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(parsed.Succeeded, parsed.ToString());
 
-            var parsedAirHold = Assert.Single(
-                parsed.Value!.Notes.Children
-                    .OfType<PenguinTools.Chart.Models.umgr.AirHold>());
-
-            Assert.NotNull(parsedAirHold.PairNote);
+            Assert.IsType<PenguinTools.Chart.Models.umgr.Tap>(Assert.Single(parsed.Value!.Notes.Children));
+            var roundTripped = new C2SChartConverter(new C2SConvertRequest(parsed.Value)).Convert();
+            Assert.True(roundTripped.Succeeded, roundTripped.ToString());
+            Assert.Empty(roundTripped.Value!.Notes.OfType<IPairable>());
         }
         finally
         {
@@ -934,7 +931,7 @@ public sealed class C2sAirConversionTests
     }
 
     [Fact]
-    public async Task AirActions_OnSameParent_PreserveSourceAirOrder()
+    public async Task AirActions_OnOverlappingParents_PreserveSeparateBindingsAndDirections()
     {
         var directory = Path.Combine(
             Path.GetTempPath(),
@@ -950,6 +947,9 @@ public sealed class C2sAirConversionTests
                 VERSION	1.13.00	1.13.00
                 RESOLUTION	384
                 TAP	0	0	4	4
+                TAP	0	0	4	4
+                TAP	0	0	4	4
+                TAP	0	0	4	4
                 AHD	0	0	4	4	TAP	96
                 ASD	0	0	4	4	TAP	5.0	96	6	4	5.0	DEF
                 AUL	0	0	4	4	TAP
@@ -961,6 +961,7 @@ public sealed class C2sAirConversionTests
                 .ParseAsync(TestContext.Current.CancellationToken);
 
             Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.C2s_Parent_not_resolved);
 
             var sourceAirs = parsed.Value!.Notes
                 .OfType<Air>()
@@ -982,8 +983,18 @@ public sealed class C2sAirConversionTests
                 converted.Value.Notes.Children
                     .OfType<PenguinTools.Chart.Models.umgr.AirSlide>());
 
-            Assert.Equal(sourceAirs[0].Direction, airHold.Direction);
-            Assert.Equal(sourceAirs[1].Direction, airSlide.Direction);
+            var parents = converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Tap>().ToArray();
+            Assert.Equal(4, parents.Length);
+            Assert.Same(parents[0], airHold.PairNote);
+            Assert.Same(parents[1], airSlide.PairNote);
+            Assert.Equal(AirDirection.IR, airHold.Direction);
+            Assert.Equal(AirDirection.IR, airSlide.Direction);
+            var airs = converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Air>().ToArray();
+            Assert.Equal(2, airs.Length);
+            Assert.Same(parents[2], airs[0].PairNote);
+            Assert.Same(parents[3], airs[1].PairNote);
+            Assert.Equal(sourceAirs[0].Direction, airs[0].Direction);
+            Assert.Equal(sourceAirs[1].Direction, airs[1].Direction);
         }
         finally
         {

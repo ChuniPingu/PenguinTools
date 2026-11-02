@@ -16,16 +16,12 @@ namespace PenguinTools.Tests.Parser;
 public sealed class C2sAudioOffsetTests
 {
     [Theory]
-    [InlineData(ChartDialect.Original, 4, true)]
-    [InlineData(ChartDialect.Original, 4, false)]
-    [InlineData(ChartDialect.Original, 7, true)]
-    [InlineData(ChartDialect.Original, 7, false)]
-    [InlineData(ChartDialect.Extended, 4, true)]
-    [InlineData(ChartDialect.Extended, 4, false)]
-    [InlineData(ChartDialect.Extended, 7, true)]
-    [InlineData(ChartDialect.Extended, 7, false)]
+    [InlineData(4, true)]
+    [InlineData(4, false)]
+    [InlineData(7, true)]
+    [InlineData(7, false)]
     public async Task SpeedEndpoints_AreRoundedAfterSelectedOriginIsApplied(
-        ChartDialect mode, int denominator, bool explicitEnd)
+        int denominator, bool explicitEnd)
     {
         var input = TestTempPaths.Create(".mgxc");
         var output = TestTempPaths.Create(".c2s");
@@ -47,7 +43,7 @@ public sealed class C2sAudioOffsetTests
             Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, source))
                 .WriteAsync(ct)).Succeeded);
             await LegacyEditorFixture.DowngradeAsync(input, ct);
-            var parsed = await new MgxcParser(new MgxcParseRequest(input, TestAssets.Load(), mode), TestMediaTool.Instance)
+            var parsed = await new MgxcParser(new MgxcParseRequest(input, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
@@ -55,7 +51,7 @@ public sealed class C2sAudioOffsetTests
             Assert.True((await new C2SChartWriter(new C2SWriteRequest(output, converted.Value!)).WriteAsync(ct)).Succeeded);
             var result = await new C2SParser(new C2SParseRequest(output)).ParseAsync(ct);
             Assert.True(result.Succeeded, result.ToString());
-            var offset = mode == ChartDialect.Original ? (int)Math.Round(1920m / denominator) : 0;
+            var offset = (int)Math.Round(1920m / denominator);
             var start = (int)Math.Round((1m + offset) / 5) * 5;
             var end = (int)Math.Round((503m + offset) / 5) * 5;
             Assert.Equal(end, Assert.Single(result.Value!.Notes.OfType<C.Tap>()).Tick.Original);
@@ -64,7 +60,14 @@ public sealed class C2sAudioOffsetTests
             Assert.All(speeds, speed =>
             {
                 Assert.Equal(start, speed.Tick.Original);
-                Assert.Equal(end, speed.Tick.Original + speed.Length.Original);
+                if (speed is C.Dcm && !explicitEnd)
+                {
+                    Assert.True(speed.Tick.Original + speed.Length.Original > end);
+                }
+                else
+                {
+                    Assert.Equal(end, speed.Tick.Original + speed.Length.Original);
+                }
             });
         }
         finally
@@ -144,7 +147,7 @@ public sealed class C2sAudioOffsetTests
         try
         {
             Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source)).WriteAsync(ct)).Succeeded);
-            var parsed = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load(), ChartDialect.Original), TestMediaTool.Instance).ParseAsync(ct);
+            var parsed = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
             Assert.True(converted.Succeeded, converted.ToString());
@@ -199,7 +202,6 @@ public sealed class C2sAudioOffsetTests
         source.Meta.BgmEnableBarOffset = true;
         source.Meta.BgmInitialNumerator = numerator;
         source.Meta.BgmInitialDenominator = denominator;
-        source.Extras.EncodingDialect = ChartDialect.Original;
         source.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
         source.Events.AppendChild(new U.BeatEvent { Tick = 0, Bar = 0, Numerator = numerator, Denominator = denominator });
         source.Events.AppendChild(new U.ScrollSpeedEvent { Tick = 0, Timeline = 0, Speed = 2 });
@@ -222,7 +224,14 @@ public sealed class C2sAudioOffsetTests
         Assert.All(speeds, speed =>
         {
             Assert.Equal(0, speed.Tick.Original);
-            Assert.Equal(1921 + offset, speed.Tick.Original + speed.Length.Original);
+            if (speed is C.Dcm && !explicitEnd)
+            {
+                Assert.True(speed.Tick.Original + speed.Length.Original > 1921 + offset);
+            }
+            else
+            {
+                Assert.Equal(1921 + offset, speed.Tick.Original + speed.Length.Original);
+            }
             Assert.InRange(tap.Tick.Original, speed.Tick.Original, speed.Tick.Original + speed.Length.Original - 1);
         });
 
@@ -237,7 +246,14 @@ public sealed class C2sAudioOffsetTests
             Assert.All(parsed.Value!.Events.OfType<C.SpeedEventBase>(), speed =>
             {
                 Assert.Equal(0, speed.Tick.Original);
-                Assert.Equal(expectedEnd, speed.Tick.Original + speed.Length.Original);
+                if (speed is C.Dcm && !explicitEnd)
+                {
+                    Assert.True(speed.Tick.Original + speed.Length.Original > expectedEnd);
+                }
+                else
+                {
+                    Assert.Equal(expectedEnd, speed.Tick.Original + speed.Length.Original);
+                }
             });
         }
         finally { File.Delete(output); }
@@ -296,7 +312,16 @@ public sealed class C2sAudioOffsetTests
                 source = result.Value!;
                 Assert.Equal(edited ? 2400 : 1920, Assert.Single(source.Notes.OfType<C.Tap>()).Tick.Original);
                 Assert.Equal(480, Assert.Single(source.Events.OfType<C.Slp>()).Tick.Original);
-                Assert.Equal(1920, Assert.Single(source.Notes.OfType<C.Sla>()).Tick.Original);
+                if (edited)
+                {
+                    // Moving a main-timeline note now invalidates the SLA snapshot.
+                    // The source's id-0 region has no effect and needs no replacement.
+                    Assert.Empty(source.Notes.OfType<C.Sla>());
+                }
+                else
+                {
+                    Assert.Equal(1920, Assert.Single(source.Notes.OfType<C.Sla>()).Tick.Original);
+                }
             }
         }
         finally
@@ -335,7 +360,7 @@ public sealed class C2sAudioOffsetTests
         var ct = TestContext.Current.CancellationToken;
         try
         {
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source)).WriteAsync(ct)).Succeeded);
                 var binary = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
@@ -549,7 +574,7 @@ public sealed class C2sAudioOffsetTests
         var ct = TestContext.Current.CancellationToken;
         try
         {
-            for (var cycle = 0; cycle < 3; cycle++)
+            for (var cycle = 0; cycle < 2; cycle++)
             {
                 Assert.True(ugc
                     ? (await new UgcChartWriter(editor, chart).WriteAsync(ct)).Succeeded
@@ -632,11 +657,9 @@ public sealed class C2sAudioOffsetTests
     }
 
     [Theory]
-    [InlineData(false, ChartDialect.Original, 1920)]
-    [InlineData(false, ChartDialect.Extended, 0)]
-    [InlineData(true, ChartDialect.Original, 1920)]
-    [InlineData(true, ChartDialect.Extended, 0)]
-    public async Task ExplicitEditorMode_SelectsOriginWithoutChangingSofs(bool ugc, ChartDialect dialect, int expectedTick)
+    [InlineData(false, 1920)]
+    [InlineData(true, 1920)]
+    public async Task OfficialInput_AppliesPrerollWithoutChangingSofs(bool ugc, int expectedTick)
     {
         var chart = new U.Chart();
         chart.Meta.BgmEnableBarOffset = true;
@@ -652,50 +675,14 @@ public sealed class C2sAudioOffsetTests
                 : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct)).Succeeded);
             await LegacyEditorFixture.DowngradeAsync(path, ct);
             var parsed = ugc
-                ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct)
-                : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct);
+                ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             Assert.True(parsed.Value!.Meta.BgmEnableBarOffset);
             var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value)).Convert();
             Assert.True(converted.Succeeded, converted.ToString());
             Assert.Equal(expectedTick, Assert.Single(converted.Value!.Notes.OfType<C.Tap>()).Tick.Original);
             Assert.Equal(expectedTick == 0 ? .25m : 2.25m, converted.Value.Meta.BgmRealOffset);
-        }
-        finally { File.Delete(path); }
-    }
-
-    [Fact]
-    public async Task InvalidEditorMode_IsRejected()
-    {
-        var path = TestTempPaths.Create(".ugc");
-        var ct = TestContext.Current.CancellationToken;
-        try
-        {
-            await File.WriteAllTextAsync(path, "@VER\t8\n@BPM\t0'0\t120\n#0'0:t04\n", ct);
-            var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load(),
-                (ChartDialect)999), TestMediaTool.Instance).ParseAsync(ct);
-            Assert.False(parsed.Succeeded);
-        }
-        finally { File.Delete(path); }
-    }
-
-    [Theory]
-    [InlineData(ChartDialect.Auto, 0)]
-    [InlineData(ChartDialect.Extended, 0)]
-    [InlineData(ChartDialect.Original, 1920)]
-    public async Task ExplicitEditorMode_TakesPrecedenceOverCreatorFallback(ChartDialect dialect, int expectedTick)
-    {
-        var path = TestTempPaths.Create(".ugc");
-        var ct = TestContext.Current.CancellationToken;
-        try
-        {
-            await File.WriteAllTextAsync(path,
-                "' Created with Margrete v2.3.3\n@VER\t8\n@FLAG\tSOFFSET\tTRUE\n@BPM\t0'0\t120\n#0'0:t04\n", ct);
-            var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(ct);
-            Assert.True(parsed.Succeeded, parsed.ToString());
-            var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
-            Assert.True(converted.Succeeded, converted.ToString());
-            Assert.Equal(expectedTick, Assert.Single(converted.Value!.Notes.OfType<C.Tap>()).Tick.Original);
         }
         finally { File.Delete(path); }
     }

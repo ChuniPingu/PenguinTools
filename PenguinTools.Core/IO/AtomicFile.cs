@@ -28,7 +28,7 @@ public static class AtomicFile
                 await stream.FlushAsync(cancellationToken);
             }
 
-            Replace(tempPath, fullPath);
+            await ReplaceAsync(tempPath, fullPath, cancellationToken);
         }
         finally
         {
@@ -39,14 +39,30 @@ public static class AtomicFile
         }
     }
 
-    private static void Replace(string tempPath, string path)
+    private static async Task ReplaceAsync(string tempPath, string path, CancellationToken cancellationToken)
     {
-        if (File.Exists(path))
+        for (var attempt = 0; ; attempt++)
         {
-            File.Replace(tempPath, path, null);
-            return;
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Replace(tempPath, path, null);
+                }
+                else
+                {
+                    File.Move(tempPath, path);
+                }
+                return;
+            }
+            catch (IOException ex) when (OperatingSystem.IsWindows()
+                                       && (ex.HResult & 0xffff) is 32 or 33
+                                       && attempt < 15)
+            {
+                // Allow a brief Windows sharing lock to clear, with at most 750 ms of delay.
+                await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+            }
         }
-
-        File.Move(tempPath, path);
     }
 }

@@ -27,7 +27,7 @@ Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that categ
 
 - **Measure / Offset** — placement in chart ticks (`RESOLUTION`, usually 384 per measure).
 - **Cell** — leftmost column (0–15; `1.14.00+` may use values outside that range).
-- **Width** — columns occupied (1–16 typically).
+- **Width** — columns occupied, clamped to 1–16 before matching paths and AIR parents. Extended lane bounds are applied after those relationships are established.
 
 ## TAP
 
@@ -62,7 +62,11 @@ Air arrows (`AIR` / `AUL` / `AUR` / `ADW` / `ADL` / `ADR`) are not in that categ
 - **`SXD` / `SXC`** — ExSlide.
 - **Link** — usually `SLD`; `NCL` = no line.
 
-Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches height and the parent node type.
+Conversion and C2S writing share a scheduler that orders complete SLIDE/AIR paths by parent and continuation dependencies while preserving unrelated statement order. Records advance paths in statement order. A continuation matches the endpoint time, cell, width, and line type; ties use path creation order. Changing `SLD` to `NCL` starts a separate path. Independent slides touching end to start require the later slide's first record before the earlier slide's final segment; sorting these records by time merges the paths. AIR attachment and AIR-SLIDE continuation also depend on order; AIR-SLIDE additionally matches native height in integer tenths and the parent node type.
+
+An AIR declaration can precede later continuations of its ground SLIDE. Its parent is matched against the endpoint available at that point in record order, while native playback anchors AIR to the completed long note's end. Conversion preserves this ordering when multiple ground paths share temporary endpoints; this does not make intermediate SLIDE joints editable AIR attachment points.
+
+When all segments have positive duration at C2S precision and each ground path has at most one AIR path attached at its final endpoint, these ordering constraints resolve overlapping paths without changing their associations.
 
 ## FLK (Flick)
 
@@ -82,6 +86,7 @@ Records advance paths in statement order. A continuation matches the endpoint ti
 | ------- | ------- | ------ | ---- | ----- | -------- | -------- |
 
 - **Timeline** — SLP timeline id this region belongs to.
+- A region applies at `start ≤ tick < end` when it contains the object's full lane span. Overlaps select the largest timeline id; row order does not affect this choice. AIR-CRUSH rungs are checked at their interpolated positions.
 
 ## AIR / AUL / AUR / ADW / ADL / ADR
 
@@ -97,7 +102,7 @@ Records advance paths in statement order. A continuation matches the endpoint ti
 | `ADL` | Down-left  |
 | `ADR` | Down-right |
 
-- **Target Note** — parent type token at the same time.
+- **Target Note** — selects the first previously created, unoccupied parent of that type whose current endpoint matches the AIR time, cell, and width. AIR, AIR-HOLD, and AIR-SLIDE share one attachment slot per ground path. Long-note parents match their current end; forward references and reuse of occupied parents are rejected.
 - **Color** — optional; see [Colors](#colors).
 
 ## AHD / AHX (Air Hold)
@@ -117,15 +122,18 @@ Records advance paths in statement order. A continuation matches the endpoint ti
 | `"ALD"` | Measure | Offset | Cell | Width | Density | Height | Duration | End Cell | End Width | End Height | Color | Attr |
 | ------- | ------- | ------ | ---- | ----- | ------- | ------ | -------- | -------- | --------- | ---------- | ----- | ---- |
 
+- Continuations join the first earlier path with matching endpoint time, cell, width, quantized height, density, and color. The root's axis applies to the whole path. Independent editor paths are ordered to keep touching endpoints separate.
 - **Color** — see [Colors](#colors).
 - **Attr** — ladder mode (`1.15.00+`):
 
-| Attr    | Id  | Notes                 |
-| ------- | --- | --------------------- |
-| `DEF`   | 0   | Default               |
-| `AxisY` | 1   | Orient along Y        |
-| `AxisZ` | 2   | Orient along Z        |
-| `Trace` | 3   | Trace / trail variant |
+| Attr    | Id  | Notes                   |
+| ------- | --- | ----------------------- |
+| `DEF`   | 0   | X-axis ribbon (default) |
+| `AxisY` | 1   | Y-axis ribbon           |
+| `AxisZ` | 2   | Z-axis ribbon           |
+| `Trace` | 3   | Thin tube               |
+
+`Attr` controls line appearance; `Density = 0` independently disables judgements.
 
 ## ASO (Air Solid)
 

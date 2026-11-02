@@ -183,7 +183,7 @@ public sealed class UgcEditPreservationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task LegacyChecksum_StillRequiresUnchangedContent(bool editTitle)
+    public async Task UnknownSnapshotVersion_DoesNotRestoreState(bool editTitle)
     {
         var chart = Chart();
         chart.Meta.Title = "Original";
@@ -193,15 +193,13 @@ public sealed class UgcEditPreservationTests
             var lines = text.Split('\n');
             var index = Array.FindIndex(lines, l => l.StartsWith("@COPYRIGHT\t", StringComparison.Ordinal));
             var extras = ChartExtras.FromCopyright(lines[index][11..]);
-            extras.UgcSnapshotVersion = 0;
-            extras.UgcMusicalKey = extras.UgcContextKey = null;
-            extras.UgcNoteSnapshots.Clear();
+            extras.UgcSnapshotVersion = int.MaxValue;
             lines[index] = "@COPYRIGHT\t" + extras.ToCopyright();
-            var legacy = string.Join('\n', lines);
-            return editTitle ? legacy.Replace("@TITLE\tOriginal", "@TITLE\tEdited", StringComparison.Ordinal) : legacy;
+            var updated = string.Join('\n', lines);
+            return editTitle ? updated.Replace("@TITLE\tOriginal", "@TITLE\tEdited", StringComparison.Ordinal) : updated;
         });
-        Assert.Equal(!editTitle, parsed.Extras.BinarySnapshotValid);
-        Assert.Equal(editTitle ? AirLadderAttr.DEF : AirLadderAttr.Trace, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
+        Assert.False(parsed.Extras.BinarySnapshotValid);
+        Assert.Equal(AirLadderAttr.DEF, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
     }
 
     private static U.Chart Chart()

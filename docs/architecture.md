@@ -8,21 +8,23 @@ The CLI is a command adapter around application services. Chart and media projec
 | `PenguinTools.Application`    | Application entry points and request/result contracts              |
 | `PenguinTools.Core`           | Shared metadata, diagnostics, messages, IO helpers, and interfaces |
 | `PenguinTools.Chart`          | Parse, model, validate, post-process, and write charts             |
-| `PenguinTools.Media`          | Audio, jacket, stage, and container operations                     |
-| `PenguinTools.Image`          | In-process raster processing, DDS conversion, and AFB handling     |
+| `PenguinTools.Media`          | Audio and image operations, CRI codecs, DDS, and AFB handling        |
 | `PenguinTools.Workflow`       | Scan charts and coordinate music/option exports and caches         |
-| `PenguinTools.Infrastructure` | Asset storage, paths, and native tool execution                    |
+| `PenguinTools.Infrastructure` | Asset storage, paths, and media integration                        |
 | `PenguinTools.Assets`         | Asset build/copy configuration                                     |
-| `PenguinTools.CRI`            | In-process CRI audio conversion and extraction                     |
 | `PenguinTools.Tests`          | Unit tests and optional sample/native integration tests            |
 
 Treat application request/result records and [CLI JSON output](cli.md#json-output-and-scripts) as interfaces for callers. Preserve message keys and named arguments, diagnostic locations, cancellation, exit codes, and numeric identifier representation when changing them.
+
+Media operations are split between `IAudioService` and `IImageService`. `AudioService` supplies FFmpeg and CRI operations; `ImageService` handles image-tools, texconv, and AFB operations directly. The application composes both services, and converters depend on the service they use. Chart parsers depend only on `IMediaValidator`; `MediaValidator` combines the two services' checks, and `ScanMediaValidator` shares their results within a directory scan.
 
 ## Charts
 
 [Parsers](../PenguinTools.Chart/Parser/) and [writers](../PenguinTools.Chart/Writer/) connect the [editor models](../PenguinTools.Chart/Models/umgr/) and [C2S models](../PenguinTools.Chart/Models/c2s/) through conversion and post-processing. `ChartExtras` carries editor extensions and round-trip state. UGC and C2S share curve expansion, and writers operate on a copy of the chart.
 
 [Chart conversion](chart-conversion.md) defines supported conversions, timing, approximation, and round-trip behavior. [Format references](formats/README.md) describe file syntax and provenance; [testing](testing.md) covers regression and fixture requirements.
+
+Directory scans share audio and image validation tasks for files with the same full path, length, and last-write time. This reuse is scoped to one scan; each chart retains its own diagnostics, and scan cancellation reaches the shared decoder. Option export caching separately verifies input and output content hashes.
 
 ## Messages
 

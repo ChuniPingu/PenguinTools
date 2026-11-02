@@ -10,6 +10,13 @@
                 <TargetPath>assets\ffmpeg\%(_PreparedFfmpegFile.RecursiveDir)%(_PreparedFfmpegFile.Filename)%(_PreparedFfmpegFile.Extension)</TargetPath>
                 <Link>assets\ffmpeg\%(_PreparedFfmpegFile.RecursiveDir)%(_PreparedFfmpegFile.Filename)%(_PreparedFfmpegFile.Extension)</Link>
             </Content>
+            <_PreparedImageToolsFile Include="$(PenguinToolsImageToolsDirectory)\**\*"/>
+            <Content Include="@(_PreparedImageToolsFile)">
+                <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+                <TargetPath>assets\image-tools\%(_PreparedImageToolsFile.RecursiveDir)%(_PreparedImageToolsFile.Filename)%(_PreparedImageToolsFile.Extension)</TargetPath>
+                <Link>assets\image-tools\%(_PreparedImageToolsFile.RecursiveDir)%(_PreparedImageToolsFile.Filename)%(_PreparedImageToolsFile.Extension)</Link>
+            </Content>
         </ItemGroup>
     </Target>
 </Project>

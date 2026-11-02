@@ -3,8 +3,10 @@ using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Models.umgr;
+using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
@@ -18,14 +20,14 @@ public class UgcTilTests
         "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n";
 
     private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(
-        string body, ChartDialect mode = ChartDialect.Auto, string header = Header)
+        string body, string header = Header)
     {
         var ct = TestContext.Current.CancellationToken;
         var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, header + body, ct);
         try
         {
-            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load(), mode), TestMediaTool.Instance)
+            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(ct);
         }
         finally
@@ -44,10 +46,28 @@ public class UgcTilTests
     private static SoflanArea[] GetSoflanAreas(Chart.Models.umgr.Chart chart) =>
         chart.Notes.Children.OfType<SoflanArea>().ToArray();
 
-    private static async Task<string[]> WriteC2s(string body, ChartDialect mode, string header = Header)
+    private static async Task<string[]> WriteC2s(string body, string header = Header,
+        bool throughMgxc = false)
     {
-        var parsed = await ParseResult(body, mode, header);
+        var parsed = await ParseResult(body, header);
         Assert.True(parsed.Succeeded, parsed.ToString());
+        if (throughMgxc)
+        {
+            var mgxc = TestTempPaths.Create(".mgxc");
+            try
+            {
+                var written = await new MgxcChartWriter(new MgxcWriteRequest(mgxc, parsed.Value!))
+                    .WriteAsync(TestContext.Current.CancellationToken);
+                Assert.True(written.Succeeded, written.ToString());
+                parsed = await new MgxcParser(new MgxcParseRequest(mgxc, TestAssets.Load()), TestMediaTool.Instance)
+                    .ParseAsync(TestContext.Current.CancellationToken);
+                Assert.True(parsed.Succeeded, parsed.ToString());
+            }
+            finally
+            {
+                File.Delete(mgxc);
+            }
+        }
         var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
         var path = TestTempPaths.Create(".c2s");
@@ -64,10 +84,9 @@ public class UgcTilTests
         }
     }
 
-    private static int[] TimelinesInFile(string[] lines, params (int Tick, int Lane, int Width)[] notes)
+    private static int[] TimelinesInFile(string[] lines, params (int Tick, decimal Lane, decimal Width)[] notes)
     {
-        // Read serialized row order independently of the converter's timeline
-        // model: a later matching SLA replaces the earlier assignment.
+        // Select the greatest matching id directly from the serialized rectangles.
         var areas = lines.Where(line => line.StartsWith("SLA\t", StringComparison.Ordinal))
             .Select(line => line.Split('\t').Skip(1)
                 .Select(value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray()).ToArray();
@@ -75,51 +94,46 @@ public class UgcTilTests
             .Where(area => note.Tick >= area[0] * 384 + area[1] &&
                            note.Tick < area[0] * 384 + area[1] + area[4] &&
                            note.Lane >= area[2] && note.Lane + note.Width <= area[2] + area[3])
-            .Select(area => area[5]).LastOrDefault()).ToArray();
+            .Select(area => area[5]).Append(0).Max()).ToArray();
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedRectanglesDoNotOverrideInterleavedTimelines(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedRectanglesDoNotOverrideInterleavedTimelines()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'100:t44\n" +
             "@USETIL\t1\n#0'50:t04\n#0'150:t44\n@USETIL\t0\n#0'200:tC4\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body);
 
         Assert.Equal([2, 1, 2, 1, 0],
             TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4), (40, 12, 4)));
+        Assert.Equal(2, lines.Count(line => line.StartsWith("SLA\t", StringComparison.Ordinal)));
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedWideAndNarrowOverlapRemainsConvertible(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedWideAndNarrowOverlapRemainsConvertible()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n#1'0:t04\n@USETIL\t3\n#0'0:t12\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body);
 
         Assert.Equal([2, 3, 2], TimelinesInFile(lines, (0, 0, 4), (0, 1, 2), (384, 0, 4)));
         Assert.Equal(2, lines.Count(line => line.StartsWith("SLA\t", StringComparison.Ordinal)));
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedRectanglesPreserveAirSlideChildTimeline(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedRectanglesPreserveAirSlideChildTimeline()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'0:S440AN\n#100:s440A\n" +
             "@USETIL\t1\n#0'50:t04\n#0'150:t44\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body);
 
         var airSlide = Assert.Single(lines, line => line.StartsWith("ASD\t", StringComparison.Ordinal)).Split('\t');
         Assert.Equal(["0", "0", "4", "4"], airSlide[1..5]);
@@ -127,43 +141,140 @@ public class UgcTilTests
         Assert.Equal([2, 1, 2, 1], TimelinesInFile(lines, (0, 4, 4), (10, 0, 4), (20, 4, 4), (30, 4, 4)));
     }
 
-    [Theory]
-    [InlineData(ChartDialect.Original)]
-    [InlineData(ChartDialect.Extended)]
-    public async Task Til_SerializedRectangleExcludesNoteAtEndTick(ChartDialect mode)
+    [Fact]
+    public async Task Til_SerializedRectangleExcludesNoteAtEndTick()
     {
         const string body =
             "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t44\n#0'100:t44\n@USETIL\t0\n#0'105:t44\n";
 
-        var lines = await WriteC2s(body, mode);
+        var lines = await WriteC2s(body);
 
         Assert.Single(lines, line => line.StartsWith("SLA\t", StringComparison.Ordinal));
         Assert.Equal([2, 2, 0], TimelinesInFile(lines, (0, 4, 4), (20, 4, 4), (21, 4, 4)));
     }
 
     [Theory]
-    [InlineData(ChartDialect.Original, 4)]
-    [InlineData(ChartDialect.Original, 19)]
-    [InlineData(ChartDialect.Original, 14)]
-    [InlineData(ChartDialect.Original, 13)]
-    [InlineData(ChartDialect.Original, 7)]
-    [InlineData(ChartDialect.Extended, 7)]
+    [InlineData(4)]
+    [InlineData(19)]
+    [InlineData(14)]
+    [InlineData(13)]
+    [InlineData(7)]
     public async Task Til_SerializedRectangleDoesNotCaptureOffGridNoteAfterOpeningMeasure(
-        ChartDialect mode, int denominator)
+        int denominator)
     {
         const string body =
             "@FLAG\tSOFFSET\tTRUE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
             "@USETIL\t2\n#0'0:t04\n#0'100:t44\n@USETIL\t0\n#0'103:t04\n";
         var header = $"@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120\n@BEAT\t0\t1\t{denominator}\n";
 
-        var lines = await WriteC2s(body, mode, header);
+        var lines = await WriteC2s(body, header);
 
-        var offset = mode == ChartDialect.Original ? (int)Math.Round(1920m / denominator) : 0;
+        var offset = (int)Math.Round(1920m / denominator);
         var start = (int)Math.Round(offset / 5m);
         var last = (int)Math.Round((offset + 100) / 5m);
         var outside = (int)Math.Round((offset + 103) / 5m);
         Assert.Equal([2, 2, 0], TimelinesInFile(lines, (start, 0, 4), (last, 4, 4), (outside, 0, 4)));
+    }
+
+
+    [Theory]
+    [InlineData(4, 0, false)]
+    [InlineData(4, 0, true)]
+    [InlineData(7, 2, false)]
+    [InlineData(7, 2, true)]
+    [InlineData(13, 2, false)]
+    [InlineData(14, 2, false)]
+    [InlineData(19, 2, false)]
+    public async Task Til_AirCrashRungsKeepTimelineAcrossMainTimelineTap(int denominator, int startTick, bool throughMgxc)
+    {
+        var header = $"@VER\t9\n@TICKS\t480\n@BPM\t0'0\t120\n@BEAT\t0\t1\t{denominator}\n";
+        var body = "@FLAG\tSOFFSET\tTRUE\n@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t3\n" +
+            $"@USETIL\t2\n#0'{startTick}:CG40A1,24\n#{480 - startTick}:cG40A\n" +
+            "@USETIL\t0\n#0'240:tH1\n";
+
+        var lines = await WriteC2s(body, header, throughMgxc);
+
+        var offset = (int)Math.Round(1920m / denominator);
+        var start = (int)Math.Round((offset + startTick) / 5m);
+        var end = (int)Math.Round((offset + 480) / 5m);
+        var rungs = Enumerable.Range(0, (end - start) / 5 + 1)
+            .Select(i => (start + i * 5, 0m, 4m)).ToArray();
+        Assert.All(TimelinesInFile(lines, rungs), timeline => Assert.Equal(2, timeline));
+        Assert.Equal([0], TimelinesInFile(lines, ((int)Math.Round((offset + 240) / 5m), 1, 1)));
+        Assert.Single(lines, line => line.StartsWith("ALD\t", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Til_MovingAirCrashRungsUseInterpolatedLaneAndWidth()
+    {
+        const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:CG20A1,30\n#240:cK30A\n#480:cO40A\n" +
+            "@USETIL\t0\n#0'240:tI1\n";
+
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
+
+        var rungs = Enumerable.Range(0, 17)
+            .Select(i => (i * 6, i / 2m, 2m + i / 8m)).ToArray();
+        Assert.All(TimelinesInFile(lines, rungs), timeline => Assert.Equal(2, timeline));
+        Assert.Equal([0], TimelinesInFile(lines, (48, 2, 1)));
+    }
+
+    [Fact]
+    public async Task Til_MainTimelineSpeedCoversLongNoteChildWithoutMainTimelineRoot()
+    {
+        const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:CG40A1,30\n@USETIL\t0\n#240:cG40A\n#480:cG40A\n";
+
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
+
+        var mainSpeed = Assert.Single(lines.Where(line => line.StartsWith("SLP\t", StringComparison.Ordinal))
+            .Select(line => line.Split('\t')), fields => fields[5] == "0");
+        Assert.Equal("2.000000", mainSpeed[4]);
+        Assert.True(int.Parse(mainSpeed[3], CultureInfo.InvariantCulture) >= 96);
+    }
+
+    [Fact]
+    public async Task Til_MainTimelineAirCrashRungsBlockUnrelatedRegions()
+    {
+        const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t0\n#0'0:CH20A1,25\n#480:cH20A\n" +
+            "@USETIL\t2\n#0'103:tG4\n#0'403:tG4\n";
+
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
+
+        var rungs = Enumerable.Range(0, 20).Select(i => (i * 5, 1m, 2m)).ToArray();
+        Assert.All(TimelinesInFile(lines, rungs), timeline => Assert.Equal(0, timeline));
+        Assert.Equal([2, 2], TimelinesInFile(lines, (21, 0, 4), (81, 0, 4)));
+    }
+
+    [Fact]
+    public async Task Til_AirCrashRungsFollowSegmentTimelineChanges()
+    {
+        const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t1\t0'0\t2\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:CG40A1,30\n@USETIL\t1\n#240:cG40A\n#480:cG40A\n";
+
+        var lines = await WriteC2s(body, Header.Replace("@VER\t8", "@VER\t9"));
+
+        var rungs = Enumerable.Range(0, 17).Select(i => (i * 6, 0m, 4m)).ToArray();
+        Assert.Equal(Enumerable.Range(0, 17).Select(i => i < 8 ? 2 : 1), TimelinesInFile(lines, rungs));
+    }
+
+    [Fact]
+    public async Task Til_UnrepresentableFullWidthMovingRungReportsApproximation()
+    {
+        const string body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t2\t0'0\t3\n" +
+            "@USETIL\t2\n#0'0:CGG0A1,30\n#480:cHG0A\n";
+        var parsed = await ParseResult(body, Header.Replace("@VER\t8", "@VER\t9"));
+
+        Assert.True(parsed.Succeeded, parsed.ToString());
+        Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_ald_timeline_changed);
+        var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.Contains(converted.Diagnostics.Diagnostics, diagnostic =>
+            diagnostic.Message.Key == MsgKeys.Warn_Editor_ald_timeline_changed &&
+            diagnostic.Target is NoteDiagnosticTarget { Type: "AirCrashJoint", Timeline: 2 });
+        Assert.All(GetSoflanAreas(parsed.Value!), area => Assert.InRange(area.Width, 1, 16));
     }
 
     [Fact]
@@ -241,74 +352,18 @@ public class UgcTilTests
         }
     }
 
-    [Fact]
-    public async Task Til_Overlap_WarnsWhenLaneSpanFullyContainsOtherOnDifferentTil()
+    [Theory]
+    [InlineData("@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n@USETIL\t2\n#0'0:t04\n@USETIL\t3\n#0'0:t12\n")]
+    [InlineData("@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n@USETIL\t0\n#0'0:h04\n@USETIL\t2\n#480:s\n@USETIL\t0\n#0'480:t12\n")]
+    [InlineData("@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n@USETIL\t0\n#0'0:h12\n#480:s\n@USETIL\t2\n#0'480:t04\n")]
+    public async Task Til_NestedNotesAndLongTailsConvertWithoutOverlapWarnings(string body)
     {
-        // Wider note on TIL 2 fully contains narrower note on TIL 3 at the same tick.
-        const string body =
-            "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
-            "@USETIL\t2\n#0'0:t04\n@USETIL\t3\n#0'0:t12\n";
-        var ct = TestContext.Current.CancellationToken;
-        var tmp = TestTempPaths.Create(".ugc");
-        await File.WriteAllTextAsync(tmp, Header + body, ct);
-        try
-        {
-            var r =
-                await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
-            Assert.True(r.Succeeded);
-            var overlap = Assert.Single(r.Diagnostics.Diagnostics,
-                d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
-            var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
-            Assert.Equal(0, pair.Left.Tick);
-            Assert.Equal(0, pair.Right.Tick);
-            Assert.NotNull(pair.TimePosition);
-            Assert.Contains(new[] { pair.Left, pair.Right },
-                n => n is { Type: "Tap", Lane: 0, Width: 4, Timeline: 2 });
-            Assert.Contains(new[] { pair.Left, pair.Right },
-                n => n is { Type: "Tap", Lane: 1, Width: 2, Timeline: 3 });
-        }
-        finally
-        {
-            File.Delete(tmp);
-        }
-    }
-
-    [Fact]
-    public async Task Til_OverlapAtLongNoteTail_Warns()
-    {
-        // The hold tail is on TIL 2, so it receives an SLA that covers the main-TIL tap.
-        const string body =
-            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
-            "@USETIL\t0\n#0'0:h04\n@USETIL\t2\n#480:s\n" +
-            "@USETIL\t0\n#0'480:t12\n";
-
-        var r = await ParseResult(body);
-
-        Assert.True(r.Succeeded, r.ToString());
-        var overlap = Assert.Single(r.Diagnostics.Diagnostics,
-            d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
-        var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
-        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "HoldJoint", Timeline: 2 });
-        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "Tap", Timeline: 0 });
-    }
-
-    [Fact]
-    public async Task Til_OverlapCoveringLongNoteTail_Warns()
-    {
-        // The TIL-2 tap's SLA covers a main-TIL hold tail.
-        const string body =
-            "@TIL\t0\t0'0\t1\n@TIL\t2\t0'0\t2\n" +
-            "@USETIL\t0\n#0'0:h12\n#480:s\n" +
-            "@USETIL\t2\n#0'480:t04\n";
-
-        var r = await ParseResult(body);
-
-        Assert.True(r.Succeeded, r.ToString());
-        var overlap = Assert.Single(r.Diagnostics.Diagnostics,
-            d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
-        var pair = Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
-        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "Tap", Timeline: 2 });
-        Assert.Contains(new[] { pair.Left, pair.Right }, n => n is { Type: "HoldJoint", Timeline: 0 });
+        var parsed = await ParseResult(body);
+        Assert.True(parsed.Succeeded, parsed.ToString());
+        Assert.DoesNotContain(parsed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
+        var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.DoesNotContain(converted.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
     }
 
     [Fact]
@@ -360,7 +415,7 @@ public class UgcTilTests
     }
 
     [Fact]
-    public async Task Til_OtherContainingMainTil_Warns()
+    public async Task Til_OtherContainingMainTil_ConvertsWithoutWarning()
     {
         // Non-main note's SLA fully contains a main-TIL note — that can affect conversion.
         const string body =
@@ -374,9 +429,10 @@ public class UgcTilTests
             var r =
                 await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(r.Succeeded);
-            var overlap = Assert.Single(r.Diagnostics.Diagnostics,
+            var converted = new C2SChartConverter(new C2SConvertRequest(r.Value!)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            Assert.DoesNotContain(converted.Diagnostics.Diagnostics,
                 d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
-            Assert.IsType<NotePairDiagnosticTarget>(overlap.Target);
         }
         finally
         {
@@ -385,7 +441,7 @@ public class UgcTilTests
     }
 
     [Fact]
-    public async Task Til_OverlapBeforeFirstTimelineEvent_UsesImplicitSpeedAndWarns()
+    public async Task Til_OverlapBeforeFirstTimelineEvent_UsesImplicitSpeedWithoutWarning()
     {
         // TIL 2 implicitly runs at speed 1 before its first explicit speed point.
         const string body =
@@ -395,7 +451,9 @@ public class UgcTilTests
         var r = await ParseResult(body);
 
         Assert.True(r.Succeeded, r.ToString());
-        Assert.Single(r.Diagnostics.Diagnostics,
+        var converted = new C2SChartConverter(new C2SConvertRequest(r.Value!)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.DoesNotContain(converted.Diagnostics.Diagnostics,
             d => d.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
         Assert.Contains(GetSoflanAreas(r.Value!), area =>
             area is { Tick.Original: 0, Timeline: 2, Lane: 0, Width: 4 });
@@ -476,7 +534,7 @@ public class UgcTilTests
     }
 
     [Fact]
-    public async Task Til_OptimizationDoesNotChangeDifferentTilOverlapWarning()
+    public async Task Til_OptimizationPreservesConvertibleOverlapWithoutWarning()
     {
         const string body =
             "@TIL\t2\t0'0\t2\n@TIL\t3\t0'0\t3\n" +
@@ -486,7 +544,9 @@ public class UgcTilTests
         var result = await ParseResult(body);
 
         Assert.True(result.Succeeded, result.ToString());
-        Assert.Single(result.Diagnostics.Diagnostics,
+        var converted = new C2SChartConverter(new C2SConvertRequest(result.Value!)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.DoesNotContain(converted.Diagnostics.Diagnostics,
             diagnostic => diagnostic.Message.Key == MsgKeys.Mg_Note_overlapped_in_different_TIL);
         Assert.True(GetSoflanAreas(result.Value!).Length < 3);
     }

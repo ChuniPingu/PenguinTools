@@ -86,7 +86,7 @@ public partial class MgxcParser
                 note = new UmgrModel.Tap();
                 break;
             case NoteType.ExTap:
-                note = CreateExTap(direction, height);
+                note = CreateExTap(direction);
                 break;
             case NoteType.Flick:
                 note = new UmgrModel.Flick
@@ -112,7 +112,7 @@ public partial class MgxcParser
                 (note, isChildNote, isPairNote) = CreateLongAir(type, longAttr, exAttr, height, tick);
                 break;
             case NoteType.AirCrush:
-                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, direction, exAttr, tick);
+                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, exAttr, tick);
                 break;
             case NoteType.Click:
                 Mgxc.Extras.ClickTicks.Add(tick);
@@ -170,80 +170,22 @@ public partial class MgxcParser
         _lastNote = note;
     }
 
-    private UmgrModel.ExTap CreateExTap(Direction direction, int height)
+    private static UmgrModel.ExTap CreateExTap(Direction direction) => new()
     {
-        if (!Mgxc.Extras.HasCarrierMarkers)
+        Effect = direction switch
         {
-            height = MgxcExTapMarkers.DefaultHeight;
+            Direction.Up => ExEffect.UP,
+            Direction.Down => ExEffect.DW,
+            Direction.Center => ExEffect.CE,
+            Direction.Left => ExEffect.LS,
+            Direction.Right => ExEffect.RS,
+            Direction.RotateLeft => ExEffect.LC,
+            Direction.RotateRight => ExEffect.RC,
+            Direction.InOut => ExEffect.BS,
+            Direction.OutIn => ExEffect.CE,
+            _ => ExEffect.UP
         }
-        var exNote = new UmgrModel.ExTap
-        {
-            Effect = direction switch
-            {
-                Direction.Up => ExEffect.UP,
-                Direction.Down => ExEffect.DW,
-                Direction.Center => ExEffect.CE,
-                Direction.Left => ExEffect.LS,
-                Direction.Right => ExEffect.RS,
-                Direction.RotateLeft => ExEffect.LC,
-                Direction.RotateRight => ExEffect.RC,
-                Direction.InOut => ExEffect.BS,
-                Direction.OutIn => ExEffect.CE,
-                _ => ExEffect.UP
-            },
-            Role = height switch
-            {
-                MgxcExTapMarkers.ExplicitChr =>
-                    UmgrModel.ExTapRole.Explicit,
-                MgxcExTapMarkers.HoldOnlyCarrier =>
-                    UmgrModel.ExTapRole.HoldOnlyCarrier,
-                MgxcExTapMarkers.AirActionCarrierTap or
-                MgxcExTapMarkers.AirActionCarrierExTap or
-                MgxcExTapMarkers.AirActionCarrierFlick or
-                MgxcExTapMarkers.AirActionCarrierDamage or
-                MgxcExTapMarkers.AirActionCarrierHold or
-                MgxcExTapMarkers.AirActionCarrierSlideD or
-                MgxcExTapMarkers.AirActionCarrierSlideC or
-                MgxcExTapMarkers.AirActionCarrierExHold or
-                MgxcExTapMarkers.AirActionCarrierExSlideD or
-                MgxcExTapMarkers.AirActionCarrierExSlideC =>
-                    UmgrModel.ExTapRole.AirActionCarrier,
-                _ =>
-                    UmgrModel.ExTapRole.Auto
-            },
-            AirActionParent = height switch
-            {
-                MgxcExTapMarkers.AirActionCarrierTap =>
-                    UmgrModel.AirActionCarrierParent.Tap,
-                MgxcExTapMarkers.AirActionCarrierExTap =>
-                    UmgrModel.AirActionCarrierParent.ExTap,
-                MgxcExTapMarkers.AirActionCarrierFlick =>
-                    UmgrModel.AirActionCarrierParent.Flick,
-                MgxcExTapMarkers.AirActionCarrierDamage =>
-                    UmgrModel.AirActionCarrierParent.Damage,
-                MgxcExTapMarkers.AirActionCarrierHold or
-                MgxcExTapMarkers.AirActionCarrierExHold =>
-                    UmgrModel.AirActionCarrierParent.Hold,
-                MgxcExTapMarkers.AirActionCarrierSlideD or
-                MgxcExTapMarkers.AirActionCarrierSlideC or
-                MgxcExTapMarkers.AirActionCarrierExSlideD or
-                MgxcExTapMarkers.AirActionCarrierExSlideC =>
-                    UmgrModel.AirActionCarrierParent.Slide,
-                _ =>
-                    UmgrModel.AirActionCarrierParent.None
-            },
-            AirActionParentJoint =
-                height is MgxcExTapMarkers.AirActionCarrierSlideC or
-                    MgxcExTapMarkers.AirActionCarrierExSlideC
-                    ? Joint.C
-                    : Joint.D,
-            AirActionParentIsEx =
-                height is MgxcExTapMarkers.AirActionCarrierExHold or
-                    MgxcExTapMarkers.AirActionCarrierExSlideD or
-                    MgxcExTapMarkers.AirActionCarrierExSlideC
-        };
-        return exNote;
-    }
+    };
 
     private (UmgrModel.Note? Note, bool IsChild) CreateHold(LongAttr longAttr, int tick)
     {
@@ -263,7 +205,7 @@ public partial class MgxcParser
 
     private (UmgrModel.Note Note, bool IsChild) CreateSlide(LongAttr longAttr, sbyte variationId, int tick)
     {
-        var noLine = _version >= 3 ? variationId == 35 : variationId == 0x7F;
+        var noLine = _version >= 3 && variationId == 35;
         if (longAttr == LongAttr.Begin)
         {
             return (new UmgrModel.Slide { NoLine = noLine }, false);
@@ -271,7 +213,7 @@ public partial class MgxcParser
 
         return (new UmgrModel.SlideJoint
         {
-            NoLine = _version >= 3 ? (_lastParentNote as UmgrModel.Slide)?.NoLine ?? noLine : noLine,
+            NoLine = (_lastParentNote as UmgrModel.Slide)?.NoLine ?? noLine,
             IsCurveControl = longAttr == LongAttr.CurveControl,
             Joint = ParseJoint(longAttr, nameof(UmgrModel.SlideJoint), tick)
         }, true);
@@ -292,7 +234,7 @@ public partial class MgxcParser
         Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF
     };
 
-    private (int X, int Width, int Height) ReadNoteGeometry(BinaryReader reader)
+    private (int X, int Width, decimal Height) ReadNoteGeometry(BinaryReader reader)
     {
         int x, width, height;
         if (_version >= 4)
@@ -317,11 +259,26 @@ public partial class MgxcParser
             width = reader.ReadInt16();
             height = reader.ReadInt32();
         }
-        return (x, width, height);
+        if (_version >= 4 && _heightScale != 10 && height / 36m >= _heightScale)
+        {
+            // Native v4 limits heights when rescaling, but leaves its usual
+            // HSCL=10 representation untouched (including heights above 360).
+            // Check the limit first so small scales cannot overflow division.
+            return (x, width, 360);
+        }
+        try
+        {
+            return (x, width, height * 10m / _heightScale);
+        }
+        catch (OverflowException)
+        {
+            throw new LocationDiagnosticException(Msg.Create(MsgKeys.MgCrit_Invalid_height_scale, _heightScale),
+                checked((int)reader.BaseStream.Position), Path);
+        }
     }
 
     private (UmgrModel.Note Note, bool IsChild, bool IsPair) CreateLongAir(
-        NoteType type, LongAttr longAttr, ExAttr exAttr, int height, int tick)
+        NoteType type, LongAttr longAttr, ExAttr exAttr, decimal height, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
@@ -343,23 +300,15 @@ public partial class MgxcParser
         }, true, false);
     }
 
-    private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, int height)
+    private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, decimal height)
     {
-        UmgrModel.Note parent = type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height);
-        if (_version < 3)
+        if (type == NoteType.AirHold)
         {
-            return parent;
+            return CreateAirHold();
         }
-        var color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
-        if (parent is UmgrModel.AirHold hold)
-        {
-            hold.Color = color;
-        }
-        if (parent is UmgrModel.AirSlide slide)
-        {
-            slide.Color = color;
-        }
-        return parent;
+        var slide = CreateAirSlide(height);
+        slide.Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
+        return slide;
     }
 
     private UmgrModel.Air? TakeLastAir()
@@ -385,12 +334,13 @@ public partial class MgxcParser
         return note;
     }
 
-    private UmgrModel.AirSlide CreateAirSlide(int height)
+    private UmgrModel.AirSlide CreateAirSlide(decimal height)
     {
         var note = new UmgrModel.AirSlide { Height = height };
         if (TakeLastAir() is { } air)
         {
             note.Color = air.Color;
+            note.ArrowColor = air.Color;
             note.Direction = air.Direction;
         }
         return note;
@@ -419,7 +369,7 @@ public partial class MgxcParser
     }
 
     private (UmgrModel.Note Note, bool IsChild) CreateAirCrash(
-        LongAttr longAttr, sbyte variationId, int height, int optionValue, Direction direction, ExAttr exAttr, int tick)
+        LongAttr longAttr, sbyte variationId, decimal height, int optionValue, ExAttr exAttr, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
@@ -433,12 +383,7 @@ public partial class MgxcParser
                     4 => AirLadderAttr.AxisY,
                     5 => AirLadderAttr.AxisZ,
                     _ => AirLadderAttr.DEF
-                } : direction switch
-                {
-                    Direction.RotateLeft => AirLadderAttr.AxisY,
-                    Direction.RotateRight => AirLadderAttr.AxisZ,
-                    _ => AirLadderAttr.DEF
-                }
+                } : AirLadderAttr.DEF
             }, false);
         }
 

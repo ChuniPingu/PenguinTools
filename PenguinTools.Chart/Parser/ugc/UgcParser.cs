@@ -16,89 +16,7 @@ public partial class UgcParser
     private int _currentTimeline;
     private int _sourceTicks = 480;
     private int _version = 8;
-    private readonly ChartDialect _requestedDialect;
-    private ChartDialect _dialect;
     private bool _highPrecision;
-    private bool _legacyColors;
-    private bool _inferredFixedOrigin;
-    private bool Extended => _dialect == ChartDialect.Extended;
-
-    private void SelectDialect(SourceLine[] lines)
-    {
-        if (_version >= 9)
-        {
-            _dialect = ChartDialect.Original;
-            return;
-        }
-        var marked = ReadDialectMarker(lines);
-        var copyright = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith("@COPYRIGHT\t", StringComparison.OrdinalIgnoreCase));
-        var copyrightValue = copyright is null ? "" : copyright[11..];
-        var retainedExtras = ChartExtras.FromCopyright(copyrightValue);
-        var legacyWriter = IsLegacyWriter(lines, retainedExtras);
-        var retained = retainedExtras.EncodingDialect;
-        _legacyColors = _requestedDialect == ChartDialect.Auto &&
-            marked == ChartDialect.Auto && retained == ChartDialect.Auto && legacyWriter;
-        // These frozen fallbacks read files written before stable format markers existed.
-        // Unknown editor releases must not silently select an incompatible time axis.
-        var creator = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith("' Created with Margrete ", StringComparison.Ordinal));
-        var legacyFixedAxis = creator?.StartsWith("' Created with Margrete v2.3.", StringComparison.Ordinal) == true;
-        var generatedFixedAxis = creator is null && lines.Any(l =>
-            l.Text.StartsWith("@C2S_BASECOUNT\t", StringComparison.OrdinalIgnoreCase));
-        _inferredFixedOrigin = legacyFixedAxis || generatedFixedAxis;
-        var legacyMusicalAxis = creator is null || creator.StartsWith("' Created with Margrete v1.7.", StringComparison.Ordinal) ||
-            creator.StartsWith("' Created with Margrete v1.8.", StringComparison.Ordinal);
-        if (_requestedDialect == ChartDialect.Auto &&
-            marked == ChartDialect.Auto && retained == ChartDialect.Auto &&
-            !legacyWriter && !legacyFixedAxis && !legacyMusicalAxis)
-        {
-            throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, creator!,
-                "UGC format marker or --input-dialect Original/Extended"));
-        }
-        _dialect = ResolveDialect(marked, retained, legacyWriter || legacyFixedAxis || generatedFixedAxis);
-        _highPrecision = Extended;
-    }
-
-    private static ChartDialect ReadDialectMarker(SourceLine[] lines)
-    {
-        var marker = lines.Select(l => l.Text).FirstOrDefault(l => l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal));
-        return marker?[EditorCompatibility.UgcMarker.Length..].Trim().ToLowerInvariant() switch
-        {
-            "original" or "margrete-1.8.0" => ChartDialect.Original,
-            "extended" or "margrete-2.3.2" => ChartDialect.Extended,
-            null => ChartDialect.Auto,
-            _ => throw new DiagnosticException(Msg.Create(MsgKeys.Error_Invalid_Header, marker, "chart dialect"))
-        };
-    }
-
-    private static bool IsLegacyWriter(SourceLine[] lines, ChartExtras extras)
-    {
-        // Older writers used MGR_CLKCNT plus a source snapshot before MGR_CLK_DEF existed.
-        // A decoded C2S snapshot distinguishes that encoding from a clock-count annotation alone.
-        var legacySnapshot = extras.SourceSnapshot.StartsWith("HASH\t", StringComparison.Ordinal) &&
-            extras.SourceSnapshot.Contains("\nRESOLUTION\t", StringComparison.Ordinal);
-        return lines.Any(l => l.Text.StartsWith("@COPYRIGHT\t", StringComparison.Ordinal) &&
-            ((l.Text.Contains("MGR_SYNC_REV=", StringComparison.Ordinal) && l.Text.Contains("PT_C2S_", StringComparison.Ordinal)) ||
-             (l.Text.Contains("MGR_CLKCNT=", StringComparison.Ordinal) && legacySnapshot)));
-    }
-
-    private ChartDialect ResolveDialect(
-        ChartDialect marked, ChartDialect retained,
-        bool extendedFallback)
-    {
-        if (_requestedDialect != ChartDialect.Auto)
-        {
-            return _requestedDialect;
-        }
-        if (marked != ChartDialect.Auto)
-        {
-            return marked;
-        }
-        if (retained != ChartDialect.Auto)
-        {
-            return retained;
-        }
-        return extendedFallback ? ChartDialect.Extended : ChartDialect.Original;
-    }
 
     private int Lane(char value)
     {
@@ -112,16 +30,18 @@ public partial class UgcParser
 
             return digit - 16;
         }
-        if (!Extended && UgcPayload.Base36(value) < 0)
+        if (UgcPayload.Base36(value) < 0)
         {
             ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value.ToString(), "base UGC coordinate"));
         }
-        return UgcPayload.Lane(value);
+        return UgcPayload.Base36(value);
     }
 
     private int Width(char value) => _version >= 9 ? UgcPayload.Base36(value) : Lane(value);
 
-    private decimal Height(ReadOnlySpan<char> value) => (_version >= 9 ? UgcPayload.Base36(value) : UgcPayload.Height36(value)) * (_highPrecision ? 1 : 10);
+    private int HeightDigits => _highPrecision ? 2 : 1;
+
+    private decimal Height(ReadOnlySpan<char> value) => UgcPayload.Base36(value) * (_highPrecision ? 1 : 10);
 
 
     private int ScaleTick(int tick)
@@ -143,22 +63,21 @@ public partial class UgcParser
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public UgcParser(UgcParseRequest request, IMediaTool mediaTool)
+    public UgcParser(UgcParseRequest request, IMediaValidator mediaValidator)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mediaTool);
+        ArgumentNullException.ThrowIfNull(mediaValidator);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Assets);
 
-        MediaTool = mediaTool;
+        MediaValidator = mediaValidator;
         Path = request.Path;
         Assets = request.Assets;
-        _requestedDialect = request.Dialect;
         Ugc.Meta.ExVersion = 0;
         Ugc.Meta.ExLongEnabled = false;
     }
 
-    private IMediaTool MediaTool { get; }
+    private IMediaValidator MediaValidator { get; }
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private AssetManager Assets { get; }
@@ -177,8 +96,7 @@ public partial class UgcParser
                 return ChartMetaCommands.SkipParse(Diagnostic, Path, ignoreLine);
             }
 
-            // Check the file version before creator/dialect detection, so a newer
-            // format reports the same actionable error even with an explicit dialect.
+            // Reject unsupported versions before interpreting their records.
             foreach (var line in lines.Where(l => l.Text.StartsWith("@VER\t", StringComparison.OrdinalIgnoreCase)))
             {
                 SetCurrentLine(line);
@@ -186,7 +104,6 @@ public partial class UgcParser
             }
             ClearCurrentLine();
 
-            SelectDialect(lines);
             foreach (var pending in lines.Where(l => l.Text.Trim().StartsWith("'" + ChartExtras.PendingSnapshotShiftPrefix, StringComparison.Ordinal)))
             {
                 ChartExtras.RejectPendingSnapshotShift(pending.Text.Trim()[1..]);
@@ -200,21 +117,16 @@ public partial class UgcParser
             {
                 Ugc.Extras.PrerollBar1Applied |= ChartExtras.HasPrerollBar1(preroll.Text.Trim()[1..]);
             }
-            if (_requestedDialect == ChartDialect.Auto && _inferredFixedOrigin)
-            {
-                Ugc.Extras.FixedZeroOrigin = true;
-            }
-            Ugc.Extras.ApplyEditorMode(_version >= 9 ? ChartDialect.Auto : _requestedDialect, Ugc.Meta);
+            Ugc.Extras.ApplyCoordinateOrigin(Ugc.Meta);
             Ugc.Extras.RestoreUserText(Ugc.Meta);
-            Ugc.Extras.EncodingDialect = _dialect;
             Ugc.Meta.FieldColorName = Ugc.Extras.EditorFieldColorName;
             Ugc.Extras.RestoreEditorEvents(Ugc);
             Ugc.Extras.EditorComments = lines.Select(l => l.Text).Where(l => l.StartsWith('\'') &&
                 !l.StartsWith("' Created with Margrete ", StringComparison.Ordinal) &&
                 l.Trim() != "'" + ChartExtras.FixedZeroOriginMarker &&
-                l.Trim() != "'" + ChartExtras.PrerollBar1Marker &&
-                !l.StartsWith(EditorCompatibility.UgcMarker, StringComparison.Ordinal)).ToList();
+                l.Trim() != "'" + ChartExtras.PrerollBar1Marker).ToList();
 
+            EditorNumbers.Restore(Ugc);
             Ugc.Extras.CheckEventView(Ugc);
             var (matches, contextValid, slaValid) = _snapshots.Validate(Ugc.Extras, lines.Select(l => l.Text).ToArray(), Ugc.Meta.C2sSlaSnapshot);
             RestoreExTapSnapshots(matches);
@@ -229,7 +141,7 @@ public partial class UgcParser
             Ugc.Extras.EditorFormatVersion = _version;
 
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
-            Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.ViewHash(ChartExtras.EventView(Ugc).Split('\n'));
+            Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Ugc).Split('\n'));
             Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
             Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
             ValidateSlaSnapshot(slaValid);
@@ -247,17 +159,8 @@ public partial class UgcParser
         }
     }
 
-    private void RestoreExTapSnapshots(Dictionary<UmgrModel.Note, UgcNoteSnapshot> matches)
+    private static void RestoreExTapSnapshots(Dictionary<UmgrModel.Note, EditorNoteSnapshot> matches)
     {
-        var exTaps = Ugc.Notes.Children.OfType<UmgrModel.ExTap>().ToArray();
-        if (Ugc.Extras.BinarySnapshotValid && exTaps.Length == Ugc.Extras.UgcExTaps.Count)
-        {
-            for (var i = 0; i < exTaps.Length; i++)
-            {
-                RestoreExTap(exTaps[i], Ugc.Extras.UgcExTaps[i]);
-            }
-            return;
-        }
         foreach (var (note, snapshot) in matches)
         {
             if (note is UmgrModel.ExTap ex && snapshot.ExTap is { } saved)
@@ -267,7 +170,7 @@ public partial class UgcParser
         }
     }
 
-    private static void RestoreExTap(UmgrModel.ExTap ex, UgcExTapSnapshot saved)
+    private static void RestoreExTap(UmgrModel.ExTap ex, ExTapRoleSnapshot saved)
     {
         ex.Role = saved.Role;
         ex.AirActionParent = saved.Parent;
@@ -277,7 +180,7 @@ public partial class UgcParser
 
     private void ValidateSlaSnapshot(bool valid)
     {
-        if (Ugc.Extras.UgcSnapshotVersion != 1 || Ugc.Extras.UgcSlaKey is null)
+        if (Ugc.Extras.UgcSnapshotVersion != 2 || Ugc.Extras.UgcSlaKey is null)
         {
             return;
         }
@@ -314,6 +217,10 @@ public partial class UgcParser
 
         ClearCurrentLine();
         BuildBarAxis();
+        if (_sourceTicks != 480)
+        {
+            UgcSpeedFields.NormalizeResolution(Ugc.Extras.EditorHeaders, ScaleTick);
+        }
         Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
         _currentTimeline = 0;
@@ -481,7 +388,7 @@ public partial class UgcParser
         if (Ugc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Ugc.Meta.FullBgiFilePath))
         {
             QueueValidation(
-                MediaTool.CheckImageValidAsync(Ugc.Meta.FullBgiFilePath),
+                MediaValidator.CheckImageValidAsync(Ugc.Meta.FullBgiFilePath),
                 Ugc.Meta.FullBgiFilePath,
                 MsgKeys.Error_Invalid_bg_image,
                 () =>

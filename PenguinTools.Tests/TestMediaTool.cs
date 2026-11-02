@@ -4,7 +4,7 @@ using PenguinTools.Media;
 
 namespace PenguinTools.Tests;
 
-internal sealed class TestMediaTool : IMediaTool
+internal sealed class TestMediaTool : IAudioService, IImageService, IMediaValidator
 {
     public static readonly TestMediaTool Instance = new();
 
@@ -29,15 +29,16 @@ internal sealed class TestMediaTool : IMediaTool
         return Task.CompletedTask;
     }
 
-    public Task ConvertStageAsync(string bg, string stDst, string nfDst, string?[]? fxPaths, int backgroundOffset,
+    public Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
+        IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
         CancellationToken ct = default)
     {
         return Task.CompletedTask;
     }
 
-    public Task ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
+    public Task<IReadOnlyList<string>> ExtractDdsAsync(string src, string dst, CancellationToken ct = default)
     {
-        return Task.CompletedTask;
+        return Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     public Task<DdsDecodeResult> DecodeDdsAsync(string src, string dst, CancellationToken ct = default)

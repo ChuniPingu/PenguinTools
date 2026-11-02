@@ -64,9 +64,9 @@ public class PayloadTests
     [InlineData("00", 0)]
     [InlineData("0A", 10)]
     [InlineData("10", 36)]
-    public void Height36_ParsesTwoDigitBase36(string s, decimal expected)
+    public void Base36_ParsesTwoDigitValue(string s, decimal expected)
     {
-        Assert.Equal(expected, UgcPayload.Height36(s));
+        Assert.Equal(expected, UgcPayload.Base36(s));
     }
 
     [Theory]

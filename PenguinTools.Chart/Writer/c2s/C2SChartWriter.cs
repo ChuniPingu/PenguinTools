@@ -77,7 +77,7 @@ public partial class C2SChartWriter
         sb.AppendLine("DIFFICULT\t0");
         sb.AppendLine("LEVEL\t0.0");
         sb.AppendLine(CultureInfo.InvariantCulture, $"CREATOR\t{Chart.Meta.Designer}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"BPM_DEF\t{(bpms.FirstOrDefault(mainBpm)):F3}\t{mainBpm:F3}\t{maxBpm:F3}\t{minBpm:F3}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"BPM_DEF\t{C2sNumber.Bpm(bpms.FirstOrDefault(mainBpm))}\t{C2sNumber.Bpm(mainBpm)}\t{C2sNumber.Bpm(maxBpm)}\t{C2sNumber.Bpm(minBpm)}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"MET_DEF\t{Chart.Meta.BgmInitialDenominator}\t{Chart.Meta.BgmInitialNumerator}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"RESOLUTION\t{Resolution}");
         var clock = Chart.Extras.ClockTicks(Chart) * Resolution / 1920;
@@ -129,16 +129,6 @@ public partial class C2SChartWriter
         {
             text += "\n" + string.Join("\n", Chart.Extras.SourceStatistics) + "\n";
         }
-        else if (Chart.Extras.SourceKey is null && Chart.Meta.TryGetC2sJudgeSummary(out _, out _, out _, out _, out _, out _))
-        {
-            var summary = new StringBuilder();
-            AppendJudgeSummary(summary);
-            text += "\n" + summary;
-        }
-        else
-        {
-            text += ChartStatistics.Calculate(text);
-        }
 
         if (Chart.Extras.SourceSnapshot.Length > 0 &&
             (Chart.Extras.SourceKey is null || !Chart.Extras.BinarySnapshotValid || !Chart.Extras.HasSpeedSnapshot))
@@ -147,50 +137,6 @@ public partial class C2SChartWriter
             text = Chart.Extras.FinalizeText(Chart, text);
         }
         return text;
-    }
-
-    private void AppendJudgeSummary(StringBuilder sb)
-    {
-        if (!Chart.Meta.TryGetC2sJudgeSummary(
-                out _,
-                out var hld,
-                out var sld,
-                out var air,
-                out _,
-                out _))
-        {
-            return;
-        }
-
-        var tap = C2SJudgeSummaryCalculator.CalculateTap(Chart);
-        var flk = C2SJudgeSummaryCalculator.CalculateFlick(Chart);
-
-        hld = AdjustJudgeCount(hld, Chart.Meta.C2sJudgeHldProxyBaseline,
-            () => C2SJudgeSummaryCalculator.CalculateHoldProxy(Chart));
-        sld = AdjustJudgeCount(sld, Chart.Meta.C2sJudgeSldProxyBaseline,
-            () => C2SJudgeSummaryCalculator.CalculateSlideProxy(Chart));
-        air = AdjustJudgeCount(air, Chart.Meta.C2sJudgeAirProxyBaseline,
-            () => C2SJudgeSummaryCalculator.CalculateAirProxy(Chart));
-
-        var all = tap + hld + sld + air + flk;
-
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_TAP\t{tap}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_HLD\t{hld}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_SLD\t{sld}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_AIR\t{air}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_FLK\t{flk}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T_JUDGE_ALL\t{all}");
-    }
-
-    private static int AdjustJudgeCount(int count, int? baseline, Func<int> calculateProxy)
-    {
-        if (baseline is not { } value || value < 0)
-        {
-            return count;
-        }
-
-        var adjusted = (long)count + calculateProxy() - value;
-        return adjusted is >= 0 and <= int.MaxValue ? (int)adjusted : count;
     }
 
     internal static string GetContentKey(C2sModel.Chart chart)
@@ -236,74 +182,13 @@ public partial class C2SChartWriter
 
     private List<C2sModel.Note> OrderedNotesForWrite()
     {
-        // Sort by rounded C2S tick, then stable list index. Same-Round order is
-        // the slide/Air FIFO schedule produced by the converter.
-        var notes = Chart.Notes
-            .Select((note, index) => (note, index))
-            .OrderBy(x => x.note.Tick.Round)
-            .ThenBy(x => x.note.Lane)
-            .ThenBy(x => x.note.Width)
-            .ThenBy(x => x.index)
-            .Select(x => x.note)
+        // Ground SLIDE statement order defines the paths. The scheduler inserts
+        // AIR after its attachment point and before any ground continuation.
+        var notes = Chart.Notes.OfType<C2sModel.Slide>().Cast<C2sModel.Note>().Concat(Chart.Notes
+            .Where(note => note is not C2sModel.Slide))
             .ToList();
 
-        var positions = notes
-            .Select((note, index) => new { note, index })
-            .ToDictionary(x => x.note, x => x.index);
-
-        int AirRootOrder(C2sModel.AirSlide note)
-        {
-            var visited = new HashSet<C2sModel.AirSlide>();
-            while (note.Parent is C2sModel.AirSlide parent && visited.Add(note))
-            {
-                note = parent;
-            }
-            return positions[note];
-        }
-
-        var groups = notes
-            .OfType<C2sModel.AirSlide>()
-            .Where(x => x.Parent is C2sModel.AirSlide)
-            .GroupBy(x => (
-                Tick: x.Tick.Original,
-                x.Lane,
-                x.Width,
-                Height: x.Height.Result,
-                ParentId: x.Parent!.Id))
-            .Where(x => x.Count() > 1)
-            .OrderBy(x => x.Key.Tick)
-            .ToArray();
-
-        foreach (var group in groups)
-        {
-            var slots = group
-                .Select(x => positions[x])
-                .OrderBy(x => x)
-                .ToArray();
-
-            var ordered = group
-                .OrderBy(AirRootOrder)
-                .ToArray();
-
-            for (var i = 0; i < slots.Length; i++)
-            {
-                notes[slots[i]] = ordered[i];
-                positions[ordered[i]] = slots[i];
-            }
-        }
-
-        foreach (var group in notes.OfType<C2sModel.AirCrash>()
-                     .GroupBy(n => (n.Tick.Round, n.Lane, n.Width, n.Height, n.Color, n.Density, n.Attr)).Where(g => g.Count() > 1))
-        {
-            var slots = group.Select(n => positions[n]).Order().ToArray();
-            var ordered = group.OrderBy(n => positions[n.PathRoot ?? n]).ToArray();
-            for (var i = 0; i < slots.Length; i++)
-            {
-                notes[slots[i]] = ordered[i];
-                positions[ordered[i]] = slots[i];
-            }
-        }
-        return notes;
+        return C2sAirScheduler.Schedule(notes);
     }
 
     private bool AppendFormattedNotes(StringBuilder sb)

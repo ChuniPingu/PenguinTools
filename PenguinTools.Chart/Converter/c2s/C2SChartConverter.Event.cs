@@ -31,7 +31,9 @@ public partial class C2SChartConverter
             });
         }
 
-        ConvertDcm([.. events.OfType<UmgrModel.NoteSpeedEvent>().OrderBy(e => e.Tick)], lastTick);
+        var noteSpeeds = events.OfType<UmgrModel.NoteSpeedEvent>().OrderBy(e => e.Tick).ToArray();
+        WarnIfNoteSpeedIsLost(mgxc, noteSpeeds);
+        ConvertDcm([.. noteSpeeds], lastTick);
         ConvertSlp(mgxc, [.. events.OfType<UmgrModel.ScrollSpeedEvent>().OrderBy(e => e.Tick)]);
     }
 
@@ -69,10 +71,21 @@ public partial class C2SChartConverter
         var e = new C2sModel.Dcm
         {
             Tick = lastEvent.Tick,
-            Length = Math.Max(lastTick.Original - lastEvent.Tick.Original, ChartResolution.SingleTick),
+            Length = checked(DcmEndTick(lastTick, lastEvent.Tick) - lastEvent.Tick.Original),
             Speed = lastEvent.Speed
         };
         Events.Add(e);
+    }
+
+    private int DcmEndTick(Time lastTick, Time lastEventTick)
+    {
+        // DCM is sampled one millisecond after a note's time, with an exclusive
+        // end. Keep the final persistent speed active at the last rounded note.
+        // Use the fastest BPM so a change within the padding cannot shorten it.
+        var bpm = Events.OfType<C2sModel.Bpm>().Select(e => e.Value)
+            .Append(Mgxc.Meta.BgmInitialBpm).Append(150m).Max();
+        var padding = checked((int)decimal.Ceiling(bpm * 96m / 60000m) + 1);
+        return checked(Math.Max(lastTick.Round, lastEventTick.Round) + padding * ChartResolution.SingleTick);
     }
 
     private void ConvertSlp(UmgrModel.Chart mgxc, List<UmgrModel.ScrollSpeedEvent> tilEvents)
@@ -84,11 +97,12 @@ public partial class C2SChartConverter
 
         var tilGroups = tilEvents.GroupBy(til => til.Timeline).ToDictionary(g => g.Key, g => g.ToArray());
         var convertSlp = new List<C2sModel.Slp>();
+        // Use the whole chart horizon so coincident notes on equivalent patterns
+        // can share a pattern even when their long-note tails end at different times.
+        Time lastTilTick = mgxc.GetLastTick();
 
         foreach (var (id, grouped) in tilGroups)
         {
-            Time lastTilTick = mgxc.GetLastTick(p => p.Timeline == id);
-
             if (grouped.Length <= 0)
             {
                 continue;

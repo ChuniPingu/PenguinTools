@@ -1,0 +1,289 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
+using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
+using PenguinTools.Media;
+
+namespace PenguinTools.Infrastructure;
+
+public sealed class AudioService(string assetDirectory) : IAudioService
+{
+    internal const double TargetLoudnessLufs = -8.5;
+    internal const double TargetTruePeakDbtp = 0.0;
+    private const double TargetLoudnessRangeLu = 11.0;
+    private const double OffsetToleranceSeconds = 0.000_1;
+
+    private string AssetDirectory { get; } = RequireDirectory(assetDirectory, nameof(assetDirectory));
+
+    private string FfmpegDirectory => Path.Combine(AssetDirectory, "ffmpeg");
+
+    private string FfmpegExecutablePath => ResolveExecutable(FfmpegDirectory, "ffmpeg");
+
+    public async Task<ProcessCommandResult> NormalizeAudioAsync(string src, string dst, decimal offset,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(src);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dst);
+
+        var sourcePath = Path.GetFullPath(src);
+        var destinationPath = Path.GetFullPath(dst);
+        var outputDirectory = Path.GetDirectoryName(destinationPath)
+                              ?? throw new InvalidOperationException("Audio output directory could not be resolved.");
+        Directory.CreateDirectory(outputDirectory);
+        var nonce = Guid.NewGuid().ToString("N");
+        var statsFileName = $".penguintools-loudness-{nonce}.json";
+        var statsPath = Path.Combine(outputDirectory, statsFileName);
+        var temporaryPath = Path.Combine(outputDirectory, $".penguintools-audio-{nonce}.wav");
+
+        try
+        {
+            var analysisArgs = CreateAnalysisArguments(sourcePath, offset, statsFileName);
+            var analysisStart = NativeProcess.CreateStartInfo(FfmpegExecutablePath, analysisArgs, outputDirectory);
+            var analysis = await NativeProcess.RunAsync(analysisStart, ct);
+            if (analysis.ExitCode != InterExitCode.Success)
+            {
+                throw new DiagnosticException(MsgKeys.Error_Invalid_audio, analysis);
+            }
+
+            if (!TryReadLoudnessStats(statsPath, out var stats, out var parseError))
+            {
+                var failure = new ProcessCommandResult(
+                    analysisStart,
+                    (int)InterExitCode.Failure,
+                    analysis.StandardOutput,
+                    string.Join(Environment.NewLine, analysis.StandardError, parseError).Trim());
+                throw new DiagnosticException(MsgKeys.Error_Invalid_audio, failure);
+            }
+
+            var conversionArgs = CreateConversionArguments(sourcePath, temporaryPath, offset, CalculateGainDb(stats));
+            var converted = await NativeProcess.RunAsync(
+                NativeProcess.CreateStartInfo(FfmpegExecutablePath, conversionArgs, outputDirectory), ct);
+            if (converted.ExitCode != InterExitCode.Success)
+            {
+                throw new DiagnosticException(MsgKeys.Error_Invalid_audio, converted);
+            }
+            File.Move(temporaryPath, destinationPath, true);
+            return converted;
+        }
+        finally
+        {
+            TryDelete(statsPath);
+            TryDelete(temporaryPath);
+        }
+    }
+
+    public async Task<MediaValidationResult> CheckAudioValidAsync(string src, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(src);
+        var start = NativeProcess.CreateStartInfo(FfmpegExecutablePath, [
+            "-hide_banner",
+            "-nostdin",
+            "-nostats",
+            "-loglevel", "error",
+            "-xerror",
+            "-i", src,
+            "-map", "0:a:0",
+            "-vn",
+            "-sn",
+            "-dn",
+            "-f", "null",
+            "-"
+        ]);
+        var result = await NativeProcess.RunAsync(start, ct);
+        return result.ExitCode == InterExitCode.Success
+            ? MediaValidationResult.Valid
+            : MediaValidationResult.Invalid(result);
+    }
+
+    public async Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        try
+        {
+            return await Task.Run(() => CriExtractor.Extract(
+                options.SourcePath, options.OutputDirectory, options.PairedInputPath,
+                options.HcaKey ?? CriConverter.DefaultHcaKey, ct), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new DiagnosticException(MsgKeys.Error_Invalid_audio, ex.Message);
+        }
+    }
+
+    public async Task ConvertCriAsync(
+        CriConvertRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var (wav, acb, awb, name, previewStartMs, previewStopMs, hcaKey) = request;
+        ArgumentException.ThrowIfNullOrWhiteSpace(wav);
+        ArgumentException.ThrowIfNullOrWhiteSpace(acb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(awb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        try
+        {
+            await Task.Run(() => CriConverter.Convert(
+                wav, acb, awb, name, new CriEncodingOptions(previewStartMs, previewStopMs, hcaKey), ct), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new DiagnosticException(MsgKeys.Error_Invalid_audio, ex.Message);
+        }
+    }
+
+    private static string ResolveExecutable(string directory, string name)
+    {
+        var fileName = OperatingSystem.IsWindows() ? $"{name}.exe" : name;
+        var path = Path.Combine(directory, fileName);
+        ResourceStoreHelpers.EnsureExecutableIfNeeded(path, name);
+        return path;
+    }
+
+    private static IReadOnlyList<string> CreateAnalysisArguments(string source, decimal offset,
+        string statsFileName)
+    {
+        var filters = CreateOffsetFilters(offset);
+        filters.Add(
+            $"loudnorm=I={FormatNumber(TargetLoudnessLufs)}:LRA={FormatNumber(TargetLoudnessRangeLu)}:" +
+            $"TP={FormatNumber(TargetTruePeakDbtp)}:linear=true:print_format=json:stats_file={statsFileName}");
+        return [
+            "-hide_banner",
+            "-nostdin",
+            "-nostats",
+            "-loglevel", "error",
+            "-xerror",
+            "-i", source,
+            "-map", "0:a:0",
+            "-vn",
+            "-sn",
+            "-dn",
+            "-af", string.Join(',', filters),
+            "-f", "null",
+            "-"
+        ];
+    }
+
+    private static IReadOnlyList<string> CreateConversionArguments(string source, string destination, decimal offset,
+        double gainDb)
+    {
+        var filters = CreateOffsetFilters(offset);
+        filters.Add($"volume={FormatNumber(gainDb)}dB:precision=double");
+        filters.Add("aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo");
+        return [
+            "-hide_banner",
+            "-nostdin",
+            "-nostats",
+            "-loglevel", "error",
+            "-xerror",
+            "-y",
+            "-i", source,
+            "-map", "0:a:0",
+            "-vn",
+            "-sn",
+            "-dn",
+            "-af", string.Join(',', filters),
+            "-c:a", "pcm_s16le",
+            "-ar", "48000",
+            "-ac", "2",
+            "-f", "wav",
+            destination
+        ];
+    }
+
+    internal static double CalculateGainDb(FfmpegLoudnessStats stats)
+    {
+        var loudnessGain = TargetLoudnessLufs - stats.InputIntegratedLufs;
+        var peakLimitedGain = TargetTruePeakDbtp - stats.InputTruePeakDbtp;
+        return Math.Min(loudnessGain, peakLimitedGain);
+    }
+
+    private static List<string> CreateOffsetFilters(decimal offset)
+    {
+        var seconds = decimal.ToDouble(offset);
+        if (Math.Abs(seconds) < OffsetToleranceSeconds)
+        {
+            return [];
+        }
+
+        if (seconds > 0)
+        {
+            var milliseconds = Math.Round(seconds * 1_000.0, MidpointRounding.AwayFromZero);
+            return [$"adelay=delays={FormatNumber(milliseconds)}:all=1"];
+        }
+
+        return [$"atrim=start={FormatNumber(-seconds)}", "asetpts=PTS-STARTPTS"];
+    }
+
+    internal static bool TryReadLoudnessStats(string path, out FfmpegLoudnessStats stats, out string error)
+    {
+        stats = default;
+        error = string.Empty;
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var root = document.RootElement;
+            var inputI = ReadJsonNumber(root, "input_i");
+            var inputTp = ReadJsonNumber(root, "input_tp");
+            var inputLra = ReadJsonNumber(root, "input_lra");
+            if (!double.IsFinite(inputI) || !double.IsFinite(inputTp) || !double.IsFinite(inputLra))
+            {
+                throw new InvalidDataException("FFmpeg returned non-finite loudness statistics.");
+            }
+
+            stats = new FfmpegLoudnessStats(inputI, inputTp, inputLra);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or FormatException or InvalidDataException
+                                   or KeyNotFoundException)
+        {
+            error = $"Unable to read FFmpeg loudness statistics: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static double ReadJsonNumber(JsonElement root, string propertyName)
+    {
+        var property = root.GetProperty(propertyName);
+        return property.ValueKind switch
+        {
+            JsonValueKind.Number => property.GetDouble(),
+            JsonValueKind.String => double.Parse(property.GetString()!, CultureInfo.InvariantCulture),
+            _ => throw new JsonException($"FFmpeg loudness property '{propertyName}' is not numeric.")
+        };
+    }
+
+    private static string FormatNumber(double value)
+    {
+        return value.ToString("0.#########", CultureInfo.InvariantCulture);
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+    private static string RequireDirectory(string directoryPath, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            throw new ArgumentNullException(paramName);
+        }
+
+        return directoryPath;
+    }
+}
+
+internal readonly record struct FfmpegLoudnessStats(
+    double InputIntegratedLufs,
+    double InputTruePeakDbtp,
+    double InputLoudnessRangeLu);

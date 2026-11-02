@@ -16,7 +16,7 @@ public sealed class EditorVersionTests
     [InlineData(".mgxc", int.MaxValue, 8, 4)]
     [InlineData(".ugc", 10, 2, 9)]
     [InlineData(".ugc", int.MaxValue, 2, 9)]
-    public async Task NewerVersion_IsRejectedBeforePayload_InEveryDialect(
+    public async Task NewerVersion_IsRejectedBeforePayload(
         string extension, int version, int location, int maximumVersion)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -24,12 +24,12 @@ public sealed class EditorVersionTests
         try
         {
             await WriteInputAsync(input, version, ct);
-            foreach (var dialect in new[] { ChartDialect.Auto, ChartDialect.Original, ChartDialect.Extended })
+
             {
                 var result = extension == ".mgxc"
-                    ? await new MgxcParser(new MgxcParseRequest(input, TestAssets.Load(), dialect),
+                    ? await new MgxcParser(new MgxcParseRequest(input, TestAssets.Load()),
                         TestMediaTool.Instance).ParseAsync(ct)
-                    : await new UgcParser(new UgcParseRequest(input, TestAssets.Load(), dialect),
+                    : await new UgcParser(new UgcParseRequest(input, TestAssets.Load()),
                         TestMediaTool.Instance).ParseAsync(ct);
 
                 Assert.False(result.Succeeded);

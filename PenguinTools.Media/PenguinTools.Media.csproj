@@ -8,6 +8,11 @@
 
     <ItemGroup>
         <ProjectReference Include="..\PenguinTools.Core\PenguinTools.Core.csproj"/>
+        <ProjectReference Include="..\External\SonicAudioTools\Source\SonicAudioLib\SonicAudioLib.csproj"/>
+        <ProjectReference Include="..\External\vgaudio\src\VGAudio\VGAudio.csproj"/>
+        <InternalsVisibleTo Include="PenguinTools.Tests"/>
+        <EmbeddedResource Include="Image\Assets\*.afb"/>
+        <EmbeddedResource Include="Cri\Assets\dummy.acb" LogicalName="PenguinTools.Media.Cri.Assets.dummy.acb"/>
     </ItemGroup>
 
 </Project>

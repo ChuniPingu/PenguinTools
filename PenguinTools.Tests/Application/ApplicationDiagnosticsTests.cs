@@ -9,16 +9,22 @@ namespace PenguinTools.Tests.Application;
 
 public sealed class ApplicationDiagnosticsTests
 {
-    [Fact]
-    public void TexconvFailure_PreservesSubprocessDiagnostics()
+    [Theory]
+    [InlineData("image-tools.exe", 1, "decoder output", "decoder failure")]
+    [InlineData("texconv.exe", 7, "encoder output", "encoder failure")]
+    public void ImageCommandFailure_PreservesSubprocessDiagnostics(string executable, int exitCode,
+        string standardOutput, string standardError)
     {
-        var failure = new PenguinTools.Image.TexconvException("texconv.exe -- input.tga", 7, "encoder output", "encoder failure");
+        var start = NativeProcess.CreateStartInfo(executable, ["--input", "透明 source.png"]);
+        var failure = new ProcessCommandResult(start, exitCode, standardOutput, standardError);
         var result = ApplicationDiagnostics.FromException<string>(new DiagnosticException(MsgKeys.Error_Invalid_jk_image, failure));
-        var target = DiagnosticTargetSerializer.ToJsonElement(Assert.Single(result.Diagnostics.Diagnostics).Target)!.Value;
-        Assert.Equal(7, target.GetProperty("exitCode").GetInt32());
-        Assert.Equal("encoder output", target.GetProperty("standardOutput").GetString());
-        Assert.Equal("encoder failure", target.GetProperty("standardError").GetString());
-        Assert.Contains("texconv.exe", target.GetProperty("command").GetString());
+        var diagnostic = Assert.Single(result.Diagnostics.Diagnostics);
+        Assert.Equal(MsgKeys.Error_Invalid_jk_image, diagnostic.Message.Key);
+        var target = DiagnosticTargetSerializer.ToJsonElement(diagnostic.Target)!.Value;
+        Assert.Equal(exitCode, target.GetProperty("exitCode").GetInt32());
+        Assert.Equal(standardOutput, target.GetProperty("standardOutput").GetString());
+        Assert.Equal(standardError, target.GetProperty("standardError").GetString());
+        Assert.Equal(failure.Command, target.GetProperty("command").GetString());
     }
 
     [Fact]

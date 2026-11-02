@@ -81,8 +81,7 @@ public sealed record ChartConversionMetadata(
     int MainTil);
 
 public sealed record ChartInspectRequest(
-    string InputPath,
-    PenguinTools.Core.Metadata.ChartDialect InputDialect = PenguinTools.Core.Metadata.ChartDialect.Auto);
+    string InputPath);
 
 public sealed record ChartInspectResult(
     string InputPath,
@@ -104,8 +103,7 @@ public sealed record ChartConvertOverrides(
 public sealed record ChartConvertRequest(
     string InputPath,
     string OutputPath,
-    ChartConvertOverrides? Overrides = null,
-    PenguinTools.Core.Metadata.ChartDialect InputDialect = PenguinTools.Core.Metadata.ChartDialect.Auto);
+    ChartConvertOverrides? Overrides = null);
 
 public sealed record ChartConvertResult(
     string InputPath,

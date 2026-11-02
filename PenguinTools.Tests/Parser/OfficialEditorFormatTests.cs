@@ -146,11 +146,11 @@ public sealed class OfficialEditorFormatTests
         return chart;
     }
 
-    private static async Task<U.Chart> Read(string path, ChartDialect dialect = ChartDialect.Auto)
+    private static async Task<U.Chart> Read(string path)
     {
         var result = Path.GetExtension(path) == ".mgxc"
-            ? await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken)
-            : await new UgcParser(new UgcParseRequest(path, TestAssets.Load(), dialect), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken);
+            ? await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken)
+            : await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, result.ToString());
         return result.Value!;
     }
@@ -179,7 +179,7 @@ public sealed class OfficialEditorFormatTests
             var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
                 : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
             Assert.True(written.Succeeded, written.ToString());
-            Assert.DoesNotContain(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.DoesNotContain(written.Diagnostics.Diagnostics, d => d.Message.Key.StartsWith("diag.warn.editor_", StringComparison.Ordinal));
             if (!ugc)
             {
                 var bytes = await File.ReadAllBytesAsync(path, ct);
@@ -291,8 +291,7 @@ public sealed class OfficialEditorFormatTests
 
             foreach (var path in new[] { binary, text })
             {
-                var parsed = await Read(path, ChartDialect.Extended);
-                Assert.Equal(ChartDialect.Original, parsed.Extras.EncodingDialect);
+                var parsed = await Read(path);
                 Assert.True(parsed.Meta.ExtendedField);
                 Assert.Equal(new[] { -16, 31 }, parsed.Notes.Children.OfType<U.Tap>().Select(n => n.Lane));
                 Assert.True(Assert.Single(parsed.Notes.Children.OfType<U.Slide>()).NoLine);
@@ -327,7 +326,7 @@ public sealed class OfficialEditorFormatTests
                 bytes[offset + 11] = 0xEF;
             }
             await File.WriteAllBytesAsync(path, bytes, ct);
-            var parsed = Assert.Single((await Read(path, ChartDialect.Extended)).Notes.Children.OfType<U.Slide>());
+            var parsed = Assert.Single((await Read(path)).Notes.Children.OfType<U.Slide>());
             Assert.Equal((-2, 4, true), (parsed.Lane, parsed.Width, parsed.NoLine));
             Assert.Equal((2, 4), (parsed.LastChild!.Lane, parsed.LastChild.Width));
         }
@@ -490,7 +489,7 @@ public sealed class OfficialEditorFormatTests
                 : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
             Assert.True(written.Succeeded);
             Assert.Equal(oversized ? 1 : 0,
-                written.Diagnostics.Diagnostics.Count(d => d.Message.Key == MsgKeys.Warn_Editor_approximation));
+                written.Diagnostics.Diagnostics.Count(d => d.Message.Key == MsgKeys.Warn_Editor_width_adjusted));
             var restored = Assert.Single((await Read(path)).Notes.Children.OfType<U.Slide>());
             Assert.True(restored.NoLine);
             var joint = Assert.IsType<U.SlideJoint>(restored.FirstChild);
@@ -515,7 +514,12 @@ public sealed class OfficialEditorFormatTests
             var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
                 : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
             Assert.True(written.Succeeded);
-            Assert.Single(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            var laneWarning = Assert.Single(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_lane_adjusted);
+            Assert.Equal(-30, laneWarning.Message.Args!["arg2"]);
+            Assert.Equal(-16, laneWarning.Message.Args["arg3"]);
+            var widthWarning = Assert.Single(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_width_adjusted);
+            Assert.Equal(20, widthWarning.Message.Args!["arg2"]);
+            Assert.Equal(16, widthWarning.Message.Args["arg3"]);
             var parsed = await Read(path);
             Assert.Equal(new[] { (-16, 16), (-30, 20) }, parsed.Notes.Children.OfType<U.Tap>().Select(n => (n.Lane, n.Width)));
         }
@@ -553,7 +557,7 @@ public sealed class OfficialEditorFormatTests
         {
             var written = await new UgcChartWriter(path, chart).WriteAsync(ct);
             Assert.True(written.Succeeded);
-            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_width_adjusted);
             var parsed = await Read(path);
             var slides = parsed.Notes.Children.OfType<U.Slide>().ToArray();
             Assert.Equal<int>([2, 2], slides.Select(n => n.Children.Count));
@@ -590,7 +594,7 @@ public sealed class OfficialEditorFormatTests
         {
             var written = await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
             Assert.True(written.Succeeded);
-            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_crash_points_merged);
             var crashes = (await Read(path)).Notes.Children.OfType<U.AirCrash>().ToArray();
             Assert.Equal<int>([1, 2], crashes.Select(n => n.Children.Count));
             Assert.Equal<int>([4, 5, 6], crashes.SelectMany(n => n.Children).Select(n => n.Lane));
@@ -612,7 +616,7 @@ public sealed class OfficialEditorFormatTests
         {
             var written = await new UgcChartWriter(path, chart).WriteAsync(ct);
             Assert.True(written.Succeeded);
-            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_meter_skipped);
             var lines = await File.ReadAllLinesAsync(path, ct);
             Assert.Contains("@BEAT\t1\t3\t8", lines);
             Assert.Contains("@BPM\t2'0\t180", lines);
@@ -641,7 +645,7 @@ public sealed class OfficialEditorFormatTests
         {
             var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
                 : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
-            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_approximation);
+            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_width_adjusted);
             var retained = Assert.Single((await Read(path)).Notes.Children.OfType<U.Tap>());
             Assert.Equal((-30, 20), (retained.Lane, retained.Width));
             if (ugc)
@@ -662,4 +666,34 @@ public sealed class OfficialEditorFormatTests
         }
         finally { File.Delete(path); }
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnsupportedColor_WarnsAboutColorWithoutReportingUnchangedGeometry(bool ugc)
+    {
+        var chart = Chart();
+        var tap = new U.Tap { Tick = 0, Lane = 4, Width = 4 };
+        var air = new U.Air { Color = Color.RED };
+        tap.MakePair(air);
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(air);
+        var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+        try
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded);
+            var warning = Assert.Single(written.Diagnostics.Diagnostics,
+                d => d.Message.Key.StartsWith("diag.warn.editor_", StringComparison.Ordinal));
+            Assert.Equal(MsgKeys.Warn_Editor_color_defaulted, warning.Message.Key);
+            Assert.Equal("AIR", warning.Message.Args!["arg1"]);
+            Assert.Equal("RED", warning.Message.Args["arg2"]);
+            Assert.Equal(Color.RED, air.Color);
+            Assert.Equal(Color.RED, Assert.Single((await Read(path)).Notes.Children.OfType<U.Air>()).Color);
+        }
+        finally { File.Delete(path); }
+    }
+
 }

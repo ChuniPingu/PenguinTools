@@ -2,6 +2,7 @@
     <PropertyGroup>
         <PenguinToolsTexconvDirectory>$(MSBuildThisFileDirectory)..\artifacts\tools\texconv</PenguinToolsTexconvDirectory>
         <PenguinToolsFfmpegPublishDir>$(MSBuildThisFileDirectory)..\artifacts\tools\ffmpeg</PenguinToolsFfmpegPublishDir>
+        <PenguinToolsImageToolsDirectory>$(MSBuildThisFileDirectory)..\artifacts\tools\image-tools</PenguinToolsImageToolsDirectory>
     </PropertyGroup>
 
     <ItemGroup>
@@ -16,12 +17,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="$(MSBuildThisFileDirectory)Licenses\NetVips.txt;$(MSBuildThisFileDirectory)Licenses\LGPL-3.0.txt;$(MSBuildThisFileDirectory)Licenses\GPL-3.0.txt;$(MSBuildThisFileDirectory)Licenses\libvips-THIRD-PARTY-NOTICES.md;$(MSBuildThisFileDirectory)Licenses\libvips-versions.json">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            <TargetPath>assets\licenses\%(Filename)%(Extension)</TargetPath>
-            <Link>assets\licenses\%(Filename)%(Extension)</Link>
-        </Content>
         <Content Include="@(PenguinToolsTexconvContent)">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

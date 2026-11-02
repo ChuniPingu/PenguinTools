@@ -51,10 +51,11 @@ internal static class C2sRoundTripKeys
             ";",
             Flatten(chart.Notes.Children)
                 .Where(note =>
-                    note.Timeline != 0 &&
                     note is not UmgrModel.SoflanArea and not UmgrModel.SoflanAreaJoint)
                 .Select(note =>
-                    $"{note.Tick.Original},{note.Lane},{note.Width},{note.Timeline}" +
+                    string.Create(CultureInfo.InvariantCulture, $"{note.Tick.Original},{note.Lane},{note.Width},{note.Timeline}") +
+                    (note is UmgrModel.AirCrash crash
+                        ? string.Create(CultureInfo.InvariantCulture, $",ALD,{crash.Density.Original},{crash.Color}") : "") +
                     (CurveExpansion.IsControl(note) ? ",BEZIER" : ""))
                 .OrderBy(key => key, StringComparer.Ordinal));
     }
@@ -101,7 +102,8 @@ internal static class C2sRoundTripKeys
                         $"{airSlide.Lane},{airSlide.Width}," +
                         $"{airSlide.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
                         $"{airSlide.Direction},{airSlide.Color}," +
-                        $"{AirParentType(airSlide.PairNote)}",
+                        $"{AirParentType(airSlide.PairNote)}" +
+                        (airSlide.ArrowColor is { } arrow && arrow != airSlide.Color ? $",ARROW={arrow}" : ""),
 
                     UmgrModel.AirSlideJoint joint =>
                         $"ASJ,{joint.Tick.Original},{joint.Timeline}," +

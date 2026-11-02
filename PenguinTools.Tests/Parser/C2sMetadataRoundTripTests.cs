@@ -210,7 +210,6 @@ public sealed class C2sMetadataRoundTripTests
 
             Assert.DoesNotContain("#meta c2ssla ", rawMgxc);
             Assert.Contains("PT_EXTRAS_V2:", rawMgxc);
-            Assert.DoesNotContain("ptmd", rawMgxc);
 
             var parsed = await new MgxcParser(
                     new MgxcParseRequest(

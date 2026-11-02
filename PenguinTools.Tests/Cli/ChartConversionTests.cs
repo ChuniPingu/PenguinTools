@@ -45,11 +45,8 @@ public sealed class ChartConversionTests
         }
     }
 
-    [Theory]
-    [InlineData(null, 2160)]
-    [InlineData("Original", 2160)]
-    [InlineData("Extended", 3840)]
-    public async Task UnmarkedInput_UsesOriginalTimingUnlessExplicitlyOverridden(string? dialect, int expectedTick)
+    [Fact]
+    public async Task UnmarkedInput_UsesMusicalTiming()
     {
         var input = TestTempPaths.Create(".ugc");
         var output = TestTempPaths.Create(".c2s");
@@ -60,11 +57,11 @@ public sealed class ChartConversionTests
                 "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120\n@BEAT\t0\t3\t8\n" +
                 "@FLAG\tSOFFSET\tTRUE\n#2'0:t04\n", ct);
 
-            await ConvertAsync(input, output, ct, dialect is null ? [] : ["--input-dialect", dialect]);
+            await ConvertAsync(input, output, ct);
 
             var parsed = await new C2SParser(new C2SParseRequest(output)).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
-            Assert.Equal(expectedTick, Assert.Single(parsed.Value!.Notes.OfType<C.Tap>()).Tick.Original);
+            Assert.Equal(2160, Assert.Single(parsed.Value!.Notes.OfType<C.Tap>()).Tick.Original);
         }
         finally
         {
