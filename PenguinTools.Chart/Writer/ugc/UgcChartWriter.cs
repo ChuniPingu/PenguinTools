@@ -310,7 +310,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         }
         if (n is U.AirSlide airSlide)
         {
-            _chart.Extras.AirAppearances.Add(new(ChartExtras.AirKey(airSlide), airSlide.Color, airSlide.Direction));
+            _chart.Extras.AirAppearances.Add(new(ChartExtras.AirKey(airSlide), airSlide.Color, airSlide.Direction)
+            { ArrowColor = airSlide.ArrowColor });
         }
         var payload = NotePayload(n, xy);
         Head(n, payload);

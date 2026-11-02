@@ -13,6 +13,62 @@ namespace PenguinTools.Tests.Parser;
 public sealed class MgxcAirHeadTests
 {
     [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    [InlineData(false, 4)]
+    [InlineData(true, 4)]
+    public async Task LongAirColorUsesTheNativeSource(bool slide, int version)
+    {
+        var chart = new U.Chart();
+        chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
+        chart.Events.AppendChild(new U.BeatEvent { Bar = 0 });
+        var tap = new U.Tap { Tick = 480, Lane = 2, Width = 4 };
+        U.NegativeNote air = slide ? new U.AirSlide { Height = 80 } : new U.AirHold();
+        U.Note end = slide
+            ? new U.AirSlideJoint { Tick = 960, Lane = 2, Width = 4, Height = 80 }
+            : new U.AirHoldJoint { Tick = 960 };
+        air.AppendChild(end);
+        tap.MakePair(air);
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(air);
+        var path = TestTempPaths.Create(".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+            if (version == 2)
+            {
+                await LegacyEditorFixture.DowngradeAsync(path, ct);
+            }
+            var bytes = await File.ReadAllBytesAsync(path, ct);
+            var data = bytes.AsSpan().IndexOf("dat2"u8) + 8;
+            // The separate arrow is inverted; the long-note record stays normal.
+            // Native AIR-HOLD inherits the arrow color; AIR-SLIDE uses its own.
+            var arrow = Enumerable.Range(0, (bytes.Length - data) / 20)
+                .Select(i => data + i * 20).Single(i => bytes[i] == 7);
+            bytes[arrow + 3] = 1;
+            await File.WriteAllBytesAsync(path, bytes, ct);
+            var parsed = await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded);
+            var restored = Assert.Single(parsed.Value!.Notes.Children.OfType<U.NegativeNote>());
+            if (slide)
+            {
+                var airSlide = Assert.IsType<U.AirSlide>(restored);
+                Assert.Equal(Color.DEF, airSlide.Color);
+                Assert.Equal(Color.PNK, airSlide.ArrowColor);
+            }
+            else
+            {
+                Assert.Equal(Color.PNK, Assert.IsType<U.AirHold>(restored).Color);
+            }
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
     [InlineData(false, "tap")]
     [InlineData(true, "tap")]
     [InlineData(false, "hold")]

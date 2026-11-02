@@ -428,6 +428,7 @@ public sealed partial class ChartExtras
             if (note is UmgrModel.AirSlide slide)
             {
                 slide.Color = saved.Color;
+                slide.ArrowColor = saved.ArrowColor;
                 slide.Direction = saved.Direction;
             }
             if (note is UmgrModel.AirHold hold)
@@ -521,7 +522,11 @@ public sealed record HoldEffectSnapshot(string Key, PenguinTools.Chart.Models.Ex
 public sealed record EditorNoteSnapshot(string Key, ExTapRoleSnapshot? ExTap);
 public sealed record ExTapRoleSnapshot(UmgrModel.ExTapRole Role, UmgrModel.AirActionCarrierParent Parent,
     Models.Joint ParentJoint, bool ParentHasExEffect);
-public sealed record AirAppearance(string Key, PenguinTools.Chart.Models.Color Color, PenguinTools.Chart.Models.AirDirection Direction);
+public sealed record AirAppearance(string Key, PenguinTools.Chart.Models.Color Color, PenguinTools.Chart.Models.AirDirection Direction)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PenguinTools.Chart.Models.Color? ArrowColor { get; init; }
+}
 public sealed record MeterSnapshot(int Tick, int Numerator, int Denominator);
 public sealed record SpeedSnapshot(string Tag, int Tick, int Length, decimal Speed, int Timeline);
 

@@ -140,7 +140,8 @@
       "ugc_relative_speed_not_reproduced": "This chart uses relative scrolling speeds for some notes. {0} output cannot preserve this effect.",
       "zero_note_speed_not_reproduced": "C2S output cannot keep this note's scrolling stopped. The note will follow its scroll-speed events instead.",
       "editor_undefined_timeline_speed": "This note's scroll group has no scroll-speed events. Its previously inactive note-speed setting becomes active in C2S, which may change its scrolling.",
-      "number_adjusted": "The value {1} cannot be saved exactly and was adjusted to {2} ({0})."
+      "number_adjusted": "The value {1} cannot be saved exactly and was adjusted to {2} ({0}).",
+      "air_arrow_color_not_reproduced": "The AIR-SLIDE arrow's separate inversion setting cannot be preserved in {0}; the long note's color setting was used."
     }
   }
 }

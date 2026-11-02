@@ -302,21 +302,13 @@ public partial class MgxcParser
 
     private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, decimal height)
     {
-        UmgrModel.Note parent = type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height);
-        if (_version < 3)
+        if (type == NoteType.AirHold)
         {
-            return parent;
+            return CreateAirHold();
         }
-        var color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
-        if (parent is UmgrModel.AirHold hold)
-        {
-            hold.Color = color;
-        }
-        if (parent is UmgrModel.AirSlide slide)
-        {
-            slide.Color = color;
-        }
-        return parent;
+        var slide = CreateAirSlide(height);
+        slide.Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
+        return slide;
     }
 
     private UmgrModel.Air? TakeLastAir()
@@ -348,6 +340,7 @@ public partial class MgxcParser
         if (TakeLastAir() is { } air)
         {
             note.Color = air.Color;
+            note.ArrowColor = air.Color;
             note.Direction = air.Direction;
         }
         return note;

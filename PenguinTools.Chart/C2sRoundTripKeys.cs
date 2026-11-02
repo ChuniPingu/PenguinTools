@@ -102,7 +102,8 @@ internal static class C2sRoundTripKeys
                         $"{airSlide.Lane},{airSlide.Width}," +
                         $"{airSlide.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
                         $"{airSlide.Direction},{airSlide.Color}," +
-                        $"{AirParentType(airSlide.PairNote)}",
+                        $"{AirParentType(airSlide.PairNote)}" +
+                        (airSlide.ArrowColor is { } arrow && arrow != airSlide.Color ? $",ARROW={arrow}" : ""),
 
                     UmgrModel.AirSlideJoint joint =>
                         $"ASJ,{joint.Tick.Original},{joint.Timeline}," +
