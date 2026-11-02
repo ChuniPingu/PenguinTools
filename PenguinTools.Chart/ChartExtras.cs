@@ -427,8 +427,7 @@ public sealed partial class ChartExtras
 
             if (note is UmgrModel.AirSlide slide)
             {
-                slide.Color = saved.Color;
-                slide.ArrowColor = saved.ArrowColor;
+                slide.Color = saved.ArrowColor ?? saved.Color;
                 slide.Direction = saved.Direction;
             }
             if (note is UmgrModel.AirHold hold)
@@ -524,6 +523,8 @@ public sealed record ExTapRoleSnapshot(UmgrModel.ExTapRole Role, UmgrModel.AirAc
     Models.Joint ParentJoint, bool ParentHasExEffect);
 public sealed record AirAppearance(string Key, PenguinTools.Chart.Models.Color Color, PenguinTools.Chart.Models.AirDirection Direction)
 {
+    // Read older metadata that stored the controlling AIR color separately.
+    // New output uses Color for the entire long note and omits this field.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PenguinTools.Chart.Models.Color? ArrowColor { get; init; }
 }

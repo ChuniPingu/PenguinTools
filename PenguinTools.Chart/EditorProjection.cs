@@ -29,10 +29,6 @@ internal static class EditorProjection
         NormalizeMeters(chart, diagnostics, format);
         diagnostics.TimeCalculator = chart.GetCalculator();
         diagnostics.BackfillTimeCalculator();
-        if (ugc)
-        {
-            AirSlideColors.WarnIfCombined(chart, format, diagnostics);
-        }
         var notes = AllNotes(chart).ToArray();
         var paths = notes.Where(n => n.Parent == chart.Notes && n is U.Slide or U.AirSlide or U.AirCrash)
             .ToDictionary(n => n, n => n.Children.Select(CapturePoint).ToList());

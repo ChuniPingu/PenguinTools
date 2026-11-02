@@ -109,7 +109,7 @@ public partial class MgxcParser
                 break;
             case NoteType.AirHold:
             case NoteType.AirSlide:
-                (note, isChildNote, isPairNote) = CreateLongAir(type, longAttr, exAttr, height, tick);
+                (note, isChildNote, isPairNote) = CreateLongAir(type, longAttr, height, tick);
                 break;
             case NoteType.AirCrush:
                 (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, exAttr, tick);
@@ -278,11 +278,12 @@ public partial class MgxcParser
     }
 
     private (UmgrModel.Note Note, bool IsChild, bool IsPair) CreateLongAir(
-        NoteType type, LongAttr longAttr, ExAttr exAttr, decimal height, int tick)
+        NoteType type, LongAttr longAttr, decimal height, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
-            return (CreateLongAirHead(type, exAttr, height), false, true);
+            // Invert is set on the AIR arrow and applies to the whole long note.
+            return (type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height), false, true);
         }
         if (type == NoteType.AirHold)
         {
@@ -298,17 +299,6 @@ public partial class MgxcParser
             Joint = ParseJoint(longAttr, nameof(UmgrModel.AirSlideJoint), tick),
             Height = height
         }, true, false);
-    }
-
-    private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, decimal height)
-    {
-        if (type == NoteType.AirHold)
-        {
-            return CreateAirHold();
-        }
-        var slide = CreateAirSlide(height);
-        slide.Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF;
-        return slide;
     }
 
     private UmgrModel.Air? TakeLastAir()
@@ -340,7 +330,6 @@ public partial class MgxcParser
         if (TakeLastAir() is { } air)
         {
             note.Color = air.Color;
-            note.ArrowColor = air.Color;
             note.Direction = air.Direction;
         }
         return note;
