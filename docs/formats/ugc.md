@@ -8,6 +8,8 @@ UGC uses the `.ugc` extension, UTF-8, and LF or CRLF line endings. Each line con
 
 Time uses `Bar'Tick`: `0'240` means measure 0, tick 240. Header arguments are separated by horizontal tabs.
 
+Write `@VER` before other commands, including `@EXVER` and `@FLAG`. Sequential readers need the version before interpreting flags such as `EXFIELD`; otherwise extended-lane notes can become unplayable.
+
 ## Metadata commands
 
 | Command  | Arguments and meaning                                                                         |
@@ -21,7 +23,7 @@ Time uses `Bar'Tick`: `0'240` means measure 0, tick 240. Header arguments are se
 | `DESIGN` | Chart designer                                                                                |
 | `DIFF`   | BASIC = 0, ADVANCED = 1, EXPERT = 2, MASTER = 3, WORLD'S END = 4, ULTIMA = 5                  |
 | `LEVEL`  | Play level; star count for WORLD'S END                                                        |
-| `WEATTR` | WORLD'S END attribute, one kanji or full-width symbol                                         |
+| `WEATTR` | WORLD'S END attribute, one kanji or full-width symbol; omit for other difficulties            |
 | `CONST`  | Chart constant                                                                                |
 | `SONGID` | Song ID; share across difficulties of a song, except WORLD'S END                              |
 | `RLDATE` | Addition date in `YYYYMMDD` format                                                            |

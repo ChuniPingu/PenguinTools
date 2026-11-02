@@ -106,6 +106,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
             _chart.Extras.EditorFieldColorName = _chart.Meta.FieldColorName;
             _lines.Clear();
+            // Sequential readers need the version before version-dependent flags.
+            _lines.Add("@VER\t9");
             _snapshots = new();
             if (_chart.Extras.FixedZeroOrigin)
             {
@@ -150,7 +152,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _snapshots.Capture(_chart.Extras, _lines, _chart.Meta.C2sSlaSnapshot);
             var copyright = "@COPYRIGHT\t" +
                 (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") + _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
-            _lines.Insert(0, copyright);
+            _lines.Insert(1, copyright);
             await AtomicFile.WriteAsync(path, async (stream, token) =>
             {
                 await using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
@@ -200,7 +202,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         _lines.Add($"@LEVEL\t{(m.Difficulty == Difficulty.WorldsEnd
             ? PenguinTools.Chart.Writer.mgxc.MgxcChartWriter.WeLevel(m.WeDifficulty)
             : PenguinTools.Chart.Writer.mgxc.MgxcChartWriter.FormatPlayLevel(m.Level))}");
-        _lines.AddRange(["@VER\t9", "@FLAG\tHIPRECISION\tTRUE", "@TICKS\t480", $"@TITLE\t{Clean(m.Title)}", $"@ARTIST\t{Clean(m.Artist)}",
+        _lines.AddRange(["@FLAG\tHIPRECISION\tTRUE", "@TICKS\t480", $"@TITLE\t{Clean(m.Title)}", $"@ARTIST\t{Clean(m.Artist)}",
             $"@DESIGN\t{Clean(m.Designer)}", $"@DIFF\t{DifficultyValue(m.Difficulty)}", $"@CONST\t{m.Level}", $"@SONGID\t{(string.IsNullOrWhiteSpace(m.MgxcId) ? (m.Id ?? 0).ToString(CultureInfo.InvariantCulture) : Clean(m.MgxcId))}",
             $"@MAINBPM\t{m.MainBpm}", $"@FLAG\tSOFFSET\t{(m.BgmEnableBarOffset ? 1 : 0)}",
             $"@FLAG\tCLICK\t{(_chart.Extras.ClickEnabled ? 1 : 0)}", $"@CLKCNT\t{_chart.Extras.Count(m.BgmInitialNumerator)}",
@@ -210,7 +212,10 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
         _lines.Add($"@LICENSE\t{Clean(m.License)}\t{Clean(m.LicenseUrl)}");
         _lines.Add($"@GENRE\t{Clean(m.Genre?.Str ?? "")}");
-        _lines.Add($"@WEATTR\t{Clean(m.WeTag.Str)}");
+        if (m.Difficulty == Difficulty.WorldsEnd)
+        {
+            _lines.Add($"@WEATTR\t{Clean(m.WeTag.Str)}");
+        }
         _lines.Add($"@BGMPRV\t{m.BgmPreviewStart}\t{m.BgmPreviewStop}");
         _lines.Add($"@BGIMG\t{Clean(m.BgiFilePath)}");
         _lines.Add($"@BGSCENE\t{Clean(m.BackgroundScene)}");

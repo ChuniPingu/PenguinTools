@@ -146,6 +146,52 @@ public sealed class OfficialEditorFormatTests
         return chart;
     }
 
+    [Theory]
+    [InlineData(Difficulty.Basic, 0)]
+    [InlineData(Difficulty.Advanced, 1)]
+    [InlineData(Difficulty.Expert, 2)]
+    [InlineData(Difficulty.Master, 3)]
+    [InlineData(Difficulty.Ultima, 5)]
+    [InlineData(Difficulty.WorldsEnd, 4)]
+    public async Task Ugc_DifficultyHeaders_OnlyWorldsEndHasAnAttribute(Difficulty difficulty, int nativeValue)
+    {
+        var chart = Chart();
+        chart.Meta.Difficulty = difficulty;
+        chart.Meta.Level = 16;
+        chart.Meta.WeDifficulty = StarDifficulty.S4;
+        chart.Meta.WeTag = new(1, "改");
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.True((await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded);
+            var lines = await File.ReadAllLinesAsync(path, ct);
+            Assert.Contains($"@DIFF\t{nativeValue}", lines);
+            Assert.Contains($"@LEVEL\t{(difficulty == Difficulty.WorldsEnd ? "4" : "16")}", lines);
+            if (difficulty == Difficulty.WorldsEnd)
+            {
+                Assert.Contains("@WEATTR\t改", lines);
+            }
+            else
+            {
+                Assert.DoesNotContain(lines, line => line.StartsWith("@WEATTR\t", StringComparison.Ordinal));
+            }
+
+            var parsed = await Read(path);
+            Assert.Equal(difficulty, parsed.Meta.Difficulty);
+            if (difficulty == Difficulty.WorldsEnd)
+            {
+                Assert.Equal(StarDifficulty.S4, parsed.Meta.WeDifficulty);
+                Assert.Equal("改", parsed.Meta.WeTag.Str);
+            }
+            else
+            {
+                Assert.Equal(16, parsed.Meta.Level);
+            }
+        }
+        finally { File.Delete(path); }
+    }
+
     private static async Task<U.Chart> Read(string path)
     {
         var result = Path.GetExtension(path) == ".mgxc"
@@ -279,7 +325,7 @@ public sealed class OfficialEditorFormatTests
             Assert.Equal(new byte[] { 1, 0, 0, 0, 0, 0, 16, 240, 80, 0, 0, 0 }, bytes[data..(data + 12)]);
             Assert.True((await new UgcChartWriter(text, chart).WriteAsync(ct)).Succeeded);
             var lines = await File.ReadAllLinesAsync(text, ct);
-            Assert.Contains("@VER\t9", lines);
+            Assert.Equal("@VER\t9", lines[0]);
             Assert.Contains("@FLAG\tEXFIELD\tTRUE", lines);
             Assert.Contains("#0'0:t0G", lines);
             Assert.Contains("#0'240:tl1", lines);
