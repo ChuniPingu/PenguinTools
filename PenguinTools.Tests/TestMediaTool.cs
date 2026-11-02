@@ -46,6 +46,9 @@ internal sealed class TestMediaTool : IAudioService, IImageService, IMediaValida
         return Task.FromResult(new DdsDecodeResult(src, dst));
     }
 
+    public Task ConvertRasterToPngAsync(string source, string destination, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
     public Task<CriExtractResult> ExtractCriAudioAsync(CriExtractOptions options, CancellationToken ct = default)
     {
         return Task.FromResult(new CriExtractResult(1, options.SourcePath, []));

@@ -41,7 +41,7 @@ Discovery order chooses the preferred format when a song ID and difficulty occur
 & $cli audio extract .\game\cueFile\music1234.acb .\wav
 ```
 
-Music extraction reads the chart paths in `Music.xml` and writes under `extracted/<song ID>/`. Its default chart format is MGXC; `--chart-format ugc` selects UGC. `--no-audio` and `--no-jacket` skip those media outputs. To include them, omit those flags and provide accessible media, using `--acb`, `--awb`, or `--jacket` when discovery needs an explicit path. Standalone audio extraction writes decoded WAV files to its output directory.
+Music extraction reads the chart paths in `Music.xml` and writes under `extracted/<song ID>/`. Its default chart format is MGXC; `--chart-format ugc` selects UGC. `--no-audio` and `--no-jacket` skip those media outputs. To include them, omit those flags and provide accessible media, using `--acb`, `--awb`, or `--jacket` when discovery needs an explicit path. Extracted jackets are sRGB PNGs; raster overrides such as JPEG are decoded and converted with orientation, dimensions, and transparency preserved. Standalone audio extraction writes decoded WAV files to its output directory.
 
 ### Use an additional asset catalog
 

@@ -140,12 +140,28 @@ public sealed class ImageService : IImageService
             // A stable name also lets texconv sniff DDS input regardless of the caller's extension.
             var input = Path.Combine(workspace, "decode.dds");
             await CopyAsync(source, input, token).ConfigureAwait(false);
-            await RunToolAsync(_texconvPath, ["-nologo", "-y", "-nogpu", "-m", "1", "-ft", "png", "-f", "R8G8B8A8_UNORM",
-                "--ignore-srgb", "-o", workspace, "--", input], token).ConfigureAwait(false);
-            var png = Path.Combine(workspace, "decode.png");
-            await AtomicFile.WriteAsync(destination, (stream, cancellation) => CopyToAsync(png, stream, cancellation), token).ConfigureAwait(false);
+            // Legacy game DDS stores sRGB values without color-space metadata. Treat both
+            // ends as sRGB to preserve those values and avoid writing a linear PNG gamma tag.
+            await WritePngAsync(input, destination, workspace, token).ConfigureAwait(false);
         }, MsgKeys.Error_Invalid_bg_image, ct).ConfigureAwait(false);
         return new DdsDecodeResult(source, destination);
+    }
+
+    public Task ConvertRasterToPngAsync(string source, string destination, CancellationToken ct = default) =>
+        WithWorkspaceAsync(async (workspace, token) =>
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(source);
+            var input = Path.Combine(workspace, "decode.tga");
+            await RunToolAsync(_imageToolsPath, ["convert", "--input", source, "--output", input], token).ConfigureAwait(false);
+            await WritePngAsync(input, destination, workspace, token).ConfigureAwait(false);
+        }, MsgKeys.Error_Invalid_jk_image, ct);
+
+    private async Task WritePngAsync(string input, string destination, string workspace, CancellationToken ct)
+    {
+        await RunToolAsync(_texconvPath, ["-nologo", "-y", "-nogpu", "-m", "1", "-ft", "png", "-f", "R8G8B8A8_UNORM_SRGB",
+            "-srgb", "--tga-zero-alpha", "-o", workspace, "--", input], ct).ConfigureAwait(false);
+        var png = Path.Combine(workspace, "decode.png");
+        await AtomicFile.WriteAsync(destination, (stream, cancellation) => CopyToAsync(png, stream, cancellation), ct).ConfigureAwait(false);
     }
 
     private async Task RunToolAsync(string executablePath, IReadOnlyList<string> arguments, CancellationToken ct)

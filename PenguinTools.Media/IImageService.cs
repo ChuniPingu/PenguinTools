@@ -13,4 +13,6 @@ public interface IImageService
     Task<IReadOnlyList<string>> ExtractDdsAsync(string source, string outputDirectory, CancellationToken ct = default);
 
     Task<DdsDecodeResult> DecodeDdsAsync(string source, string destination, CancellationToken ct = default);
+
+    Task ConvertRasterToPngAsync(string source, string destination, CancellationToken ct = default);
 }

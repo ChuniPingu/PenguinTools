@@ -16,7 +16,7 @@ The CLI is a command adapter around application services. Chart and media projec
 
 Treat application request/result records and [CLI JSON output](cli.md#json-output-and-scripts) as interfaces for callers. Preserve message keys and named arguments, diagnostic locations, cancellation, exit codes, and numeric identifier representation when changing them.
 
-Media operations are split between `IAudioService` and `IImageService`. `AudioService` supplies FFmpeg and CRI operations; `ImageService` handles image-tools, texconv, and AFB operations directly. The application composes both services, and converters depend on the service they use. Chart parsers depend only on `IMediaValidator`; `MediaValidator` combines the two services' checks, and `ScanMediaValidator` shares their results within a directory scan.
+Media operations are split between `IAudioService` and `IImageService`. `AudioService` supplies FFmpeg and CRI operations; `ImageService` handles image-tools, texconv, and AFB operations directly. DDS extraction treats game texture colors as sRGB and preserves their stored values when writing PNGs. `ConvertRasterToPngAsync` normalizes raster color and orientation, preserves dimensions and alpha, and writes sRGB PNGs. Raster inputs use embedded ICC/sRGB declarations before standalone PNG gamma; resizing uses linear light with premultiplied alpha. The application composes both services, and converters depend on the service they use. Chart parsers depend only on `IMediaValidator`; `MediaValidator` combines the two services' checks, and `ScanMediaValidator` shares their results within a directory scan.
 
 ## Charts
 

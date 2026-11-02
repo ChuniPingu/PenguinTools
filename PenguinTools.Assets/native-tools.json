@@ -25,10 +25,10 @@
     },
     {
       "id": "image-tools",
-      "release": "v0.1.0",
+      "release": "v0.1.1",
       "type": "zip",
-      "url": "https://github.com/ChuniPingu/image-tools/releases/download/v0.1.0/image-tools-win-x64.zip",
-      "sha256": "58b2bd04762ee57913b8c2c44ab70de608f635baa7503a67359769b9807c9722",
+      "url": "https://github.com/ChuniPingu/image-tools/releases/download/v0.1.1/image-tools-win-x64.zip",
+      "sha256": "db8990c1c0c662263ec613b082bc76244a564454222722e523e77165af4e7763",
       "requiredFiles": [
         "image-tools.exe",
         "libvips-42.dll",
