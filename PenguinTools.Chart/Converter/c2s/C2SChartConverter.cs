@@ -273,7 +273,6 @@ public partial class C2SChartConverter
         {
             CurveExpansion.Expand(Mgxc);
             UgcSpeedFields.WarnIfUnsupported(Mgxc, "C2S", Diagnostic);
-            AirSlideColors.WarnIfCombined(Mgxc, "C2S", Diagnostic);
             C2s.Meta = Mgxc.Meta;
             C2s.Meta.BgmFixedZeroOrigin |= Mgxc.Extras.UsesFixedCoordinateOrigin;
             if (Mgxc.Extras.ParsedEventModelKey != C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Mgxc).Split('\n')))

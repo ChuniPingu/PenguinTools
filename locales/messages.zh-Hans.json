@@ -140,8 +140,7 @@
       "ugc_relative_speed_not_reproduced": "此谱面为部分音符设置了相对滚动速度，输出 {0} 时无法保留该效果。",
       "zero_note_speed_not_reproduced": "输出 C2S 时，无法保留此音符停止滚动的效果。",
       "editor_undefined_timeline_speed": "此音符所在的 TIL 未设置变速事件，流速可能变化。",
-      "number_adjusted": "数值 {1} 无法按原数值保存，已调整为 {2}（{0}）。",
-      "air_arrow_color_not_reproduced": "输出 {0} 时，无法保留 AIR-SLIDE 箭头独立的反色设置，已采用长条的颜色设置。"
+      "number_adjusted": "数值 {1} 无法按原数值保存，已调整为 {2}（{0}）。"
     }
   }
 }

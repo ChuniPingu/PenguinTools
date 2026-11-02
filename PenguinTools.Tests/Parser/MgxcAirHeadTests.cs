@@ -17,7 +17,7 @@ public sealed class MgxcAirHeadTests
     [InlineData(true, 2)]
     [InlineData(false, 4)]
     [InlineData(true, 4)]
-    public async Task LongAirColorUsesTheNativeSource(bool slide, int version)
+    public async Task LongAirInversionFollowsTheArrow(bool slide, int version)
     {
         var chart = new U.Chart();
         chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
@@ -42,8 +42,8 @@ public sealed class MgxcAirHeadTests
             }
             var bytes = await File.ReadAllBytesAsync(path, ct);
             var data = bytes.AsSpan().IndexOf("dat2"u8) + 8;
-            // The separate arrow is inverted; the long-note record stays normal.
-            // Native AIR-HOLD inherits the arrow color; AIR-SLIDE uses its own.
+            // The editor's Invert operation changes the AIR record. The entire
+            // AIR-HOLD or AIR-SLIDE inherits it despite the long record's flag.
             var arrow = Enumerable.Range(0, (bytes.Length - data) / 20)
                 .Select(i => data + i * 20).Single(i => bytes[i] == 7);
             bytes[arrow + 3] = 1;
@@ -54,8 +54,7 @@ public sealed class MgxcAirHeadTests
             if (slide)
             {
                 var airSlide = Assert.IsType<U.AirSlide>(restored);
-                Assert.Equal(Color.DEF, airSlide.Color);
-                Assert.Equal(Color.PNK, airSlide.ArrowColor);
+                Assert.Equal(Color.PNK, airSlide.Color);
             }
             else
             {

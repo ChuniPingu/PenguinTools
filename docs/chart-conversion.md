@@ -53,7 +53,7 @@ UMIGURI ignores SPDMOD on a timeline without a TIL definition. Margrete can crea
 
 MGXC retains Bezier handles; UGC and C2S expand curves. Unsupported geometry, AIR colors, and meter changes are approximated with `diag.warn.editor_approximation`; original values are retained in checksum-validated metadata. SLIDE line visibility follows the start without a warning.
 
-MGXC retains separate inversion settings for an AIR-SLIDE arrow and its long-note body. UGC and C2S output use the body's setting, matching Margrete's native UGC export, and report `diag.warn.air_arrow_color_not_reproduced` when the two settings differ. UGC retains the separate arrow setting in validated metadata for an unchanged return to MGXC; editing the affected note invalidates that restoration.
+For AIR-HOLD and AIR-SLIDE, Invert is set on the AIR arrow and applies to the entire long note. MGXC input uses the leading AIR record's inversion, and MGXC, UGC, and C2S output retain it for the whole note. The long-note record does not provide an independent body-color setting.
 
 Saved C2S record order is restored only when it preserves paths and AIR relationships. C2S judgement totals are recalculated from the final emitted records, including accepted AIR attachments, `PROGJUDGE_AER`, and tutorial stop exclusions. Compressed round-trip metadata has a 64 MiB decoded-size limit.
 

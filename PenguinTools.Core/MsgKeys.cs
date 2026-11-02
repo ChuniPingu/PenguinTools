@@ -58,7 +58,6 @@ public static class MsgKeys
     public const string Warn_Zero_note_speed_not_reproduced = "diag.warn.zero_note_speed_not_reproduced";
     public const string Warn_Editor_undefined_timeline_speed = "diag.warn.editor_undefined_timeline_speed";
     public const string Warn_Number_adjusted = "diag.warn.number_adjusted";
-    public const string Warn_Air_arrow_color_not_reproduced = "diag.warn.air_arrow_color_not_reproduced";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
     public const string Error_File_ignored_due_to_id_missing = "diag.error.file_ignored_due_to_id_missing";
