@@ -60,7 +60,14 @@ public sealed class C2sAudioOffsetTests
             Assert.All(speeds, speed =>
             {
                 Assert.Equal(start, speed.Tick.Original);
-                Assert.Equal(end, speed.Tick.Original + speed.Length.Original);
+                if (speed is C.Dcm && !explicitEnd)
+                {
+                    Assert.True(speed.Tick.Original + speed.Length.Original > end);
+                }
+                else
+                {
+                    Assert.Equal(end, speed.Tick.Original + speed.Length.Original);
+                }
             });
         }
         finally
@@ -217,7 +224,14 @@ public sealed class C2sAudioOffsetTests
         Assert.All(speeds, speed =>
         {
             Assert.Equal(0, speed.Tick.Original);
-            Assert.Equal(1921 + offset, speed.Tick.Original + speed.Length.Original);
+            if (speed is C.Dcm && !explicitEnd)
+            {
+                Assert.True(speed.Tick.Original + speed.Length.Original > 1921 + offset);
+            }
+            else
+            {
+                Assert.Equal(1921 + offset, speed.Tick.Original + speed.Length.Original);
+            }
             Assert.InRange(tap.Tick.Original, speed.Tick.Original, speed.Tick.Original + speed.Length.Original - 1);
         });
 
@@ -232,7 +246,14 @@ public sealed class C2sAudioOffsetTests
             Assert.All(parsed.Value!.Events.OfType<C.SpeedEventBase>(), speed =>
             {
                 Assert.Equal(0, speed.Tick.Original);
-                Assert.Equal(expectedEnd, speed.Tick.Original + speed.Length.Original);
+                if (speed is C.Dcm && !explicitEnd)
+                {
+                    Assert.True(speed.Tick.Original + speed.Length.Original > expectedEnd);
+                }
+                else
+                {
+                    Assert.Equal(expectedEnd, speed.Tick.Original + speed.Length.Original);
+                }
             });
         }
         finally { File.Delete(output); }

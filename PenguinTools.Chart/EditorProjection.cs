@@ -19,6 +19,10 @@ internal static class EditorProjection
     {
         var chart = ChartCopy.Create(source);
         var format = ugc ? "UGC v9" : "MGXC v4";
+        if (!ugc)
+        {
+            UgcSpeedFields.WarnIfUnsupported(chart, format, diagnostics);
+        }
         PrepareSnapshots(chart);
         EditorNumbers.Project(chart, diagnostics);
         chart.Extras.EditorFormatVersion = ugc ? 9 : 4;

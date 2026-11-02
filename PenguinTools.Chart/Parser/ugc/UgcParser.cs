@@ -217,6 +217,10 @@ public partial class UgcParser
 
         ClearCurrentLine();
         BuildBarAxis();
+        if (_sourceTicks != 480)
+        {
+            UgcSpeedFields.NormalizeResolution(Ugc.Extras.EditorHeaders, ScaleTick);
+        }
         Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
         _currentTimeline = 0;

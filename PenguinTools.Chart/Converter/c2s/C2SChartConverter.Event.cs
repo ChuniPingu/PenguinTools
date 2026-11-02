@@ -31,7 +31,9 @@ public partial class C2SChartConverter
             });
         }
 
-        ConvertDcm([.. events.OfType<UmgrModel.NoteSpeedEvent>().OrderBy(e => e.Tick)], lastTick);
+        var noteSpeeds = events.OfType<UmgrModel.NoteSpeedEvent>().OrderBy(e => e.Tick).ToArray();
+        WarnIfNoteSpeedIsLost(mgxc, noteSpeeds);
+        ConvertDcm([.. noteSpeeds], lastTick);
         ConvertSlp(mgxc, [.. events.OfType<UmgrModel.ScrollSpeedEvent>().OrderBy(e => e.Tick)]);
     }
 

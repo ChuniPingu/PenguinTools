@@ -137,6 +137,9 @@
       "editor_crash_points_merged": "{0} cannot keep {1} AIR-CRUSH nodes at the same time. Only the last node was kept.",
       "editor_meter_skipped": "{0} cannot use time signature {1} at this position. This change was skipped and {2} was retained.",
       "editor_ald_timeline_changed": "When writing C2S, the AIR-CRUSH node uses scroll speed from timeline {1} instead of timeline {0}.",
+      "ugc_relative_speed_not_reproduced": "This chart uses relative scrolling speeds for some notes. {0} output cannot preserve this effect.",
+      "zero_note_speed_not_reproduced": "C2S output cannot keep this note's scrolling stopped. The note will follow its scroll-speed events instead.",
+      "editor_undefined_timeline_speed": "This note's scroll group has no scroll-speed events. Its previously inactive note-speed setting becomes active in C2S, which may change its scrolling.",
       "number_adjusted": "The value {1} cannot be saved exactly and was adjusted to {2} ({0})."
     }
   }

@@ -54,6 +54,9 @@ public static class MsgKeys
     public const string Warn_Editor_crash_points_merged = "diag.warn.editor_crash_points_merged";
     public const string Warn_Editor_meter_skipped = "diag.warn.editor_meter_skipped";
     public const string Warn_Editor_ald_timeline_changed = "diag.warn.editor_ald_timeline_changed";
+    public const string Warn_Ugc_relative_speed_not_reproduced = "diag.warn.ugc_relative_speed_not_reproduced";
+    public const string Warn_Zero_note_speed_not_reproduced = "diag.warn.zero_note_speed_not_reproduced";
+    public const string Warn_Editor_undefined_timeline_speed = "diag.warn.editor_undefined_timeline_speed";
     public const string Warn_Number_adjusted = "diag.warn.number_adjusted";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
