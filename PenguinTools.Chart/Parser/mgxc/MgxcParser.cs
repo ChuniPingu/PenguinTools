@@ -221,7 +221,8 @@ public partial class MgxcParser
         if (string.IsNullOrWhiteSpace(Mgxc.Meta.SortName))
         {
             Mgxc.Meta.SortName = ChartPostProcessor.GetSortName(Mgxc.Meta.Title);
-            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_No_sortname_provided)));
+            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Create(MsgKeys.Mg_No_sortname_provided,
+                ("title", Mgxc.Meta.Title), ("sortName", Mgxc.Meta.SortName))));
         }
 
         if (Mgxc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Mgxc.Meta.FullBgiFilePath))

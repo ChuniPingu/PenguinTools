@@ -30,7 +30,11 @@ Directory scans share audio and image validation tasks for files with the same f
 
 `PenguinTools.Core` defines `MessageDescriptor`, `Msg`, and `MsgKeys`. Diagnostics carry message keys and named arguments rather than already translated text.
 
-English and Simplified Chinese catalogs are in `locales/`. Keep keys and placeholders aligned across catalogs. Callers can translate these descriptors without parsing CLI prose.
+English and Simplified Chinese catalogs are in `locales/`. Keep keys and placeholders aligned across catalogs. Callers can translate these descriptors without parsing CLI prose. The `titles` section mirrors message key paths for compact UI headings, using the same descriptor arguments. The original message remains the explanation. If a title is absent, callers fall back to the original message.
+
+Write diagnostic text for chart users. Titles name the problem; explanations state the relevant input or the effect on the result in plain language. Keep the note names and settings users need to find the problem, but avoid implementation terms such as rounding or parsing when a direct description is sufficient. Do not repeat the title or add generic advice to every message. Describe only effects supported by the diagnostic's context.
+
+Context-specific display variants also belong in the catalogs. `titles.diag.mg.length_smaller_than_unit_typed` accepts a display `type` when the note type is available. `details.diag.mg.length_smaller_than_unit` describes coincident endpoints and applies only when the segment's converted length is zero; other short segments use the original message.
 
 `diag.error.invalid_header` is a legacy key also used for invalid or incompatible chart values. Its arguments are the value and the expected value or format; it does not always refer to a file header.
 

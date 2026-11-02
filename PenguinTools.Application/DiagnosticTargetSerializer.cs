@@ -21,9 +21,16 @@ public static class DiagnosticTargetSerializer
             NotePairDiagnosticTarget pair => JsonSerializer.SerializeToElement(
                 EnrichPair(pair, diagnostic),
                 DiagnosticTargetJsonContext.Default.NotePairDiagnosticTarget),
-            NoteDiagnosticTarget noteTarget => JsonSerializer.SerializeToElement(noteTarget,
+            NoteSegmentDiagnosticTarget segment => JsonSerializer.SerializeToElement(segment,
+                DiagnosticTargetJsonContext.Default.NoteSegmentDiagnosticTarget),
+            SourceLineDiagnosticTarget line => JsonSerializer.SerializeToElement(line,
+                DiagnosticTargetJsonContext.Default.SourceLineDiagnosticTarget),
+            NoteDiagnosticTarget noteTarget => JsonSerializer.SerializeToElement(noteTarget.WithTime(diagnostic?.TimeCalculator),
                 DiagnosticTargetJsonContext.Default.NoteDiagnosticTarget),
-            Note note => JsonSerializer.SerializeToElement(NoteDiagnosticTarget.From(note),
+            Note note => JsonSerializer.SerializeToElement(NoteDiagnosticTarget.From(note).WithTime(diagnostic?.TimeCalculator),
+                DiagnosticTargetJsonContext.Default.NoteDiagnosticTarget),
+            PenguinTools.Chart.Models.c2s.Note note => JsonSerializer.SerializeToElement(
+                NoteDiagnosticTarget.FromC2s(note, diagnostic?.Time).WithTime(diagnostic?.TimeCalculator),
                 DiagnosticTargetJsonContext.Default.NoteDiagnosticTarget),
             ChartDiagnosticTarget chart => JsonSerializer.SerializeToElement(chart,
                 DiagnosticTargetJsonContext.Default.ChartDiagnosticTarget),

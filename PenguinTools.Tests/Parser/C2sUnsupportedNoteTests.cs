@@ -1,3 +1,4 @@
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
@@ -33,6 +34,7 @@ public sealed class C2sUnsupportedNoteTests
             Assert.Equal(path, diagnostic.Path);
             Assert.Equal(4, diagnostic.Line);
             Assert.Equal(noteType, diagnostic.Message.Args!["noteType"]);
+            Assert.Equal(note, Assert.IsType<SourceLineDiagnosticTarget>(diagnostic.Target).Text);
         }
         finally
         {

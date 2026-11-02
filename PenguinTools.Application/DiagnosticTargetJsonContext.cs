@@ -11,6 +11,8 @@ namespace PenguinTools.Application;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(NoteDiagnosticTarget))]
 [JsonSerializable(typeof(NotePairDiagnosticTarget))]
+[JsonSerializable(typeof(NoteSegmentDiagnosticTarget))]
+[JsonSerializable(typeof(SourceLineDiagnosticTarget))]
 [JsonSerializable(typeof(ChartDiagnosticTarget))]
 [JsonSerializable(typeof(ChartDiagnosticTarget[]))]
 [JsonSerializable(typeof(TickPosition))]

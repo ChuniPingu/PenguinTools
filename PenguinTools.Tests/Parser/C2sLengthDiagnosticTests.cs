@@ -1,5 +1,7 @@
 using System.Globalization;
+using PenguinTools.Application;
 using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Core;
@@ -42,7 +44,7 @@ public sealed class C2sLengthDiagnosticTests
 
         Assert.True(result.Succeeded, result.ToString());
         var converted = Assert.Single(result.Value!.Notes.OfType<C.LongNote>());
-        AssertWarning(result.Diagnostics.Diagnostics, converted, writtenLength);
+        AssertWarning(result.Diagnostics.Diagnostics, converted, writtenLength, start);
         await AssertSerializedLength(result.Value, kind, writtenStart, writtenLength);
         Assert.Equal(start, note.Tick.Original);
         Assert.Equal(start + 1, note.Children[0].Tick.Original);
@@ -63,8 +65,66 @@ public sealed class C2sLengthDiagnosticTests
 
         Assert.True(result.Succeeded, result.ToString());
         var converted = Assert.Single(result.Value!.Notes.OfType<C.Sla>());
-        AssertWarning(result.Diagnostics.Diagnostics, converted, writtenLength);
+        AssertWarning(result.Diagnostics.Diagnostics, converted, writtenLength, start);
         await AssertSerializedLength(result.Value, "SLA", writtenStart, writtenLength);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void AirSlideLengthWarningsUseSourceCoordinates(bool blank, bool fixedOrigin)
+    {
+        var source = new U.Chart();
+        source.Meta.BgmEnableBarOffset = blank;
+        source.Meta.BgmInitialNumerator = 4;
+        source.Meta.BgmInitialDenominator = 4;
+        source.Extras.FixedZeroOrigin = fixedOrigin;
+        source.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
+        source.Events.AppendChild(new U.BeatEvent { Bar = 0, Tick = 0, Numerator = 4, Denominator = 4 });
+        source.Events.AppendChild(new U.BeatEvent { Bar = 104, Tick = 104 * 1920, Numerator = 3, Denominator = 4 });
+        const int start = 103 * 1920 + 484;
+        var tap = new U.Tap { Tick = start, Lane = 12, Width = 3 };
+        var slide = new U.AirSlide { Tick = start, Lane = 12, Width = 3, Height = 80 };
+        slide.AppendChild(new U.AirSlideJoint
+        {
+            Tick = start + 1,
+            Lane = 14,
+            Width = 1,
+            Height = 80,
+            Joint = Joint.C
+        });
+        slide.AppendChild(new U.AirSlideJoint
+        {
+            Tick = start + 249,
+            Lane = 1,
+            Width = 3,
+            Height = 80,
+            Joint = Joint.D
+        });
+        tap.MakePair(slide);
+        source.Notes.AppendChild(tap);
+        source.Notes.AppendChild(slide);
+
+        var result = new C2SChartConverter(new C2SConvertRequest(source)).Convert();
+
+        Assert.True(result.Succeeded, result.ToString());
+        var warning = Assert.Single(result.Diagnostics.Diagnostics,
+            d => d.Message.Key == MsgKeys.Mg_Length_smaller_than_unit);
+        Assert.Equal(start, warning.Time);
+        Assert.Equal(new TickPosition(104, 2, 4), DiagnosticTime.TryGetPosition(warning));
+        var segment = Assert.IsType<NoteSegmentDiagnosticTarget>(warning.Target);
+        Assert.Equal(start, segment.Start.Tick);
+        Assert.Equal(start + 1, segment.End.Tick);
+        Assert.Equal(new TickPosition(104, 2, 4), segment.Start.TimePosition);
+        Assert.Equal(new TickPosition(104, 2, 5), segment.End.TimePosition);
+        Assert.Equal(12, segment.Start.Lane);
+        Assert.Equal(14, segment.End.Lane);
+        Assert.Equal(1, segment.SourceLengthTicks);
+        Assert.Equal(0, segment.ConvertedLengthTicks);
+        var json = DiagnosticTargetSerializer.ToJsonElement(segment, warning)!.Value;
+        Assert.Equal(104, json.GetProperty("end").GetProperty("timePosition").GetProperty("bar").GetInt32());
+        Assert.Equal(0, json.GetProperty("convertedLengthTicks").GetInt32());
     }
 
     private static U.Chart CreateChart(bool blank, bool fixedOrigin)
@@ -79,7 +139,7 @@ public sealed class C2sLengthDiagnosticTests
         return chart;
     }
 
-    private static void AssertWarning(IEnumerable<Diagnostic> diagnostics, C.Note note, int writtenLength)
+    private static void AssertWarning(IEnumerable<Diagnostic> diagnostics, C.Note note, int writtenLength, int sourceTick)
     {
         var warnings = diagnostics.Where(d => d.Message.Key == MsgKeys.Mg_Length_smaller_than_unit).ToArray();
         if (writtenLength > 0)
@@ -90,8 +150,13 @@ public sealed class C2sLengthDiagnosticTests
 
         var warning = Assert.Single(warnings);
         Assert.Equal(Severity.Warning, warning.Severity);
-        Assert.Equal(note.Tick.Original, warning.Time);
-        Assert.Same(note, warning.Target);
+        Assert.Equal(sourceTick, warning.Time);
+        var segment = Assert.IsType<NoteSegmentDiagnosticTarget>(warning.Target);
+        Assert.Equal(note.GetType().Name, segment.Start.Type);
+        Assert.Equal(sourceTick, segment.Start.Tick);
+        Assert.Equal(sourceTick + 1, segment.End.Tick);
+        Assert.Equal(1, segment.SourceLengthTicks);
+        Assert.Equal(writtenLength, segment.ConvertedLengthTicks);
         Assert.Equal(0, warning.Message.Args!["arg0"]);
     }
 
