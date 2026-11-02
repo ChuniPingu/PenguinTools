@@ -1,3 +1,4 @@
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
@@ -21,6 +22,7 @@ public partial class C2SChartConverter
     private C2sModel.Chart C2s { get; } = new();
     private List<C2sModel.Note> Notes => C2s.Notes;
     private List<C2sModel.Event> Events => C2s.Events;
+    private int _appliedBgmBarOffset;
 
     private bool RestoreSlaSnapshot()
     {
@@ -358,6 +360,7 @@ public partial class C2SChartConverter
 
         var offset = (int)Math.Round((decimal)ChartResolution.UmiguriTick /
             Mgxc.Meta.BgmInitialDenominator * Mgxc.Meta.BgmInitialNumerator);
+        _appliedBgmBarOffset = offset;
         C2s.Extras = C2s.Extras.WithClickOffset(offset);
         C2s.Extras.PrerollBar1Applied |= offset > 0;
         foreach (var e in Events)
@@ -394,12 +397,13 @@ public partial class C2SChartConverter
                 continue;
             }
 
-            var tick = longNote.Tick.Original;
+            // Validate exported lengths, but locate diagnostics in the source chart.
+            var tick = longNote.Tick.Original - _appliedBgmBarOffset;
             MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Length_smaller_than_unit, length,
                 ChartResolution.UmiguriTick / ChartResolution.SingleTick);
             Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, tick)
             {
-                Target = longNote
+                Target = NoteSegmentDiagnosticTarget.From(longNote, _appliedBgmBarOffset, Diagnostic.TimeCalculator)
             });
         }
 
@@ -414,9 +418,9 @@ public partial class C2SChartConverter
 
             MessageDescriptor msg = Msg.Create(MsgKeys.Mg_Length_smaller_than_unit, length,
                 ChartResolution.UmiguriTick / ChartResolution.SingleTick);
-            Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, sla.Tick.Original)
+            Diagnostic.Report(new TimedDiagnostic(Severity.Warning, msg, sla.Tick.Original - _appliedBgmBarOffset)
             {
-                Target = sla
+                Target = NoteSegmentDiagnosticTarget.From(sla, _appliedBgmBarOffset, Diagnostic.TimeCalculator)
             });
         }
     }
@@ -427,7 +431,8 @@ public partial class C2SChartConverter
         foreach (var air in Notes.OfType<C2sModel.Air>().Where(a => a.Parent is null))
         {
             Diagnostic.Report(
-                new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_parent_null), air.Tick.Original)
+                new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_parent_null),
+                    air.Tick.Original - _appliedBgmBarOffset)
                 {
                     Target = air
                 });
@@ -437,7 +442,7 @@ public partial class C2SChartConverter
         foreach (var airSlide in Notes.OfType<C2sModel.AirSlide>().Where(a => a.Parent is null))
         {
             Diagnostic.Report(new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null),
-                airSlide.Tick.Original)
+                airSlide.Tick.Original - _appliedBgmBarOffset)
             {
                 Target = airSlide
             });
@@ -447,7 +452,7 @@ public partial class C2SChartConverter
         foreach (var airHold in Notes.OfType<C2sModel.AirHold>().Where(a => a.Parent is null))
         {
             Diagnostic.Report(new TimedDiagnostic(Severity.Error, Msg.Key(MsgKeys.MgCrit_Air_slide_parent_null),
-                airHold.Tick.Original)
+                airHold.Tick.Original - _appliedBgmBarOffset)
             {
                 Target = airHold
             });

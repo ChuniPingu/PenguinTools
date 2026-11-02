@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
 
@@ -29,6 +30,7 @@ public sealed class C2SParser
     private string? _version;
     private readonly HashSet<int> _adjustedNumberLines = [];
     private readonly Dictionary<int, string> _adjustedSourceLines = [];
+    private readonly Dictionary<int, string> _sourceLines = [];
 
     static C2SParser()
     {
@@ -73,6 +75,10 @@ public sealed class C2SParser
         C2s.Extras.ClickEnabled = false;
 
         var lines = await ReadLinesAsync(Path, ct);
+        foreach (var line in lines)
+        {
+            _sourceLines[line.Number] = line.Text;
+        }
         C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => l.Text));
         foreach (var line in lines)
         {
@@ -1206,7 +1212,7 @@ public sealed class C2SParser
     {
         Diagnostic.Report(new LocationDiagnostic(severity, message, lineNumber, Path)
         {
-            Target = target
+            Target = target ?? (_sourceLines.TryGetValue(lineNumber, out var text) ? new SourceLineDiagnosticTarget(text) : null)
         });
     }
 

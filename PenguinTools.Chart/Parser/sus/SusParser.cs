@@ -946,7 +946,8 @@ public sealed class SusParser
         if (string.IsNullOrWhiteSpace(Sus.Meta.SortName))
         {
             Sus.Meta.SortName = ChartPostProcessor.GetSortName(Sus.Meta.Title);
-            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_No_sortname_provided)));
+            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Create(MsgKeys.Mg_No_sortname_provided,
+                ("title", Sus.Meta.Title), ("sortName", Sus.Meta.SortName))));
         }
 
         if (Sus.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Sus.Meta.FullBgiFilePath))

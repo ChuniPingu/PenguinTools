@@ -108,6 +108,8 @@ Null properties are omitted. Translate message descriptors using [the catalogs](
 
 Scan diagnostics may also be attached to `data.books[].charts[].diagnostics` or `data.unmatchedDiagnostics`.
 
+Diagnostic `path` identifies the problem's source file; `line`, `time`, and `timePosition` carry its location separately. Musical positions are one-based and refer to the source chart, before any C2S preroll is inserted. Note targets include `type`, `tick`, zero-based `lane`, `width`, `timeline`, and an optional `timePosition`. Pair targets have `left` and `right` notes with their own positions. Short-segment targets have `start` and `end` notes, `sourceLengthTicks` in editor ticks, and `convertedLengthTicks` in C2S ticks after endpoint rounding. Text parser targets may include `text` containing the original line. Automatic sort-name diagnostics include `title` and `sortName` message arguments. Targets remain optional; consumers must tolerate unknown shapes and older payloads without these details.
+
 ```powershell
 $jsonLines = @(& $cli option scan .\charts --no-progress)
 $exitCode = $LASTEXITCODE

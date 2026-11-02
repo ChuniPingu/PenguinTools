@@ -29,11 +29,11 @@ public sealed record NotePairDiagnosticTarget(
     {
         ArgumentNullException.ThrowIfNull(timeCalculator);
 
-        if (TimePosition is not null)
+        return this with
         {
-            return this;
-        }
-
-        return this with { TimePosition = timeCalculator.GetPosition(tick) };
+            Left = Left.WithTime(timeCalculator),
+            Right = Right.WithTime(timeCalculator),
+            TimePosition = TimePosition ?? timeCalculator.GetPosition(tick)
+        };
     }
 }

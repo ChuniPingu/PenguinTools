@@ -1,4 +1,5 @@
 using System.Text;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -12,6 +13,7 @@ namespace PenguinTools.Chart.Parser.ugc;
 public partial class UgcParser
 {
     private int? _currentLineNumber;
+    private string? _currentLineText;
 
     private int _currentTimeline;
     private int _sourceTicks = 480;
@@ -286,11 +288,13 @@ public partial class UgcParser
     private void SetCurrentLine(SourceLine line)
     {
         _currentLineNumber = line.Number;
+        _currentLineText = line.Text;
     }
 
     private void ClearCurrentLine()
     {
         _currentLineNumber = null;
+        _currentLineText = null;
     }
 
     private void ReportAtCurrentLine(Severity severity, MessageDescriptor message, object? target = null)
@@ -306,7 +310,7 @@ public partial class UgcParser
 
         Diagnostic.Report(new LocationDiagnostic(severity, message, line, Path)
         {
-            Target = target
+            Target = target ?? new SourceLineDiagnosticTarget(_currentLineText!)
         });
     }
 
@@ -324,10 +328,12 @@ public partial class UgcParser
 
         if (tick is { } timedTick)
         {
-            throw new TimedLocationDiagnosticException(message, line, timedTick, Path, target);
+            throw new TimedLocationDiagnosticException(message, line, timedTick, Path,
+                target ?? new SourceLineDiagnosticTarget(_currentLineText!));
         }
 
-        throw new LocationDiagnosticException(message, line, Path, target);
+        throw new LocationDiagnosticException(message, line, Path,
+            target ?? new SourceLineDiagnosticTarget(_currentLineText!));
     }
 
     private void BuildBarAxis()
@@ -382,7 +388,8 @@ public partial class UgcParser
         if (string.IsNullOrWhiteSpace(Ugc.Meta.SortName))
         {
             Ugc.Meta.SortName = ChartPostProcessor.GetSortName(Ugc.Meta.Title);
-            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Key(MsgKeys.Mg_No_sortname_provided)));
+            Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Create(MsgKeys.Mg_No_sortname_provided,
+                ("title", Ugc.Meta.Title), ("sortName", Ugc.Meta.SortName))));
         }
 
         if (Ugc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Ugc.Meta.FullBgiFilePath))

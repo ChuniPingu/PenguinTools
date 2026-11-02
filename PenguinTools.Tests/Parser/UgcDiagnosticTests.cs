@@ -1,4 +1,7 @@
+using PenguinTools.Application;
+using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Parser.ugc;
+using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
 using Xunit;
 
@@ -51,6 +54,11 @@ public class UgcDiagnosticTests
             var warning = Assert.Single(result.Diagnostics.Diagnostics, d => d.Severity == Severity.Warning);
             Assert.Equal(tmp, warning.Path);
             Assert.Equal(6, warning.Line);
+            Assert.Equal("#bad", Assert.IsType<SourceLineDiagnosticTarget>(warning.Target).Text);
+            Assert.Equal("#bad", DiagnosticTargetSerializer.ToJsonElement(warning.Target)!.Value.GetProperty("text").GetString());
+            var sortName = Assert.Single(result.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.Mg_No_sortname_provided);
+            Assert.Equal(result.Value!.Meta.SortName, sortName.Message.Args!["sortName"]);
         }
         finally
         {
