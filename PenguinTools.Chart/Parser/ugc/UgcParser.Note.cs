@@ -206,18 +206,18 @@ public partial class UgcParser
 
     private void HandleAirSlideParent(int absTick, int x, int w, string extras, string payload)
     {
-        if (extras.Length < 3)
+        if (extras.Length < HeightDigits + 1)
         {
             WarnMalformed(payload);
             return;
         }
 
-        var height = Height(extras.AsSpan(0, 2));
+        var height = Height(extras.AsSpan(0, HeightDigits));
 
         var airSlide = new UmgrModel.AirSlide
         {
             Height = height,
-            Color = UgcPayload.AirColorChar(extras[2]),
+            Color = UgcPayload.AirColorChar(extras[HeightDigits]),
             Timeline = _currentTimeline,
             Tick = absTick,
             Lane = x,
@@ -246,17 +246,17 @@ public partial class UgcParser
 
     private void HandleAirCrashParent(int absTick, int x, int w, string extras, string payload, string suffix)
     {
-        if (extras.Length < 3)
+        if (extras.Length < HeightDigits + 1)
         {
             WarnMalformed(payload);
             return;
         }
 
-        var height = Height(extras.AsSpan(0, 2));
+        var height = Height(extras.AsSpan(0, HeightDigits));
 
         var crash = new UmgrModel.AirCrash
         {
-            Color = UgcPayload.CrushColorChar(extras[2]),
+            Color = UgcPayload.CrushColorChar(extras[HeightDigits]),
             Height = height,
             Density = suffix == "$" ? int.MaxValue : ScaleTick(UgcPayload.AirCrashInterval(suffix)),
             Attr = ParseAirLadderAttribute(extras),
@@ -283,12 +283,13 @@ public partial class UgcParser
 
     private AirLadderAttr ParseAirLadderAttribute(string extras)
     {
-        if (_version < 9 || extras.Length <= 3)
+        var axisIndex = HeightDigits + 1;
+        if (_version < 9 || extras.Length <= axisIndex)
         {
             return AirLadderAttr.DEF;
         }
 
-        return extras[3] switch
+        return extras[axisIndex] switch
         {
             'Y' => AirLadderAttr.AxisY,
             'Z' => AirLadderAttr.AxisZ,
@@ -490,13 +491,13 @@ public partial class UgcParser
         }
         else if (_lastParentNote is UmgrModel.AirSlide airSlide)
         {
-            if (payload.Length is not (3 or >= 5))
+            if (payload.Length != 3 && payload.Length < 3 + HeightDigits)
             {
                 WarnMalformed(payload);
                 return null;
             }
 
-            var height = payload.Length == 3 ? airSlide.Height : Height(payload.AsSpan(3, 2));
+            var height = payload.Length == 3 ? airSlide.Height : Height(payload.AsSpan(3, HeightDigits));
 
             child = new UmgrModel.AirSlideJoint
             {
@@ -506,13 +507,13 @@ public partial class UgcParser
         }
         else if (_lastParentNote is UmgrModel.AirCrash)
         {
-            if (typeChar != 'c' || payload.Length < 5)
+            if (typeChar != 'c' || payload.Length < 3 + HeightDigits)
             {
                 WarnMalformed(payload);
                 return null;
             }
 
-            var height = Height(payload.AsSpan(3, 2));
+            var height = Height(payload.AsSpan(3, HeightDigits));
 
             child = new UmgrModel.AirCrashJoint { Height = height };
         }

@@ -38,7 +38,15 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Chart);
         var diagnostics = new DiagnosticCollector();
-        _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics);
+        try
+        {
+            _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics);
+        }
+        catch (DiagnosticException ex)
+        {
+            diagnostics.Report(ex.ToDiagnostic().WithPathFallback(request.Path));
+            return OperationResult.Failure().WithDiagnostics(diagnostics);
+        }
         CurveExpansion.Validate(_chart);
         _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
         _timingBookmarksRequired = (_chart.Extras.FixedZeroOrigin || _chart.Extras.PrerollBar1Applied) &&
@@ -120,14 +128,14 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             ? WeLevel(m.WeDifficulty)
             : FormatPlayLevel(m.Level));
         WriteStringField(bw, "weat", m.WeTag?.Str ?? "");
-        WriteDoubleField(bw, "cnst", m.Difficulty == Difficulty.WorldsEnd ? 0 : (double)m.Level);
+        WriteDoubleField(bw, "cnst", m.Difficulty == Difficulty.WorldsEnd ? 0 : m.Level);
         WriteStringField(bw, "sgid", string.IsNullOrWhiteSpace(m.MgxcId)
             ? m.Id?.ToString(CultureInfo.InvariantCulture) ?? ""
             : m.MgxcId);
         WriteStringField(bw, "wvfn", m.BgmFilePath);
-        WriteDoubleField(bw, "wvof", (double)m.BgmManualOffset);
-        WriteDoubleField(bw, "wvp0", (double)m.BgmPreviewStart);
-        WriteDoubleField(bw, "wvp1", (double)m.BgmPreviewStop);
+        WriteDoubleField(bw, "wvof", m.BgmManualOffset);
+        WriteDoubleField(bw, "wvp0", m.BgmPreviewStart);
+        WriteDoubleField(bw, "wvp1", m.BgmPreviewStop);
         WriteStringField(bw, "jack", m.JacketFilePath);
         WriteStringField(bw, "bgfn", m.IsCustomStage ? m.BgiFilePath : "");
         WriteStringField(bw, "bgsc", m.BackgroundScene);
@@ -137,7 +145,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteStringField(bw, "flbg", m.FieldImage);
         WriteStringField(bw, "flsc", m.FieldScene);
         WriteIntField(bw, "mtil", m.MainTil);
-        WriteDoubleField(bw, "mbpm", (double)m.MainBpm);
+        WriteDoubleField(bw, "mbpm", m.MainBpm);
         WriteIntField(bw, "ttrl", _chart.Extras.Tutorial ? 1 : 0);
         WriteIntField(bw, "sofs", m.BgmEnableBarOffset ? 1 : 0);
         WriteIntField(bw, "uclk", _chart.Extras.ClickEnabled ? 1 : 0);
@@ -233,7 +241,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             bw.Write(Encoding.ASCII.GetBytes("bpm "));
             WriteIntFieldValue(bw, bpm.Tick.Original);
-            WriteDoubleFieldValue(bw, (double)bpm.Bpm);
+            WriteDoubleFieldValue(bw, bpm.Bpm);
             bw.Write(0);
         }
 
@@ -241,7 +249,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         {
             bw.Write(Encoding.ASCII.GetBytes("smod"));
             WriteIntFieldValue(bw, speed.Tick.Original);
-            WriteDoubleFieldValue(bw, (double)speed.Speed);
+            WriteDoubleFieldValue(bw, speed.Speed);
             bw.Write(0);
         }
 
@@ -251,7 +259,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             bw.Write(Encoding.ASCII.GetBytes("til "));
             WriteIntFieldValue(bw, til.Timeline);
             WriteIntFieldValue(bw, til.Tick.Original);
-            WriteDoubleFieldValue(bw, (double)til.Speed);
+            WriteDoubleFieldValue(bw, til.Speed);
             bw.Write(0);
         }
     }
@@ -794,17 +802,17 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         bw.Write(value);
     }
 
-    private static void WriteDoubleField(BinaryWriter bw, string name, double value)
+    private static void WriteDoubleField(BinaryWriter bw, string name, decimal value)
     {
         bw.Write(Encoding.ASCII.GetBytes(name));
         WriteDoubleFieldValue(bw, value);
     }
 
-    private static void WriteDoubleFieldValue(BinaryWriter bw, double value)
+    private static void WriteDoubleFieldValue(BinaryWriter bw, decimal value)
     {
         bw.Write((short)3);
         bw.Write((short)0);
-        bw.Write(value);
+        bw.Write(NativeNumber.ToDouble(value, preserveSingle: false));
     }
 
     private enum NoteType : sbyte

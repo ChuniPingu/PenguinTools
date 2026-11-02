@@ -7,6 +7,7 @@ namespace PenguinTools.Chart.Parser.mgxc;
 public partial class MgxcParser
 {
     private string _copyright = "";
+    private decimal _heightScale = 1;
     private void ParseMeta(BinaryReader br)
     {
         var name = br.ReadUtf8String(4);
@@ -51,13 +52,13 @@ public partial class MgxcParser
                 ApplyBgmFile((string)data);
                 break;
             case "wvof":
-                Mgxc.Meta.BgmManualOffset = data.Round();
+                Mgxc.Meta.BgmManualOffset = data.ToDecimal(br.BaseStream.Position, Path, name, Diagnostic);
                 break;
             case "wvp0":
-                Mgxc.Meta.BgmPreviewStart = data.Round();
+                Mgxc.Meta.BgmPreviewStart = data.ToDecimal(br.BaseStream.Position, Path, name, Diagnostic);
                 break;
             case "wvp1":
-                Mgxc.Meta.BgmPreviewStop = data.Round();
+                Mgxc.Meta.BgmPreviewStop = data.ToDecimal(br.BaseStream.Position, Path, name, Diagnostic);
                 break;
             case "jack":
                 ApplyJacketFile((string)data);
@@ -72,7 +73,7 @@ public partial class MgxcParser
                 Mgxc.Meta.MainTil = (int)data;
                 break;
             case "mbpm":
-                Mgxc.Meta.MainBpm = data.Round();
+                Mgxc.Meta.MainBpm = data.ToDecimal(br.BaseStream.Position, Path, name, Diagnostic);
                 break;
             case "ttrl":
                 Mgxc.Extras.Tutorial = Convert.ToBoolean(data, CultureInfo.InvariantCulture);
@@ -128,10 +129,19 @@ public partial class MgxcParser
             case "durl": // DLURL
                 Mgxc.Meta.DownloadUrl = (string)data;
                 break;
+            case "HSCL":
+                var validScale = decimal.TryParse(Convert.ToString(data, CultureInfo.InvariantCulture),
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out var scale);
+                if (data is not (double or int) || !validScale || scale <= 0)
+                {
+                    ThrowAtPosition(Msg.Create(MsgKeys.MgCrit_Invalid_height_scale,
+                        Convert.ToString(data, CultureInfo.InvariantCulture)), br.BaseStream.Position);
+                }
+                _heightScale = scale;
+                break;
             // Recognized but unused metadata.
             case "CTCK":
             case "LXFN":
-            case "HSCL":
             case "\0\0\0\0":
                 break;
             default:

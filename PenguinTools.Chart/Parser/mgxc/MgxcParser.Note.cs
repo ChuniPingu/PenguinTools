@@ -234,7 +234,7 @@ public partial class MgxcParser
         Color = exAttr == ExAttr.Invert ? Color.PNK : Color.DEF
     };
 
-    private (int X, int Width, int Height) ReadNoteGeometry(BinaryReader reader)
+    private (int X, int Width, decimal Height) ReadNoteGeometry(BinaryReader reader)
     {
         int x, width, height;
         if (_version >= 4)
@@ -259,11 +259,26 @@ public partial class MgxcParser
             width = reader.ReadInt16();
             height = reader.ReadInt32();
         }
-        return (x, width, height);
+        if (_version >= 4 && _heightScale != 10 && height / 36m >= _heightScale)
+        {
+            // Native v4 limits heights when rescaling, but leaves its usual
+            // HSCL=10 representation untouched (including heights above 360).
+            // Check the limit first so small scales cannot overflow division.
+            return (x, width, 360);
+        }
+        try
+        {
+            return (x, width, height * 10m / _heightScale);
+        }
+        catch (OverflowException)
+        {
+            throw new LocationDiagnosticException(Msg.Create(MsgKeys.MgCrit_Invalid_height_scale, _heightScale),
+                checked((int)reader.BaseStream.Position), Path);
+        }
     }
 
     private (UmgrModel.Note Note, bool IsChild, bool IsPair) CreateLongAir(
-        NoteType type, LongAttr longAttr, ExAttr exAttr, int height, int tick)
+        NoteType type, LongAttr longAttr, ExAttr exAttr, decimal height, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
@@ -285,7 +300,7 @@ public partial class MgxcParser
         }, true, false);
     }
 
-    private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, int height)
+    private UmgrModel.Note CreateLongAirHead(NoteType type, ExAttr exAttr, decimal height)
     {
         UmgrModel.Note parent = type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height);
         if (_version < 3)
@@ -327,7 +342,7 @@ public partial class MgxcParser
         return note;
     }
 
-    private UmgrModel.AirSlide CreateAirSlide(int height)
+    private UmgrModel.AirSlide CreateAirSlide(decimal height)
     {
         var note = new UmgrModel.AirSlide { Height = height };
         if (TakeLastAir() is { } air)
@@ -361,7 +376,7 @@ public partial class MgxcParser
     }
 
     private (UmgrModel.Note Note, bool IsChild) CreateAirCrash(
-        LongAttr longAttr, sbyte variationId, int height, int optionValue, ExAttr exAttr, int tick)
+        LongAttr longAttr, sbyte variationId, decimal height, int optionValue, ExAttr exAttr, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {

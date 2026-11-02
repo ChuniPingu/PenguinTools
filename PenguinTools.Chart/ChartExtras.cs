@@ -18,6 +18,7 @@ public sealed partial class ChartExtras
     public List<EditorBeatProjection> EditorBeatProjections { get; set; } = [];
     public bool HasEditorBeatProjection { get; set; }
     public List<EditorPathProjection> EditorPathProjections { get; set; } = [];
+    public List<EditorNumberProjection> EditorNumberProjections { get; set; } = [];
     public bool? OriginalBlankMeasure { get; set; }
 
     internal ChartExtras Copy()

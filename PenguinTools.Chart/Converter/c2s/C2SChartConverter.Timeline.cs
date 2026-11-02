@@ -1,4 +1,3 @@
-using System.Globalization;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser;
@@ -190,7 +189,7 @@ public partial class C2SChartConverter
                 {
                     continue;
                 }
-                var speed = e is C.Stop ? 0m : decimal.Parse(e.Speed.ToString("F6", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+                var speed = e is C.Stop ? 0m : e.Speed;
                 changes[start] = changes.GetValueOrDefault(start) + speed - 1m;
                 changes[end] = changes.GetValueOrDefault(end) - speed + 1m;
             }

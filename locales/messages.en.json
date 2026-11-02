@@ -99,6 +99,8 @@
       "hold_has_no_tail": "HOLD is missing its endpoint.",
       "invalid_air_parent": "The connection between AIR and its attached note is incomplete.",
       "invalid_airslide_parent": "The connection between the AIR long note and its attached note is incomplete.",
+      "invalid_height_scale": "The chart's height scale {0} cannot be used to read note heights correctly.",
+      "invalid_number": "Cannot read the value '{1}' ({0}). Check this setting.",
       "pairing_notes_incompatible": "No matching note was found to connect to, or the note types are incompatible.",
       "soflanarea_has_no_tail": "The local scroll-speed region is missing its endpoint.",
       "unrecognized_data_type": "Unknown type {0}.",
@@ -133,7 +135,8 @@
       "editor_color_defaulted": "{0} does not support color {2} for {1}. The default color was used.",
       "editor_crash_points_merged": "{0} cannot keep {1} AIR-CRUSH nodes at the same time. Only the last node was kept.",
       "editor_meter_skipped": "{0} cannot use time signature {1} at this position. This change was skipped and {2} was retained.",
-      "editor_ald_timeline_changed": "When writing C2S, the AIR-CRUSH node uses scroll speed from timeline {1} instead of timeline {0}."
+      "editor_ald_timeline_changed": "When writing C2S, the AIR-CRUSH node uses scroll speed from timeline {1} instead of timeline {0}.",
+      "number_adjusted": "The value {1} cannot be saved exactly and was adjusted to {2} ({0})."
     }
   }
 }

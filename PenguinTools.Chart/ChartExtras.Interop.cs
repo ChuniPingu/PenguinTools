@@ -135,7 +135,7 @@ public sealed partial class ChartExtras
         {
             int h = headers.FindIndex(s => s.StartsWith("BPM_DEF\t", StringComparison.Ordinal));
             decimal main = chart.Meta.MainBpm > 0 ? chart.Meta.MainBpm : bpms[0];
-            headers[h] = string.Create(CultureInfo.InvariantCulture, $"BPM_DEF\t{bpms[0]:F3}\t{main:F3}\t{bpms.Max():F3}\t{bpms.Min():F3}");
+            headers[h] = $"BPM_DEF\t{C2sNumber.Bpm(bpms[0])}\t{C2sNumber.Bpm(main)}\t{C2sNumber.Bpm(bpms.Max())}\t{C2sNumber.Bpm(bpms.Min())}";
         }
     }
 

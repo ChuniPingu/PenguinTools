@@ -77,7 +77,7 @@ public partial class C2SChartWriter
         sb.AppendLine("DIFFICULT\t0");
         sb.AppendLine("LEVEL\t0.0");
         sb.AppendLine(CultureInfo.InvariantCulture, $"CREATOR\t{Chart.Meta.Designer}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"BPM_DEF\t{(bpms.FirstOrDefault(mainBpm)):F3}\t{mainBpm:F3}\t{maxBpm:F3}\t{minBpm:F3}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"BPM_DEF\t{C2sNumber.Bpm(bpms.FirstOrDefault(mainBpm))}\t{C2sNumber.Bpm(mainBpm)}\t{C2sNumber.Bpm(maxBpm)}\t{C2sNumber.Bpm(minBpm)}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"MET_DEF\t{Chart.Meta.BgmInitialDenominator}\t{Chart.Meta.BgmInitialNumerator}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"RESOLUTION\t{Resolution}");
         var clock = Chart.Extras.ClockTicks(Chart) * Resolution / 1920;

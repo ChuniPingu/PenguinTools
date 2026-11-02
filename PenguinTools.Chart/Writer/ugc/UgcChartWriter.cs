@@ -92,7 +92,15 @@ public sealed class UgcChartWriter(string path, U.Chart source)
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
             var diagnostics = new DiagnosticCollector();
-            _chart = EditorProjection.Create(source, ugc: true, diagnostics);
+            try
+            {
+                _chart = EditorProjection.Create(source, ugc: true, diagnostics);
+            }
+            catch (DiagnosticException ex)
+            {
+                diagnostics.Report(ex.ToDiagnostic().WithPathFallback(path));
+                return OperationResult.Failure().WithDiagnostics(diagnostics);
+            }
             CurveExpansion.Expand(_chart);
             _chart.Extras.MgxcNoteSnapshots.Clear();
             _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;

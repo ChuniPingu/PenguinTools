@@ -196,7 +196,7 @@ public partial class UgcParser
 
     private void HandleMainBpm(string[] args)
     {
-        if (args.Length >= 1 && decimal.TryParse(args[0], CultureInfo.InvariantCulture, out var mbpm))
+        if (args.Length >= 1 && TryParseNativeNumber(args[0], "MAINBPM", out var mbpm))
         {
             Ugc.Meta.MainBpm = mbpm;
         }

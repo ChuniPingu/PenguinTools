@@ -26,6 +26,8 @@ public sealed class C2SParser
     private readonly List<PendingPair> _pendingPairs = [];
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
+    private readonly HashSet<int> _adjustedNumberLines = [];
+    private readonly Dictionary<int, string> _adjustedSourceLines = [];
 
     static C2SParser()
     {
@@ -74,6 +76,10 @@ public sealed class C2SParser
         {
             ct.ThrowIfCancellationRequested();
             ParseLine(line);
+        }
+        if (_adjustedSourceLines.Count > 0)
+        {
+            C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => _adjustedSourceLines.GetValueOrDefault(l.Number, l.Text)));
         }
 
         if (string.IsNullOrWhiteSpace(_version))
@@ -144,6 +150,15 @@ public sealed class C2SParser
         }
 
         ParseTokens(tokens, text, line.Number);
+        if (_adjustedNumberLines.Contains(line.Number))
+        {
+            var adjusted = string.Join('\t', tokens);
+            _adjustedSourceLines[line.Number] = adjusted;
+            if (C2s.Extras.Headers.ContainsKey(tokens[0]))
+            {
+                C2s.Extras.Headers[tokens[0]] = adjusted;
+            }
+        }
     }
 
     private void ParseMetronomeExtension(string text, int lineNumber)
@@ -179,7 +194,7 @@ public sealed class C2SParser
                 ParseCreator(tokens);
                 break;
             case "BPM_DEF":
-                ParseBpmDefinition(tokens);
+                ParseBpmDefinition(tokens, lineNumber);
                 break;
             case "MET_DEF":
                 ParseMeterDefinition(tokens);
@@ -380,20 +395,24 @@ public sealed class C2SParser
         C2s.Meta.Designer = string.Join('\t', tokens.Skip(1));
     }
 
-    private void ParseBpmDefinition(string[] tokens)
+    private void ParseBpmDefinition(string[] tokens, int lineNumber)
     {
         if (tokens.Length < 2)
         {
             return;
         }
 
-        if (!decimal.TryParse(tokens[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var bpm))
+        if (!TryGetDecimal(tokens, 1, lineNumber, "BPM_DEF", out var bpm))
         {
             return;
         }
 
-        C2s.Meta.MainBpm = tokens.Length > 2 && decimal.TryParse(tokens[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var mainBpm) ? mainBpm : bpm;
+        C2s.Meta.MainBpm = tokens.Length > 2 && TryGetDecimal(tokens, 2, lineNumber, "BPM_DEF", out var mainBpm) ? mainBpm : bpm;
         C2s.Meta.BgmInitialBpm = bpm;
+        for (var i = 3; i < Math.Min(tokens.Length, 5); i++)
+        {
+            TryGetDecimal(tokens, i, lineNumber, "BPM_DEF", out _);
+        }
     }
 
     private void ParseMeterDefinition(string[] tokens)
@@ -1125,14 +1144,52 @@ public sealed class C2SParser
     {
         value = default;
         if (index < tokens.Length &&
-            decimal.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+            decimal.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) &&
+            (parsed != 0 || !NativeNumber.HasNonzeroCoefficient(tokens[index])) &&
+            float.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var native) &&
+            float.IsFinite(native) && TryKeepSingleValue(parsed, native, out value))
         {
+            return true;
+        }
+
+        if (index < tokens.Length &&
+            double.TryParse(tokens[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var approximation))
+        {
+            var original = tokens[index];
+            var kind = field.StartsWith("BPM", StringComparison.Ordinal) ? NativeNumberKind.Bpm :
+                field == "event speed" ? NativeNumberKind.Speed : NativeNumberKind.Value;
+            value = NativeNumber.Read(approximation, kind, out _, original: original);
+            tokens[index] = value.ToString("G29", CultureInfo.InvariantCulture);
+            _adjustedNumberLines.Add(lineNumber);
+            ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.Warn_Number_adjusted, $"C2S {field}", original, tokens[index]), lineNumber);
             return true;
         }
 
         ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
             index < tokens.Length ? tokens[index] : null);
         return false;
+    }
+
+    private static bool TryKeepSingleValue(decimal parsed, float native, out decimal value)
+    {
+        value = parsed;
+        var projected = float.Parse(value.ToString("G29", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        if (projected == native)
+        {
+            return true;
+        }
+
+        var scale = (byte)((decimal.GetBits(value)[3] >> 16) & 0xff);
+        var unit = new decimal(1, 0, 0, false, scale);
+        try
+        {
+            value += projected < native ? unit : -unit;
+            return float.Parse(value.ToString("G29", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture) == native;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
     }
 
     private void ReportAtLine(Severity severity, MessageDescriptor message, int lineNumber, object? target = null)

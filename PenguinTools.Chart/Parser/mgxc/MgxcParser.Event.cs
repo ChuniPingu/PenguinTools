@@ -35,18 +35,18 @@ public partial class MgxcParser
             "bpm " => new UmgrModel.BpmEvent
             {
                 Tick = (int)br.ReadField(),
-                Bpm = br.ReadField().Round()
+                Bpm = br.ReadField().ToDecimal(br.BaseStream.Position, Path, name, Diagnostic)
             },
             "smod" => new UmgrModel.NoteSpeedEvent
             {
                 Tick = (int)br.ReadField(),
-                Speed = br.ReadField().Round()
+                Speed = br.ReadField().ToDecimal(br.BaseStream.Position, Path, name, Diagnostic)
             },
             "til " => new UmgrModel.ScrollSpeedEvent
             {
                 Timeline = (int)br.ReadField(),
                 Tick = (int)br.ReadField(),
-                Speed = br.ReadField().Round()
+                Speed = br.ReadField().ToDecimal(br.BaseStream.Position, Path, name, Diagnostic)
             },
             "bmrk" => new UmgrModel.BookmarkEvent
             {

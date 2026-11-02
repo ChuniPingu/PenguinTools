@@ -39,6 +39,8 @@ public partial class UgcParser
 
     private int Width(char value) => _version >= 9 ? UgcPayload.Base36(value) : Lane(value);
 
+    private int HeightDigits => _highPrecision ? 2 : 1;
+
     private decimal Height(ReadOnlySpan<char> value) => UgcPayload.Base36(value) * (_highPrecision ? 1 : 10);
 
 
@@ -124,6 +126,7 @@ public partial class UgcParser
                 l.Trim() != "'" + ChartExtras.FixedZeroOriginMarker &&
                 l.Trim() != "'" + ChartExtras.PrerollBar1Marker).ToList();
 
+            EditorNumbers.Restore(Ugc);
             Ugc.Extras.CheckEventView(Ugc);
             var (matches, contextValid, slaValid) = _snapshots.Validate(Ugc.Extras, lines.Select(l => l.Text).ToArray(), Ugc.Meta.C2sSlaSnapshot);
             RestoreExTapSnapshots(matches);

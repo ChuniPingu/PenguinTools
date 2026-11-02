@@ -99,6 +99,8 @@
       "hold_has_no_tail": "HOLD 缺少终点。",
       "invalid_air_parent": "AIR 与关联音符的连接关系不完整。",
       "invalid_airslide_parent": "AIR 长条与所连接音符的关系不完整。",
+      "invalid_height_scale": "谱面中的高度比例 {0} 无法使用。",
+      "invalid_number": "无法读取数值“{1}”（{0}）。",
       "pairing_notes_incompatible": "无法找到可连接的音符，或音符类型不匹配。",
       "soflanarea_has_no_tail": "局部变速区域缺少终点。",
       "unrecognized_data_type": "未知类型 {0}。",
@@ -133,7 +135,8 @@
       "editor_color_defaulted": "{0} 不支持 {1} 的颜色 {2}，已使用默认色。",
       "editor_crash_points_merged": "{0} 无法保留同一时刻的 {1} 个 AIR-CRUSH 节点，已保留最后一个。",
       "editor_meter_skipped": "{0} 无法在此位置使用拍号 {1}，已跳过此变更并沿用 {2}。",
-      "editor_ald_timeline_changed": "输出 C2S 时，AIR-CRUSH 节点的流速已改用时间轴 {1}，原为时间轴 {0}。"
+      "editor_ald_timeline_changed": "输出 C2S 时，AIR-CRUSH 节点的流速已改用时间轴 {1}，原为时间轴 {0}。",
+      "number_adjusted": "数值 {1} 无法按原数值保存，已调整为 {2}（{0}）。"
     }
   }
 }

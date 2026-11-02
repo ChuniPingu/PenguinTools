@@ -12,11 +12,11 @@ public partial class C2SChartWriter
         return e switch
         {
             C2sModel.Stop stop => $"{FormatNode(stop)}\t{Scale(stop.Length)}",
-            C2sModel.Bpm bpm => $"{FormatNode(bpm)}\t{bpm.Value:F3}",
+            C2sModel.Bpm bpm => $"{FormatNode(bpm)}\t{C2sNumber.Bpm(bpm.Value)}",
             C2sModel.Met met => $"{FormatNode(met)}\t{met.Denominator}\t{met.Numerator}",
-            C2sModel.Slp slp => $"{FormatNode(slp)}\t{Scale(slp.Length)}\t{slp.Speed:F6}\t{slp.Timeline}",
-            C2sModel.Sfl sfl => $"{FormatNode(sfl)}\t{Scale(sfl.Length)}\t{sfl.Speed:F6}",
-            C2sModel.Dcm dcm => $"{FormatNode(dcm)}\t{Scale(dcm.Length)}\t{dcm.Speed:F6}",
+            C2sModel.Slp slp => $"{FormatNode(slp)}\t{Scale(slp.Length)}\t{C2sNumber.Speed(slp.Speed)}\t{slp.Timeline}",
+            C2sModel.Sfl sfl => $"{FormatNode(sfl)}\t{Scale(sfl.Length)}\t{C2sNumber.Speed(sfl.Speed)}",
+            C2sModel.Dcm dcm => $"{FormatNode(dcm)}\t{Scale(dcm.Length)}\t{C2sNumber.Speed(dcm.Speed)}",
             _ => throw new InvalidOperationException($"Unsupported c2s event type '{e.GetType().FullName}'.")
         };
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using PenguinTools.Core.Diagnostic;
 
@@ -5,6 +6,40 @@ namespace PenguinTools.Chart.Parser;
 
 internal static class Extensions
 {
+    public static decimal ToDecimal(this object value, long position, string path, string field, IDiagnosticSink diagnostics)
+    {
+        try
+        {
+            var kind = field.Trim() switch
+            {
+                "bpm" or "mbpm" => NativeNumberKind.Bpm,
+                "smod" or "til" => NativeNumberKind.Speed,
+                _ => NativeNumberKind.Value
+            };
+            var rendered = Convert.ToString(value, CultureInfo.InvariantCulture);
+            var adjusted = false;
+            var result = value switch
+            {
+                double d => NativeNumber.Read(d, kind, out adjusted),
+                float f => NativeNumber.Read(f, kind, out adjusted, shortest: f.ToString("R", CultureInfo.InvariantCulture)),
+                _ => Convert.ToDecimal(value, CultureInfo.InvariantCulture)
+            };
+            if (adjusted)
+            {
+                diagnostics.Report(new LocationDiagnostic(Severity.Warning,
+                    Msg.Create(MsgKeys.Warn_Number_adjusted, $"MGXC {field.Trim()}", rendered,
+                        result.ToString("G29", CultureInfo.InvariantCulture)), checked((int)position), path));
+            }
+            return result;
+        }
+        catch (Exception ex) when (ex is OverflowException or FormatException or InvalidCastException)
+        {
+            var rendered = Convert.ToString(value, CultureInfo.InvariantCulture);
+            throw new LocationDiagnosticException(Msg.Create(MsgKeys.MgCrit_Invalid_number, $"MGXC {field.Trim()}", rendered),
+                checked((int)position), path);
+        }
+    }
+
     public static decimal Round(this object obj, int decimals = 6)
     {
         return obj switch

@@ -195,6 +195,7 @@ public partial class MgxcParser
 
     private void PostProcessChart()
     {
+        EditorNumbers.Restore(Mgxc);
         MgxcNoteRoles.Restore(_notePayload.ToArray(), Mgxc.Extras.MgxcNoteSnapshots,
             Mgxc.Notes.Children.OfType<UmgrModel.ExTap>());
         Mgxc.Extras.CheckEventView(Mgxc);

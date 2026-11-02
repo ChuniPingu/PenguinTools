@@ -186,11 +186,12 @@ public sealed class EditorTimingTests
     }
 
     [Theory]
-    [InlineData(false, 800)]
+    [InlineData(false, 80)]
     [InlineData(true, 80)]
     public async Task NativeHeightPrecision_IsAppliedToBothEndpoints(bool highPrecision, int height)
     {
-        var chart = await Parse($"@FLAG\tHIPRECISION\t{highPrecision}\n#0'0:C0428B,240\n#240:c0428\n");
+        var heightCode = highPrecision ? "28" : "8";
+        var chart = await Parse($"@FLAG\tHIPRECISION\t{highPrecision}\n#0'0:C04{heightCode}B,240\n#240:c04{heightCode}\n");
         var crash = Assert.Single(chart.Notes.Children.OfType<U.AirCrash>());
         Assert.Equal(height, crash.Height);
         Assert.Equal(height, Assert.IsType<U.AirCrashJoint>(Assert.Single(crash.Children)).Height);

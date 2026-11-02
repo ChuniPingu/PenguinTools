@@ -53,6 +53,7 @@ public static class MsgKeys
     public const string Warn_Editor_crash_points_merged = "diag.warn.editor_crash_points_merged";
     public const string Warn_Editor_meter_skipped = "diag.warn.editor_meter_skipped";
     public const string Warn_Editor_ald_timeline_changed = "diag.warn.editor_ald_timeline_changed";
+    public const string Warn_Number_adjusted = "diag.warn.number_adjusted";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
     public const string Error_File_ignored_due_to_id_missing = "diag.error.file_ignored_due_to_id_missing";
@@ -94,6 +95,8 @@ public static class MsgKeys
     public const string MgCrit_Hold_has_no_tail = "diag.mgcrit.hold_has_no_tail";
     public const string MgCrit_Invalid_Air_parent = "diag.mgcrit.invalid_air_parent";
     public const string MgCrit_Invalid_AirSlide_parent = "diag.mgcrit.invalid_airslide_parent";
+    public const string MgCrit_Invalid_height_scale = "diag.mgcrit.invalid_height_scale";
+    public const string MgCrit_Invalid_number = "diag.mgcrit.invalid_number";
     public const string MgCrit_Pairing_notes_incompatible = "diag.mgcrit.pairing_notes_incompatible";
     public const string MgCrit_SoflanArea_has_no_tail = "diag.mgcrit.soflanarea_has_no_tail";
     public const string MgCrit_Unrecognized_data_type = "diag.mgcrit.unrecognized_data_type";

@@ -1,4 +1,3 @@
-using System.Globalization;
 using PenguinTools.Chart.Models;
 
 using UmgrModel = PenguinTools.Chart.Models.umgr;
@@ -25,7 +24,7 @@ public partial class UgcParser
             return;
         }
 
-        if (!decimal.TryParse(args[1], CultureInfo.InvariantCulture, out var bpm))
+        if (!TryParseNativeNumber(args[1], "BPM", out var bpm))
         {
             return;
         }
@@ -75,7 +74,7 @@ public partial class UgcParser
             return;
         }
 
-        if (!decimal.TryParse(args[1], CultureInfo.InvariantCulture, out var speed))
+        if (!TryParseNativeNumber(args[1], "SPDMOD", out var speed))
         {
             return;
         }
