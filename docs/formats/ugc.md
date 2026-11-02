@@ -68,6 +68,8 @@ The source recommends M4A around 3 MB for loading speed, jacket images at 400×4
 | `SPDFLD`  | Speed-definition ID, BarTick, X, width, length; UMGR v2.01 extension  |
 | `USETIL`  | Timeline ID for subsequent note lines                                 |
 
+`SPDDEF` and `SPDFLD` are UMIGURI extensions already documented in the [v8 specification](https://gist.github.com/inonote/5c01e73781cab17765a1d93641d52298/ad8176e6e3f8ecc21e75ba25e3062033d4539730). `SPDDEF` defines a relative scroll-speed curve, and `SPDFLD` selects notes by time and horizontal range. The curve is applied relative to each selected note's scrolling position, rather than at fixed chart times like C2S `SLP`. With otherwise unit scrolling, it can make each selected note slow down one beat before reaching the judgement line. See [conversion behavior](../chart-conversion.md#input-compatibility) for output support.
+
 `FLAG` attributes:
 
 | Attribute     | Meaning                                 |
@@ -98,7 +100,7 @@ Parent notes use `#BarTick:txw`. Children use `#OffsetTick>txw`; `#OffsetTick:tx
 | AIR-SLIDE | `#BarTick:txwhhc`                    | `t = S`; `hh` is height, `c` is color          |
 | AIR-CRUSH | `#BarTick:txwhhca,{interval}`         | `t = C`; `hh` height, `c` color, `a` axis    |
 
-Height `hh` is a two-digit base-36 value. The upstream specification encodes the original height multiplied by 10.
+With `HIPRECISION`, height `hh` is a two-digit base-36 value encoding the original height multiplied by 10. Without this flag, height occupies one base-36 digit, so the following color and axis fields move one character earlier.
 
 | Parent    | Child format                        | Meaning                                                  |
 | --------- | ----------------------------------- | -------------------------------------------------------- |
