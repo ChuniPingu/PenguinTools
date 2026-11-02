@@ -17,7 +17,7 @@ internal sealed class C2sSlideScheduler
         _paths = paths.ToArray();
         var starts = new Dictionary<Position, HashSet<int>>();
         var tails = new Dictionary<Position, List<int>>();
-        var airCells = new Dictionary<AirPosition, List<int>>();
+        var airCells = new Dictionary<AirPosition, List<(int Path, C.Slide Parent)>>();
         for (var i = 0; i < _paths.Length; i++)
         {
             AddNode();
@@ -29,6 +29,12 @@ internal sealed class C2sSlideScheduler
                     starts[key] = pathsAtStart = [];
                 }
                 pathsAtStart.Add(i);
+                var cell = new AirPosition(slide.EndTick.Round, slide.EndLane, Math.Clamp(slide.EndWidth, 1, 16));
+                if (!airCells.TryGetValue(cell, out var airPaths))
+                {
+                    airCells[cell] = airPaths = [];
+                }
+                airPaths.Add((i, slide));
             }
             var tail = _paths[i][^1];
             var end = new Position(tail.EndTick.Round, tail.EndLane, Math.Clamp(tail.EndWidth, 1, 16), tail.NoLine);
@@ -37,12 +43,6 @@ internal sealed class C2sSlideScheduler
                 tails[end] = pathsAtEnd = [];
             }
             pathsAtEnd.Add(i);
-            var cell = new AirPosition(tail.EndTick.Round, tail.EndLane, Math.Clamp(tail.EndWidth, 1, 16));
-            if (!airCells.TryGetValue(cell, out var airPaths))
-            {
-                airCells[cell] = airPaths = [];
-            }
-            airPaths.Add(i);
         }
 
         foreach (var (cell, ending) in tails)
@@ -61,16 +61,20 @@ internal sealed class C2sSlideScheduler
         {
             foreach (var group in airCells.Values)
             {
-                // AIR ignores line type and uses ground-root creation order.
-                // These paths end at the same time, so the shared AIR rank can
-                // break ties without reversing a continuation dependency.
-                var attached = group.Where(i => airParentOrder.ContainsKey(_paths[i][^1]))
-                    .OrderBy(i => airParentOrder[_paths[i][^1]]).ToArray();
+                // AIR declarations ignore line type and use ground-root creation
+                // order, including declarations before later SLIDE continuations.
+                var attached = group.Where(p => airParentOrder.ContainsKey(p.Parent))
+                    .OrderBy(p => airParentOrder[p.Parent]).Select(p => p.Path).Distinct().ToArray();
                 for (var i = 1; i < attached.Length; i++)
                 {
                     AddBarrier([attached[i - 1]], [attached[i]]);
                 }
-                AddBarrier(attached, group.Where(i => !airParentOrder.ContainsKey(_paths[i][^1])));
+                var assigned = attached.ToHashSet();
+                // Only a permanent unpaired tail can capture this AIR. A path
+                // merely passing through the cell must remain free to finish
+                // first so its own continuation is not captured by this tail.
+                AddBarrier(attached, group.Where(p => ReferenceEquals(p.Parent, _paths[p.Path][^1]))
+                    .Select(p => p.Path).Distinct().Where(i => !assigned.Contains(i)));
             }
         }
     }

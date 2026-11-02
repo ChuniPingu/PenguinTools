@@ -65,7 +65,7 @@ public sealed partial class ChartExtras
         var notes = new List<string>();
         foreach (var line in lines)
         {
-            var tag = line.Split('\t')[0];
+            var tag = P(line)[0];
             if (EventTags.Contains(tag))
             {
                 events.Add(line);
@@ -105,8 +105,11 @@ public sealed partial class ChartExtras
     {
         for (int i = 0; i < headers.Count; i++)
         {
-            var tag = headers[i].Split('\t')[0];
-            if (tag is not ("VERSION" or "RESOLUTION" or "CLK_DEF" or "MUSIC" or "SEQUENCEID" or "DIFFICULT" or "LEVEL") && Headers.TryGetValue(tag, out var saved))
+            var tag = P(headers[i])[0];
+            // These headers are generated from the editable model. The writer
+            // has already restored unchanged source metadata where appropriate.
+            if (tag is not ("VERSION" or "RESOLUTION" or "CLK_DEF" or "MUSIC" or "SEQUENCEID" or "DIFFICULT" or "LEVEL" or
+                "CREATOR" or "BPM_DEF" or "MET_DEF" or "TUTORIAL") && Headers.TryGetValue(tag, out var saved))
             {
                 headers[i] = saved;
             }
@@ -115,7 +118,7 @@ public sealed partial class ChartExtras
         {
             headers.RemoveAll(s => s.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal));
 
-            foreach (var h in Headers.Where(h => !headers.Any(s => s.Split('\t')[0] == h.Key)))
+            foreach (var h in Headers.Where(h => !headers.Any(s => P(s)[0] == h.Key)))
             {
                 headers.Add(h.Value);
             }
@@ -133,7 +136,7 @@ public sealed partial class ChartExtras
         var bpms = events.Select(P).Where(p => p[0] == "BPM").Select(p => decimal.Parse(p[3], CultureInfo.InvariantCulture)).ToArray();
         if (bpms.Length > 0 && !FromC2S)
         {
-            int h = headers.FindIndex(s => s.StartsWith("BPM_DEF\t", StringComparison.Ordinal));
+            int h = headers.FindIndex(s => P(s)[0] == "BPM_DEF");
             decimal main = chart.Meta.MainBpm > 0 ? chart.Meta.MainBpm : bpms[0];
             headers[h] = $"BPM_DEF\t{C2sNumber.Bpm(bpms[0])}\t{C2sNumber.Bpm(main)}\t{C2sNumber.Bpm(bpms.Max())}\t{C2sNumber.Bpm(bpms.Min())}";
         }
@@ -169,9 +172,11 @@ public sealed partial class ChartExtras
 
     private void RestoreJudgeHeaders(string[][] snapshot, List<string> headers)
     {
-        foreach (var p in snapshot.Where(p => p[0] is "PROGJUDGE_BPM" or "PROGJUDGE_AER" || p[0] == "MET_DEF" && UnchangedEventKinds.Contains("BEAT")))
+        foreach (var p in snapshot.Where(p => p[0] is "PROGJUDGE_BPM" or "PROGJUDGE_AER"
+                     ? !Headers.ContainsKey(p[0])
+                     : p[0] == "MET_DEF" && UnchangedEventKinds.Contains("BEAT")))
         {
-            int h = headers.FindIndex(s => s.StartsWith(p[0] + "\t", StringComparison.Ordinal));
+            int h = headers.FindIndex(s => P(s)[0] == p[0]);
             if (h >= 0)
             {
                 headers[h] = string.Join("\t", p);
@@ -181,6 +186,14 @@ public sealed partial class ChartExtras
 
     private void RestoreColors(string[][] snapshot, int sourceRes, List<string> notes, HashSet<int> usedExceptions)
     {
+        // Checked editor metadata already restored each eligible note. Legacy
+        // COLOR rows have no path identity and can overwrite another note after
+        // a color edit moves it into the old projected geometry.
+        if (SourceKey is not null || BinaryContentKey is not null || UgcSnapshotVersion != 0)
+        {
+            return;
+        }
+
         foreach (var entry in snapshot.Where(p => p[0] == "COLOR"))
         {
             var original = entry.Skip(1).ToArray();

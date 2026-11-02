@@ -69,6 +69,7 @@ public sealed class C2SParser
         C2s.Meta.FilePath = Path;
         C2s.Meta.BgmEnableBarOffset = true;
         C2s.Meta.BgmFixedZeroOrigin = true;
+        C2s.Extras.ClickEnabled = false;
 
         var lines = await ReadLinesAsync(Path, ct);
         C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => l.Text));
@@ -241,6 +242,12 @@ public sealed class C2SParser
             case "ASD":
             case "ALD":
                 ParseNote(tokens, lineNumber);
+                break;
+            case "ASO":
+            case "HHD":
+            case "HHX":
+                ReportAtLine(Severity.Warning,
+                    Msg.Create(MsgKeys.C2s_Unsupported_note_type, ("noteType", tokens[0])), lineNumber);
                 break;
             case "AHD":
             case "AHX":

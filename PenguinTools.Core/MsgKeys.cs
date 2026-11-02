@@ -18,6 +18,7 @@ public static class MsgKeys
     public const string C2s_Unknown_air_color = "diag.c2s.unknown_air_color";
     public const string C2s_Unknown_air_ladder_attr = "diag.c2s.unknown_air_ladder_attr";
     public const string C2s_Unknown_ex_effect = "diag.c2s.unknown_ex_effect";
+    public const string C2s_Unsupported_note_type = "diag.c2s.unsupported_note_type";
     public const string C2s_Unsupported_version = "diag.c2s.unsupported_version";
     public const string C2s_Version_line_not_found = "diag.c2s.version_line_not_found";
     public const string Cli_Msg_assets_collected = "cli.msg.assets_collected";

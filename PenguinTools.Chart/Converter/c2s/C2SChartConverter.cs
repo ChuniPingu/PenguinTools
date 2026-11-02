@@ -250,6 +250,11 @@ public partial class C2SChartConverter
 
     private void RestoreMeterDefSnapshot()
     {
+        if (Mgxc.Extras.MeterEditKey is { } key && key != ChartExtras.BeatKey(Mgxc))
+        {
+            return;
+        }
+
         if (Mgxc.Meta.C2sMeterDefDenominator is { } denominator)
         {
             C2s.Meta.BgmInitialDenominator = denominator;

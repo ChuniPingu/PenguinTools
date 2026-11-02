@@ -36,6 +36,7 @@
       "unknown_air_color": "未知的 C2S AIR 颜色“{0}”。",
       "unknown_air_ladder_attr": "未知的 C2S ALD 属性“{0}”。",
       "unknown_ex_effect": "未知的 C2S EX 效果“{0}”。",
+      "unsupported_note_type": "暂不支持“{noteType}”音符。",
       "unsupported_version": "不支持的 C2S 版本“{0}”。",
       "version_line_not_found": "未找到 C2S VERSION 行。"
     },

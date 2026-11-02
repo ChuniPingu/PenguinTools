@@ -1,6 +1,13 @@
+using PenguinTools.Chart;
+using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser.c2s;
+using PenguinTools.Chart.Parser.mgxc;
+using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Chart.Writer.mgxc;
+using PenguinTools.Chart.Writer.ugc;
 using Xunit;
 using C = PenguinTools.Chart.Models.c2s;
 
@@ -8,6 +15,130 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sAirStatementOrderTests
 {
+    [Theory]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task InterleavedC2sAirDeclarations_RestoreGroundPathsThroughEditorMetadata(string format)
+    {
+        var input = TestTempPaths.Create(".c2s");
+        var editor = TestTempPaths.Create(format);
+        var output = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(input, """
+                VERSION 1.15.00 1.15.00
+                BPM 0 0 120
+                MET 0 0 4 4
+                SLD 0 0 0 2 96 4 2 SLD
+                SLD 0 0 12 2 96 4 2 SLD
+                ASC 0 96 4 2 SLD 1 48 4 2 5 DEF
+                ASC 0 96 4 2 SLD 1 48 4 2 3 PNK
+                ASC 0 144 4 2 ASC 3 48 4 2 2 PNK
+                ASD 0 192 4 2 ASC 2 48 8 2 4 PNK
+                ASD 0 144 4 2 ASC 5 48 4 2 2 DEF
+                SLD 0 96 4 2 96 0 2 SLD
+                SLD 0 96 4 2 96 12 2 SLD
+                """, ct);
+            var source = await new C2SParser(new(input)).ParseAsync(ct);
+            Assert.True(source.Succeeded, source.ToString());
+            var converted = new UgcChartConverter(new(source.Value!)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            var written = format == ".mgxc"
+                ? await new MgxcChartWriter(new(editor, converted.Value!)).WriteAsync(ct)
+                : await new UgcChartWriter(editor, converted.Value!).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var read = format == ".mgxc"
+                ? await new MgxcParser(new(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                : await new UgcParser(new(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(read.Succeeded, read.ToString());
+            var restored = new C2SChartConverter(new(read.Value!)).Convert();
+            Assert.True(restored.Succeeded, restored.ToString());
+            Assert.True((await new C2SChartWriter(new(output, restored.Value!)).WriteAsync(ct)).Succeeded);
+            var result = await new C2SParser(new(output)).ParseAsync(ct);
+            Assert.True(result.Succeeded, result.ToString());
+            Assert.Empty(result.Diagnostics.Diagnostics);
+            var paths = C2sSlidePaths.Build(result.Value!.Notes.OfType<C.Slide>()).ToArray();
+            Assert.Equal(2, paths.Length);
+            Assert.All(paths, path => Assert.Equal(2, path.Length));
+            var actions = result.Value.Notes.OfType<C.AirSlide>().ToArray();
+            Assert.Equal(5, actions.Length);
+            var first = Assert.Single(actions, note => note.Parent is C.Slide { Lane: 0 });
+            var second = Assert.Single(actions, note => note.Parent is C.Slide { Lane: 12 });
+            Assert.Equal(80m, first.EndHeight.Original);
+            Assert.Equal(Color.DEF, first.Color);
+            Assert.Equal(40m, second.EndHeight.Original);
+            Assert.Equal(Color.PNK, second.Color);
+            Assert.Equal(960, Assert.Single(actions, note => ReferenceEquals(note.Parent, first)).EndTick.Original);
+            var secondJoint = Assert.Single(actions, note => ReferenceEquals(note.Parent, second));
+            Assert.Equal(1200, Assert.Single(actions, note => ReferenceEquals(note.Parent, secondJoint)).EndTick.Original);
+        }
+        finally
+        {
+            File.Delete(input);
+            File.Delete(editor);
+            File.Delete(output);
+        }
+    }
+
+    [Theory]
+    [InlineData(".c2s", "AIR 0 96 4 4 SLD DEF")]
+    [InlineData(".mgxc", "AHD 0 96 4 4 SLD 120 DEF")]
+    [InlineData(".ugc", "ASD 0 96 4 4 SLD 1 120 8 4 2 DEF")]
+    public async Task AirDeclaredBeforeSlideContinuation_RetainsItsGroundPath(string format, string airRow)
+    {
+        var input = TestTempPaths.Create(".c2s");
+        var editor = TestTempPaths.Create(format);
+        var output = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(input, $"""
+                VERSION 1.15.00 1.15.00
+                BPM 0 0 120
+                MET 0 0 4 4
+                SLD 0 0 0 4 96 4 4 SLD
+                {airRow}
+                SLD 0 96 4 4 96 8 4 SLD
+                """, ct);
+            var parsed = await new C2SParser(new(input)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var chart = parsed.Value!;
+            if (format != ".c2s")
+            {
+                var converted = new UgcChartConverter(new(chart)).Convert();
+                Assert.True(converted.Succeeded, converted.ToString());
+                var written = format == ".mgxc"
+                    ? await new MgxcChartWriter(new(editor, converted.Value!)).WriteAsync(ct)
+                    : await new UgcChartWriter(editor, converted.Value!).WriteAsync(ct);
+                Assert.True(written.Succeeded, written.ToString());
+                var read = format == ".mgxc"
+                    ? await new MgxcParser(new(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                    : await new UgcParser(new(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+                Assert.True(read.Succeeded, read.ToString());
+                var restored = new C2SChartConverter(new(read.Value!)).Convert();
+                Assert.True(restored.Succeeded, restored.ToString());
+                chart = restored.Value!;
+            }
+
+            Assert.True((await new C2SChartWriter(new(output, chart)).WriteAsync(ct)).Succeeded);
+            var result = await new C2SParser(new(output)).ParseAsync(ct);
+            Assert.True(result.Succeeded, result.ToString());
+            var slides = Assert.Single(C2sSlidePaths.Build(result.Value!.Notes.OfType<C.Slide>()));
+            Assert.Equal(2, slides.Length);
+            var air = Assert.Single(result.Value.Notes.OfType<C.IPairable>());
+            Assert.Same(slides[0], air.Parent);
+            Assert.Equal(480, slides[0].EndTick.Original);
+            Assert.Equal(960, slides[1].EndTick.Original);
+        }
+        finally
+        {
+            File.Delete(input);
+            File.Delete(editor);
+            File.Delete(output);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -46,9 +177,13 @@ public sealed class C2sAirStatementOrderTests
         var tail2 = Slide(head2, 960, 4, 1920, 8);
         var chart = new C.Chart();
         chart.Notes.AddRange([first, second, head2, head1, tail2, tail1]);
+        var firstParent = head1.Parent;
+        var secondParent = head2.Parent;
 
         var parsed = await RoundTrip(chart);
 
+        Assert.Same(firstParent, head1.Parent);
+        Assert.Same(secondParent, head2.Parent);
         var tails = parsed.Notes.OfType<C.AirSlide>().Where(n => n.Tick.Original == 960).ToArray();
         Assert.Equal(2, tails.Length);
         var endsByGround = tails.ToDictionary(n => ((C.AirSlide)n.Parent!).Parent!.Tick.Original, n => n.EndTick.Original);
@@ -103,9 +238,11 @@ public sealed class C2sAirStatementOrderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InterleavedAirPathsWithSharedGroundEndpoint_KeepAllJoints(bool airHold)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task InterleavedAirPathsWithSharedGroundEndpoint_KeepAllJoints(bool airHold, bool groundContinuesAfterAirDeclaration)
     {
         var first = new C.Slide
         {
@@ -147,6 +284,22 @@ public sealed class C2sAirStatementOrderTests
         var chart = new C.Chart();
         // Both heads bind before B passes through A's future terminal cell.
         chart.Notes.AddRange([first, second, head1, head2, middle2, tail2, tail1]);
+        if (groundContinuesAfterAirDeclaration)
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                chart.Notes.Add(new C.Slide
+                {
+                    Tick = 240,
+                    Lane = 8,
+                    Width = 4,
+                    EndTick = 480,
+                    EndLane = 8,
+                    EndWidth = 4,
+                    Joint = Joint.D
+                });
+            }
+        }
 
         var parsed = await RoundTrip(chart);
 

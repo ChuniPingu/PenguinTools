@@ -182,8 +182,8 @@ public partial class C2SChartWriter
 
     private List<C2sModel.Note> OrderedNotesForWrite()
     {
-        // Ground SLIDE statement order defines the paths. Emit those records
-        // first so their final endpoints exist before any AIR attachment.
+        // Ground SLIDE statement order defines the paths. The scheduler inserts
+        // AIR after its attachment point and before any ground continuation.
         var notes = Chart.Notes.OfType<C2sModel.Slide>().Cast<C2sModel.Note>().Concat(Chart.Notes
             .Where(note => note is not C2sModel.Slide))
             .ToList();

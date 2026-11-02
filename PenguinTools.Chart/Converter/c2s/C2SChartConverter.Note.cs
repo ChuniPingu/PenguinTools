@@ -357,11 +357,7 @@ public partial class C2SChartConverter
                 x.Effect = curr.HasEffectOverride ? curr.SegmentEffect : slide.Effect;
             });
             path[i] = note;
-            // Register the final joint as an AIR pairing target.
-            if (i == joints.Length - 2)
-            {
-                RegisterPositivePairTarget(next, note);
-            }
+            RegisterPositivePairTarget(next, note);
         }
         if (path.Length > 0)
         {

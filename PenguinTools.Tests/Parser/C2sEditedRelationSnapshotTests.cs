@@ -1,5 +1,6 @@
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
+using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
@@ -14,6 +15,40 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sEditedRelationSnapshotTests
 {
+    [Fact]
+    public async Task EditedOverlappingAirColorsAreNotReplacedByLegacyColorSnapshots()
+    {
+        var chart = await ReadC2s("""
+            SLC 0 0 0 2 96 4 2 SLD
+            SLC 0 0 12 2 96 4 2 SLD
+            ASD 0 96 4 2 SLD 1 96 8 2 2 GRN
+            ASD 0 96 4 2 SLD 1 96 8 2 2 PNK
+            """);
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.True((await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded);
+            var lines = await File.ReadAllLinesAsync(path, ct);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(":S", StringComparison.Ordinal))
+                {
+                    lines[i] = lines[i][..^1] + (lines[i][^1] == 'I' ? 'N' : 'I');
+                }
+            }
+            await File.WriteAllLinesAsync(path, lines, ct);
+            var edited = await new UgcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(edited.Succeeded, edited.ToString());
+            Assert.False(edited.Value!.Extras.BinarySnapshotValid);
+            Assert.Equal([Color.PNK, Color.DEF], edited.Value.Notes.Children.OfType<U.AirSlide>().Select(n => n.Color));
+
+            var restored = await ThroughC2s(edited.Value);
+            Assert.Equal([Color.PNK, Color.DEF], restored.Notes.Children.OfType<U.AirSlide>().Select(n => n.Color));
+        }
+        finally { File.Delete(path); }
+    }
+
     [Theory]
     [InlineData(".mgxc", false)]
     [InlineData(".ugc", false)]

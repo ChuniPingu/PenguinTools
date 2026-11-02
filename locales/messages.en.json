@@ -36,6 +36,7 @@
       "unknown_air_color": "Unknown C2S AIR color '{0}'.",
       "unknown_air_ladder_attr": "Unknown C2S ALD attribute '{0}'.",
       "unknown_ex_effect": "Unknown C2S EX effect '{0}'.",
+      "unsupported_note_type": "Note type '{noteType}' is not supported. This note was skipped and conversion will continue.",
       "unsupported_version": "Unsupported C2S version '{0}'.",
       "version_line_not_found": "C2S VERSION line was not found."
     },
