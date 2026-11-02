@@ -171,7 +171,7 @@ public sealed partial class PenguinToolsApplication
         }
         else
         {
-            File.Copy(jacket, destination, true);
+            await _dependencies.Images.ConvertRasterToPngAsync(jacket, destination, cancellationToken);
         }
     }
 

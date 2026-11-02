@@ -18,6 +18,7 @@ public sealed class OptionExporterCacheTests
     [Theory]
     [InlineData(4)]
     [InlineData(5)]
+    [InlineData(6)]
     public void ImageMigration_InvalidatesPreviousImagesAndPreservesAudioCache(int version)
     {
         var entry = new OptionConversionCacheEntry { RecipeHash = "old" };
@@ -561,6 +562,9 @@ public sealed class OptionExporterCacheTests
 
     private sealed class CountingImageService : IImageService
     {
+        public Task ConvertRasterToPngAsync(string source, string destination, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
         public int JacketConversions { get; private set; }
         public int StageConversions { get; private set; }
         public Exception? JacketFailure { get; init; }
