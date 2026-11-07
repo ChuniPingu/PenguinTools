@@ -105,7 +105,7 @@ public sealed record ChartConvertRequest(
     string InputPath,
     string OutputPath,
     ChartConvertOverrides? Overrides = null,
-    EditorTarget EditorTarget = EditorTarget.Extended);
+    EditorTarget EditorTarget = EditorTarget.Auto);
 
 public sealed record ChartConvertResult(
     string InputPath,

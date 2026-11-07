@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using PenguinTools.Application;
+using PenguinTools.Chart;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.CLI;
 using Xunit;
@@ -7,6 +10,28 @@ namespace PenguinTools.Tests.Cli;
 
 public sealed class ChartConversionTests
 {
+    [Theory]
+    [InlineData(8, null, 2)]
+    [InlineData(9, null, 4)]
+    [InlineData(8, "extended", 4)]
+    [InlineData(9, "legacy", 2)]
+    public async Task DefaultTarget_FollowsInputAndAllowsExplicitOverride(int version, string? target, int expected)
+    {
+        var input = TestTempPaths.Create(".ugc");
+        var output = TestTempPaths.Create(".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.Equal(EditorTarget.Auto, new ChartConvertRequest(input, output).EditorTarget);
+            await File.WriteAllTextAsync(input, $"@VER\t{version}\n@TICKS\t480\n@FLAG\tSOFFSET\tFALSE\n" +
+                "@BPM\t0'0\t120\n@BEAT\t0\t4\t4\n" + (version == 8 ? "#0'0:t04\n" : "#0'0:tG4\n"), ct);
+            await ConvertAsync(input, output, ct, target is null ? [] : ["--editor-target", target]);
+            var bytes = await File.ReadAllBytesAsync(output, ct);
+            Assert.Equal(expected, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8)));
+        }
+        finally { File.Delete(input); File.Delete(output); }
+    }
+
     [Theory]
     [InlineData(".ugc", 3, 8)]
     [InlineData(".ugc", 7, 4)]

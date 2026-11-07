@@ -9,6 +9,7 @@ public partial class MgxcParser
     private string _copyright = "";
     private decimal _heightScale = 1;
     private bool? _signedHeight;
+    private bool _hasExtensionFields;
     private bool UsesSignedHeight => _signedHeight ?? ChartExtras.HasFixedZeroOrigin(_copyright);
     private readonly List<byte[]> _segmentFields = [];
     private readonly MargreteCurveMetadata _curves = new();
@@ -29,6 +30,7 @@ public partial class MgxcParser
         }
         if (name == "xns1" || MargreteCurveMetadata.IsField(name))
         {
+            _hasExtensionFields = true;
             if (br.ReadUInt16() != 4)
             {
                 throw MargreteInput.Invalid(name, "binary SLIDE metadata");

@@ -1,5 +1,7 @@
 using System.Globalization;
+using PenguinTools.Chart.Models;
 using PenguinTools.Core.Diagnostic;
+using U = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart;
 
@@ -7,6 +9,66 @@ namespace PenguinTools.Chart;
 internal static class MargreteInput
 {
     internal const string DialectPrefix = "PenguinTools dialect:";
+    internal const string ExtendedEditorMarker = "PenguinTools editor: extended";
+
+    internal static EditorTarget MgxcTarget(U.Chart chart, int version, bool hasExtensions) =>
+        hasExtensions || NeedsExtensions(chart, version <= 2)
+            ? EditorTarget.Extended : version <= 2 ? EditorTarget.Legacy : EditorTarget.Standard;
+
+    internal static EditorTarget UgcTarget(U.Chart chart, int version, IEnumerable<string> lines,
+        bool fixedCoordinates)
+    {
+        var extended = fixedCoordinates;
+        var originalCreator = false;
+        var extendedCreator = false;
+        foreach (var line in lines)
+        {
+            if (!line.Trim().StartsWith('\''))
+            {
+                continue;
+            }
+            var comment = line.Trim()[1..].Trim();
+            extended |= comment == ExtendedEditorMarker;
+            const string creator = "Created with Margrete v";
+            if (comment.StartsWith(creator, StringComparison.Ordinal) &&
+                Version.TryParse(comment[creator.Length..].Split(' ', '\t', '-', '+')[0], out var exporter))
+            {
+                originalCreator |= exporter.Major == 1;
+                extendedCreator |= exporter.Major == 2 && exporter.Minor >= 3;
+            }
+        }
+        if (originalCreator && extendedCreator)
+        {
+            throw Invalid("conflicting creators", "one source editor capability declaration");
+        }
+        // A native editor save is stronger evidence than an inherited tool comment.
+        var legacyRotation = version <= 8 && chart.Notes.Children.OfType<U.AirCrash>()
+            .Any(n => n.Attr is AirLadderAttr.AxisY or AirLadderAttr.AxisZ);
+        return extendedCreator || (!originalCreator && extended) || legacyRotation || NeedsExtensions(chart, version <= 8)
+            ? EditorTarget.Extended : version <= 8 ? EditorTarget.Legacy : EditorTarget.Standard;
+    }
+
+    internal static bool NeedsExtensions(U.Chart chart, bool legacy)
+    {
+        if (chart.Events.Children.OfType<U.BeatEvent>().Any(b => b.Numerator == 0) ||
+            chart.Extras.ClickCount is { } count && count != chart.Meta.BgmInitialNumerator ||
+            chart.Extras.SegmentSlideLines && chart.Notes.Children.OfType<U.Slide>()
+                .Any(s => SlideSegmentMetadata.IsMixed(SlideSegmentMetadata.Bits(s))))
+        {
+            return true;
+        }
+        return chart.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).Any(n =>
+            n.Lane < (legacy ? 0 : -16) || n.Lane + (long)n.Width > (legacy ? 16 : 32) ||
+            n.Width > 16 || legacy && (n.Width == 0 || n is U.Slide { NoLine: true } or U.SlideJoint { NoLine: true }) ||
+            n is U.Air { Color: not (Color.DEF or Color.PNK) }
+                or U.AirHold { Color: not (Color.DEF or Color.PNK) }
+                or U.AirSlide { Color: not (Color.DEF or Color.PNK) }
+                or U.AirSlide { Height: < 0 or > ushort.MaxValue }
+                or U.AirSlideJoint { Height: < 0 or > ushort.MaxValue }
+                or U.AirCrash { HasExplicitJudgements: true }
+                or U.AirCrash { Height: < 0 or > ushort.MaxValue }
+                or U.AirCrashJoint { Height: < 0 or > ushort.MaxValue });
+    }
 
     internal static bool FixedUgcCoordinates(IEnumerable<string> lines, int formatVersion)
     {

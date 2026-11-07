@@ -221,6 +221,8 @@ public partial class MgxcParser
         Mgxc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Mgxc);
         Mgxc.Extras.CheckLegacyColors(Mgxc, capture: true);
         ProcessMeta();
+        Mgxc.Extras.SourceEditorTarget = MargreteInput.MgxcTarget(Mgxc, _version,
+            _signedHeight == true || _hasExtensionFields);
     }
 
     private void ProcessMeta()

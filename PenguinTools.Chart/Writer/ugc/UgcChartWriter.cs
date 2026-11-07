@@ -9,9 +9,10 @@ using U = PenguinTools.Chart.Models.umgr;
 namespace PenguinTools.Chart.Writer.ugc;
 
 /// <summary>Writes UGC for the requested editor capabilities.</summary>
-public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget target = EditorTarget.Extended)
+public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget target = EditorTarget.Auto)
 {
     private const string FalseValue = "FALSE";
+    private EditorTarget _target;
 
     private readonly List<string> _lines = [];
     private readonly HashSet<U.Note> _written = [];
@@ -32,7 +33,7 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
         return $"{(beat?.Bar ?? 0) + (tick - start) / length}'{(tick - start) % length}";
     }
     private static string Clean(string value) => ChartExtras.CleanEditorText(value);
-    private char Coordinate(int value) => target == EditorTarget.Legacy ? Digit(value) :
+    private char Coordinate(int value) => _target == EditorTarget.Legacy ? Digit(value) :
         "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"[checked(value + 16)];
     private static char Digit(int value) => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[value];
     private static string Height(decimal height)
@@ -119,7 +120,8 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
             var diagnostics = new DiagnosticCollector();
             try
             {
-                _chart = EditorProjection.Create(source, ugc: true, diagnostics, target);
+                _target = EditorTargetRules.Resolve(source, target);
+                _chart = EditorProjection.Create(source, ugc: true, diagnostics, _target);
             }
             catch (DiagnosticException ex)
             {
@@ -142,7 +144,11 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
             _chart.Extras.EditorFieldColorName = _chart.Meta.FieldColorName;
             _lines.Clear();
             // Sequential readers need the version before version-dependent flags.
-            _lines.Add($"@VER\t{EditorTargetRules.Version(target, ugc: true)}");
+            _lines.Add($"@VER\t{EditorTargetRules.Version(_target, ugc: true)}");
+            if (_target == EditorTarget.Extended)
+            {
+                _lines.Add("'" + MargreteInput.ExtendedEditorMarker);
+            }
             _rootOrdinal = 0;
             _crashOrdinal = 0;
             _snapshots = new();
@@ -196,7 +202,7 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
             // string field. An oversized value can corrupt their saved file.
             // Extended readers migrate round-trip payloads into bookmarks,
             // but the user's copyright still occupies a native string field.
-            var copyrightBytes = Encoding.UTF8.GetByteCount(target == EditorTarget.Extended
+            var copyrightBytes = Encoding.UTF8.GetByteCount(_target == EditorTarget.Extended
                 ? ChartExtras.CopyrightText(Clean(m.Copyright))
                 : copyright);
             if (copyrightBytes > ushort.MaxValue)
@@ -282,7 +288,7 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
         _lines.Add($"@DLURL\t{Clean(m.DownloadUrl)}");
     }
 
-    private string AirCrashAxisSuffix(AirLadderAttr attribute) => target == EditorTarget.Legacy ? "" : attribute switch
+    private string AirCrashAxisSuffix(AirLadderAttr attribute) => _target == EditorTarget.Legacy ? "" : attribute switch
     {
         AirLadderAttr.AxisY => "Y",
         AirLadderAttr.AxisZ => "Z",
@@ -291,7 +297,7 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
 
     // Legacy native readers look one character past the documented AIR-HOLD
     // color. Repeating I retains inversion with both that reader and modern ones.
-    private string AirHoldColor(Color color) => target == EditorTarget.Legacy && color == Color.PNK
+    private string AirHoldColor(Color color) => _target == EditorTarget.Legacy && color == Color.PNK
         ? "II" : AirColor(color).ToString();
 
     private string NotePayload(U.Note n, string xy)

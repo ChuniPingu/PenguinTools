@@ -14,6 +14,8 @@ namespace PenguinTools.Chart;
 public sealed partial class ChartExtras
 {
     public int EditorFormatVersion { get; set; }
+    // Set from the current input, never restored from a possibly stale snapshot.
+    [JsonIgnore] internal EditorTarget? SourceEditorTarget { get; set; }
     public bool SegmentSlideLines { get; set; }
     public List<CurvePathProfile> CurveProfiles { get; set; } = [];
     public List<LockedCurveProfile> LockedCurves { get; set; } = [];
@@ -40,6 +42,7 @@ public sealed partial class ChartExtras
         copy.BinarySnapshotValid = BinarySnapshotValid;
         copy.SpeedModelKey = SpeedModelKey;
         copy.InteropSourceText = InteropSourceText;
+        copy.SourceEditorTarget = SourceEditorTarget;
         return copy;
     }
     [GeneratedRegex(@"(?:^|;)(PT_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;)", RegexOptions.None, 1000)]

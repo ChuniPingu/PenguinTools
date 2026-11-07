@@ -14,7 +14,8 @@ namespace PenguinTools.Chart.Writer.mgxc;
 /// <summary>Writes Margrete binary MGXC for the requested editor capabilities.</summary>
 public sealed class MgxcChartWriter(MgxcWriteRequest request)
 {
-    private int Version => EditorTargetRules.Version(request.Target, ugc: false);
+    private EditorTarget _target;
+    private int Version => EditorTargetRules.Version(_target, ugc: false);
     private const int DefaultHeight = 80;
     private const sbyte NoLineVariation = 35;
     private const string DefaultBookmarkColor = "FFFFFF";
@@ -43,7 +44,8 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         var diagnostics = new DiagnosticCollector();
         try
         {
-            _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics, request.Target);
+            _target = EditorTargetRules.Resolve(request.Chart, request.Target);
+            _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics, _target);
         }
         catch (DiagnosticException ex)
         {
@@ -179,9 +181,9 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteDoubleField(bw, "HSCL", 10);
         if (Version == 4)
         {
-            WriteIntField(bw, "xh32", request.Target == EditorTarget.Extended ? 1 : 0);
+            WriteIntField(bw, "xh32", _target == EditorTarget.Extended ? 1 : 0);
         }
-        if (request.Target == EditorTarget.Extended)
+        if (_target == EditorTarget.Extended)
         {
             SlideSegmentMetadata.WriteBinary(bw, _writtenSlides);
             MargreteCurveMetadata.Write(bw, _writtenCurvePaths, _chart.Extras, _writtenNotePayload);
@@ -694,7 +696,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             bw.Write((byte)0);
             bw.Write(checked((byte)width));
             bw.Write(checked((sbyte)lane));
-            if (request.Target == EditorTarget.Extended)
+            if (_target == EditorTarget.Extended)
             {
                 bw.Write(height);
             }

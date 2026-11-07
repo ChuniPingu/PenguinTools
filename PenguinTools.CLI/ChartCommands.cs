@@ -37,7 +37,8 @@ internal static class ChartCommands
         var mainBpm = new Option<decimal?>("--display-bpm") { Description = "Override the displayed BPM." };
         var editorTarget = new Option<EditorTarget>("--editor-target")
         {
-            Description = "Output capabilities: legacy (MGXC v2/UGC v8), standard (v4/v9), or extended (default). Input is detected automatically."
+            DefaultValueFactory = _ => EditorTarget.Auto,
+            Description = "Output capabilities: auto (default, follows the input), legacy (MGXC v2/UGC v8), standard (v4/v9), or extended."
         };
         var insertBlank = new Option<bool?>("--insert-blank-measure")
         {

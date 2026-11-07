@@ -158,6 +158,7 @@ public partial class UgcParser
             Ugc.Extras.EditorComments = lines.Select(l => l.Text).Where(l => l.StartsWith('\'') &&
                 !l.StartsWith("' Created with Margrete ", StringComparison.Ordinal) &&
                 !l.TrimStart('\'', ' ').StartsWith(MargreteInput.DialectPrefix, StringComparison.Ordinal) &&
+                l.TrimStart('\'', ' ').Trim() != MargreteInput.ExtendedEditorMarker &&
                 !l.StartsWith(SlideSegmentMetadata.CommentPrefix, StringComparison.Ordinal) &&
                 !l.StartsWith(LegacyCrashMetadata.Prefix, StringComparison.Ordinal) &&
                 l.Trim() != "'" + ChartExtras.FixedZeroOriginMarker &&
@@ -186,6 +187,8 @@ public partial class UgcParser
             Ugc.Extras.CheckLegacyColors(Ugc, capture: true);
             ValidateSlaSnapshot(slaValid);
             ProcessMeta();
+            Ugc.Extras.SourceEditorTarget = MargreteInput.UgcTarget(Ugc, _version,
+                lines.Select(l => l.Text), _fixedBarCoordinates);
 
             await Task.WhenAll(Tasks);
             return OperationResult<UmgrModel.Chart>.Success(Ugc).WithDiagnostics(Diagnostic);

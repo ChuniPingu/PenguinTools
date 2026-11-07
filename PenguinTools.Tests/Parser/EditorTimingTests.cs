@@ -95,17 +95,10 @@ public sealed class EditorTimingTests
         try
         {
             await File.WriteAllTextAsync(path, "existing output", ct);
-            await Assert.ThrowsAsync<TimedDiagnosticException>(async () =>
-            {
-                if (ugc)
-                {
-                    await new UgcChartWriter(path, chart).WriteAsync(ct);
-                }
-                else
-                {
-                    await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
-                }
-            });
+            var result = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.False(result.Succeeded);
+            Assert.Contains(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Invalid_Header);
             Assert.Equal("existing output", await File.ReadAllTextAsync(path, ct));
         }
         finally { File.Delete(path); }
@@ -240,7 +233,7 @@ public sealed class EditorTimingTests
             {
                 Assert.True((await new UgcChartWriter(ugc, chart).WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
                 var text = await File.ReadAllTextAsync(ugc, TestContext.Current.CancellationToken);
-                Assert.Contains("@VER\t9", text);
+                Assert.Contains("@VER\t8", text);
                 var parsed = await new UgcParser(new UgcParseRequest(ugc, TestAssets.Load()), TestMediaTool.Instance)
                     .ParseAsync(TestContext.Current.CancellationToken);
                 Assert.True(parsed.Succeeded, parsed.ToString());
@@ -356,7 +349,7 @@ public sealed class EditorTimingTests
         try
         {
             await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
-            Assert.Contains("#480>cK428", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+            Assert.Contains("#480>c4428", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
             var result = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(result.Succeeded, result.ToString());
@@ -379,8 +372,8 @@ public sealed class EditorTimingTests
         {
             await new UgcChartWriter(path, chart).WriteAsync(TestContext.Current.CancellationToken);
             var text = await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken);
-            Assert.Equal(separateAir, text.Contains("#0'0:aG4", StringComparison.Ordinal));
-            Assert.Contains("#0'0:HG4N", text);
+            Assert.Equal(separateAir, text.Contains("#0'0:a04", StringComparison.Ordinal));
+            Assert.Contains("#0'0:H04N", text);
             Assert.Contains("#480>s", text);
         }
         finally

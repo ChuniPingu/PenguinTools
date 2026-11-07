@@ -7,6 +7,7 @@ namespace PenguinTools.Chart;
 /// <summary>Output capabilities, independent of automatic input interpretation.</summary>
 public enum EditorTarget
 {
+    Auto = -1,
     Extended,
     Standard,
     Legacy
@@ -14,6 +15,17 @@ public enum EditorTarget
 
 internal static class EditorTargetRules
 {
+    internal static EditorTarget Resolve(U.Chart chart, EditorTarget target)
+    {
+        if (target != EditorTarget.Auto)
+        {
+            return target;
+        }
+        var source = chart.Extras.SourceEditorTarget ?? EditorTarget.Extended;
+        return MargreteInput.NeedsExtensions(chart, source == EditorTarget.Legacy)
+            ? EditorTarget.Extended : source;
+    }
+
     internal static int Version(EditorTarget target, bool ugc) =>
         target == EditorTarget.Legacy ? (ugc ? 8 : 2) : (ugc ? 9 : 4);
 
