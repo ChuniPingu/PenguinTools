@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PenguinTools.Chart;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
@@ -103,7 +104,8 @@ public sealed record ChartConvertOverrides(
 public sealed record ChartConvertRequest(
     string InputPath,
     string OutputPath,
-    ChartConvertOverrides? Overrides = null);
+    ChartConvertOverrides? Overrides = null,
+    EditorTarget EditorTarget = EditorTarget.Extended);
 
 public sealed record ChartConvertResult(
     string InputPath,

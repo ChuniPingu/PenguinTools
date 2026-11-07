@@ -252,6 +252,8 @@
       "air_parent_null": "找不到 AIR 应连接的音符。",
       "air_slide_parent_null": "找不到 AIR 长条应连接的起始音符。",
       "hold_has_no_tail": "HOLD 缺少终点。",
+      "editor_interior_air": "{arg0} 无法保留连接在 SLIDE 中间节点上的 AIR。已停止导出，避免删除 AIR 或连接到另一条路径，请保留原谱。",
+      "ugc_legacy_air_hold": "此 AIR-HOLD 含有旧版 AIR-SLIDE 导出的多余字段，但完整路径的坐标不一致，或含有无法保留判定语义的控制点。已停止转换，请保留原谱。",
       "invalid_air_parent": "AIR 没有正确连接到对应音符。",
       "invalid_airslide_parent": "AIR 长条没有正确连接到对应音符。",
       "invalid_height_scale": "音符高度比例应大于 0，当前填写的是“{0}”。",
@@ -259,7 +261,16 @@
       "pairing_notes_incompatible": "找不到可以连接的音符，或这两种音符不能连接。",
       "soflanarea_has_no_tail": "局部变速区域缺少终点。",
       "unrecognized_data_type": "无法读取这部分谱面数据，类型编号为 {0}。",
-      "unrecognized_event": "无法识别谱面中的设置“{0}”。"
+      "unrecognized_event": "无法识别谱面中的设置“{0}”。",
+      "ugc_air_attachment_order": "这些重叠 AIR 的关联无法用一致的 UGC 记录顺序保留。已停止导出，以免重新连接音符；请使用 MGXC 保留关联。",
+      "ugc_metadata_too_long": "此 UGC 的版权文字或往返信息需要在原生文字字段中保存 {arg0} 字节，超过目标制谱器的 {arg1} 字节上限。已停止导出；请改用 MGXC 保留较大的往返信息，版权文字本身过长时则需缩短。",
+      "mgxc_string_too_long": "MGXC 字段 {arg0} 的文字占 {arg1} 个 UTF-8 字节，超过该字段的 {arg2} 字节上限。请缩短文字后再导出。",
+      "unrepresentable_height": "{0} 无法编码原生单位下的 AIR 高度 {1}（支持范围：{3}–{2}）。已停止导出，以免改变实际播放路径。",
+      "unsupported_legacy_crash": "此旧式 AIR-CRUSH 使用独立指定的判定点，目前不支持等值输出为 C2S；已停止导出，以免改变判定数量。",
+      "legacy_crash_attributes": "独立指定判定点的旧式 AIR-CRUSH 不支持旋转轴 {arg0} 或判定间隔 {arg1}；已停止转换，以免丢失属性。",
+      "editor_target_feature": "{arg0} 输出目标无法正确呈现 {arg1}；已停止转换，未写入目标文件。",
+      "invalid_note_width": "此处不支持音符宽度 {arg0}。只有原生 SLIDE 或 AIR-SLIDE 的非判定裁剪点及与其相连的后续段允许宽度为 0。",
+      "unsupported_legacy_curve": "此路径使用尚未准确实现的旧式贝塞尔采样。可另存为 MGXC 保留控制点，或先由原制谱器导出采样后的路径。"
     },
     "sus": {
       "air_hold_ignored": "找不到 AIR-HOLD 应连接的音符，已跳过这一条。",
@@ -275,6 +286,8 @@
       "unsupported_tap_point_type": "不支持 SUS 中类型为“{0}”的 TAP 音符。"
     },
     "warn": {
+      "editor_curves_sampled": "已将曲线转换为目标编辑器可用的路径节点；在该文件中将无法编辑原来的曲线控制柄。",
+      "editor_clipped_control_save": "UGC 已保留零宽非判定裁剪点。原版 Margrete 可以导入，但另存 MGXC 后再次打开时可能将其扩大为一列，使路径发生变化。",
       "editor_approximation": "输出 {0} 时，已将 {1} 从 {2} 调整为 {3}。",
       "chart_metadata_only": "仅获取了 {0} v{1} 的谱面基本信息。",
       "chart_skipped_version": "已跳过 {0} v{1}，最高支持 v{2}。",
@@ -294,7 +307,12 @@
       "ugc_relative_speed_not_reproduced": "转成 {0} 后，部分音符的滚动速度可能与原谱不同。",
       "zero_note_speed_not_reproduced": "转成 C2S 后，这个音符会继续滚动，无法保留原来的停止效果。",
       "editor_undefined_timeline_speed": "这个音符所在的时间线没有设置流速，转换后的滚动速度可能与原谱不同。",
-      "number_adjusted": "{0} 的数值无法原样保存，已从 {1} 调整为 {2}。"
+      "number_adjusted": "{0} 的数值无法原样保存，已从 {1} 调整为 {2}。",
+      "c2s_segmented_slide_judgements": "同一条 SLIDE 内切换连线显隐时，标准 C2S 会拆分路径，可能改变起点和中间判定数。各段连线标记已保留。",
+      "ugc_air_hold_controls": "AIR-HOLD 的中间无判定控制点已保留，但原生 UGC 读取器可能将其当作判定点，编辑器导出也可能丢弃它们，导致持续判定数变化。UGC 仅支持将 AIR-HOLD 无判定控制点用作终点。",
+      "ugc_legacy_air_hold_normalized": "已核对完整路径并规范化旧版 AIR-SLIDE 转 AIR-HOLD 的多余字段，保留其颜色、时间与节点属性。导入旧编辑器前，请先通过 PenguinTools 重新导出。",
+      "c2s_source_judgements_retained": "源 C2S 的判定统计与通用计算不同。已确认全部游戏事件、音符和判定设置未变，保留原始语句顺序及统计；这不代表已支持该特殊计数规则。",
+      "c2s_source_judgements_edited": "该源 C2S 存在尚未完整支持的特殊计数规则。谱面或判定设置已变化，统计已按当前算法重算，请核对游戏实际 NOTE 数。"
     }
   }
 }

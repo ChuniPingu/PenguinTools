@@ -18,7 +18,10 @@ public partial class UgcParser
     private int _currentTimeline;
     private int _sourceTicks = 480;
     private int _version = 8;
+    private int? _declaredVersion;
     private bool _highPrecision;
+    private bool _fixedBarCoordinates;
+    private readonly List<UmgrModel.Note?> _sourceRoots = [];
 
     private int Lane(char value)
     {
@@ -32,6 +35,10 @@ public partial class UgcParser
 
             return digit - 16;
         }
+        if (MargreteInput.LegacyLane(value) is { } legacy)
+        {
+            return legacy;
+        }
         if (UgcPayload.Base36(value) < 0)
         {
             ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value.ToString(), "base UGC coordinate"));
@@ -43,7 +50,27 @@ public partial class UgcParser
 
     private int HeightDigits => _highPrecision ? 2 : 1;
 
-    private decimal Height(ReadOnlySpan<char> value) => UgcPayload.Base36(value) * (_highPrecision ? 1 : 10);
+    private decimal Height(ReadOnlySpan<char> value)
+    {
+        // Earlier extended exports retained the fixed field length by encoding
+        // the leading height digit in the same private-use ranges as lanes.
+        // This field is independent of v9's base62 lane encoding.
+        var height = MargreteInput.LegacyLane(value[0]) ?? UgcPayload.Base36(value[0]);
+        if (height < 0 && MargreteInput.LegacyLane(value[0]) is null)
+        {
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value.ToString(), "UGC AIR height encoding"));
+        }
+        foreach (var character in value[1..])
+        {
+            var digit = UgcPayload.Base36(character);
+            if (digit < 0)
+            {
+                ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, value.ToString(), "base36 trailing AIR height digit"));
+            }
+            height = checked(height * 36 + digit);
+        }
+        return height * (_highPrecision ? 1m : 10m);
+    }
 
 
     private int ScaleTick(int tick)
@@ -106,11 +133,16 @@ public partial class UgcParser
             }
             ClearCurrentLine();
 
+            _fixedBarCoordinates = MargreteInput.FixedUgcCoordinates(lines.Select(l => l.Text), _version);
+
             foreach (var pending in lines.Where(l => l.Text.Trim().StartsWith("'" + ChartExtras.PendingSnapshotShiftPrefix, StringComparison.Ordinal)))
             {
                 ChartExtras.RejectPendingSnapshotShift(pending.Text.Trim()[1..]);
             }
             ParseLines(lines, ct);
+            SlideSegmentMetadata.ReadComments(Ugc, lines.Select(l => l.Text.Trim()), _sourceRoots);
+            LegacyCrashMetadata.Read(Ugc, lines.Select(l => l.Text.Trim()));
+            Ugc.Extras.FixedZeroOrigin |= _fixedBarCoordinates;
             foreach (var origin in lines.Where(l => l.Text.Trim().StartsWith("'MGR_ORIGIN=", StringComparison.Ordinal)))
             {
                 Ugc.Extras.FixedZeroOrigin |= ChartExtras.HasFixedZeroOrigin(origin.Text.Trim()[1..]);
@@ -125,6 +157,9 @@ public partial class UgcParser
             Ugc.Extras.RestoreEditorEvents(Ugc);
             Ugc.Extras.EditorComments = lines.Select(l => l.Text).Where(l => l.StartsWith('\'') &&
                 !l.StartsWith("' Created with Margrete ", StringComparison.Ordinal) &&
+                !l.TrimStart('\'', ' ').StartsWith(MargreteInput.DialectPrefix, StringComparison.Ordinal) &&
+                !l.StartsWith(SlideSegmentMetadata.CommentPrefix, StringComparison.Ordinal) &&
+                !l.StartsWith(LegacyCrashMetadata.Prefix, StringComparison.Ordinal) &&
                 l.Trim() != "'" + ChartExtras.FixedZeroOriginMarker &&
                 l.Trim() != "'" + ChartExtras.PrerollBar1Marker).ToList();
 
@@ -140,12 +175,15 @@ public partial class UgcParser
                 Ugc.Extras.RestoreAppearance(Ugc, eligible);
             }
             EditorProjection.Restore(Ugc, eligible, restoreEvents: contextValid);
+            MargreteCurveMetadata.RestoreProfiles(Ugc);
+            NoteWidthRules.Validate(Ugc);
             Ugc.Extras.EditorFormatVersion = _version;
 
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
             Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Ugc).Split('\n'));
             Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
             Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
+            Ugc.Extras.CheckLegacyColors(Ugc, capture: true);
             ValidateSlaSnapshot(slaValid);
             ProcessMeta();
 
@@ -225,6 +263,7 @@ public partial class UgcParser
         }
         Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
+        NormalizeLegacyAirHoldBlocks(lines);
         _currentTimeline = 0;
         // Restore extension defaults first; native fields take precedence
         // even when an editor moves COPYRIGHT to the end of the header.
@@ -250,6 +289,10 @@ public partial class UgcParser
     {
         var previous = _lastNote;
         DispatchBodyLine(text);
+        if (text.Contains('\''))
+        {
+            _sourceRoots.Add(_lastNote);
+        }
         if (!text.Contains('\''))
         {
             _snapshots.Append(text, _currentTimeline);

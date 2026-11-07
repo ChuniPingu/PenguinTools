@@ -165,6 +165,8 @@ public partial class MgxcParser
 
     private void ApplyEventMetadata()
     {
+        // The editable native count takes precedence over older round-trip bookmarks.
+        Mgxc.Extras.ClickCount = MargreteInput.ClickCount(_copyright) ?? Mgxc.Extras.ClickCount;
         Mgxc.Extras.FixedZeroOrigin |= _hasFixedZeroOriginMarker || ChartExtras.HasFixedZeroOrigin(_copyright);
         Mgxc.Extras.PrerollBar1Applied |= _hasPrerollBar1Marker || ChartExtras.HasPrerollBar1(_copyright);
         Mgxc.Extras.ApplyCoordinateOrigin(Mgxc.Meta);
@@ -195,6 +197,8 @@ public partial class MgxcParser
 
     private void PostProcessChart()
     {
+        SlideSegmentMetadata.ReadBinary(Mgxc, _segmentFields);
+        _curves.Apply(Mgxc, _notePayload.ToArray());
         EditorNumbers.Restore(Mgxc);
         MgxcNoteRoles.Restore(_notePayload.ToArray(), Mgxc.Extras.MgxcNoteSnapshots,
             Mgxc.Notes.Children.OfType<UmgrModel.ExTap>());
@@ -208,11 +212,14 @@ public partial class MgxcParser
         }
 
         EditorProjection.Restore(Mgxc);
+        MargreteCurveMetadata.RestoreProfiles(Mgxc);
+        NoteWidthRules.Validate(Mgxc);
         Mgxc.Extras.EditorFormatVersion = _version;
         Mgxc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Mgxc);
         Mgxc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Mgxc).Split('\n'));
         Mgxc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Mgxc);
         Mgxc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Mgxc);
+        Mgxc.Extras.CheckLegacyColors(Mgxc, capture: true);
         ProcessMeta();
     }
 

@@ -34,6 +34,7 @@ public partial class C2SChartWriter
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            NoteWidthRules.Validate(Chart);
             Resolution = Chart.Extras.SerializationResolution(Chart);
             var sb = new StringBuilder();
             AppendHeaders(sb);
@@ -54,6 +55,11 @@ public partial class C2SChartWriter
                 await writer.FlushAsync(token);
             }, ct);
             return OperationResult.Success().WithDiagnostics(Diagnostic);
+        }
+        catch (DiagnosticException ex)
+        {
+            Diagnostic.Report(ex.ToDiagnostic().WithPathFallback(OutPath));
+            return OperationResult.Failure().WithDiagnostics(Diagnostic);
         }
         finally
         {

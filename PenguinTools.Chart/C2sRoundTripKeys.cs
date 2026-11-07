@@ -90,40 +90,66 @@ internal static class C2sRoundTripKeys
                         or UmgrModel.AirSlideJoint
                         or UmgrModel.AirHold
                         or UmgrModel.AirHoldJoint)
-                .Select(note => note switch
-                {
-                    UmgrModel.Air air =>
-                        $"AIR,{air.Tick.Original},{air.Timeline}," +
-                        $"{air.Lane},{air.Width},{air.Direction},{air.Color}," +
-                        $"{AirParentType(air.PairNote)}",
-
-                    UmgrModel.AirSlide airSlide =>
-                        $"AS,{airSlide.Tick.Original},{airSlide.Timeline}," +
-                        $"{airSlide.Lane},{airSlide.Width}," +
-                        $"{airSlide.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
-                        $"{airSlide.Direction},{airSlide.Color}," +
-                        $"{AirParentType(airSlide.PairNote)}",
-
-                    UmgrModel.AirSlideJoint joint =>
-                        $"ASJ,{joint.Tick.Original},{joint.Timeline}," +
-                        $"{joint.Lane},{joint.Width}," +
-                        $"{joint.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
-                        $"{joint.Joint}" + (joint.IsCurveControl ? ",BEZIER" : ""),
-
-                    UmgrModel.AirHold airHold =>
-                        $"AH,{airHold.Tick.Original},{airHold.Timeline}," +
-                        $"{airHold.Lane},{airHold.Width}," +
-                        $"{airHold.Direction},{airHold.Color}," +
-                        $"{AirParentType(airHold.PairNote)}",
-
-                    UmgrModel.AirHoldJoint joint =>
-                        $"AHJ,{joint.Tick.Original},{joint.Timeline}," +
-                        $"{joint.Lane},{joint.Width},{joint.Joint}",
-
-                    _ => throw new InvalidOperationException()
-                })
+                .Select(AirNoteEditKey)
                 .OrderBy(key => key, StringComparer.Ordinal));
     }
+
+    internal static string FormatAirPathEditKey(UmgrModel.Chart chart)
+    {
+        // Retain complete paths and pair ownership, not only a multiset of points.
+        // Swapping continuations between coincident AIR roots is still an edit.
+        var paths = chart.Notes.Children.OfType<UmgrModel.NegativeNote>()
+            .Where(note => note is UmgrModel.Air or UmgrModel.AirSlide or UmgrModel.AirHold)
+            .Select(FormatAirPathKey)
+            .Order(StringComparer.Ordinal);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(string.Join("\n", paths))));
+    }
+
+    internal static string FormatAirPathKey(UmgrModel.NegativeNote note)
+    {
+        static string Path(UmgrModel.Note point) => EditorProjection.Key(point) + "[" +
+            string.Join(";", point.Children.Select(Path)) + "]";
+        static string AirPath(UmgrModel.Note point) => AirNoteEditKey(point) + "[" +
+            string.Join(";", point.Children.Select(AirPath)) + "]";
+        return AirPath(note) + "@" + (note.PairNote is { } pair
+            ? EditorProjection.Key(pair) + ":" + Path(pair.Parent is UmgrModel.Hold or UmgrModel.Slide
+                ? pair.Parent : pair)
+            : "");
+    }
+
+    private static string AirNoteEditKey(UmgrModel.Note note) => note switch
+    {
+        UmgrModel.Air air =>
+            $"AIR,{air.Tick.Original},{air.Timeline}," +
+            $"{air.Lane},{air.Width},{air.Direction},{air.Color}," +
+            $"{AirParentType(air.PairNote)}",
+
+        UmgrModel.AirSlide airSlide =>
+            $"AS,{airSlide.Tick.Original},{airSlide.Timeline}," +
+            $"{airSlide.Lane},{airSlide.Width}," +
+            $"{airSlide.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
+            $"{airSlide.Direction},{airSlide.Color}," +
+            $"{AirParentType(airSlide.PairNote)}",
+
+        UmgrModel.AirSlideJoint joint =>
+            $"ASJ,{joint.Tick.Original},{joint.Timeline}," +
+            $"{joint.Lane},{joint.Width}," +
+            $"{joint.Height.ToString("G29", CultureInfo.InvariantCulture)}," +
+            $"{joint.Joint}" + (joint.IsCurveControl ? ",BEZIER" : ""),
+
+        UmgrModel.AirHold airHold =>
+            $"AH,{airHold.Tick.Original},{airHold.Timeline}," +
+            $"{airHold.Lane},{airHold.Width}," +
+            $"{airHold.Direction},{airHold.Color}," +
+            $"{AirParentType(airHold.PairNote)}",
+
+        UmgrModel.AirHoldJoint joint =>
+            $"AHJ,{joint.Tick.Original},{joint.Timeline}," +
+            $"{joint.Lane},{joint.Width},{joint.Joint}",
+
+        _ => throw new InvalidOperationException()
+    };
 
     private static string AirParentType(UmgrModel.PositiveNote? parent) =>
         parent switch

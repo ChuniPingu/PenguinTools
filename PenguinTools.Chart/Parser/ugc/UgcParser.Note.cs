@@ -54,6 +54,20 @@ public partial class UgcParser
         }
 
         var (payloadStr, suffixStr) = SplitParentPayload(rest[(parentIdx + 1)..].ToString());
+        // Older extended v8 exports appended the interval after color/axis.
+        // An explicit comma remains authoritative, including an empty suffix.
+        var colorEnd = 4 + HeightDigits;
+        if (_version == 8 && suffixStr.Length == 0 && !rest.Contains(',') &&
+            payloadStr.Length > colorEnd && payloadStr[0] == 'C')
+        {
+            var intervalIndex = payloadStr[colorEnd] is 'Y' or 'Z' ? colorEnd + 1 : colorEnd;
+            var interval = payloadStr.AsSpan(intervalIndex);
+            if (interval.SequenceEqual("$") || int.TryParse(interval, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+            {
+                suffixStr = interval.ToString();
+                payloadStr = payloadStr[..intervalIndex];
+            }
+        }
         var absTick = BarTickToAbsTick(bar, tick);
         HandleParentPayload(absTick, payloadStr, suffixStr);
     }
@@ -87,8 +101,7 @@ public partial class UgcParser
         var w = Width(payload[2]);
         if (w <= 0)
         {
-            WarnMalformed(payload);
-            return;
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.MgCrit_Invalid_note_width, w));
         }
 
         var extras = payload.Length > 3 ? payload[3..] : string.Empty;
@@ -284,7 +297,7 @@ public partial class UgcParser
     private AirLadderAttr ParseAirLadderAttribute(string extras)
     {
         var axisIndex = HeightDigits + 1;
-        if (_version < 9 || extras.Length <= axisIndex)
+        if (extras.Length <= axisIndex)
         {
             return AirLadderAttr.DEF;
         }
@@ -323,9 +336,13 @@ public partial class UgcParser
         };
     }
 
-    private static Color ParseAirHoldColor(string extras)
+    private Color ParseAirHoldColor(string extras)
     {
-        return extras.Length >= 1 ? UgcPayload.AirColorChar(extras[0]) : Color.DEF;
+        // Keep the documented short form used by native exporters. Older
+        // high-precision v4-v8 readers also accept an explicit zero padding
+        // character; importing that compatibility form must retain its color.
+        var index = _version < 9 && _highPrecision && extras is "0I" or "0N" ? 1 : 0;
+        return extras.Length > index ? UgcPayload.AirColorChar(extras[index]) : Color.DEF;
     }
 
     private bool HandleCompactChild(int offsetTick, string payload)
@@ -427,10 +444,15 @@ public partial class UgcParser
         var x = Lane(payload[1]);
         var w = Width(payload[2]);
         var clippedControl = _version >= 9 && typeChar == 'c' && _lastParentNote is UmgrModel.Slide or UmgrModel.AirSlide;
+        var hiddenSegment = _version == 8 && typeChar is 'n' or 'N' or 'V' && _lastParentNote is UmgrModel.Slide;
+        if (hiddenSegment)
+        {
+            typeChar = typeChar == 'N' ? 'c' : typeChar == 'V' ? 'v' : 's';
+            Ugc.Extras.SegmentSlideLines = true;
+        }
         if (w < 0 || (w == 0 && !clippedControl))
         {
-            WarnMalformed(payload);
-            return;
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.MgCrit_Invalid_note_width, w));
         }
 
         var absTick = _lastParentNote.Tick.Original + offsetTick;
@@ -451,6 +473,17 @@ public partial class UgcParser
         child.Lane = x;
         child.Width = w;
         child.Timeline = _currentTimeline;
+        if (_version == 8 && _lastParentNote is UmgrModel.Slide legacySlide)
+        {
+            if (legacySlide.LastChild is UmgrModel.SlideJoint previous)
+            {
+                previous.NoLine = hiddenSegment;
+            }
+            else
+            {
+                legacySlide.NoLine = hiddenSegment;
+            }
+        }
         if (_version >= 9 && child is UmgrModel.SlideJoint joint && _lastParentNote is UmgrModel.Slide slide)
         {
             joint.NoLine = slide.NoLine;
@@ -473,8 +506,12 @@ public partial class UgcParser
             case 'c' when _lastParentNote is UmgrModel.Slide:
                 child = new UmgrModel.SlideJoint { Joint = Joint.C };
                 break;
+            case 'v' when _lastParentNote is UmgrModel.Slide:
+                child = new UmgrModel.SlideJoint { Joint = Joint.C, IsCurveControl = true, CurveInterpretation = UmgrModel.CurveInterpretation.Legacy };
+                break;
             case 's':
             case 'c':
+            case 'v':
                 child = CreateAirChild(typeChar, payload);
                 break;
         }
@@ -485,7 +522,7 @@ public partial class UgcParser
     private UmgrModel.Note? CreateAirChild(char typeChar, string payload)
     {
         UmgrModel.Note? child = null;
-        if (_lastParentNote is UmgrModel.AirHold)
+        if (_lastParentNote is UmgrModel.AirHold && typeChar != 'v')
         {
             child = new UmgrModel.AirHoldJoint { Joint = typeChar == 'c' ? Joint.C : Joint.D };
         }
@@ -501,7 +538,9 @@ public partial class UgcParser
 
             child = new UmgrModel.AirSlideJoint
             {
-                Joint = typeChar == 'c' ? Joint.C : Joint.D,
+                Joint = typeChar is 'c' or 'v' ? Joint.C : Joint.D,
+                IsCurveControl = typeChar == 'v',
+                CurveInterpretation = typeChar == 'v' ? UmgrModel.CurveInterpretation.Legacy : UmgrModel.CurveInterpretation.FormatDefault,
                 Height = height
             };
         }

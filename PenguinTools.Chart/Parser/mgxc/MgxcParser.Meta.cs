@@ -8,9 +8,50 @@ public partial class MgxcParser
 {
     private string _copyright = "";
     private decimal _heightScale = 1;
+    private bool? _signedHeight;
+    private bool UsesSignedHeight => _signedHeight ?? ChartExtras.HasFixedZeroOrigin(_copyright);
+    private readonly List<byte[]> _segmentFields = [];
+    private readonly MargreteCurveMetadata _curves = new();
     private void ParseMeta(BinaryReader br)
     {
         var name = br.ReadUtf8String(4);
+        if (name == "xh32")
+        {
+            var type = br.ReadUInt16();
+            var value = br.ReadUInt16();
+            if (type != 1 || value > 1 ||
+                (_signedHeight is { } previous && previous != (value == 1)))
+            {
+                throw MargreteInput.Invalid(name, "MGXC v4 height layout 0 or 1");
+            }
+            _signedHeight = value == 1;
+            return;
+        }
+        if (name == "xns1" || MargreteCurveMetadata.IsField(name))
+        {
+            if (br.ReadUInt16() != 4)
+            {
+                throw MargreteInput.Invalid(name, "binary SLIDE metadata");
+            }
+
+            var length = br.ReadUInt16();
+            var bytes = br.ReadBytes(length);
+            if (bytes.Length != length)
+            {
+                throw MargreteInput.Invalid(name, "complete SLIDE metadata");
+            }
+
+            if (name == "xns1")
+            {
+                _segmentFields.Add(bytes);
+            }
+            else
+            {
+                _curves.Read(name, bytes);
+            }
+
+            return;
+        }
         var data = br.ReadField();
 
         switch (name)

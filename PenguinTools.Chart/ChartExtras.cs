@@ -14,7 +14,11 @@ namespace PenguinTools.Chart;
 public sealed partial class ChartExtras
 {
     public int EditorFormatVersion { get; set; }
+    public bool SegmentSlideLines { get; set; }
+    public List<CurvePathProfile> CurveProfiles { get; set; } = [];
+    public List<LockedCurveProfile> LockedCurves { get; set; } = [];
     public List<EditorNoteProjection> EditorNoteProjections { get; set; } = [];
+    public string? EditorAirColorKey { get; set; }
     public List<EditorBeatProjection> EditorBeatProjections { get; set; } = [];
     public bool HasEditorBeatProjection { get; set; }
     public List<EditorPathProjection> EditorPathProjections { get; set; } = [];
@@ -69,6 +73,11 @@ public sealed partial class ChartExtras
     public Dictionary<string, string> Headers { get; set; } = [];
     public List<string> SourceStatistics { get; set; } = [];
     public string? SourceKey { get; set; }
+    // Only populated when a source's declared, internally consistent judge
+    // summary cannot be reproduced by the current generic judge calculator.
+    // The writer may reuse it only after proving the entire gameplay payload
+    // unchanged, and then restores the original ordered statements as well.
+    public string? UnchangedJudgeSource { get; set; }
     public bool C2sCoordinateOrigin { get; set; }
     public const string FixedZeroOriginMarker = "MGR_ORIGIN=ZERO_V1";
     public bool FixedZeroOrigin { get; set; }
@@ -151,7 +160,8 @@ public sealed partial class ChartExtras
             @"(?:MGR|PT)_C2S_(?:V1|LZ1)=[A-Za-z0-9+/=]+;",
             string.Empty, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         return string.Join(';', text.Split(';').Where(token =>
-            token.Trim() != FixedZeroOriginMarker && token.Trim() != PrerollBar1Marker));
+            token.Trim() != FixedZeroOriginMarker && token.Trim() != PrerollBar1Marker &&
+            !token.Trim().StartsWith("MGR_CLKCNT=", StringComparison.Ordinal)));
     }
 
     internal string CopyrightWithTiming(string value)
@@ -209,6 +219,7 @@ public sealed partial class ChartExtras
 
     public void ReadCopyright(string? value)
     {
+        ClickCount = MargreteInput.ClickCount(value) ?? ClickCount;
         RejectPendingSnapshotShift(value);
         FixedZeroOrigin |= HasFixedZeroOrigin(value);
         PrerollBar1Applied |= HasPrerollBar1(value);

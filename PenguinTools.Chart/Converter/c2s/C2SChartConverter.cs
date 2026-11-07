@@ -33,9 +33,9 @@ public partial class C2SChartConverter
             return false;
         }
 
-        if (!(Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.SlaModelKey == C2sRoundTripKeys.FormatSlaEditKey(Mgxc)) &&
-            Mgxc.Meta.C2sSlaEditKey is { } editKey &&
-            editKey != C2sRoundTripKeys.FormatSlaEditKey(Mgxc))
+        var currentSlaKey = C2sRoundTripKeys.FormatSlaEditKey(Mgxc);
+        if (!(Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.SlaModelKey == currentSlaKey) &&
+            Mgxc.Meta.C2sSlaEditKey != currentSlaKey)
         {
             Mgxc.Meta.C2sSlaSnapshot = null;
             Mgxc.Meta.C2sSlaEditKey = null;
@@ -92,8 +92,7 @@ public partial class C2SChartConverter
             return;
         }
 
-        if (Mgxc.Meta.C2sSlpEditKey is { } editKey &&
-            editKey != C2sRoundTripKeys.FormatSlpEditKey(Mgxc))
+        if (Mgxc.Meta.C2sSlpEditKey != C2sRoundTripKeys.FormatSlpEditKey(Mgxc))
         {
             Mgxc.Meta.C2sSlpSnapshot = null;
             Mgxc.Meta.C2sSlpEditKey = null;
@@ -147,9 +146,11 @@ public partial class C2SChartConverter
             return;
         }
 
-        if (!(Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.AirModelKey == C2sRoundTripKeys.FormatAirEditKey(Mgxc)) &&
-            Mgxc.Meta.C2sAirEditKey is { } editKey &&
-            editKey != C2sRoundTripKeys.FormatAirEditKey(Mgxc))
+        var currentAirKey = C2sRoundTripKeys.FormatAirEditKey(Mgxc);
+        // Missing validation metadata cannot authorize replacing the edited AIRs.
+        var unchanged = Mgxc.Extras.BinarySnapshotValid && Mgxc.Extras.AirModelKey == currentAirKey ||
+            Mgxc.Meta.C2sAirEditKey == currentAirKey;
+        if (!unchanged)
         {
             Mgxc.Meta.C2sAirSnapshot = null;
             Mgxc.Meta.C2sAirEditKey = null;
@@ -273,6 +274,8 @@ public partial class C2SChartConverter
         Diagnostic.TimeCalculator = Mgxc.GetCalculator();
         try
         {
+            NoteWidthRules.Validate(Mgxc);
+            Mgxc.Extras.CheckLegacyColors(Mgxc);
             CurveExpansion.Expand(Mgxc);
             UgcSpeedFields.WarnIfUnsupported(Mgxc, "C2S", Diagnostic);
             C2s.Meta = Mgxc.Meta;
@@ -337,6 +340,7 @@ public partial class C2SChartConverter
                 AssignSoflanTimelines();
             }
             ValidateLongNoteLengths();
+            NoteWidthRules.Validate(C2s);
 
             return ValidatePairings()
                 ? OperationResult<C2sModel.Chart>.Success(C2s).WithDiagnostics(Diagnostic)

@@ -1,5 +1,6 @@
 using System.CommandLine;
 using PenguinTools.Application;
+using PenguinTools.Chart;
 
 namespace PenguinTools.CLI;
 
@@ -34,6 +35,10 @@ internal static class ChartCommands
         var designer = new Option<string?>("--designer") { Description = "Override the chart designer." };
         var difficulty = new Option<int?>("--difficulty-id") { Description = "Override the difficulty ID (0-5)." };
         var mainBpm = new Option<decimal?>("--display-bpm") { Description = "Override the displayed BPM." };
+        var editorTarget = new Option<EditorTarget>("--editor-target")
+        {
+            Description = "Output capabilities: legacy (MGXC v2/UGC v8), standard (v4/v9), or extended (default). Input is detected automatically."
+        };
         var insertBlank = new Option<bool?>("--insert-blank-measure")
         {
             Description = "Insert a blank measure."
@@ -54,6 +59,7 @@ internal static class ChartCommands
         command.Options.Add(designer);
         command.Options.Add(difficulty);
         command.Options.Add(mainBpm);
+        command.Options.Add(editorTarget);
         command.Options.Add(insertBlank);
         command.Options.Add(noInsertBlank);
         command.Options.Add(debugTil);
@@ -68,7 +74,7 @@ internal static class ChartCommands
                             parseResult.GetValue(noInsertBlank)
                                 ? false
                                 : parseResult.GetValue(insertBlank),
-                            parseResult.GetValue(debugTil))), progress, ct),
+                            parseResult.GetValue(debugTil)), parseResult.GetValue(editorTarget)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_chart_written, value.OutputPath),
                 CliJsonSerializerContext.Default.ChartConvertResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));

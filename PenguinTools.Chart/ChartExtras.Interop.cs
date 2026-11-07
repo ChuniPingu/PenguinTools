@@ -8,6 +8,25 @@ public sealed partial class ChartExtras
 {
     private static readonly string[] EventOrder = ["BPM", "MET", "SLP", "SFL", "DCM", "STP", "CLK"];
     [JsonIgnore] public string SourceSnapshot { get; set; } = "";
+    public string? LegacyColorEditKey { get; set; }
+    [JsonIgnore] internal bool LegacyColorsUnchanged { get; private set; }
+
+    internal void CheckLegacyColors(Models.umgr.Chart chart, bool capture = false)
+    {
+        LegacyColorsUnchanged = false;
+        if (SourceKey is not null || !SourceSnapshot.Split('\n').Any(line => line.StartsWith("COLOR\t", StringComparison.Ordinal)))
+        {
+            return;
+        }
+        var key = C2sRoundTripKeys.FormatAirPathEditKey(chart);
+        // Capture only when reading legacy input, before callers can edit it.
+        // Modern snapshots must never validate an unchecked older COLOR entry.
+        if (capture && LegacyColorEditKey is null && BinaryContentKey is null && UgcSnapshotVersion == 0)
+        {
+            LegacyColorEditKey = key;
+        }
+        LegacyColorsUnchanged = LegacyColorEditKey == key;
+    }
     public bool Tutorial
     {
         get; set;
@@ -189,7 +208,7 @@ public sealed partial class ChartExtras
         // Checked editor metadata already restored each eligible note. Legacy
         // COLOR rows have no path identity and can overwrite another note after
         // a color edit moves it into the old projected geometry.
-        if (SourceKey is not null || BinaryContentKey is not null || UgcSnapshotVersion != 0)
+        if (SourceKey is not null || !LegacyColorsUnchanged)
         {
             return;
         }

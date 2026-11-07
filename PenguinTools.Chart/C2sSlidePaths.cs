@@ -19,14 +19,14 @@ internal static class C2sSlidePaths
         foreach (var item in source)
         {
             var point = describe(item);
-            var start = (point.Tick, point.Lane, Math.Clamp(point.Width, 1, 16), point.NoLine);
+            var start = (point.Tick, point.Lane, Math.Clamp(point.Width, 0, 16), point.NoLine);
             if (!tails.TryGetValue(start, out var candidates) || !candidates.TryDequeue(out var root, out _))
             {
                 root = paths.Count;
                 paths.Add([]);
             }
             paths[root].Add(item);
-            var end = (point.EndTick, point.EndLane, Math.Clamp(point.EndWidth, 1, 16), point.NoLine);
+            var end = (point.EndTick, point.EndLane, Math.Clamp(point.EndWidth, 0, 16), point.NoLine);
             if (!tails.TryGetValue(end, out var queue))
             {
                 tails[end] = queue = new();

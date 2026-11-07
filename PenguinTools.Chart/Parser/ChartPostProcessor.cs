@@ -163,7 +163,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             _noteGroups[point.Timeline].Add(point);
         }
         MoveMainTimeline(chart.Meta.MainTil);
-        ClearEmptyGroups();
+        ClearEmptyNoteGroups();
         PlaceSoflanArea();
         FinalizeEvent();
 
@@ -304,22 +304,11 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         chart.Meta.MainTil = 0;
     }
 
-    private void ClearEmptyGroups()
+    private void ClearEmptyNoteGroups()
     {
-        foreach (var (id, events) in _tilGroups.ToArray())
-        {
-            var mappedNotes = _noteGroups[id];
-            var maxTick = mappedNotes.Select(p => p.Tick).Append(0).Max();
-            if (mappedNotes.Count == 0 && chart.Notes.Children.Count > 0)
-            {
-                _tilGroups.Remove(id);
-            }
-            else if (events.Count > 0 && maxTick.Original > 0)
-            {
-                events.RemoveAll(p => p.Tick.Original > maxTick.Original + ChartResolution.SingleTick);
-            }
-        }
-
+        // Keep authored speed events, including resets beyond the last note and
+        // unused timelines. Removing them changes the editable chart and makes
+        // a later round trip invalidate an otherwise unchanged SLP snapshot.
         foreach (var (id, notes) in _noteGroups.ToArray())
         {
             if (notes.Count == 0)

@@ -40,9 +40,8 @@ public sealed class C2sAudioOffsetTests
                 source.Events.AppendChild(new U.NoteSpeedEvent { Tick = 503, Speed = 1 });
             }
             source.Notes.AppendChild(new U.Tap { Tick = 503, Lane = 0, Width = 4 });
-            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, source))
+            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(input, source, PenguinTools.Chart.EditorTarget.Legacy))
                 .WriteAsync(ct)).Succeeded);
-            await LegacyEditorFixture.DowngradeAsync(input, ct);
             var parsed = await new MgxcParser(new MgxcParseRequest(input, TestAssets.Load()), TestMediaTool.Instance)
                 .ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
@@ -146,7 +145,7 @@ public sealed class C2sAudioOffsetTests
         var ct = TestContext.Current.CancellationToken;
         try
         {
-            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source)).WriteAsync(ct)).Succeeded);
+            Assert.True((await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, source, PenguinTools.Chart.EditorTarget.Legacy)).WriteAsync(ct)).Succeeded);
             var parsed = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
             Assert.True(parsed.Succeeded, parsed.ToString());
             var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
@@ -453,6 +452,13 @@ public sealed class C2sAudioOffsetTests
     [InlineData(32728, false, true)]
     [InlineData(32729, false, true)]
     [InlineData(32767, true, true)]
+    [InlineData(65516, false, false)]
+    [InlineData(65517, false, false)]
+    [InlineData(65535, false, false)]
+    [InlineData(65535, true, false)]
+    [InlineData(65496, false, true)]
+    [InlineData(65497, false, true)]
+    [InlineData(65535, true, true)]
     public async Task FixedOrigin_PreservesCopyrightAtNativeByteLimit(int byteCount, bool unicode, bool preroll)
     {
         var source = new U.Chart();
@@ -476,7 +482,7 @@ public sealed class C2sAudioOffsetTests
                 {
                     var tag = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));
                     var type = reader.ReadInt16();
-                    var size = reader.ReadInt16();
+                    var size = reader.ReadUInt16();
                     var bytes = reader.ReadBytes(type switch
                     {
                         1 => 0,
@@ -490,7 +496,7 @@ public sealed class C2sAudioOffsetTests
                         continue;
                     }
                     var copyright = System.Text.Encoding.UTF8.GetString(bytes);
-                    Assert.Equal(byteCount + 19 + (preroll ? 20 : 0) <= short.MaxValue,
+                    Assert.Equal(byteCount + 19 + (preroll ? 20 : 0) <= ushort.MaxValue,
                         copyright.StartsWith(PenguinTools.Chart.ChartExtras.FixedZeroOriginMarker, StringComparison.Ordinal));
                     break;
                 }
@@ -671,9 +677,8 @@ public sealed class C2sAudioOffsetTests
         try
         {
             Assert.True(ugc
-                ? (await new UgcChartWriter(path, chart).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct)).Succeeded);
-            await LegacyEditorFixture.DowngradeAsync(path, ct);
+                ? (await new UgcChartWriter(path, chart, PenguinTools.Chart.EditorTarget.Legacy).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(path, chart, PenguinTools.Chart.EditorTarget.Legacy)).WriteAsync(ct)).Succeeded);
             var parsed = ugc
                 ? await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
                 : await new MgxcParser(new MgxcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);

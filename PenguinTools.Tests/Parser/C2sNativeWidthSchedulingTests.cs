@@ -11,13 +11,9 @@ namespace PenguinTools.Tests.Parser;
 public sealed class C2sNativeWidthSchedulingTests
 {
     [Theory]
-    [InlineData("SLIDE", 0, 1)]
     [InlineData("SLIDE", 17, 16)]
-    [InlineData("ALD", 0, 1)]
     [InlineData("ALD", 17, 16)]
-    [InlineData("AHD", 0, 1)]
     [InlineData("AHD", 17, 16)]
-    [InlineData("ASD", 0, 1)]
     [InlineData("ASD", 17, 16)]
     public async Task NativeEquivalentWidths_DoNotChangePathOwnership(string kind, int firstWidth, int secondWidth)
     {

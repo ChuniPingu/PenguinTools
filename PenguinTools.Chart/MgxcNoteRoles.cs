@@ -11,19 +11,19 @@ namespace PenguinTools.Chart;
 // and all records at its tick still match, including overlapping EX coverage.
 internal static class MgxcNoteRoles
 {
-    private sealed record Record(byte[] Bytes, int Block, int Index)
+    private sealed record Record(byte[] Bytes, int Block, int Index, int Version)
     {
         internal int Tick => BinaryPrimitives.ReadInt32LittleEndian(Bytes.AsSpan(12));
         internal bool IsExTap => (NoteType)Bytes[0] == NoteType.ExTap;
         internal bool IsLongHead => (NoteType)Bytes[0] is NoteType.Hold or NoteType.Slide && (LongAttr)Bytes[1] == LongAttr.Begin;
-        internal int Lane => unchecked((sbyte)Bytes[7]);
-        internal int Width => Bytes[6];
+        internal int Lane => unchecked((sbyte)Bytes[Version >= 4 ? 7 : 5]);
+        internal int Width => Version >= 3 ? Bytes[6] : BinaryPrimitives.ReadInt16LittleEndian(Bytes.AsSpan(6));
     }
 
     internal static List<EditorNoteSnapshot> Capture(ReadOnlySpan<byte> payload,
-        IReadOnlyList<ExTapRoleSnapshot> roles)
+        IReadOnlyList<ExTapRoleSnapshot> roles, int version = 4)
     {
-        var records = Read(payload);
+        var records = Read(payload, version);
         var exTaps = records.Where(r => r.IsExTap).ToArray();
         if (exTaps.Length != roles.Count)
         {
@@ -70,7 +70,7 @@ internal static class MgxcNoteRoles
         }
     }
 
-    private static List<Record> Read(ReadOnlySpan<byte> payload)
+    private static List<Record> Read(ReadOnlySpan<byte> payload, int version = 4)
     {
         List<Record> records = [];
         var block = -1;
@@ -86,7 +86,7 @@ internal static class MgxcNoteRoles
             {
                 block++;
             }
-            records.Add(new(payload[..length].ToArray(), block, records.Count));
+            records.Add(new(payload[..length].ToArray(), block, records.Count, version));
             payload = payload[length..];
         }
         return records;

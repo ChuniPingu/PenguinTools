@@ -6,7 +6,10 @@ using U = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart;
 
-public sealed record EditorNoteProjection(string Key, int Lane, int Width, decimal? Height, Color? Color, bool? NoLine);
+public sealed record EditorNoteProjection(string Key, int Lane, int Width, decimal? Height, Color? Color, bool? NoLine)
+{
+    public string? AirPathKey { get; init; }
+}
 public sealed record EditorBeatProjection(int Bar, int Tick, int Numerator, int Denominator);
 public sealed record EditorPathPoint(int Tick, int Timeline, int Lane, int Width, decimal? Height,
     Joint? Joint, bool NoLine, bool IsCurveControl, bool HasEffectOverride, ExEffect? SegmentEffect);
@@ -15,21 +18,59 @@ public sealed record EditorPathProjection(string Key, List<EditorPathPoint> Poin
 /// <summary>Creates the official editor view while retaining checked round-trip information.</summary>
 internal static class EditorProjection
 {
-    internal static U.Chart Create(U.Chart source, bool ugc, DiagnosticCollector diagnostics)
+    internal static U.Chart Create(U.Chart source, bool ugc, DiagnosticCollector diagnostics,
+        EditorTarget target = EditorTarget.Extended)
     {
         var chart = ChartCopy.Create(source);
-        var format = ugc ? "UGC v9" : "MGXC v4";
+        NoteWidthRules.Validate(chart);
+        foreach (var point in chart.Notes.Children.OfType<U.Slide>()
+                     .SelectMany(slide => slide.Children.SkipLast(1)).OfType<U.SlideJoint>())
+        {
+            if (point.PairNote is not null)
+            {
+                throw new TimedDiagnosticException(Msg.Create(MsgKeys.MgCrit_Editor_interior_air,
+                    ugc ? "UGC" : "MGXC"), point.Tick.Original, point);
+            }
+        }
+        foreach (var crash in chart.Notes.Children.OfType<U.AirCrash>())
+        {
+            LegacyCrashMetadata.Validate(crash);
+        }
+        if (target != EditorTarget.Legacy)
+        {
+            EditorCoordinates.UseFixedOrigin(chart);
+        }
+        EditorTargetRules.Prepare(chart, target, ugc, diagnostics);
+        var version = EditorTargetRules.Version(target, ugc);
+        var format = (ugc ? "UGC v" : "MGXC v") + version;
         if (!ugc)
         {
             UgcSpeedFields.WarnIfUnsupported(chart, format, diagnostics);
         }
         PrepareSnapshots(chart);
+        if (ugc)
+        {
+            UgcNoteOrder.Apply(chart);
+        }
+        MargreteCurveMetadata.CaptureProfiles(chart);
         EditorNumbers.Project(chart, diagnostics);
-        chart.Extras.EditorFormatVersion = ugc ? 9 : 4;
+        chart.Extras.EditorFormatVersion = version;
         NormalizeMeters(chart, diagnostics, format);
         diagnostics.TimeCalculator = chart.GetCalculator();
         diagnostics.BackfillTimeCalculator();
         var notes = AllNotes(chart).ToArray();
+        if (ugc)
+        {
+            foreach (var hold in notes.OfType<U.AirHold>())
+            {
+                var control = hold.Children.OfType<U.AirHoldJoint>().SkipLast(1)
+                    .FirstOrDefault(joint => joint.Joint == Joint.C);
+                if (control is not null)
+                {
+                    Warn(diagnostics, MsgKeys.Warn_Ugc_air_hold_controls, control.Tick.Original);
+                }
+            }
+        }
         var paths = notes.Where(n => n.Parent == chart.Notes && n is U.Slide or U.AirSlide or U.AirCrash)
             .ToDictionary(n => n, n => n.Children.Select(CapturePoint).ToList());
         chart.Meta.ExtendedField |= notes.Any(n => !CurveExpansion.IsControl(n) && (n.Lane < 0 || n.Lane + (long)n.Width > 16));
@@ -37,13 +78,14 @@ internal static class EditorProjection
         var before = notes.ToDictionary(n => n, Capture);
         foreach (var note in notes)
         {
-            NormalizeNote(note, ugc, chart.Meta.ExtendedField);
+            NormalizeNote(note, ugc, chart.Meta.ExtendedField, chart.Extras.SegmentSlideLines, target);
         }
         CaptureNoteProjections(chart, before, diagnostics, format);
         if (ugc)
         {
             CapturePathProjections(chart, paths, before, diagnostics, format);
         }
+        CaptureAirColorKeys(chart);
         return chart;
     }
 
@@ -51,19 +93,22 @@ internal static class EditorProjection
     {
         var extras = chart.Extras;
         extras.EditorNoteProjections.Clear();
+        extras.EditorAirColorKey = null;
         extras.EditorBeatProjections.Clear();
         extras.HasEditorBeatProjection = false;
         extras.EditorPathProjections.Clear();
         // Check the editable source before normalization or curve expansion changes
         // its view. A newly written checksum must not validate an older snapshot.
-        var airKey = extras.AirModelKey ?? chart.Meta.C2sAirEditKey;
-        if (airKey is not null && airKey != C2sRoundTripKeys.FormatAirEditKey(chart))
+        var airKey = C2sRoundTripKeys.FormatAirEditKey(chart);
+        if (chart.Meta.C2sAirSnapshot is not null &&
+            !(extras.BinarySnapshotValid && extras.AirModelKey == airKey) && chart.Meta.C2sAirEditKey != airKey)
         {
             chart.Meta.C2sAirSnapshot = null;
             chart.Meta.C2sAirEditKey = null;
         }
-        var slaKey = extras.SlaModelKey ?? chart.Meta.C2sSlaEditKey;
-        if (slaKey is not null && slaKey != C2sRoundTripKeys.FormatSlaEditKey(chart))
+        var slaKey = C2sRoundTripKeys.FormatSlaEditKey(chart);
+        if (chart.Meta.C2sSlaSnapshot is not null &&
+            !(extras.BinarySnapshotValid && extras.SlaModelKey == slaKey) && chart.Meta.C2sSlaEditKey != slaKey)
         {
             chart.Meta.C2sSlaSnapshot = null;
             chart.Meta.C2sSlaEditKey = null;
@@ -80,28 +125,56 @@ internal static class EditorProjection
         }
     }
 
-    private static void NormalizeNote(U.Note note, bool ugc, bool extendedField)
+    private static void NormalizeNote(U.Note note, bool ugc, bool extendedField, bool segmentLines, EditorTarget target)
     {
-        var clippedControl = ugc && note is U.SlideJoint { Joint: Joint.C, IsCurveControl: false }
-            or U.AirSlideJoint { Joint: Joint.C, IsCurveControl: false };
-        note.Width = Math.Clamp(note.Width, clippedControl ? 0 : 1, 16);
+        var pathPoint = target != EditorTarget.Legacy && NoteWidthRules.IsClippedControl(note);
+        note.Width = Math.Clamp(note.Width, pathPoint ? 0 : 1, 16);
         var expanded = extendedField || CurveExpansion.IsControl(note);
         note.Lane = Math.Clamp(note.Lane, expanded ? -16 : 0, (expanded ? 32 : 16) - note.Width);
         if (GetHeight(note) is { } height)
         {
-            var maxHeight = ugc ? 1295 : ushort.MaxValue;
-            SetHeight(note, Math.Clamp(decimal.Round(height, 0, MidpointRounding.AwayFromZero), 0, maxHeight));
+            // UGC writes sampled points, not the Bezier handles themselves.
+            if (!ugc || !CurveExpansion.IsControl(note))
+            {
+                ValidateHeight(note, height, ugc, target);
+            }
+            SetHeight(note, decimal.Round(height, 0, MidpointRounding.AwayFromZero));
         }
         if (GetColor(note) is not (null or Color.DEF or Color.PNK))
         {
             SetColor(note, Color.DEF);
         }
-        if (note is U.Slide slide)
+        if (!segmentLines && note is U.Slide slide)
         {
             foreach (var joint in slide.Children.OfType<U.SlideJoint>())
             {
                 joint.NoLine = slide.NoLine;
             }
+        }
+    }
+
+    internal static void ValidateUgcHeights(U.Chart chart)
+    {
+        foreach (var note in AllNotes(chart))
+        {
+            if (GetHeight(note) is { } height)
+            {
+                ValidateHeight(note, height, ugc: true);
+            }
+        }
+    }
+
+    private static void ValidateHeight(U.Note note, decimal height, bool ugc, EditorTarget target = EditorTarget.Extended)
+    {
+        var signed = !ugc && target == EditorTarget.Extended;
+        var maximum = ugc ? 1295 : signed ? int.MaxValue : ushort.MaxValue;
+        if (height < (signed ? int.MinValue : 0) || height > maximum)
+        {
+            throw new TimedDiagnosticException(
+                Msg.Create(MsgKeys.MgCrit_Unrepresentable_height,
+                    (ugc ? "UGC v" : "MGXC v") + EditorTargetRules.Version(target, ugc), height, maximum,
+                    signed ? int.MinValue : 0),
+                note.Tick.Original, note);
         }
     }
 
@@ -119,7 +192,7 @@ internal static class EditorProjection
             }
 
             chart.Extras.EditorNoteProjections.AddRange(snapshots.Select(p => p.Before));
-            // Line flags and height encoding limits are normalized silently.
+            // Native integral height rounding and line flags are retained in metadata.
             foreach (var p in snapshots.Where(p => (p.Before with { NoLine = p.After.NoLine, Height = p.After.Height }) != p.After))
             {
                 var name = NoteName(p.Note);
@@ -218,8 +291,12 @@ internal static class EditorProjection
     internal static void Restore(U.Chart chart, IReadOnlySet<U.Note>? eligible = null, bool restoreEvents = false)
     {
         var extras = chart.Extras;
+        // Native export can change container checksums without editing any AIR.
+        // A separate complete path check permits color restoration across formats.
+        var colors = CaptureUnchangedAirColors(chart);
         if (!extras.BinarySnapshotValid && eligible is null)
         {
+            RestoreAirColors(colors);
             return;
         }
         // Resolve keys first: restoring a ground note also changes its paired AIR coordinates.
@@ -229,6 +306,50 @@ internal static class EditorProjection
         if (extras.BinarySnapshotValid || restoreEvents)
         {
             RestoreEvents(chart);
+        }
+        RestoreAirColors(colors);
+    }
+
+    internal static void CaptureAirColorKeys(U.Chart chart)
+    {
+        var projections = chart.Extras.EditorNoteProjections;
+        var indices = projections.Select((p, i) => (p, i)).GroupBy(x => x.p.Key)
+            .ToDictionary(g => g.Key, g => new Queue<int>(g.Select(x => x.i)));
+        foreach (var note in AllNotes(chart).OfType<U.NegativeNote>())
+        {
+            if (indices.TryGetValue(Key(note), out var queue) && queue.TryDequeue(out var i))
+            {
+                projections[i] = projections[i] with { AirPathKey = C2sRoundTripKeys.FormatAirPathKey(note) };
+            }
+        }
+        chart.Extras.EditorAirColorKey = projections.Any(p => p.AirPathKey is not null && p.Color is not null)
+            ? C2sRoundTripKeys.FormatAirPathEditKey(chart) : null;
+    }
+
+    private static List<(U.Note Note, Color Color)> CaptureUnchangedAirColors(U.Chart chart)
+    {
+        if (chart.Extras.EditorAirColorKey is not { } key || key != C2sRoundTripKeys.FormatAirPathEditKey(chart))
+        {
+            return [];
+        }
+        var saved = chart.Extras.EditorNoteProjections.Where(p => p.AirPathKey is not null && p.Color is not null)
+            .GroupBy(p => p.AirPathKey!).ToDictionary(g => g.Key, g => new Queue<EditorNoteProjection>(g));
+        var result = new List<(U.Note, Color)>();
+        foreach (var note in AllNotes(chart).OfType<U.NegativeNote>())
+        {
+            if (saved.TryGetValue(C2sRoundTripKeys.FormatAirPathKey(note), out var queue) && queue.TryDequeue(out var p))
+            {
+                result.Add((note, p.Color!.Value));
+            }
+        }
+        return result;
+    }
+
+    private static void RestoreAirColors(List<(U.Note Note, Color Color)> colors)
+    {
+        foreach (var (note, color) in colors)
+        {
+            SetColor(note, color);
         }
     }
 
@@ -468,14 +589,17 @@ internal static class EditorProjection
             var previous = accepted[^1];
             var length = 1920L * previous.Numerator / previous.Denominator;
             var delta = sourceTick - previous.Tick.Original;
-            if (beat.Numerator <= 0 || beat.Denominator <= 0 || sourceLength <= 0 || delta < 0 || delta % length != 0)
+            if (beat.Numerator < 0 || beat.Denominator <= 0 || sourceLength < 0 || delta < 0 ||
+                (length == 0 ? delta != 0 : delta % length != 0))
             {
                 changed = true;
                 Warn(diagnostics, MsgKeys.Warn_Editor_meter_skipped, checked((int)sourceTick), format,
                     $"{beat.Numerator}/{beat.Denominator}", $"{previous.Numerator}/{previous.Denominator}");
                 continue;
             }
-            var bar = checked(previous.Bar + (int)(delta / length));
+            // Zero-length measures occupy bar numbers without advancing time.
+            // Keep those numbers so a native save does not erase their events.
+            var bar = length == 0 ? beat.Bar : checked(previous.Bar + (int)(delta / length));
             changed |= bar != beat.Bar;
             if (bar == previous.Bar)
             {

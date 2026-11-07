@@ -8,8 +8,8 @@ using U = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart.Writer.ugc;
 
-/// <summary>Writes official UGC v9.</summary>
-public sealed class UgcChartWriter(string path, U.Chart source)
+/// <summary>Writes UGC for the requested editor capabilities.</summary>
+public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget target = EditorTarget.Extended)
 {
     private const string FalseValue = "FALSE";
 
@@ -18,15 +18,22 @@ public sealed class UgcChartWriter(string path, U.Chart source)
     private readonly HashSet<(int Tick, int Lane, int Width)> _effectCarriers = [];
     private U.Chart _chart = null!;
     private UgcSnapshotTracker _snapshots = new();
+    private int _rootOrdinal;
+    private int _crashOrdinal;
     private string Position(int tick)
     {
         var beat = _chart.Events.Children.OfType<U.BeatEvent>().Where(b => b.Tick.Original <= tick).MaxBy(b => b.Bar);
         var start = beat?.Tick.Original ?? 0;
         var length = beat is null ? 1920 : 1920 * beat.Numerator / beat.Denominator;
+        if (length == 0)
+        {
+            return $"{beat!.Bar}'{tick - start}";
+        }
         return $"{(beat?.Bar ?? 0) + (tick - start) / length}'{(tick - start) % length}";
     }
     private static string Clean(string value) => ChartExtras.CleanEditorText(value);
-    private static char Coordinate(int value) => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"[checked(value + 16)];
+    private char Coordinate(int value) => target == EditorTarget.Legacy ? Digit(value) :
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"[checked(value + 16)];
     private static char Digit(int value) => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[value];
     private static string Height(decimal height)
     {
@@ -80,6 +87,24 @@ public sealed class UgcChartWriter(string path, U.Chart source)
     };
     private void Head(U.Note note, string payload)
     {
+        if (note is U.Slide slide)
+        {
+            var bits = SlideSegmentMetadata.Bits(slide);
+            if (SlideSegmentMetadata.IsMixed(bits))
+            {
+                _lines.Add($"{SlideSegmentMetadata.CommentPrefix}\t{_rootOrdinal}\t{bits}");
+            }
+        }
+        _rootOrdinal++;
+        if (note is U.AirCrash crash)
+        {
+            if (crash.HasExplicitJudgements)
+            {
+                _lines.Add(LegacyCrashMetadata.Write(crash, _crashOrdinal));
+            }
+
+            _crashOrdinal++;
+        }
         var line = $"#{Position(note.Tick.Original)}:{payload}";
         _lines.Add(line);
         _snapshots.Begin(note, line, note.Timeline);
@@ -94,7 +119,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             var diagnostics = new DiagnosticCollector();
             try
             {
-                _chart = EditorProjection.Create(source, ugc: true, diagnostics);
+                _chart = EditorProjection.Create(source, ugc: true, diagnostics, target);
             }
             catch (DiagnosticException ex)
             {
@@ -102,13 +127,28 @@ public sealed class UgcChartWriter(string path, U.Chart source)
                 return OperationResult.Failure().WithDiagnostics(diagnostics);
             }
             CurveExpansion.Expand(_chart);
+            EditorProjection.CaptureAirColorKeys(_chart);
+            try
+            {
+                EditorProjection.ValidateUgcHeights(_chart);
+            }
+            catch (DiagnosticException ex)
+            {
+                diagnostics.Report(ex.ToDiagnostic().WithPathFallback(path));
+                return OperationResult.Failure().WithDiagnostics(diagnostics);
+            }
             _chart.Extras.MgxcNoteSnapshots.Clear();
             _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
             _chart.Extras.EditorFieldColorName = _chart.Meta.FieldColorName;
             _lines.Clear();
             // Sequential readers need the version before version-dependent flags.
-            _lines.Add("@VER\t9");
+            _lines.Add($"@VER\t{EditorTargetRules.Version(target, ugc: true)}");
+            _rootOrdinal = 0;
+            _crashOrdinal = 0;
             _snapshots = new();
+            // Older extended readers use the origin marker as a fallback for
+            // v8 fixed-width positions. v9 output always uses musical bars.
+            _lines.Add($"'{MargreteInput.DialectPrefix} original");
             if (_chart.Extras.FixedZeroOrigin)
             {
                 _lines.Add("'" + ChartExtras.FixedZeroOriginMarker);
@@ -150,9 +190,23 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.CaptureUserText(m);
             _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             _snapshots.Capture(_chart.Extras, _lines, _chart.Meta.C2sSlaSnapshot);
-            var copyright = "@COPYRIGHT\t" +
-                (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") + _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
-            _lines.Insert(1, copyright);
+            var copyright = (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") +
+                _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
+            // Original editors copy this value into an unsigned 16-bit MGXC
+            // string field. An oversized value can corrupt their saved file.
+            // Extended readers migrate round-trip payloads into bookmarks,
+            // but the user's copyright still occupies a native string field.
+            var copyrightBytes = Encoding.UTF8.GetByteCount(target == EditorTarget.Extended
+                ? ChartExtras.CopyrightText(Clean(m.Copyright))
+                : copyright);
+            if (copyrightBytes > ushort.MaxValue)
+            {
+                diagnostics.Report(new Diagnostic(Severity.Error,
+                    Msg.Create(MsgKeys.MgCrit_Ugc_metadata_too_long, copyrightBytes, ushort.MaxValue))
+                    .WithPathFallback(path));
+                return OperationResult.Failure().WithDiagnostics(diagnostics);
+            }
+            _lines.Insert(1, "@COPYRIGHT\t" + copyright);
             await AtomicFile.WriteAsync(path, async (stream, token) =>
             {
                 await using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
@@ -207,8 +261,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             $"@MAINBPM\t{m.MainBpm}", $"@FLAG\tSOFFSET\t{(m.BgmEnableBarOffset ? 1 : 0)}",
             $"@FLAG\tCLICK\t{(_chart.Extras.ClickEnabled ? 1 : 0)}", $"@CLKCNT\t{_chart.Extras.Count(m.BgmInitialNumerator)}",
             $"@FLAG\tDIFFTTL\t{(_chart.Extras.Tutorial ? 1 : 0)}"]);
-        _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(m.BgmFilePath)}",
-            $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(m.JacketFilePath)}",
+        _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(ChartMediaPaths.ForOutput(m.BgmFilePath, m.FilePath, path))}",
+            $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(ChartMediaPaths.ForOutput(m.JacketFilePath, m.FilePath, path))}",
             $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
         _lines.Add($"@LICENSE\t{Clean(m.License)}\t{Clean(m.LicenseUrl)}");
         _lines.Add($"@GENRE\t{Clean(m.Genre?.Str ?? "")}");
@@ -217,25 +271,30 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.Add($"@WEATTR\t{Clean(m.WeTag.Str)}");
         }
         _lines.Add($"@BGMPRV\t{m.BgmPreviewStart}\t{m.BgmPreviewStop}");
-        _lines.Add($"@BGIMG\t{Clean(m.BgiFilePath)}");
+        _lines.Add($"@BGIMG\t{Clean(ChartMediaPaths.ForOutput(m.BgiFilePath, m.FilePath, path))}");
         _lines.Add($"@BGSCENE\t{Clean(m.BackgroundScene)}");
         _lines.Add($"@BGMODE\t{Clean(_chart.Extras.EditorBackgroundMode)}\t{(m.BackgroundSync ? FalseValue : "TRUE")}");
         _lines.Add($"@FLDCOL\t{m.FieldColorIndex}");
-        _lines.Add($"@FLDIMG\t{Clean(m.FieldImage)}");
+        _lines.Add($"@FLDIMG\t{Clean(ChartMediaPaths.ForOutput(m.FieldImage, m.FilePath, path))}");
         _lines.Add($"@FLDSCENE\t{Clean(m.FieldScene)}");
         _lines.Add($"@ATINFO\tAUTHORS\t{m.Authors.Replace('\r', ' ').Replace('\n', ' ')}");
         _lines.Add($"@ATINFO\tSITES\t{m.AuthorSites.Replace('\r', ' ').Replace('\n', ' ')}");
         _lines.Add($"@DLURL\t{Clean(m.DownloadUrl)}");
     }
 
-    private static string AirCrashAxisSuffix(AirLadderAttr attribute) => attribute switch
+    private string AirCrashAxisSuffix(AirLadderAttr attribute) => target == EditorTarget.Legacy ? "" : attribute switch
     {
         AirLadderAttr.AxisY => "Y",
         AirLadderAttr.AxisZ => "Z",
         _ => "N"
     };
 
-    private static string NotePayload(U.Note n, string xy)
+    // Legacy native readers look one character past the documented AIR-HOLD
+    // color. Repeating I retains inversion with both that reader and modern ones.
+    private string AirHoldColor(Color color) => target == EditorTarget.Legacy && color == Color.PNK
+        ? "II" : AirColor(color).ToString();
+
+    private string NotePayload(U.Note n, string xy)
     {
         return n switch
         {
@@ -246,7 +305,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             U.Hold => "h" + xy,
             U.Slide slide => "s" + xy + (slide.NoLine ? "Z" : "0"),
             U.Air a => $"a{xy}{Direction(a.Direction)}{AirColor(a.Color)}",
-            U.AirHold a => "H" + xy + AirColor(a.Color),
+            U.AirHold a => "H" + xy + AirHoldColor(a.Color),
             U.AirSlide a => "S" + xy + Height(a.Height) + AirColor(a.Color),
             U.AirCrash a => "C" + xy + Height(a.Height) + CrashColor(a.Color) + AirCrashAxisSuffix(a.Attr) + "," + (a.Density == int.MaxValue ? "$" : a.Density.Original.ToString(CultureInfo.InvariantCulture)),
             _ => throw new FormatException($"Unsupported UGC note: {n.GetType().Name}")

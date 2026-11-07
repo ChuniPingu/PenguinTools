@@ -16,6 +16,54 @@ namespace PenguinTools.Tests.Parser;
 public sealed class OfficialEditorFormatTests
 {
     [Theory]
+    [InlineData(PenguinTools.Chart.EditorTarget.Legacy)]
+    [InlineData(PenguinTools.Chart.EditorTarget.Standard)]
+    [InlineData(PenguinTools.Chart.EditorTarget.Extended)]
+    public async Task Mgxc_NonjudgingGroundTail_UsesControlWhileAirTailsUseEndNoAct(
+        PenguinTools.Chart.EditorTarget target)
+    {
+        var chart = Chart();
+        var ground = new U.Slide { Tick = 0, Lane = 0, Width = 2 };
+        var tail = new U.SlideJoint { Tick = 480, Lane = 4, Width = 2, Joint = Joint.C };
+        ground.AppendChild(tail);
+        var air = new U.AirSlide { Height = 80 };
+        air.AppendChild(new U.AirSlideJoint { Tick = 960, Lane = 8, Width = 2, Height = 160, Joint = Joint.C });
+        tail.MakePair(air);
+        chart.Notes.AppendChild(ground);
+        chart.Notes.AppendChild(air);
+        var tap = new U.Tap { Tick = 1440, Lane = 0, Width = 2 };
+        var hold = new U.AirHold();
+        hold.AppendChild(new U.AirHoldJoint { Tick = 1920, Joint = Joint.C });
+        tap.MakePair(hold);
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(hold);
+        var path = TestTempPaths.Create(".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            Assert.True((await new MgxcChartWriter(new(path, chart, target)).WriteAsync(ct)).Succeeded);
+            var bytes = await File.ReadAllBytesAsync(path, ct);
+            var data = bytes.AsSpan().IndexOf("dat2"u8) + 8;
+            var attrs = new Dictionary<byte, byte>();
+            for (var offset = data; offset < bytes.Length; offset += 20)
+            {
+                if (bytes[offset] is 6 or 8 or 9 && bytes[offset + 1] != 1)
+                {
+                    attrs[bytes[offset]] = bytes[offset + 1];
+                }
+            }
+            Assert.Equal(3, attrs[6]);
+            Assert.Equal(6, attrs[8]);
+            Assert.Equal(6, attrs[9]);
+            var restored = await Read(path);
+            var restoredTail = Assert.IsType<U.SlideJoint>(Assert.Single(restored.Notes.Children.OfType<U.Slide>()).LastChild);
+            Assert.Equal(Joint.C, restoredTail.Joint);
+            Assert.Same(restoredTail, Assert.Single(restored.Notes.Children.OfType<U.AirSlide>()).PairNote);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Ugc_ExplicitChrAndGeneratedCarrier_RetainSeparateRoles(bool longFirst)
@@ -251,11 +299,11 @@ public sealed class OfficialEditorFormatTests
     }
 
     [Theory]
-    [InlineData(false, -1, 0)]
-    [InlineData(false, 65536, 65535)]
-    [InlineData(true, -1, 0)]
-    [InlineData(true, 1296, 1295)]
-    public async Task UnencodableAirHeight_ClampsSilentlyAndRetainsOriginalInMetadata(bool ugc, int height, int encoded)
+    [InlineData(false, -1)]
+    [InlineData(false, 65536)]
+    [InlineData(true, -1)]
+    [InlineData(true, 1296)]
+    public async Task UnencodableAirHeight_RejectsExportWithoutReplacingExistingFile(bool ugc, int height)
     {
         var chart = Chart();
         var crash = new U.AirCrash { Tick = 480, Lane = 0, Width = 4, Height = 80 };
@@ -265,20 +313,60 @@ public sealed class OfficialEditorFormatTests
         var ct = TestContext.Current.CancellationToken;
         try
         {
+            await File.WriteAllTextAsync(path, "existing chart", ct);
             var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
-                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
-            Assert.True(written.Succeeded, written.ToString());
-            Assert.Empty(written.Diagnostics.Diagnostics);
-            if (ugc)
+                : await new MgxcChartWriter(new MgxcWriteRequest(path, chart, PenguinTools.Chart.EditorTarget.Standard)).WriteAsync(ct);
+            Assert.False(written.Succeeded);
+            Assert.Contains(written.Diagnostics.Diagnostics,
+                d => d.Message.Key == MsgKeys.MgCrit_Unrepresentable_height);
+            Assert.Equal("existing chart", await File.ReadAllTextAsync(path, ct));
+            Assert.Equal(height, Assert.IsType<U.AirCrashJoint>(crash.LastChild).Height);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(2000, true)]
+    [InlineData(3000, false)]
+    public async Task UgcHeightLimit_AppliesToSampledCurveInsteadOfItsHandle(int controlHeight, bool representable)
+    {
+        var chart = Chart();
+        var tap = new U.Tap { Tick = 0, Lane = 4, Width = 4 };
+        var air = new U.AirSlide { Height = 0 };
+        tap.MakePair(air);
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(air);
+        air.AppendChild(new U.AirSlideJoint
+        {
+            Tick = 480,
+            Lane = 4,
+            Width = 4,
+            Height = controlHeight,
+            Joint = Joint.C,
+            IsCurveControl = true
+        });
+        air.AppendChild(new U.AirSlideJoint { Tick = 960, Lane = 4, Width = 4, Height = 0 });
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path, "existing chart", ct);
+            var written = await new UgcChartWriter(path, chart).WriteAsync(ct);
+            Assert.Equal(representable, written.Succeeded);
+            if (!representable)
             {
-                Assert.Contains($"#480>cK4{(encoded == 0 ? "00" : "ZZ")}", await File.ReadAllLinesAsync(path, ct));
+                Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.MgCrit_Unrepresentable_height);
+                Assert.Equal("existing chart", await File.ReadAllTextAsync(path, ct));
+                return;
             }
-            else
-            {
-                Assert.Equal([80, encoded], MgxcHeights(await File.ReadAllBytesAsync(path, ct), 0x0A));
-            }
-            var restored = Assert.Single((await Read(path)).Notes.Children.OfType<U.AirCrash>());
-            Assert.Equal(height, Assert.IsType<U.AirCrashJoint>(restored.LastChild).Height);
+            // Check native geometry without the converter's restoration metadata.
+            var lines = await File.ReadAllLinesAsync(path, ct);
+            await File.WriteAllLinesAsync(path, lines.Where(l => !l.StartsWith("@COPYRIGHT", StringComparison.Ordinal)), ct);
+            var parsed = Assert.Single((await Read(path)).Notes.Children.OfType<U.AirSlide>());
+            var heights = parsed.Children.Cast<U.AirSlideJoint>().Select(n => n.Height).ToArray();
+            Assert.All(heights, h => Assert.InRange(h, 0, 1295));
+            Assert.InRange(heights.Max(), 990, 1000);
+            Assert.Equal(controlHeight, Assert.IsType<U.AirSlideJoint>(air.FirstChild).Height);
         }
         finally { File.Delete(path); }
     }
@@ -649,7 +737,7 @@ public sealed class OfficialEditorFormatTests
     }
 
     [Fact]
-    public async Task ZeroMeter_OfficialProjectionKeepsAbsoluteNoteAndEventTimes()
+    public async Task ZeroMeter_NativeOutputKeepsBarsAndAbsoluteNoteAndEventTimes()
     {
         var chart = Chart();
         chart.Events.AppendChild(new U.BeatEvent { Bar = 1, Tick = 1920, Numerator = 0, Denominator = 4 });
@@ -662,16 +750,17 @@ public sealed class OfficialEditorFormatTests
         {
             var written = await new UgcChartWriter(path, chart).WriteAsync(ct);
             Assert.True(written.Succeeded);
-            Assert.Contains(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_meter_skipped);
+            Assert.DoesNotContain(written.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Editor_meter_skipped);
             var lines = await File.ReadAllLinesAsync(path, ct);
-            Assert.Contains("@BEAT\t1\t3\t8", lines);
-            Assert.Contains("@BPM\t2'0\t180", lines);
-            Assert.Contains("#2'0:tK4", lines);
+            Assert.Contains("@BEAT\t1\t0\t4", lines);
+            Assert.Contains("@BEAT\t3\t3\t8", lines);
+            Assert.Contains("@BPM\t4'0\t180", lines);
+            Assert.Contains("#4'0:tK4", lines);
             var retained = await Read(path);
             Assert.Contains(retained.Events.Children.OfType<U.BeatEvent>(), b => b.Numerator == 0);
             await File.WriteAllLinesAsync(path, lines.Where(l => !l.StartsWith("@COPYRIGHT", StringComparison.Ordinal)), ct);
             var native = await Read(path);
-            Assert.DoesNotContain(native.Events.Children.OfType<U.BeatEvent>(), b => b.Numerator == 0);
+            Assert.Contains(native.Events.Children.OfType<U.BeatEvent>(), b => b.Numerator == 0);
             Assert.Equal(2640, Assert.Single(native.Notes.Children.OfType<U.Tap>()).Tick.Original);
             Assert.Contains(native.Events.Children.OfType<U.BpmEvent>(), b => b.Tick.Original == 2640 && b.Bpm == 180);
         }
@@ -709,6 +798,50 @@ public sealed class OfficialEditorFormatTests
             var edited = Assert.Single((await Read(path)).Notes.Children.OfType<U.Tap>());
             Assert.Equal((-15, 16), (edited.Lane, edited.Width));
             Assert.Equal((-30, 20), (chart.Notes.FirstChild!.Lane, chart.Notes.FirstChild.Width));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task AirHoldControls_WarnOnlyAboutIntermediateControlsInUgc(bool ugc, bool intermediateControl, bool openEnd)
+    {
+        var chart = Chart();
+        var tap = new U.Tap { Tick = 0, Lane = 4, Width = 4 };
+        var hold = new U.AirHold { Color = Color.PNK };
+        var first = intermediateControl ? Joint.C : Joint.D;
+        var last = openEnd ? Joint.C : Joint.D;
+        hold.AppendChild(new U.AirHoldJoint { Tick = 480, Joint = first });
+        hold.AppendChild(new U.AirHoldJoint { Tick = 960, Joint = last });
+        tap.MakePair(hold);
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(hold);
+        var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            for (var cycle = 0; cycle < 3; cycle++)
+            {
+                var written = ugc ? await new UgcChartWriter(path, chart).WriteAsync(ct)
+                    : await new MgxcChartWriter(new MgxcWriteRequest(path, chart)).WriteAsync(ct);
+                Assert.True(written.Succeeded, written.ToString());
+                Assert.Equal(ugc && intermediateControl ? 1 : 0,
+                    written.Diagnostics.Diagnostics.Count(d => d.Message.Key == MsgKeys.Warn_Ugc_air_hold_controls));
+                chart = await Read(path);
+                var retained = Assert.Single(chart.Notes.Children.OfType<U.AirHold>());
+                Assert.Equal<Joint>([first, last], retained.Children.Cast<U.AirHoldJoint>().Select(j => j.Joint));
+                Assert.Equal<int>([480, 960], retained.Children.Select(j => j.Tick.Original));
+                Assert.Equal(Color.PNK, retained.Color);
+                Assert.Same(Assert.Single(chart.Notes.Children.OfType<U.Tap>()), retained.PairNote);
+            }
+            Assert.Equal<Joint>([first, last], hold.Children.Cast<U.AirHoldJoint>().Select(j => j.Joint));
         }
         finally { File.Delete(path); }
     }

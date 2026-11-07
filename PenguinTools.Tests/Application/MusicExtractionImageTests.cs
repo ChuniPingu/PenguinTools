@@ -36,6 +36,11 @@ public sealed class MusicExtractionImageTests : IDisposable
             xml, Path.Combine(_root.FullName, "output"), JacketPath: source, NoAudio: true), cancellationToken: ct);
         Assert.True(result.Succeeded, result.ToString());
         var output = Assert.Single(result.Value!.Artifacts, a => a.Kind == "jacket.png").Path;
+        var chartOutput = Assert.Single(result.Value.Artifacts, a => a.Kind == "chart.mgxc").Path;
+        var parsed = await new PenguinTools.Chart.Parser.mgxc.MgxcParser(new(chartOutput, TestAssets.Load()),
+            TestMediaTool.Instance).ParseAsync(ct);
+        Assert.True(parsed.Succeeded, parsed.ToString());
+        Assert.Equal(output, parsed.Value!.Meta.FullJacketFilePath);
         var pixels = await RasterFixtures.ReadPngPixelsAsync(output, 2, 3, ct);
         if (extension == ".png")
         {

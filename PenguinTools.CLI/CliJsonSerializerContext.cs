@@ -12,6 +12,8 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(CliProgressEvent))]
 [JsonSerializable(typeof(MessageDescriptor))]
 [JsonSerializable(typeof(Dictionary<string, object?>))]
+[JsonSerializable(typeof(short))]
+[JsonSerializable(typeof(ushort))]
 [JsonSerializable(typeof(CliDiagnosticPayload[]))]
 [JsonSerializable(typeof(TickPosition))]
 [JsonSerializable(typeof(ChartInspectResult))]

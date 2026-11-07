@@ -137,12 +137,13 @@ internal static class OptionConversionCacheArtifacts
         return new Dictionary<string, string?>
         {
             ["kind"] = "audio",
-            ["recipeVersion"] = "2",
+            ["recipeVersion"] = "3",
             ["songId"] = meta.Id?.ToString(CultureInfo.InvariantCulture),
             ["bgmRealOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmRealOffset),
             ["bgmPreviewStart"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStart),
             ["bgmPreviewStop"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStop),
             ["bgmEnableBarOffset"] = meta.BgmEnableBarOffset.ToString(),
+            ["bgmFixedZeroOrigin"] = meta.BgmFixedZeroOrigin.ToString(),
             ["bgmBarOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmBarOffset),
             ["hcaEncryptionKey"] = hcaEncryptionKey.ToString(CultureInfo.InvariantCulture)
         };
