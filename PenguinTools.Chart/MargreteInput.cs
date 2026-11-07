@@ -57,9 +57,17 @@ internal static class MargreteInput
         {
             return true;
         }
+        // Original 1.9.3 proofreading rejects notes entirely outside the playable lanes, even with
+        // EXFIELD; partially overlapping notes and zero-width curve controls remain valid.
+        if (!legacy && chart.Notes.Children.Any(IsFullyOutsidePlayableLanes))
+        {
+            return true;
+        }
         return chart.Notes.Children.SelectMany(n => new[] { n }.Concat(n.Children)).Any(n =>
             n.Lane < (legacy ? 0 : -16) || n.Lane + (long)n.Width > (legacy ? 16 : 32) ||
-            n.Width > 16 || legacy && (n.Width == 0 || n is U.Slide { NoLine: true } or U.SlideJoint { NoLine: true }) ||
+            n.Width > 16 || legacy && (n.Width == 0 || n is U.Slide { NoLine: true } or U.SlideJoint { NoLine: true } or
+                U.AirCrash { Attr: AirLadderAttr.AxisY or AirLadderAttr.AxisZ }) ||
+
             n is U.Air { Color: not (Color.DEF or Color.PNK) }
                 or U.AirHold { Color: not (Color.DEF or Color.PNK) }
                 or U.AirSlide { Color: not (Color.DEF or Color.PNK) }
@@ -69,6 +77,9 @@ internal static class MargreteInput
                 or U.AirCrash { Height: < 0 or > ushort.MaxValue }
                 or U.AirCrashJoint { Height: < 0 or > ushort.MaxValue });
     }
+
+    internal static bool IsFullyOutsidePlayableLanes(U.Note note) =>
+        note.Lane >= 16 || note.Lane + (long)Math.Max(note.Width, 1) <= 0;
 
     internal static bool FixedUgcCoordinates(IEnumerable<string> lines, int formatVersion)
     {

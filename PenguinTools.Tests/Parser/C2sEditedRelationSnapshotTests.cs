@@ -56,9 +56,9 @@ public sealed class C2sEditedRelationSnapshotTests
                 }
                 else
                 {
+                    // An unrelated note edit invalidates the whole-file snapshot only.
                     var text = await File.ReadAllTextAsync(path, ct);
-                    Assert.Contains("@FLAG\tSOFFSET\t0", text, StringComparison.Ordinal);
-                    await File.WriteAllTextAsync(path, text.Replace("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\t1", StringComparison.Ordinal), ct);
+                    await File.WriteAllTextAsync(path, text.TrimEnd() + "\n@USETIL\t0\n#9'0:tG1\n", ct);
                 }
                 var parsed = extension == ".mgxc"
                     ? await new MgxcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)

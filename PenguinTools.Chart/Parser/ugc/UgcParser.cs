@@ -296,6 +296,7 @@ public partial class UgcParser
         {
             _sourceRoots.Add(_lastNote);
         }
+        _snapshots.HeightDigits = HeightDigits;
         if (!text.Contains('\''))
         {
             _snapshots.Append(text, _currentTimeline);

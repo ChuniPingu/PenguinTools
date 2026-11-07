@@ -216,6 +216,58 @@ public sealed class AutomaticEditorTargetTests
         finally { File.Delete(path); }
     }
 
+    [Theory]
+    [InlineData("4", EditorTarget.Extended)] // lanes -12..-8: entirely outside
+    [InlineData("i", EditorTarget.Extended)] // lanes 28..32: entirely outside
+    [InlineData("E", EditorTarget.Standard)] // lanes -2..2: partially playable
+    [InlineData("U", EditorTarget.Standard)] // lanes 14..18: partially playable
+    public async Task ExtendedFieldNotes_MustTouchPlayableLanesForOriginalEditor(string lane, EditorTarget expected)
+    {
+        var input = TestTempPaths.Create(".ugc");
+        var output = TestTempPaths.Create(".mgxc");
+        try
+        {
+            await File.WriteAllTextAsync(input, "@VER\t9\n@TICKS\t480\n@FLAG\tSOFFSET\tFALSE\n" +
+                "@FLAG\tEXFIELD\tTRUE\n@BPM\t0'0\t120\n@BEAT\t0\t4\t4\n#0'0:tG4\n" +
+                $"#0'480:t{lane}4\n", Ct);
+            var chart = await Read(input);
+            Assert.Equal(expected, chart.Extras.SourceEditorTarget);
+            var standard = await new MgxcChartWriter(new(output, chart, EditorTarget.Standard)).WriteAsync(Ct);
+            Assert.Equal(expected == EditorTarget.Standard, standard.Succeeded);
+            if (!standard.Succeeded)
+            {
+                Assert.Contains(standard.Diagnostics.Diagnostics,
+                    d => d.Message.Key == MsgKeys.MgCrit_Editor_target_feature);
+            }
+        }
+        finally { File.Delete(input); File.Delete(output); }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LegacyTargets_RejectAirCrushRotationInBothFormats(bool ugc)
+    {
+        var input = TestTempPaths.Create(".ugc");
+        var output = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+        try
+        {
+            await File.WriteAllTextAsync(input, "@VER\t9\n@TICKS\t480\n@FLAG\tSOFFSET\tFALSE\n" +
+                "@BPM\t0'0\t120\n@BEAT\t0\t4\t4\n#0'0:CG480Y,240\n#480>cG48\n", Ct);
+            var chart = await Read(input);
+            var legacy = ugc
+                ? await new UgcChartWriter(output, chart, EditorTarget.Legacy).WriteAsync(Ct)
+                : await new MgxcChartWriter(new(output, chart, EditorTarget.Legacy)).WriteAsync(Ct);
+            Assert.False(legacy.Succeeded);
+            Assert.Contains(legacy.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.MgCrit_Editor_target_feature);
+            var standard = ugc
+                ? await new UgcChartWriter(output, chart, EditorTarget.Standard).WriteAsync(Ct)
+                : await new MgxcChartWriter(new(output, chart, EditorTarget.Standard)).WriteAsync(Ct);
+            Assert.True(standard.Succeeded, standard.ToString());
+        }
+        finally { File.Delete(input); File.Delete(output); }
+    }
+
     private static async Task<U.Chart> Read(string path)
     {
         var result = Path.GetExtension(path) == ".mgxc"

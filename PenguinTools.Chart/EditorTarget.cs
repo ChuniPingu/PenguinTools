@@ -112,11 +112,18 @@ internal static class EditorTargetRules
                     "out-of-field geometry", note.Tick.Original);
                 Require(note is not U.Slide { NoLine: true } and not U.SlideJoint { NoLine: true },
                     "NCL", note.Tick.Original);
-                Require(!ugc || note is not U.AirCrash { Attr: AirLadderAttr.AxisY or AirLadderAttr.AxisZ },
-                    "UGC AIR-CRUSH rotation", note.Tick.Original);
+                // Margrete 1.8 neither displays nor exports AIR-CRUSH rotation axes.
+                Require(note is not U.AirCrash { Attr: AirLadderAttr.AxisY or AirLadderAttr.AxisZ },
+                    "AIR-CRUSH rotation", note.Tick.Original);
             }
+
             Require(!ugc || note is not U.AirCrash { HasExplicitJudgements: true },
                 "UGC explicit AIR-CRUSH judgements", note.Tick.Original);
+        }
+        if (target == EditorTarget.Standard &&
+            chart.Notes.Children.FirstOrDefault(MargreteInput.IsFullyOutsidePlayableLanes) is { } outside)
+        {
+            Require(false, "note entirely outside the playable lanes", outside.Tick.Original);
         }
         if (ugc && target == EditorTarget.Standard && chart.Notes.Children
                 .SelectMany(n => n.Children).Any(n => n.Width == 0 && NoteWidthRules.IsClippedControl(n)))

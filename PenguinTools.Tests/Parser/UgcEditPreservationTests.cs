@@ -172,7 +172,6 @@ public sealed class UgcEditPreservationTests
     [Theory]
     [InlineData("@FLAG\tHIPRECISION\tTRUE", "@FLAG\tHIPRECISION\tFALSE")]
     [InlineData("@BEAT\t0\t4\t4", "@BEAT\t0\t3\t4")]
-    [InlineData("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\t1")]
     public async Task InterpretationEdit_InvalidatesSnapshots(string before, string after)
     {
         var chart = Chart();
@@ -180,6 +179,53 @@ public sealed class UgcEditPreservationTests
         var parsed = await Edit(chart, text => text.Replace(before, after, StringComparison.Ordinal));
         Assert.False(parsed.Extras.BinarySnapshotValid);
         Assert.Equal(AirLadderAttr.DEF, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task NativeEquivalentSpelling_RetainsSnapshots(bool soffset, bool lowerCase)
+    {
+        // A native resave of a fixed-origin file may spell SOFFSET differently
+        // and write base36 widths in lower case without changing any note.
+        var chart = Chart();
+        chart.Notes.AppendChild(Crash(0));
+        AddExHold(chart, 1920);
+        var parsed = await Edit(chart, text =>
+        {
+            Assert.Contains("MGR_ORIGIN=ZERO_V1", text, StringComparison.Ordinal);
+            if (soffset)
+            {
+                text = text.Replace("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\tTRUE", StringComparison.Ordinal);
+            }
+            // Lower-case base36 widths only; effect and color codes stay case-sensitive.
+            return lowerCase ? string.Join('\n', text.Split('\n').Select(l =>
+            {
+                var separator = l.StartsWith('#') ? l.IndexOfAny([':', '>']) : -1;
+                return separator < 0 || l.Length <= separator + 3
+                    ? l : l[..(separator + 3)] + char.ToLowerInvariant(l[separator + 3]) + l[(separator + 4)..];
+            })) : text;
+        });
+        Assert.True(parsed.Extras.BinarySnapshotValid);
+        Assert.Equal(AirLadderAttr.Trace, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
+        var c2s = new C2SChartConverter(new C2SConvertRequest(parsed)).Convert();
+        Assert.True(c2s.Succeeded);
+        Assert.Equal(ExEffect.DW, Assert.Single(c2s.Value!.Notes.OfType<C.ExTap>()).Effect);
+        Assert.Equal(ExEffect.UP, Assert.Single(c2s.Value.Notes.OfType<C.Hold>()).Effect);
+    }
+
+    [Fact]
+    public async Task LaneEditDespiteEquivalentSpelling_InvalidatesItsGroup()
+    {
+        var chart = Chart();
+        AddExHold(chart, 1920);
+        var parsed = await Edit(chart, text => text
+            .Replace("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\tTRUE", StringComparison.Ordinal)
+            .Replace(":xK4D", ":xL4D", StringComparison.Ordinal));
+        Assert.False(parsed.Extras.BinarySnapshotValid);
+        Assert.Contains(parsed.Notes.Children.OfType<U.ExTap>(), n => n.Lane == 5);
     }
 
     [Theory]
