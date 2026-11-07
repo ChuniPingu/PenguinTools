@@ -34,6 +34,13 @@ public class ExTap : PositiveNote
         AirActionCarrierParent.None;
     public Joint AirActionParentJoint { get; set; } = Joint.D;
     public bool AirActionParentIsEx { get; set; }
+
+    internal bool IsBareLongCarrier =>
+        PairNote is null && Role is ExTapRole.SharedLongCarrier or ExTapRole.HoldOnlyCarrier;
+
+    internal bool MatchesLongHead(ExTapableNote head) =>
+        Tick == head.Tick && Lane == head.Lane && Width == head.Width &&
+        (Role != ExTapRole.HoldOnlyCarrier || head is Hold);
 }
 
 public class Flick : PositiveNote
