@@ -26,6 +26,38 @@ internal static class EditorTargetRules
             ? EditorTarget.Extended : source;
     }
 
+    /// <summary>
+    /// Projects the chart for the requested target. Auto falls back to the extended
+    /// format when the source editor's format cannot hold the chart in this output
+    /// format, for example MGXC-only content written as UGC.
+    /// </summary>
+    internal static (U.Chart Chart, EditorTarget Target) Project(U.Chart source, EditorTarget requested, bool ugc,
+        DiagnosticCollector diagnostics)
+    {
+        var target = Resolve(source, requested);
+        if (requested != EditorTarget.Auto || target == EditorTarget.Extended)
+        {
+            return (EditorProjection.Create(source, ugc, diagnostics, target), target);
+        }
+
+        // Projection works on a copy, so a rejected attempt leaves the source unchanged.
+        var attempt = new DiagnosticCollector();
+        try
+        {
+            var chart = EditorProjection.Create(source, ugc, attempt, target);
+            diagnostics.TimeCalculator = attempt.TimeCalculator;
+            foreach (var diagnostic in attempt.Diagnostics)
+            {
+                diagnostics.Report(diagnostic);
+            }
+            return (chart, target);
+        }
+        catch (DiagnosticException ex) when (ex.Descriptor.Key == MsgKeys.MgCrit_Editor_target_feature)
+        {
+            return (EditorProjection.Create(source, ugc, diagnostics, EditorTarget.Extended), EditorTarget.Extended);
+        }
+    }
+
     internal static int Version(EditorTarget target, bool ugc) =>
         target == EditorTarget.Legacy ? (ugc ? 8 : 2) : (ugc ? 9 : 4);
 

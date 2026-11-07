@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Text;
 using PenguinTools.Chart;
 using PenguinTools.Chart.Converter.c2s;
+using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.c2s;
@@ -163,6 +164,42 @@ public sealed class AutomaticEditorTargetTests
             Assert.Equal(7, restored.Extras.ClickCount);
         }
         finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task UgcOnlyLimits_PromoteAutomaticOutputFromOriginalMgxc()
+    {
+        var mgxc = TestTempPaths.Create(".mgxc");
+        var ugc = TestTempPaths.Create(".ugc");
+        try
+        {
+            var source = new U.Chart();
+            source.Events.AppendChild(new U.BpmEvent { Bpm = 120 });
+            source.Events.AppendChild(new U.BeatEvent { Numerator = 4, Denominator = 4 });
+            var tap = new U.Tap { Tick = 480, Lane = 2, Width = 4 };
+            // MGXC stores the arrow on the AIR base; UGC v9 AIR-HOLD has none.
+            var hold = new U.AirHold { Direction = AirDirection.DW };
+            hold.AppendChild(new U.AirHoldJoint { Tick = 960 });
+            tap.MakePair(hold);
+            source.Notes.AppendChild(tap);
+            source.Notes.AppendChild(hold);
+            Assert.True((await new MgxcChartWriter(new(mgxc, source, EditorTarget.Standard)).WriteAsync(Ct)).Succeeded);
+            var chart = await Read(mgxc);
+            Assert.Equal(EditorTarget.Standard, chart.Extras.SourceEditorTarget);
+            Assert.Equal(AirDirection.DW, Assert.Single(chart.Notes.Children.OfType<U.AirHold>()).Direction);
+
+            var standard = await new UgcChartWriter(ugc, chart, EditorTarget.Standard).WriteAsync(Ct);
+            Assert.False(standard.Succeeded);
+            Assert.Contains(standard.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.MgCrit_Editor_target_feature);
+
+            var automatic = await new UgcChartWriter(ugc, chart).WriteAsync(Ct);
+            Assert.True(automatic.Succeeded, automatic.ToString());
+            Assert.StartsWith("@VER\t9", await File.ReadAllTextAsync(ugc, Ct));
+            var restored = await Read(ugc);
+            Assert.Equal(EditorTarget.Extended, restored.Extras.SourceEditorTarget);
+            Assert.Equal(AirDirection.DW, Assert.Single(restored.Notes.Children.OfType<U.AirHold>()).Direction);
+        }
+        finally { File.Delete(mgxc); File.Delete(ugc); }
     }
 
     [Fact]

@@ -120,8 +120,7 @@ public sealed class UgcChartWriter(string path, U.Chart source, EditorTarget tar
             var diagnostics = new DiagnosticCollector();
             try
             {
-                _target = EditorTargetRules.Resolve(source, target);
-                _chart = EditorProjection.Create(source, ugc: true, diagnostics, _target);
+                (_chart, _target) = EditorTargetRules.Project(source, target, ugc: true, diagnostics);
             }
             catch (DiagnosticException ex)
             {

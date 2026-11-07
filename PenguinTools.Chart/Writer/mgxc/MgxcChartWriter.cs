@@ -44,8 +44,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         var diagnostics = new DiagnosticCollector();
         try
         {
-            _target = EditorTargetRules.Resolve(request.Chart, request.Target);
-            _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics, _target);
+            (_chart, _target) = EditorTargetRules.Project(request.Chart, request.Target, ugc: false, diagnostics);
         }
         catch (DiagnosticException ex)
         {
