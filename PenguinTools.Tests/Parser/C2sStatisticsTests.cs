@@ -13,6 +13,10 @@ public sealed class C2sStatisticsTests
     public static TheoryData<string, int[]> AcceptedRecords => new()
     {
         { "AIR 0 0 0 4 TAP", [0, 0, 0, 0, 0] },
+        { "SLC 0 0 0 4 96 4 0 SLD\nSLD 0 96 4 1 96 8 4 SLD", [2, 0, 4, 0, 0] },
+        { "SLC 0 0 0 4 96 4 0 SLD\nSLD 0 96 4 0 96 8 4 SLD", [1, 0, 4, 0, 0] },
+        { "TAP 0 0 0 4\nASC 0 0 0 4 TAP 5 96 4 0 5 DEF\nASD 0 96 4 1 ASC 5 96 8 4 5 DEF", [1, 0, 0, 1, 0] },
+        { "TAP 0 0 0 4\nASC 0 0 0 4 TAP 5 96 4 0 5 DEF\nASD 0 96 4 0 ASC 5 96 8 4 5 DEF", [1, 0, 0, 4, 0] },
         { "AIR 0 0 0 4 TAP\nTAP 0 0 0 4", [1, 0, 0, 0, 0] },
         { "TAP 0 0 0 4\nAIR 0 0 0 4 TAP\nAUL 0 0 0 4 TAP", [1, 0, 0, 1, 0] },
         { "TAP 0 0 0 4\nTAP 0 0 0 4\nAIR 0 0 0 4 TAP\nAUL 0 0 0 4 TAP", [2, 0, 0, 2, 0] },

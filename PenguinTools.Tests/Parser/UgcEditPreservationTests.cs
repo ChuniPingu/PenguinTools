@@ -26,7 +26,7 @@ public sealed class UgcEditPreservationTests
         Assert.Contains("Edited", new[] { parsed.Meta.Title, parsed.Meta.Artist, parsed.Meta.Designer, parsed.Meta.Comment });
         Assert.True(parsed.Extras.BinarySnapshotValid);
         var crash = Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>());
-        Assert.Equal(1600, Assert.IsType<U.AirCrashJoint>(crash.LastChild).Height);
+        Assert.Equal(1200.25m, Assert.IsType<U.AirCrashJoint>(crash.LastChild).Height);
         Assert.Equal(AirLadderAttr.Trace, crash.Attr);
         var c2s = new C2SChartConverter(new C2SConvertRequest(parsed)).Convert();
         Assert.True(c2s.Succeeded);
@@ -41,14 +41,14 @@ public sealed class UgcEditPreservationTests
         chart.Notes.AppendChild(Crash(0));
         chart.Notes.AppendChild(Crash(1920));
         AddExHold(chart, 3840);
-        var parsed = await Edit(chart, text => ReplaceFirst(text, "#480>cK4ZZ", "#600>cK4ZZ"));
+        var parsed = await Edit(chart, text => ReplaceFirst(text, "#480>cK4XC", "#600>cK4XC"));
         Assert.False(parsed.Extras.BinarySnapshotValid);
         var crashes = parsed.Notes.Children.OfType<U.AirCrash>().OrderBy(n => n.Tick.Original).ToArray();
         Assert.Equal(AirLadderAttr.DEF, crashes[0].Attr);
         Assert.Equal(600, crashes[0].LastChild!.Tick.Original);
-        Assert.Equal(1295, ((U.AirCrashJoint)crashes[0].LastChild!).Height);
+        Assert.Equal(1200, ((U.AirCrashJoint)crashes[0].LastChild!).Height);
         Assert.Equal(AirLadderAttr.Trace, crashes[1].Attr);
-        Assert.Equal(1600, ((U.AirCrashJoint)crashes[1].LastChild!).Height);
+        Assert.Equal(1200.25m, ((U.AirCrashJoint)crashes[1].LastChild!).Height);
         var converted = new C2SChartConverter(new C2SConvertRequest(parsed)).Convert();
         Assert.True(converted.Succeeded);
         Assert.Single(converted.Value!.Notes.OfType<C.ExTap>());
@@ -58,9 +58,9 @@ public sealed class UgcEditPreservationTests
         var rewrittenCrashes = rewritten.Notes.Children.OfType<U.AirCrash>().OrderBy(n => n.Tick.Original).ToArray();
         Assert.Equal(600, rewrittenCrashes[0].LastChild!.Tick.Original);
         Assert.Equal(AirLadderAttr.DEF, rewrittenCrashes[0].Attr);
-        Assert.Equal(1295, ((U.AirCrashJoint)rewrittenCrashes[0].LastChild!).Height);
+        Assert.Equal(1200, ((U.AirCrashJoint)rewrittenCrashes[0].LastChild!).Height);
         Assert.Equal(AirLadderAttr.Trace, rewrittenCrashes[1].Attr);
-        Assert.Equal(1600, ((U.AirCrashJoint)rewrittenCrashes[1].LastChild!).Height);
+        Assert.Equal(1200.25m, ((U.AirCrashJoint)rewrittenCrashes[1].LastChild!).Height);
     }
 
     [Fact]
@@ -101,16 +101,16 @@ public sealed class UgcEditPreservationTests
         var slide = new U.Slide { Tick = 0, Lane = 0, Width = 2 };
         var tail = new U.SlideJoint { Tick = 480, Lane = 4, Width = 2 };
         slide.AppendChild(tail);
-        var air = new U.AirSlide { Height = 1600 };
+        var air = new U.AirSlide { Height = 1200.25m };
         tail.MakePair(air);
-        air.AppendChild(new U.AirSlideJoint { Tick = 960, Lane = 6, Width = 2, Height = 1600 });
+        air.AppendChild(new U.AirSlideJoint { Tick = 960, Lane = 6, Width = 2, Height = 1200.25m });
         chart.Notes.AppendChild(slide);
         chart.Notes.AppendChild(air);
         chart.Notes.AppendChild(Crash(1920));
         var parsed = await Edit(chart, text => text.Replace("#0'0:sG20", "#0'0:sH20", StringComparison.Ordinal));
         var returned = Assert.Single(parsed.Notes.Children.OfType<U.AirSlide>());
-        Assert.Equal(1295, returned.Height);
-        Assert.Equal(1295, Assert.IsType<U.AirSlideJoint>(returned.LastChild).Height);
+        Assert.Equal(1200, returned.Height);
+        Assert.Equal(1200, Assert.IsType<U.AirSlideJoint>(returned.LastChild).Height);
         Assert.Same(Assert.Single(parsed.Notes.Children.OfType<U.Slide>()).LastChild, returned.PairNote);
         Assert.Equal(AirLadderAttr.Trace, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
     }
@@ -118,7 +118,7 @@ public sealed class UgcEditPreservationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task MeterProjection_RequiresUnchangedTimingRatherThanUnchangedNotes(bool editTiming)
+    public async Task NativeZeroMeter_SurvivesTimingAndNoteEdits(bool editTiming)
     {
         var chart = Chart();
         chart.Events.AppendChild(new U.BeatEvent { Bar = 1, Tick = 1920, Numerator = 0, Denominator = 4 });
@@ -127,12 +127,13 @@ public sealed class UgcEditPreservationTests
             : text + "\n#2'0:tG4\n");
         Assert.False(parsed.Extras.BinarySnapshotValid);
         var beats = parsed.Events.Children.OfType<U.BeatEvent>().ToArray();
-        Assert.Equal(editTiming ? 1 : 2, beats.Length);
+        Assert.Equal(2, beats.Length);
         Assert.Equal(editTiming ? 3 : 4, beats[0].Numerator);
+        Assert.Equal(0, beats[1].Numerator);
+        Assert.Equal(editTiming ? 1440 : 1920, beats[1].Tick.Original);
         if (!editTiming)
         {
-            Assert.Equal(0, beats[1].Numerator);
-            Assert.Equal(3840, Assert.Single(parsed.Notes.Children.OfType<U.Tap>()).Tick.Original);
+            Assert.Equal(1920, Assert.Single(parsed.Notes.Children.OfType<U.Tap>()).Tick.Original);
         }
     }
 
@@ -147,6 +148,7 @@ public sealed class UgcEditPreservationTests
         hold.AppendChild(new U.HoldJoint { Tick = 960, Timeline = 1 });
         chart.Notes.AppendChild(hold);
         chart.Meta.C2sSlaSnapshot = "0,1,0,16,1920";
+        chart.Meta.C2sSlaEditKey = C2sRoundTripKeys.FormatSlaEditKey(chart);
         var parsed = await Edit(chart, text => edit switch
         {
             "outside" => text + "\n@USETIL\t0\n#2'0:tG4\n",
@@ -170,7 +172,6 @@ public sealed class UgcEditPreservationTests
     [Theory]
     [InlineData("@FLAG\tHIPRECISION\tTRUE", "@FLAG\tHIPRECISION\tFALSE")]
     [InlineData("@BEAT\t0\t4\t4", "@BEAT\t0\t3\t4")]
-    [InlineData("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\t1")]
     public async Task InterpretationEdit_InvalidatesSnapshots(string before, string after)
     {
         var chart = Chart();
@@ -178,6 +179,53 @@ public sealed class UgcEditPreservationTests
         var parsed = await Edit(chart, text => text.Replace(before, after, StringComparison.Ordinal));
         Assert.False(parsed.Extras.BinarySnapshotValid);
         Assert.Equal(AirLadderAttr.DEF, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task NativeEquivalentSpelling_RetainsSnapshots(bool soffset, bool lowerCase)
+    {
+        // A native resave of a fixed-origin file may spell SOFFSET differently
+        // and write base36 widths in lower case without changing any note.
+        var chart = Chart();
+        chart.Notes.AppendChild(Crash(0));
+        AddExHold(chart, 1920);
+        var parsed = await Edit(chart, text =>
+        {
+            Assert.Contains("MGR_ORIGIN=ZERO_V1", text, StringComparison.Ordinal);
+            if (soffset)
+            {
+                text = text.Replace("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\tTRUE", StringComparison.Ordinal);
+            }
+            // Lower-case base36 widths only; effect and color codes stay case-sensitive.
+            return lowerCase ? string.Join('\n', text.Split('\n').Select(l =>
+            {
+                var separator = l.StartsWith('#') ? l.IndexOfAny([':', '>']) : -1;
+                return separator < 0 || l.Length <= separator + 3
+                    ? l : l[..(separator + 3)] + char.ToLowerInvariant(l[separator + 3]) + l[(separator + 4)..];
+            })) : text;
+        });
+        Assert.True(parsed.Extras.BinarySnapshotValid);
+        Assert.Equal(AirLadderAttr.Trace, Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>()).Attr);
+        var c2s = new C2SChartConverter(new C2SConvertRequest(parsed)).Convert();
+        Assert.True(c2s.Succeeded);
+        Assert.Equal(ExEffect.DW, Assert.Single(c2s.Value!.Notes.OfType<C.ExTap>()).Effect);
+        Assert.Equal(ExEffect.UP, Assert.Single(c2s.Value.Notes.OfType<C.Hold>()).Effect);
+    }
+
+    [Fact]
+    public async Task LaneEditDespiteEquivalentSpelling_InvalidatesItsGroup()
+    {
+        var chart = Chart();
+        AddExHold(chart, 1920);
+        var parsed = await Edit(chart, text => text
+            .Replace("@FLAG\tSOFFSET\t0", "@FLAG\tSOFFSET\tTRUE", StringComparison.Ordinal)
+            .Replace(":xK4D", ":xL4D", StringComparison.Ordinal));
+        Assert.False(parsed.Extras.BinarySnapshotValid);
+        Assert.Contains(parsed.Notes.Children.OfType<U.ExTap>(), n => n.Lane == 5);
     }
 
     [Theory]
@@ -214,7 +262,7 @@ public sealed class UgcEditPreservationTests
     private static U.AirCrash Crash(int tick)
     {
         var crash = new U.AirCrash { Tick = tick, Lane = 0, Width = 4, Height = 80, Attr = AirLadderAttr.Trace };
-        crash.AppendChild(new U.AirCrashJoint { Tick = tick + 480, Lane = 4, Width = 4, Height = 1600 });
+        crash.AppendChild(new U.AirCrashJoint { Tick = tick + 480, Lane = 4, Width = 4, Height = 1200.25m });
         return crash;
     }
 

@@ -259,7 +259,18 @@
       "pairing_notes_incompatible": "There is no note to connect to, or the two note types cannot be connected.",
       "soflanarea_has_no_tail": "This scroll-speed area has no end point.",
       "unrecognized_data_type": "Unknown type {0}.",
-      "unrecognized_event": "Chart event '{0}' is not recognized."
+      "unrecognized_event": "Chart event '{0}' is not recognized.",
+      "ugc_air_attachment_order": "UGC cannot preserve these overlapping AIR attachments in a consistent record order. Export was stopped to avoid reconnecting notes; use MGXC to retain the attachments.",
+      "editor_interior_air": "{arg0} cannot preserve AIR attached to an intermediate SLIDE point. Export was stopped to avoid removing the AIR or attaching it to another path. Keep the source chart.",
+      "ugc_legacy_air_hold": "This AIR-HOLD contains old AIR-SLIDE export fields, but its complete path has inconsistent geometry or control points whose judgements cannot be preserved. Conversion was stopped. Keep the source chart.",
+      "ugc_metadata_too_long": "This UGC needs {arg0} bytes of copyright or round-trip information in a native text field, exceeding the target editor's save limit of {arg1}. Export was stopped. Use MGXC for large round-trip payloads; oversized copyright text must be shortened.",
+      "mgxc_string_too_long": "MGXC field {arg0} needs {arg1} UTF-8 bytes, exceeding its limit of {arg2}. Shorten the text before exporting.",
+      "unrepresentable_height": "{0} cannot encode AIR height {1} in native units (supported range: {3}–{2}). Export was stopped to avoid changing the playable path.",
+      "unsupported_legacy_crash": "This legacy AIR-CRUSH has explicit judgement points. Their C2S representation is not supported; export was stopped to preserve the judgement count.",
+      "legacy_crash_attributes": "Legacy AIR-CRUSH with explicit judgement points cannot use rotation {arg0} or interval {arg1}. Conversion was stopped to preserve its attributes.",
+      "editor_target_feature": "The {arg0} output target cannot reproduce {arg1}. Conversion was stopped before writing the destination.",
+      "invalid_note_width": "Note width {arg0} is not supported here. Zero width is only allowed at a native nonjudging SLIDE or AIR-SLIDE clipping point and its connected continuation.",
+      "unsupported_legacy_curve": "This path uses legacy Bezier sampling, which cannot yet be reproduced accurately. Save as MGXC to retain its controls, or export the sampled path from the source editor."
     },
     "sus": {
       "air_hold_ignored": "This SUS AIR-HOLD has no matching note to connect to, so it was skipped.",
@@ -275,6 +286,8 @@
       "unsupported_tap_point_type": "SUS TAP point type '{0}' is not supported."
     },
     "warn": {
+      "editor_curves_sampled": "Curves were converted to path points for the target editor. Their original handles will not be editable in that file.",
+      "editor_clipped_control_save": "The UGC retains zero-width nonjudging clipping controls. Original Margrete can import them, but reopening a saved MGXC can widen them to one column and change the path.",
       "editor_approximation": "In the {0} file, {1} was changed from {2} to {3}.",
       "chart_metadata_only": "Only basic chart information was read from {0} v{1}.",
       "chart_skipped_version": "This chart uses {0} v{1} and was skipped. Versions up to v{2} are supported.",
@@ -294,7 +307,12 @@
       "ugc_relative_speed_not_reproduced": "Some notes may scroll differently after conversion to {0}.",
       "zero_note_speed_not_reproduced": "This note will keep scrolling in C2S instead of stopping. Its speed will follow its timeline.",
       "editor_undefined_timeline_speed": "This note may scroll at a different speed in C2S because its timeline has no speed settings.",
-      "number_adjusted": "{0} was changed from {1} to {2} because the original number cannot be saved exactly."
+      "number_adjusted": "{0} was changed from {1} to {2} because the original number cannot be saved exactly.",
+      "c2s_segmented_slide_judgements": "Changing line visibility within one SLIDE splits its paths in standard C2S and can change head and intermediate judgement counts. Each segment's line marker is preserved.",
+      "ugc_air_hold_controls": "Intermediate AIR-HOLD control points are retained, but native UGC readers may treat them as judgement steps and editor exports may discard them, changing continuous judgement counts. UGC only supports a nonjudging AIR-HOLD control point as its endpoint.",
+      "ugc_legacy_air_hold_normalized": "Old AIR-SLIDE-to-AIR-HOLD export fields were normalized after checking the complete path. The AIR-HOLD color, timing and node attributes were retained. Re-export through PenguinTools before importing this file into an old editor.",
+      "c2s_source_judgements_retained": "Source C2S judgement totals differ from the generic calculator. All gameplay statements and judgement settings are unchanged; original statement order and totals were retained. The special counting rule is not yet implemented.",
+      "c2s_source_judgements_edited": "The source C2S uses a counting rule that is not fully supported. Gameplay or judgement settings changed; totals were recalculated with the current algorithm. Verify the actual NOTE count in the game."
     }
   }
 }

@@ -7,21 +7,21 @@ namespace PenguinTools.Chart;
 /// <summary>Turns editor Bézier handles into the ordinary path points used by UGC and C2S.</summary>
 internal static class CurveExpansion
 {
-    private readonly record struct Point(int Tick, double Left, double Right, float Height);
+    private readonly record struct Point(int Tick, double Left, double Right, float Height, int Parameter = 0);
 
     internal static bool IsControl(U.Note note) => note is U.SlideJoint { IsCurveControl: true }
         or U.AirSlideJoint { IsCurveControl: true };
 
-    internal static void Expand(U.Chart chart)
+    internal static void Expand(U.Chart chart, bool preserveLegacy = false)
     {
         Validate(chart);
         foreach (var root in chart.Notes.Children.Where(n => n is U.Slide or U.AirSlide))
         {
-            ExpandPath(root, chart.Meta.ExtendedField);
+            ExpandPath(root, chart.Meta.ExtendedField, preserveLegacy);
         }
     }
 
-    private static void ExpandPath(U.Note root, bool expanded)
+    private static void ExpandPath(U.Note root, bool expanded, bool preserveLegacy)
     {
         var start = root;
         var handles = new List<U.Note>();
@@ -34,7 +34,20 @@ internal static class CurveExpansion
             }
             if (handles.Count > 0)
             {
-                foreach (var point in Sample(start, handles, child, expanded))
+                var modes = handles.Select(Interpretation).ToArray();
+                if (modes.All(m => m == U.CurveInterpretation.Legacy))
+                {
+                    if (preserveLegacy)
+                    {
+                        handles.Clear();
+                        start = child;
+                        continue;
+                    }
+                    throw new TimedDiagnosticException(Msg.Key(MsgKeys.MgCrit_Unsupported_legacy_curve), start.Tick.Original, start);
+                }
+                var segmentExpanded = modes.Any(m => m == U.CurveInterpretation.OfficialExtended) ||
+                    (modes.All(m => m == U.CurveInterpretation.FormatDefault) && expanded);
+                foreach (var point in Sample(start, handles, child, segmentExpanded))
                 {
                     root.InsertBefore(CreateJoint(root, start, point), child);
                 }
@@ -108,6 +121,20 @@ internal static class CurveExpansion
         _ => 80
     };
 
+    private static U.CurveInterpretation Interpretation(U.Note n) => n switch
+    {
+        U.SlideJoint s => s.CurveInterpretation,
+        U.AirSlideJoint s => s.CurveInterpretation,
+        _ => U.CurveInterpretation.FormatDefault
+    };
+
+    private static int? SamplingHeight(U.Note n) => n switch
+    {
+        U.AirSlide a => a.SamplingHeight,
+        U.AirSlideJoint a => a.SamplingHeight,
+        _ => null
+    };
+
     private static int Round(double value) => checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
     private static Point Endpoint(U.Note n) => new(n.Tick.Original, n.Lane, n.Lane + (double)n.Width, GetHeight(n));
     private static (int, int, int) Key(Point p) => (Round(p.Left), Round(p.Right), Round(p.Height / 5f));
@@ -123,6 +150,8 @@ internal static class CurveExpansion
         var left = new (double X, double Y)[nodes.Length];
         var right = new (double X, double Y)[nodes.Length];
         var height = new (double X, double Y)[nodes.Length];
+        var actualHeight = new (double X, double Y)[nodes.Length];
+        var hasBasis = nodes.All(n => SamplingHeight(n).HasValue);
         for (var i = 0; i < nodes.Length; i++)
         {
             var n = nodes[i];
@@ -131,17 +160,22 @@ internal static class CurveExpansion
             var center = n.Lane + n.Width * 0.5;
             left[i] = (center - width * 0.5, time);
             right[i] = (center + width * 0.5, time);
-            height[i] = (GetHeight(n), time);
+            actualHeight[i] = (GetHeight(n), time);
+            height[i] = (hasBasis ? SamplingHeight(n)!.Value : GetHeight(n), time);
         }
-        var points = SamplePoints(start, end, duration, expanded, left, right, height);
-        Simplify(points, Endpoint(end));
-        return points.Skip(1);
+        var points = SamplePoints(start, end, duration, expanded, left, right, height,
+            hasBasis ? SamplingHeight(start)!.Value : GetHeight(start));
+        var endpoint = Endpoint(end) with { Height = hasBasis ? SamplingHeight(end)!.Value : GetHeight(end) };
+        Simplify(points, endpoint);
+        return points.Skip(1).Select(p => hasBasis
+            ? p with { Height = (float)(Evaluate(actualHeight, p.Parameter / 1024d).X / 16) * 16 }
+            : p);
     }
 
     private static List<Point> SamplePoints(U.Note start, U.Note end, long duration, bool expanded,
-        (double X, double Y)[] left, (double X, double Y)[] right, (double X, double Y)[] height)
+        (double X, double Y)[] left, (double X, double Y)[] right, (double X, double Y)[] height, float startHeight)
     {
-        var points = new List<Point> { Endpoint(start) };
+        var points = new List<Point> { Endpoint(start) with { Height = startHeight } };
         for (var i = 0; i < 1024; i++)
         {
             var t = i / 1024d;
@@ -158,7 +192,7 @@ internal static class CurveExpansion
             {
                 continue;
             }
-            points.Add(new Point(tick, Round(x), Round(y), (float)(Evaluate(height, t).X / 16) * 16));
+            points.Add(new Point(tick, Round(x), Round(y), (float)(Evaluate(height, t).X / 16) * 16, i));
         }
         return points;
     }
@@ -168,7 +202,8 @@ internal static class CurveExpansion
         for (var i = 1; i < points.Count;)
         {
             var next = i + 1 < points.Count ? points[i + 1] : endpoint;
-            if (Key(points[i - 1]) == Key(points[i]) && Key(points[i]) == Key(next))
+            var nextKey = i + 1 < points.Count ? Key(next) : (Round(next.Left), Round(next.Right), (int)(next.Height / 5f));
+            if (Key(points[i - 1]) == Key(points[i]) && Key(points[i]) == nextKey)
             {
                 points.RemoveAt(i);
             }

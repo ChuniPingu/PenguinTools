@@ -28,6 +28,7 @@ public sealed class C2SParser
     private readonly List<PendingPair> _pendingPairs = [];
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
+    private bool _sourceGameplayChanged;
     private readonly HashSet<int> _adjustedNumberLines = [];
     private readonly Dictionary<int, string> _adjustedSourceLines = [];
     private readonly Dictionary<int, string> _sourceLines = [];
@@ -100,12 +101,24 @@ public sealed class C2SParser
         C2s.Extras.CaptureClock(C2s);
         C2s.Extras.SourceMetaKey = ChartExtras.MetaKey(C2s);
         ResolvePairings();
-        if (!DiagnosticSnapshot.Create(Diagnostic).HasError)
+        try
+        {
+            NoteWidthRules.Validate(C2s);
+        }
+        catch (DiagnosticException ex)
+        {
+            Diagnostic.Report(ex);
+        }
+        var diagnostics = DiagnosticSnapshot.Create(Diagnostic);
+        if (!diagnostics.HasError)
         {
             C2s.Extras.SourceKey = Writer.c2s.C2SChartWriter.GetContentKey(C2s);
+            if (!_sourceGameplayChanged)
+            {
+                C2sJudgeSource.Capture(C2s.Extras, C2s.Extras.InteropSourceText!);
+            }
         }
 
-        var diagnostics = DiagnosticSnapshot.Create(Diagnostic);
         return diagnostics.HasError
             ? OperationResult<c2sModel.Chart>.Failure().WithDiagnostics(diagnostics)
             : OperationResult<c2sModel.Chart>.Success(C2s).WithDiagnostics(diagnostics);
@@ -253,6 +266,7 @@ public sealed class C2SParser
             case "ASO":
             case "HHD":
             case "HHX":
+                _sourceGameplayChanged = true;
                 ReportAtLine(Severity.Warning,
                     Msg.Create(MsgKeys.C2s_Unsupported_note_type, ("noteType", tokens[0])), lineNumber);
                 break;
@@ -292,6 +306,7 @@ public sealed class C2SParser
             default:
                 if (tokens[0].Length == 3)
                 {
+                    _sourceGameplayChanged = true;
                     ReportAtLine(Severity.Information, Msg.Create(MsgKeys.Mg_Unrecognized_note, tokens[0]),
                         lineNumber);
                 }
@@ -719,7 +734,7 @@ public sealed class C2SParser
 
     private void ParseSlide(string[] tokens, int lineNumber)
     {
-        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
+        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase, allowZeroWidth: true) ||
             !TryGetInt(tokens, 5, lineNumber, "SLIDE length", out var length) ||
             !TryGetInt(tokens, 6, lineNumber, "SLIDE end lane", out var endLane))
         {
@@ -747,7 +762,7 @@ public sealed class C2SParser
             Width = noteBase.Width,
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = Math.Clamp(endWidth, 1, 16),
+            EndWidth = Math.Min(endWidth, 16),
             Joint = type.EndsWith('C') ? Joint.C : Joint.D
         };
 
@@ -798,7 +813,7 @@ public sealed class C2SParser
 
     private void ParseAirSlide(string[] tokens, int lineNumber)
     {
-        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase) ||
+        if (!TryParseNoteBase(tokens, lineNumber, out var noteBase, allowZeroWidth: true) ||
             !TryGetToken(tokens, 5, lineNumber, "AIR-SLIDE parent", out var parentId) ||
             !TryGetDecimal(tokens, 6, lineNumber, "AIR-SLIDE height", out var height) ||
             !TryGetInt(tokens, 7, lineNumber, "AIR-SLIDE length", out var length) ||
@@ -818,7 +833,7 @@ public sealed class C2SParser
             Height = ParseDisplayedHeight(height),
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = Math.Clamp(endWidth, 1, 16),
+            EndWidth = Math.Min(endWidth, 16),
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
@@ -882,7 +897,7 @@ public sealed class C2SParser
             Height = ParseDisplayedHeight(height),
             EndTick = AddLength(noteBase.Tick, length),
             EndLane = endLane,
-            EndWidth = Math.Clamp(endWidth, 1, 16),
+            EndWidth = Math.Min(endWidth, 16),
             EndHeight = ParseDisplayedHeight(endHeight)
         };
 
@@ -929,7 +944,7 @@ public sealed class C2SParser
         return true;
     }
 
-    private bool TryParseNoteBase(string[] tokens, int lineNumber, out NoteBase noteBase)
+    private bool TryParseNoteBase(string[] tokens, int lineNumber, out NoteBase noteBase, bool allowZeroWidth = false)
     {
         noteBase = default;
         if (!TryParseNode(tokens, lineNumber, out var tick) ||
@@ -939,7 +954,14 @@ public sealed class C2SParser
             return false;
         }
 
-        noteBase = new NoteBase(tick, lane, Math.Clamp(width, 1, 16));
+        if (width <= 0 && !(allowZeroWidth && width == 0))
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.MgCrit_Invalid_note_width, width), lineNumber);
+            return false;
+        }
+        // Zero is provisional until resolved paths prove it continues a native
+        // nonjudging clipped control rather than starting a playable note.
+        noteBase = new NoteBase(tick, lane, Math.Clamp(width, allowZeroWidth ? 0 : 1, 16));
         return true;
     }
 
@@ -1175,6 +1197,7 @@ public sealed class C2SParser
             value = NativeNumber.Read(approximation, kind, out _, original: original);
             tokens[index] = value.ToString("G29", CultureInfo.InvariantCulture);
             _adjustedNumberLines.Add(lineNumber);
+            _sourceGameplayChanged = true;
             ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.Warn_Number_adjusted, $"C2S {field}", original, tokens[index]), lineNumber);
             return true;
         }

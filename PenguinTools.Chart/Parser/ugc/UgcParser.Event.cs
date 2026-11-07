@@ -98,6 +98,10 @@ public partial class UgcParser
 
     internal int BarTickToAbsTick(int bar, int tick)
     {
+        if (_fixedBarCoordinates)
+        {
+            return checked(bar * ChartResolution.UmiguriTick + ScaleTick(tick));
+        }
         var beat = Ugc.Events.Children.OfType<UmgrModel.BeatEvent>().Where(b => b.Bar <= bar).MaxBy(b => b.Bar);
         return beat is null ? checked(bar * ChartResolution.UmiguriTick + ScaleTick(tick)) :
             checked(beat.Tick.Original + (bar - beat.Bar) * (ChartResolution.UmiguriTick * beat.Numerator / beat.Denominator) + ScaleTick(tick));

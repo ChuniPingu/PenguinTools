@@ -15,6 +15,36 @@ namespace PenguinTools.Tests.Workflow;
 
 public sealed class OptionExporterCacheTests
 {
+    [Fact]
+    public async Task AudioCache_DistinguishesPreviewOriginsWithTheSameAudioOffset()
+    {
+        var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workPath);
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var audioPath = Path.Combine(workPath, "audio.wav");
+            await File.WriteAllTextAsync(audioPath, "audio", ct);
+            var original = new Meta
+            {
+                Id = 4321,
+                BgmFilePath = audioPath,
+                BgmEnableBarOffset = true,
+                BgmPreviewStart = 10,
+                BgmPreviewStop = 20
+            };
+            var fixedOrigin = original with { BgmFixedZeroOrigin = true, BgmManualOffset = original.BgmRealOffset };
+            Assert.Equal(original.BgmRealOffset, fixedOrigin.BgmRealOffset);
+            var output = Path.Combine(workPath, "cueFile");
+            var originalRecipe = await OptionConversionCacheArtifacts.CreateAudioAsync(original, output, ct);
+            var fixedOriginRecipe = await OptionConversionCacheArtifacts.CreateAudioAsync(fixedOrigin, output, ct);
+            Assert.NotNull(originalRecipe.State);
+            Assert.NotNull(fixedOriginRecipe.State);
+            Assert.NotEqual(originalRecipe.State.RecipeHash, fixedOriginRecipe.State.RecipeHash);
+        }
+        finally { Directory.Delete(workPath, true); }
+    }
+
     [Theory]
     [InlineData(4)]
     [InlineData(5)]

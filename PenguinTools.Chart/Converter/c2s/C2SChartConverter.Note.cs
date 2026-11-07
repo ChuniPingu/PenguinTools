@@ -133,21 +133,8 @@ public partial class C2SChartConverter
 
     private bool ShouldConsumeExLongCarrier(UmgrModel.ExTap exTap)
     {
-        if (exTap.PairNote is not null)
-        {
-            return false;
-        }
-
-        var eligible = exTap.Role switch
-        {
-            UmgrModel.ExTapRole.HoldOnlyCarrier =>
-                (Func<UmgrModel.ExTapableNote, bool>)(note => note is UmgrModel.Hold),
-            UmgrModel.ExTapRole.SharedLongCarrier =>
-                _ => true,
-            _ => null
-        };
-
-        if (eligible is null || !HasExactLongHead(exTap, eligible))
+        if (!exTap.IsBareLongCarrier ||
+            !Mgxc.Notes.Children.OfType<UmgrModel.ExTapableNote>().Any(exTap.MatchesLongHead))
         {
             return false;
         }
@@ -155,15 +142,6 @@ public partial class C2SChartConverter
         return _consumedExLongCarrierCells.Add(
             (exTap.Tick.Original, exTap.Lane, exTap.Width));
     }
-
-    private bool HasExactLongHead(UmgrModel.ExTap exTap, Func<UmgrModel.ExTapableNote, bool> eligible) =>
-        Mgxc.Notes.Children
-            .OfType<UmgrModel.ExTapableNote>()
-            .Any(note =>
-                eligible(note) &&
-                note.Tick == exTap.Tick &&
-                note.Lane == exTap.Lane &&
-                note.Width == exTap.Width);
 
     private void ConvertNote(UmgrModel.Note e)
     {
@@ -217,6 +195,10 @@ public partial class C2SChartConverter
 
     private void ProcessAirCrash(UmgrModel.AirCrash airCrash)
     {
+        if (airCrash.HasExplicitJudgements)
+        {
+            throw new TimedDiagnosticException(Msg.Key(MsgKeys.MgCrit_Unsupported_legacy_crash), airCrash.Tick.Original, airCrash);
+        }
         C2sModel.AirCrash? root = null;
         var joints = airCrash.Children.OfType<UmgrModel.AirCrashJoint>().Prepend(airCrash.AsChild()).ToArray();
 
@@ -341,6 +323,14 @@ public partial class C2SChartConverter
     private void ProcessSlide(UmgrModel.Slide slide)
     {
         var joints = slide.Children.OfType<UmgrModel.SlideJoint>().Prepend(slide.AsChild()).ToArray();
+        if (joints.SkipLast(1).Select(joint => joint.NoLine).Distinct().Skip(1).Any())
+        {
+            Diagnostic.Report(new TimedDiagnostic(Severity.Warning,
+                Msg.Key(MsgKeys.Warn_C2s_segmented_slide_judgements), slide.Tick.Original)
+            {
+                Target = slide
+            });
+        }
         var path = new C2sModel.Slide[joints.Length - 1];
         for (var i = 0; i < joints.Length - 1; i++)
         {

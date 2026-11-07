@@ -34,6 +34,13 @@ public class ExTap : PositiveNote
         AirActionCarrierParent.None;
     public Joint AirActionParentJoint { get; set; } = Joint.D;
     public bool AirActionParentIsEx { get; set; }
+
+    internal bool IsBareLongCarrier =>
+        PairNote is null && Role is ExTapRole.SharedLongCarrier or ExTapRole.HoldOnlyCarrier;
+
+    internal bool MatchesLongHead(ExTapableNote head) =>
+        Tick == head.Tick && Lane == head.Lane && Width == head.Width &&
+        (Role != ExTapRole.HoldOnlyCarrier || head is Hold);
 }
 
 public class Flick : PositiveNote
@@ -72,6 +79,7 @@ public class Slide : ExTapableNote
 public class SlideJoint : PositiveNote
 {
     public bool IsCurveControl { get; set; }
+    public CurveInterpretation CurveInterpretation { get; set; }
     public bool HasEffectOverride { get; set; }
     public ExEffect? SegmentEffect { get; set; }
     public Joint Joint { get; set; } = Joint.D;
@@ -170,6 +178,7 @@ public class SoflanAreaJoint : Note
 // Lane, width, and tick come from the paired note; assignments are ignored.
 public class AirSlide : NegativeNote
 {
+    public int? SamplingHeight { get; set; }
     public Color Color { get; set; }
     public AirDirection Direction { get; set; } = AirDirection.IR;
     public decimal Height { get; set; }
@@ -220,8 +229,18 @@ public class AirSlide : NegativeNote
 public class AirSlideJoint : Note
 {
     public bool IsCurveControl { get; set; }
+    public CurveInterpretation CurveInterpretation { get; set; }
+    public int? SamplingHeight { get; set; }
     public Joint Joint { get; set; } = Joint.D;
     public decimal Height { get; set; }
+}
+
+public enum CurveInterpretation
+{
+    FormatDefault,
+    OfficialNormal,
+    OfficialExtended,
+    Legacy
 }
 
 // Lane, width, and tick come from the paired note; assignments are ignored.
@@ -296,6 +315,7 @@ public class AirHoldJoint : Note
 
 public class AirCrash : Note
 {
+    public bool HasExplicitJudgements { get; set; }
     public decimal Height { get; set; }
     public Color Color { get; set; }
     public Time Density { get; set; }
@@ -318,6 +338,7 @@ public class AirCrash : Note
 
 public class AirCrashJoint : Note
 {
+    public bool IsJudgement { get; set; }
     public Time Density => (Parent as AirCrash)?.Density ?? 0;
     public decimal Height { get; set; }
 }

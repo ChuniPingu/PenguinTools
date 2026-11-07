@@ -64,6 +64,11 @@ internal static class Extensions
             }
 
             var size = br.ReadInt32();
+            if (size < 0 || br.BaseStream.CanSeek && size > br.BaseStream.Length - br.BaseStream.Position)
+            {
+                throw new DiagnosticException(Msg.Create(MsgKeys.Error_Size_Incompatible,
+                    size, expected, br.BaseStream.CanSeek ? br.BaseStream.Length - br.BaseStream.Position : 0));
+            }
             var bytes = br.ReadBytes(size);
             if (bytes.Length < size)
             {
@@ -81,19 +86,19 @@ internal static class Extensions
 
         public string ReadUtf8String(int length)
         {
-            if (length > 128)
+            if (length < 0 || br.BaseStream.CanSeek && length > br.BaseStream.Length - br.BaseStream.Position)
             {
-                return Encoding.UTF8.GetString(br.ReadBytes(length));
+                throw new DiagnosticException(Msg.Create(MsgKeys.Error_Size_Incompatible,
+                    length, "UTF8", br.BaseStream.CanSeek ? br.BaseStream.Length - br.BaseStream.Position : 0));
             }
 
-            Span<byte> buffer = stackalloc byte[length];
-            var read = br.Read(buffer);
-            if (read == length)
+            var buffer = br.ReadBytes(length);
+            if (buffer.Length == length)
             {
                 return Encoding.UTF8.GetString(buffer);
             }
 
-            MessageDescriptor msg = Msg.Create(MsgKeys.Error_Size_Incompatible, length, "UTF8", read);
+            MessageDescriptor msg = Msg.Create(MsgKeys.Error_Size_Incompatible, length, "UTF8", buffer.Length);
             throw new DiagnosticException(msg);
         }
 
@@ -104,7 +109,7 @@ internal static class Extensions
 
             return type switch
             {
-                4 => br.ReadUtf8String(attr),
+                4 => br.ReadUtf8String(unchecked((ushort)attr)),
                 3 => br.ReadDouble(),
                 2 => br.ReadInt32(),
                 1 or 0 => (int)attr,

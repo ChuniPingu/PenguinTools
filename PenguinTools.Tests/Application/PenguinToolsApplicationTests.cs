@@ -30,9 +30,8 @@ public sealed partial class PenguinToolsApplicationTests
         {
             var chart = OriginFixture(true);
             Assert.True(ugc
-                ? (await new UgcChartWriter(input, chart).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart)).WriteAsync(ct)).Succeeded);
-            await LegacyEditorFixture.DowngradeAsync(input, ct);
+                ? (await new UgcChartWriter(input, chart, PenguinTools.Chart.EditorTarget.Legacy).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart, PenguinTools.Chart.EditorTarget.Legacy)).WriteAsync(ct)).Succeeded);
             var bytes = await File.ReadAllBytesAsync(input, ct);
             var result = await application.InspectChartAsync(new ChartInspectRequest(input), ct);
             Assert.True(result.Succeeded, result.ToString());
@@ -65,9 +64,8 @@ public sealed partial class PenguinToolsApplicationTests
         {
             var chart = OriginFixture(blank);
             Assert.True(ugc
-                ? (await new UgcChartWriter(input, chart).WriteAsync(ct)).Succeeded
-                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart)).WriteAsync(ct)).Succeeded);
-            await LegacyEditorFixture.DowngradeAsync(input, ct);
+                ? (await new UgcChartWriter(input, chart, PenguinTools.Chart.EditorTarget.Legacy).WriteAsync(ct)).Succeeded
+                : (await new MgxcChartWriter(new MgxcWriteRequest(input, chart, PenguinTools.Chart.EditorTarget.Legacy)).WriteAsync(ct)).Succeeded);
             var bytes = await File.ReadAllBytesAsync(input, ct);
             Assert.True((await application.InspectChartAsync(new ChartInspectRequest(input), ct)).Succeeded);
             var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output), cancellationToken: ct);

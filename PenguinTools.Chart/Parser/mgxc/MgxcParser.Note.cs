@@ -64,9 +64,11 @@ public partial class MgxcParser
 {
     private UmgrModel.Note? _lastNote;
     private UmgrModel.Note? _lastParentNote;
+    private bool _wholeSlideNoLine;
 
     private void ParseNote(BinaryReader br)
     {
+        var recordStart = br.BaseStream.Position;
         var type = (NoteType)br.ReadSByte();
         var longAttr = (LongAttr)br.ReadSByte();
         var direction = (Direction)br.ReadSByte();
@@ -112,7 +114,7 @@ public partial class MgxcParser
                 (note, isChildNote, isPairNote) = CreateLongAir(type, longAttr, height, tick);
                 break;
             case NoteType.AirCrush:
-                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, exAttr, tick);
+                (note, isChildNote) = CreateAirCrash(longAttr, variationId, height, optionValue, exAttr, direction, tick);
                 break;
             case NoteType.Click:
                 Mgxc.Extras.ClickTicks.Add(tick);
@@ -167,6 +169,15 @@ public partial class MgxcParser
             _lastParentNote = note;
         }
 
+        if (type is NoteType.Slide or NoteType.AirSlide)
+        {
+            var end = br.BaseStream.Position;
+            br.BaseStream.Position = recordStart + 8;
+            var rawHeight = br.ReadInt32();
+            br.BaseStream.Position = end;
+            _curves.Observe(note, (int)type, (int)longAttr, rawHeight, _version, Mgxc.Meta.ExtendedField);
+        }
+
         _lastNote = note;
     }
 
@@ -205,15 +216,17 @@ public partial class MgxcParser
 
     private (UmgrModel.Note Note, bool IsChild) CreateSlide(LongAttr longAttr, sbyte variationId, int tick)
     {
-        var noLine = _version >= 3 && variationId == 35;
+        var noLine = variationId == 127 || (_version >= 3 && variationId == 35);
+        Mgxc.Extras.SegmentSlideLines |= variationId == 127;
         if (longAttr == LongAttr.Begin)
         {
+            _wholeSlideNoLine = _version >= 3 && variationId == 35;
             return (new UmgrModel.Slide { NoLine = noLine }, false);
         }
 
         return (new UmgrModel.SlideJoint
         {
-            NoLine = (_lastParentNote as UmgrModel.Slide)?.NoLine ?? noLine,
+            NoLine = _wholeSlideNoLine || variationId == 127,
             IsCurveControl = longAttr == LongAttr.CurveControl,
             Joint = ParseJoint(longAttr, nameof(UmgrModel.SlideJoint), tick)
         }, true);
@@ -242,8 +255,8 @@ public partial class MgxcParser
             reader.ReadByte(); // reserved
             width = reader.ReadByte();
             x = reader.ReadSByte();
-            height = reader.ReadUInt16();
-            reader.ReadUInt16(); // reserved
+            var native = reader.ReadInt32();
+            height = UsesSignedHeight ? native : (ushort)native;
         }
         else if (_version == 3)
         {
@@ -358,7 +371,7 @@ public partial class MgxcParser
     }
 
     private (UmgrModel.Note Note, bool IsChild) CreateAirCrash(
-        LongAttr longAttr, sbyte variationId, decimal height, int optionValue, ExAttr exAttr, int tick)
+        LongAttr longAttr, sbyte variationId, decimal height, int optionValue, ExAttr exAttr, Direction direction, int tick)
     {
         if (longAttr == LongAttr.Begin)
         {
@@ -367,21 +380,31 @@ public partial class MgxcParser
                 Color = AirCrashColor(variationId),
                 Height = height,
                 Density = optionValue,
+                HasExplicitJudgements = optionValue == 0 && (exAttr & ExAttr.HasNote) != 0,
                 Attr = _version >= 3 ? (int)exAttr switch
                 {
                     4 => AirLadderAttr.AxisY,
                     5 => AirLadderAttr.AxisZ,
                     _ => AirLadderAttr.DEF
-                } : AirLadderAttr.DEF
+                } : direction switch
+                {
+                    Direction.RotateLeft => AirLadderAttr.AxisY,
+                    Direction.RotateRight => AirLadderAttr.AxisZ,
+                    _ => AirLadderAttr.DEF
+                }
             }, false);
         }
 
-        if (longAttr == LongAttr.Step)
+        if (longAttr == LongAttr.Step && _lastParentNote is not UmgrModel.AirCrash { HasExplicitJudgements: true })
         {
             ReportInvalidJoint(nameof(UmgrModel.AirCrashJoint), longAttr, tick);
         }
 
-        return (new UmgrModel.AirCrashJoint { Height = height }, true);
+        return (new UmgrModel.AirCrashJoint
+        {
+            Height = height,
+            IsJudgement = longAttr == LongAttr.Step || (longAttr == LongAttr.End && (exAttr & ExAttr.HasNote) != 0)
+        }, true);
     }
 
     private static Color AirCrashColor(sbyte variationId) => variationId switch

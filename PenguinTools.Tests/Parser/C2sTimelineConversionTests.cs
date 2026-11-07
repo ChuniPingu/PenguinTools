@@ -199,8 +199,10 @@ public sealed class C2sTimelineConversionTests
         }
     }
 
-    [Fact]
-    public void SlaSnapshot_IsDroppedWhenNonZeroTimelinesChange()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SlaSnapshot_IsDroppedWhenNonZeroTimelinesChange(bool missingKey)
     {
         var source = new C2sChart();
         source.Notes.Add(new Tap
@@ -229,6 +231,10 @@ public sealed class C2sTimelineConversionTests
         var tap = Assert.Single(
             converted.Value.Notes.Children.OfType<PenguinTools.Chart.Models.umgr.Tap>());
         tap.Timeline = 2;
+        if (missingKey)
+        {
+            converted.Value.Meta.C2sSlaEditKey = null;
+        }
 
         var roundTrip = new C2SChartConverter(
             new C2SConvertRequest(converted.Value)).Convert();
@@ -279,8 +285,10 @@ public sealed class C2sTimelineConversionTests
         Assert.Equal(480, slp.Length.Original);
     }
 
-    [Fact]
-    public void SlpSnapshot_IsDroppedWhenSpeedValueChanges()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SlpSnapshot_IsDroppedWhenSpeedValueChanges(bool missingKey)
     {
         var source = new C2sChart();
         source.Events.Add(new Slp
@@ -305,6 +313,10 @@ public sealed class C2sTimelineConversionTests
                  x.Timeline == 0);
 
         speed.Speed = 0.751m;
+        if (missingKey)
+        {
+            converted.Value.Meta.C2sSlpEditKey = null;
+        }
 
         var roundTrip = new C2SChartConverter(
             new C2SConvertRequest(converted.Value)).Convert();

@@ -60,6 +60,11 @@ internal sealed class ChartOperations(AssetManager assets, IMediaValidator media
         cancellationToken.ThrowIfCancellationRequested();
         var input = FullPath(request.InputPath);
         var output = FullPath(request.OutputPath);
+        if (!Enum.IsDefined(request.EditorTarget))
+        {
+            return ApplicationDiagnostics.Failure<ChartConvertResult>(
+                Msg.Create(MsgKeys.Error_Invalid_Header, request.EditorTarget, "editor target"));
+        }
         var sourceFormat = GetChartFormat(input);
         var targetFormat = GetChartFormat(output);
         var supported = sourceFormat == ChartFormat.C2s
@@ -91,8 +96,8 @@ internal sealed class ChartOperations(AssetManager assets, IMediaValidator media
         {
             EnsureParentDirectory(output);
             var writtenEditor = targetFormat == ChartFormat.Ugc
-                ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, chart).WriteAsync(cancellationToken)
-                : await new MgxcChartWriter(new MgxcWriteRequest(output, chart)).WriteAsync(cancellationToken);
+                ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, chart, request.EditorTarget).WriteAsync(cancellationToken)
+                : await new MgxcChartWriter(new MgxcWriteRequest(output, chart, request.EditorTarget)).WriteAsync(cancellationToken);
             var editorResult = new ChartConvertResult(input, output, sourceFormat, targetFormat,
                 ChartMetadata.CreateChartSummary(chart.Meta), [new ApplicationArtifact("chart." + targetFormat.ToString().ToLowerInvariant(), output)]);
             progress?.Report(new ProgressReport(Item: Path.GetFileName(input), Completed: 1, Total: 1));
@@ -150,8 +155,8 @@ internal sealed class ChartOperations(AssetManager assets, IMediaValidator media
 
         EnsureParentDirectory(output);
         var writtenReverse = targetFormat == ChartFormat.Ugc
-            ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, convertedUmgr.Value).WriteAsync(cancellationToken)
-            : await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value)).WriteAsync(cancellationToken);
+            ? await new PenguinTools.Chart.Writer.ugc.UgcChartWriter(output, convertedUmgr.Value, request.EditorTarget).WriteAsync(cancellationToken)
+            : await new MgxcChartWriter(new MgxcWriteRequest(output, convertedUmgr.Value, request.EditorTarget)).WriteAsync(cancellationToken);
         progress?.Report(new ProgressReport(
             Item: Path.GetFileName(input),
             Label: string.IsNullOrWhiteSpace(c2s.Meta.Title) ? null : c2s.Meta.Title,

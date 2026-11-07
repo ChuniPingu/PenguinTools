@@ -23,13 +23,13 @@ internal sealed class C2sSlideScheduler
             AddNode();
             foreach (var slide in _paths[i])
             {
-                var key = new Position(slide.Tick.Round, slide.Lane, Math.Clamp(slide.Width, 1, 16), slide.NoLine);
+                var key = new Position(slide.Tick.Round, slide.Lane, Math.Clamp(slide.Width, 0, 16), slide.NoLine);
                 if (!starts.TryGetValue(key, out var pathsAtStart))
                 {
                     starts[key] = pathsAtStart = [];
                 }
                 pathsAtStart.Add(i);
-                var cell = new AirPosition(slide.EndTick.Round, slide.EndLane, Math.Clamp(slide.EndWidth, 1, 16));
+                var cell = new AirPosition(slide.EndTick.Round, slide.EndLane, Math.Clamp(slide.EndWidth, 0, 16));
                 if (!airCells.TryGetValue(cell, out var airPaths))
                 {
                     airCells[cell] = airPaths = [];
@@ -37,7 +37,7 @@ internal sealed class C2sSlideScheduler
                 airPaths.Add((i, slide));
             }
             var tail = _paths[i][^1];
-            var end = new Position(tail.EndTick.Round, tail.EndLane, Math.Clamp(tail.EndWidth, 1, 16), tail.NoLine);
+            var end = new Position(tail.EndTick.Round, tail.EndLane, Math.Clamp(tail.EndWidth, 0, 16), tail.NoLine);
             if (!tails.TryGetValue(end, out var pathsAtEnd))
             {
                 tails[end] = pathsAtEnd = [];

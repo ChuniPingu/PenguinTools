@@ -34,7 +34,7 @@ public static partial class ChartStatistics
         };
 
         private static Cell At(decimal tick, string[] p, int lane, int width) =>
-            new(tick, I(p, lane), Math.Clamp(I(p, width), 1, 16));
+            new(tick, I(p, lane), Math.Clamp(I(p, width), Kind(p[0]) is "SLD" or "ASD" ? 0 : 1, 16));
         private static int Height(string[] p, int index) => C2sHeight.Key(N(p, index));
 
         private void ReadNotes()

@@ -47,6 +47,16 @@ public sealed class UgcChartConverter
 
     public OperationResult<UmgrModel.Chart> Convert()
     {
+        try
+        {
+            NoteWidthRules.Validate(_source);
+        }
+        catch (DiagnosticException ex)
+        {
+            var diagnostics = new DiagnosticCollector();
+            diagnostics.Report(ex);
+            return OperationResult<UmgrModel.Chart>.Failure().WithDiagnostics(diagnostics);
+        }
         _target.Meta = _source.Meta with { };
         _target.Meta.BgmFixedZeroOrigin = true;
         _target.Extras = _source.Extras.Copy();
@@ -776,7 +786,7 @@ public sealed class UgcChartConverter
             }
             foreach (var point in root.Children.Where(n => n is UmgrModel.SlideJoint or UmgrModel.AirSlideJoint or UmgrModel.AirCrashJoint))
             {
-                point.Width = Math.Clamp(point.Width, 1, 16);
+                point.Width = Math.Clamp(point.Width, NoteWidthRules.IsClippedControl(point) ? 0 : 1, 16);
                 point.Lane = Math.Clamp(point.Lane, -16, 32 - point.Width);
             }
         }

@@ -57,10 +57,11 @@ public static class AtomicFile
                 return;
             }
             catch (IOException ex) when (OperatingSystem.IsWindows()
-                                       && (ex.HResult & 0xffff) is 32 or 33
+                                       && (ex.HResult & 0xffff) is 32 or 33 or 1175
                                        && attempt < 15)
             {
-                // Allow a brief Windows sharing lock to clear, with at most 750 ms of delay.
+                // ReplaceFile can report 1175 for a transient delete lock; both
+                // original file names remain intact. Retry for at most 750 ms.
                 await Task.Delay(50, cancellationToken).ConfigureAwait(false);
             }
         }
