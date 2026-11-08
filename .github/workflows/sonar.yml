@@ -54,6 +54,10 @@ jobs:
       - name: Install SonarScanner for .NET
         run: dotnet tool install --global dotnet-sonarscanner --version 12.0.0
       - run: dotnet restore PenguinTools.slnx
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: artifacts/tools
+          key: native-tools-${{ runner.os }}-${{ hashFiles('PenguinTools.Assets/native-tools.json') }}
       - name: Begin Sonar analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

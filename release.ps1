@@ -154,8 +154,20 @@ if ($NotesFile -and $Notes) {
 
 $repoRoot = (Resolve-Path $PSScriptRoot).Path
 
-if (-not $NotesFile -and -not $Notes) {
+if ($NotesFile) {
+    $Notes = Get-Content -LiteralPath (Resolve-Path -LiteralPath $NotesFile).Path -Raw -Encoding utf8
+}
+elseif (-not $Notes) {
     $Notes = Get-DefaultReleaseNotes -Tag $Tag -Repository $Repository -RepoRoot $repoRoot
+}
+
+$uiNotice = @'
+图形界面请移至 [PenguinTools.UI](https://github.com/ChuniPingu/PenguinTools.UI/releases/latest)。
+
+For the graphical interface, visit [PenguinTools.UI](https://github.com/ChuniPingu/PenguinTools.UI/releases/latest).
+'@
+if (!$Notes.Contains($uiNotice)) {
+    $Notes = "$uiNotice`n`n$Notes"
 }
 
 Push-Location $repoRoot
@@ -179,11 +191,17 @@ try {
         }
     }
 
-    $artifactRoot = Join-Path $repoRoot "artifacts\release\$Tag"
+    $releaseRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts\release'))
+    $artifactRoot = [IO.Path]::GetFullPath((Join-Path $releaseRoot $Tag))
+    if (!$artifactRoot.StartsWith($releaseRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Release artifact directory is outside the expected output directory.'
+    }
     if (Test-Path $artifactRoot) {
-        Remove-Item $artifactRoot -Recurse -Force
+        Remove-Item -LiteralPath $artifactRoot -Recurse -Force
     }
     New-Item -ItemType Directory -Path $artifactRoot | Out-Null
+    $releaseNotesPath = Join-Path $artifactRoot 'release-notes.md'
+    [IO.File]::WriteAllText($releaseNotesPath, $Notes, [Text.UTF8Encoding]::new($false))
 
     $assetDefinitions = @(
         @{
@@ -208,12 +226,7 @@ try {
 
     if ($releaseExists) {
         $editArgs = @('release', 'edit', $Tag, '--repo', $Repository, '--title', $Title)
-        if ($NotesFile) {
-            $editArgs += @('--notes-file', $NotesFile)
-        }
-        else {
-            $editArgs += @('--notes', $Notes)
-        }
+        $editArgs += @('--notes-file', $releaseNotesPath)
 
         Write-Host "Updating GitHub release $Tag..."
         gh @editArgs
@@ -239,12 +252,7 @@ try {
         $releaseArgs += $assetPaths
         $releaseArgs += @('--repo', $Repository, '--title', $Title, '--verify-tag')
 
-        if ($NotesFile) {
-            $releaseArgs += @('--notes-file', $NotesFile)
-        }
-        else {
-            $releaseArgs += @('--notes', $Notes)
-        }
+        $releaseArgs += @('--notes-file', $releaseNotesPath)
 
         if ($Draft) {
             $releaseArgs += '--draft'

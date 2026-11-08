@@ -65,7 +65,7 @@ The version comes from `Common.props`. Commit the intended source state, create 
 
 Select the repository you are publishing to. The script defaults to `ChuniPingu/PenguinTools`, requires the remote version tag and a clean working tree, builds both publish profiles, and uploads CLI ZIP files to GitHub Releases.
 
-Without `-NotesFile` or `-Notes`, it generates a public compare/release link. Check that the target repository is public before using that default.
+Every release includes a Chinese and English link to the latest PenguinTools.UI release. `-NotesFile` or `-Notes` supplies the CLI notes below that link; without either, the script generates a compare/release link.
 
 `-SkipBuild` reuses publish output; `-Draft` and `-Prerelease` mark newly created releases; `-Clobber` replaces assets of an existing release. Artifacts are written under `artifacts/release/vX.Y.Z/`.
 
