@@ -2,6 +2,10 @@
 
 Tools for converting CHUNITHM charts, music, jackets, and stages.
 
+图形界面请移至 [PenguinTools.UI](https://github.com/ChuniPingu/PenguinTools.UI/releases/latest)。
+
+For the graphical interface, visit [PenguinTools.UI](https://github.com/ChuniPingu/PenguinTools.UI/releases/latest).
+
 ## Prerequisites
 
 For Windows builds: Git, the .NET SDK, and Visual Studio C++ build tools.
