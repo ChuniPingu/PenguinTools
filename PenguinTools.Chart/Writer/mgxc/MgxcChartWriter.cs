@@ -132,17 +132,17 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         WriteStringField(bw, "sgid", string.IsNullOrWhiteSpace(m.MgxcId)
             ? m.Id?.ToString(CultureInfo.InvariantCulture) ?? ""
             : m.MgxcId);
-        WriteStringField(bw, "wvfn", m.BgmFilePath);
+        WriteStringField(bw, "wvfn", ChartMediaPaths.ForOutput(m.BgmFilePath, m.FilePath, request.Path));
         WriteDoubleField(bw, "wvof", m.BgmManualOffset);
         WriteDoubleField(bw, "wvp0", m.BgmPreviewStart);
         WriteDoubleField(bw, "wvp1", m.BgmPreviewStop);
-        WriteStringField(bw, "jack", m.JacketFilePath);
-        WriteStringField(bw, "bgfn", m.IsCustomStage ? m.BgiFilePath : "");
+        WriteStringField(bw, "jack", ChartMediaPaths.ForOutput(m.JacketFilePath, m.FilePath, request.Path));
+        WriteStringField(bw, "bgfn", m.IsCustomStage ? ChartMediaPaths.ForOutput(m.BgiFilePath, m.FilePath, request.Path) : "");
         WriteStringField(bw, "bgsc", m.BackgroundScene);
         WriteIntField(bw, "bgsy", m.BackgroundSync ? 1 : 0);
         WriteStringField(bw, "flcl", m.FieldColorName);
         WriteIntField(bw, "flcx", m.FieldColorIndex);
-        WriteStringField(bw, "flbg", m.FieldImage);
+        WriteStringField(bw, "flbg", ChartMediaPaths.ForOutput(m.FieldImage, m.FilePath, request.Path));
         WriteStringField(bw, "flsc", m.FieldScene);
         WriteIntField(bw, "mtil", m.MainTil);
         WriteDoubleField(bw, "mbpm", m.MainBpm);

@@ -236,6 +236,8 @@ public sealed partial class PenguinToolsApplication
 
         var filename = $"{songId}_{difficultyId}.{ToChartFormatName(request.OutputFormat)}";
         var staged = Path.Combine(stage, filename);
+        // Extracted media references are relative to the new song folder.
+        converted.Value.Meta.FilePath = staged;
         var written = request.OutputFormat == ChartFormat.Ugc
             ? await new UgcChartWriter(staged, converted.Value).WriteAsync(cancellationToken)
             : await new MgxcChartWriter(new MgxcWriteRequest(staged, converted.Value)).WriteAsync(cancellationToken);

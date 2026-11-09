@@ -13,6 +13,8 @@ Editor output uses MGXC v4 or UGC v9. MGXC versions above 4 and UGC versions abo
 
 The format references describe the source specifications. Implementation coverage is determined by the parsers, writers, and their tests.
 
+Writing MGXC or UGC to another directory rebases relative media paths to keep the same referenced files.
+
 Use binary MGXC only. Do not use text MGXC: PenguinTools does not support it, and Margrete has deprecated it.
 
 ## Input compatibility

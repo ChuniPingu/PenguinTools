@@ -12,6 +12,44 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class EditorInformationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OutputInAnotherDirectory_PreservesMediaReferences(bool ugc)
+    {
+        var directory = Directory.CreateTempSubdirectory("PenguinToolsTests-");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var source = Path.Combine(directory.FullName, "source", "chart.mgxc");
+            var outputDirectory = Directory.CreateDirectory(Path.Combine(directory.FullName, "output"));
+            var output = Path.Combine(outputDirectory.FullName, ugc ? "chart.ugc" : "chart.mgxc");
+            var chart = new U.Chart();
+            chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
+            chart.Events.AppendChild(new U.BeatEvent { Bar = 0, Numerator = 4, Denominator = 4 });
+            chart.Meta.FilePath = source;
+            chart.Meta.BgmFilePath = "audio.wav";
+            chart.Meta.JacketFilePath = "cover.png";
+            chart.Meta.IsCustomStage = true;
+            chart.Meta.BgiFilePath = "background.png";
+            chart.Meta.FieldImage = "field.png";
+            var written = ugc ? await new UgcChartWriter(output, chart).WriteAsync(ct)
+                : await new MgxcChartWriter(new(output, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var parsed = ugc ? await new UgcParser(new(output, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                : await new MgxcParser(new(output, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var meta = parsed.Value!.Meta;
+            Assert.Equal(chart.Meta.FullBgmFilePath, meta.FullBgmFilePath);
+            Assert.Equal(chart.Meta.FullJacketFilePath, meta.FullJacketFilePath);
+            Assert.Equal(chart.Meta.FullBgiFilePath, meta.FullBgiFilePath);
+            Assert.Equal(Path.Combine(directory.FullName, "source", "field.png"),
+                Path.GetFullPath(meta.FieldImage, outputDirectory.FullName));
+            Assert.Equal("audio.wav", chart.Meta.BgmFilePath);
+        }
+        finally { directory.Delete(true); }
+    }
+
     [Fact]
     public async Task EditorInformation_SurvivesRepeatedUgcMgxcSaves()
     {
