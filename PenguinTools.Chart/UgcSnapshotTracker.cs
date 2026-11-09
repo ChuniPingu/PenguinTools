@@ -13,16 +13,59 @@ internal sealed class UgcSnapshotTracker
     private readonly List<Entry> _entries = [];
     private Entry? _current;
 
+    // Height digits per AIR-SLIDE/AIR-CRUSH head, set by the parser from HIPRECISION.
+    internal int HeightDigits { get; set; } = 1;
+
     internal void Begin(U.Note note, string line, int timeline)
     {
-        _current = new(note, [Token(line, timeline)]);
+        _current = new(note, [Token(line, timeline, HeightDigits)]);
         _entries.Add(_current);
     }
 
-    internal void Append(string line, int timeline) => _current?.Lines.Add(Token(line, timeline));
+    internal void Append(string line, int timeline) => _current?.Lines.Add(Token(line, timeline, HeightDigits));
 
-    private static string Token(string line, int timeline) =>
-        string.Create(CultureInfo.InvariantCulture, $"{timeline}:{line}");
+    private static string Token(string line, int timeline, int heightDigits) =>
+        string.Create(CultureInfo.InvariantCulture, $"{timeline}:{CanonicalNote(line, heightDigits)}");
+
+    // Widths and AIR heights are base36 and read case-insensitively, so native
+    // saves may change only their case. Lanes (v9 base62) and effect, direction
+    // and color codes stay case-sensitive.
+    private static string CanonicalNote(string line, int heightDigits)
+    {
+        var separator = line.StartsWith('#') ? line.IndexOfAny([':', '>']) : -1;
+        if (separator < 0 || line.Length <= separator + 3)
+        {
+            return line;
+        }
+        var chars = line.ToCharArray();
+        var body = separator + 1;
+        if (line.AsSpan(1, separator - 1).IndexOf('\'') < 0)
+        {
+            // Child nodes: type, lane, then only width and height digits.
+            for (var i = body + 2; i < chars.Length; i++)
+            {
+                chars[i] = char.ToUpperInvariant(chars[i]);
+            }
+            return new string(chars);
+        }
+        if ("txfdhsaHSC".Contains(chars[body], StringComparison.Ordinal))
+        {
+            chars[body + 2] = char.ToUpperInvariant(chars[body + 2]);
+        }
+        if (chars[body] is 'S' or 'C')
+        {
+            for (var i = body + 3; i < Math.Min(chars.Length, body + 3 + heightDigits); i++)
+            {
+                chars[i] = char.ToUpperInvariant(chars[i]);
+            }
+        }
+        return new string(chars);
+    }
+
+    private static int HeightDigitsOf(IEnumerable<string> lines) =>
+        lines.Select(l => l.Split('\t')).Any(p => p.Length >= 3 && p[0].Equals("@FLAG", StringComparison.OrdinalIgnoreCase) &&
+            p[1].Equals("HIPRECISION", StringComparison.OrdinalIgnoreCase) &&
+            (p[2].Equals("TRUE", StringComparison.OrdinalIgnoreCase) || p[2].Trim() == "1")) ? 2 : 1;
 
     internal void Capture(ChartExtras extras, IEnumerable<string> lines, string? slaSnapshot)
     {
@@ -205,6 +248,7 @@ internal sealed class UgcSnapshotTracker
     {
         var timeline = 0;
         var notes = new List<string>();
+        var heightDigits = HeightDigitsOf(lines);
         foreach (var line in lines)
         {
             if (line.StartsWith("@USETIL\t", StringComparison.Ordinal) && int.TryParse(line.AsSpan(8), out var value))
@@ -213,7 +257,7 @@ internal sealed class UgcSnapshotTracker
             }
             else if (line.StartsWith('#'))
             {
-                notes.Add(Token(line, timeline));
+                notes.Add(Token(line, timeline, heightDigits));
             }
         }
         return Hash(ContextKey(lines, extras) + "\n" + string.Join('\n', notes));

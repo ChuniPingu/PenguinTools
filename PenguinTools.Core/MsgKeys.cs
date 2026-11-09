@@ -58,6 +58,10 @@ public static class MsgKeys
     public const string Warn_Zero_note_speed_not_reproduced = "diag.warn.zero_note_speed_not_reproduced";
     public const string Warn_Editor_undefined_timeline_speed = "diag.warn.editor_undefined_timeline_speed";
     public const string Warn_Number_adjusted = "diag.warn.number_adjusted";
+    public const string Warn_Mgxc_string_too_long = "diag.warn.mgxc_string_too_long";
+    public const string Warn_Invalid_metadata = "diag.warn.invalid_metadata";
+    public const string Warn_Roundtrip_metadata_ignored = "diag.warn.roundtrip_metadata_ignored";
+    public const string Warn_Roundtrip_metadata_not_saved = "diag.warn.roundtrip_metadata_not_saved";
     public const string Error_Command_failed = "diag.error.command_failed";
     public const string Error_Effect_file_not_found = "diag.error.effect_file_not_found";
     public const string Error_File_ignored_due_to_id_missing = "diag.error.file_ignored_due_to_id_missing";
@@ -85,7 +89,6 @@ public static class MsgKeys
     public const string Mg_Length_smaller_than_unit = "diag.mg.length_smaller_than_unit";
     public const string Mg_Main_timeline_not_found = "diag.mg.main_timeline_not_found";
     public const string Mg_Meta_Argument_count_min_one = "diag.mg.meta_argument_count_min_one";
-    public const string Mg_Meta_First_argument_must_int = "diag.mg.meta_first_argument_must_int";
     public const string Mg_Meta_Invalid_date = "diag.mg.meta_invalid_date";
     public const string Mg_Meta_Ignored = "diag.mg.meta_ignored";
     public const string Mg_Meta_Unknown_tag = "diag.mg.meta_unknown_tag";

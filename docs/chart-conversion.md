@@ -13,11 +13,15 @@ Editor output uses MGXC v4 or UGC v9. MGXC versions above 4 and UGC versions abo
 
 The format references describe the source specifications. Implementation coverage is determined by the parsers, writers, and their tests.
 
+Writing MGXC or UGC to another directory rebases relative media paths to keep the same referenced files. MGXC text fields exceeding 65,535 UTF-8 bytes are truncated at a complete character boundary with a warning.
+
 Use binary MGXC only. Do not use text MGXC: PenguinTools does not support it, and Margrete has deprecated it.
 
 ## Input compatibility
 
 MGXC and UGC inputs use the official semantics of their declared versions, including older official versions.
+
+Invalid optional metadata (C2S statistics and BPM summaries, metronome settings, and `#meta` arguments) is skipped with a warning. Damaged encoded round-trip metadata also warns and falls back to native chart records. Output continues with a warning if round-trip metadata exceeds its 64 MiB decoded-size limit; values requiring the omitted metadata cannot be restored.
 
 MGXC heights use `HSCL` (default 1) to convert to internal tenths. MGXC v4 limits rescaled heights to 0–360 when `HSCL` differs from 10, matching Margrete; its usual `HSCL=10` representation retains larger heights. Nonpositive, nonfinite, or unrepresentable scales fail with `diag.mgcrit.invalid_height_scale`.
 
@@ -31,7 +35,7 @@ UGC `SPDDEF`/`SPDFLD` relative note-speed definitions are retained when writing 
 
 Editor BPM and speed input/output preserves native float32 rounding at timing and judgement thresholds. UGC numbers first use the native double interpretation. Editor output retains original higher precision values in metadata validated separately for each numeric group; editing a group's native values prevents its restoration.
 
-Numeric values outside the supported range or precision are adjusted with `diag.warn.number_adjusted`, which reports the original and replacement values. Representable speeds, including 10000 and 100000, are preserved. Only when a speed cannot be represented, an excessive magnitude falls back to ±100000, `NaN` to 1, and a tiny nonzero value to ±1e-28. Keeping the sign avoids C2S treating a zero speed modifier differently. Unrepresentable large positive BPM falls back to 100000; other unrepresentable BPM uses 150. Unrepresentable audio offsets and preview positions use 0. Adjusted C2S source records are normalized before retaining round-trip metadata so the original unrepresentable values cannot reappear on export. Malformed numeric text remains an error.
+Numeric values outside the supported range or precision are adjusted with `diag.warn.number_adjusted`, which reports the original and replacement values. Representable speeds, including 10000 and 100000, are preserved. Only when a speed cannot be represented, an excessive magnitude falls back to ±100000, `NaN` to 1, and a tiny nonzero value to ±1e-28. Keeping the sign avoids C2S treating a zero speed modifier differently. Unrepresentable large positive BPM falls back to 100000; other unrepresentable BPM uses 150. Unrepresentable audio offsets and preview positions use 0. Adjusted C2S source records are normalized before retaining round-trip metadata so the original unrepresentable values cannot reappear on export. Malformed numeric text in notes and timing events remains an error.
 
 C2S files without `CLK_DEF` keep the metronome disabled during conversion.
 
@@ -42,6 +46,8 @@ C2S conversion shifts notes, long-note endpoints, speed intervals, and later tem
 C2S imports retain their coordinates even after edits invalidate saved snapshots. The C2S coordinate origin is retained in MGXC/UGC round-trip metadata.
 
 For example, at an initial BPM of 120 with `SOFFSET` enabled, a 4/4 chart receives 2 seconds of opening silence; a 3/4 chart receives 1.5 seconds. Notes and later timing events move by the corresponding measure. The initial BPM and meter remain at the start, and the manual audio offset is applied independently.
+
+Editor saves retain speed events after the last note and on unused timelines.
 
 Overlapping C2S SLP/SFL/STP intervals become TIL speeds of `1 + Σ(speed − 1)` at each interval boundary. SLA placement includes generated AIR-CRUSH rungs as well as explicit note endpoints. C2S output assigns higher timeline IDs to nested objects when needed, copying their complete scroll curves without changing editor timelines. Conversion warns only when the resulting scroll curve differs, such as coincident objects with incompatible curves.
 

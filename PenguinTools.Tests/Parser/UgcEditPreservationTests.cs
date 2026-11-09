@@ -12,6 +12,44 @@ namespace PenguinTools.Tests.Parser;
 public sealed class UgcEditPreservationTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Base36Spelling_RetainsCheckedAttributes(bool height)
+    {
+        var chart = Chart();
+        var crash = Crash(0);
+        crash.Width = 10;
+        crash.Height = 370;
+        chart.Notes.AppendChild(crash);
+        var parsed = await Edit(chart, text =>
+        {
+            Assert.Contains(":CGAAA", text);
+            return height
+                ? text.Replace(":CGAAA", ":CGAaa", StringComparison.Ordinal)
+                    .Replace(">cK4ZZ", ">cK4zz", StringComparison.Ordinal)
+                : text.Replace(":CGAAA", ":CGaAA", StringComparison.Ordinal);
+        });
+        Assert.True(parsed.Extras.BinarySnapshotValid);
+        var retained = Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>());
+        Assert.Equal(AirLadderAttr.Trace, retained.Attr);
+        Assert.Equal(1600, Assert.IsType<U.AirCrashJoint>(retained.LastChild).Height);
+    }
+
+    [Fact]
+    public async Task Base62LaneCaseChange_InvalidatesCheckedAttributes()
+    {
+        var chart = Chart();
+        var crash = Crash(0);
+        crash.Lane = -6;
+        chart.Notes.AppendChild(crash);
+        var parsed = await Edit(chart, text => ReplaceFirst(text, ":CA4", ":Ca4"));
+        Assert.False(parsed.Extras.BinarySnapshotValid);
+        var edited = Assert.Single(parsed.Notes.Children.OfType<U.AirCrash>());
+        Assert.Equal(20, edited.Lane);
+        Assert.Equal(AirLadderAttr.DEF, edited.Attr);
+    }
+
+    [Theory]
     [InlineData("@TITLE\tOriginal", "@TITLE\tEdited")]
     [InlineData("@ARTIST\tOriginal", "@ARTIST\tEdited")]
     [InlineData("@DESIGN\tOriginal", "@DESIGN\tEdited")]
@@ -147,6 +185,7 @@ public sealed class UgcEditPreservationTests
         hold.AppendChild(new U.HoldJoint { Tick = 960, Timeline = 1 });
         chart.Notes.AppendChild(hold);
         chart.Meta.C2sSlaSnapshot = "0,1,0,16,1920";
+        chart.Meta.C2sSlaEditKey = C2sRoundTripKeys.FormatSlaEditKey(chart);
         var parsed = await Edit(chart, text => edit switch
         {
             "outside" => text + "\n@USETIL\t0\n#2'0:tG4\n",

@@ -80,6 +80,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             .ToDictionary(g => g.Key, g => g.ToArray());
 
         var exEffects = new Dictionary<Time, HashSet<ExEffect>>();
+        var headsWithMarker = new HashSet<UmgrModel.ExTapableNote>();
 
         foreach (var exTap in chart.Notes.Children.OfType<UmgrModel.ExTap>())
         {
@@ -109,7 +110,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
                 continue;
             }
 
-            ApplyLongNoteEffect(exTap, notesAtTick);
+            ApplyLongNoteEffect(exTap, notesAtTick, headsWithMarker);
         }
 
 
@@ -126,7 +127,8 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
     }
 
-    private static void ApplyLongNoteEffect(UmgrModel.ExTap exTap, UmgrModel.ExTapableNote[] notesAtTick)
+    private static void ApplyLongNoteEffect(UmgrModel.ExTap exTap, UmgrModel.ExTapableNote[] notesAtTick,
+        HashSet<UmgrModel.ExTapableNote> headsWithMarker)
     {
         foreach (var note in notesAtTick)
         {
@@ -139,12 +141,17 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
                 exTap.Lane <= note.Lane &&
                 exTap.Lane + exTap.Width >= note.Lane + note.Width;
 
-            if (!covering)
+            if (!covering || headsWithMarker.Contains(note))
             {
                 continue;
             }
 
             note.Effect = exTap.Effect;
+            // The first exact bare carrier supplies the head effect even if a later CHR covers it.
+            if (exTap.IsBareLongCarrier && exTap.MatchesLongHead(note))
+            {
+                headsWithMarker.Add(note);
+            }
         }
     }
 
@@ -163,7 +170,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             _noteGroups[point.Timeline].Add(point);
         }
         MoveMainTimeline(chart.Meta.MainTil);
-        ClearEmptyGroups();
+        ClearEmptyNoteGroups();
         PlaceSoflanArea();
         FinalizeEvent();
 
@@ -304,22 +311,11 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         chart.Meta.MainTil = 0;
     }
 
-    private void ClearEmptyGroups()
+    private void ClearEmptyNoteGroups()
     {
-        foreach (var (id, events) in _tilGroups.ToArray())
-        {
-            var mappedNotes = _noteGroups[id];
-            var maxTick = mappedNotes.Select(p => p.Tick).Append(0).Max();
-            if (mappedNotes.Count == 0 && chart.Notes.Children.Count > 0)
-            {
-                _tilGroups.Remove(id);
-            }
-            else if (events.Count > 0 && maxTick.Original > 0)
-            {
-                events.RemoveAll(p => p.Tick.Original > maxTick.Original + ChartResolution.SingleTick);
-            }
-        }
-
+        // Keep authored speed events, including resets beyond the last note and
+        // unused timelines. Removing them changes the editable chart and makes
+        // a later round trip invalidate an otherwise unchanged SLP snapshot.
         foreach (var (id, notes) in _noteGroups.ToArray())
         {
             if (notes.Count == 0)
@@ -401,9 +397,11 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
 
         if (args.Length >= 2)
         {
-            var newId = int.TryParse(args[0], out var parsedId)
-                ? parsedId
-                : throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
+            if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var newId))
+            {
+                WarnInvalidMeta(name, args);
+                return;
+            }
             var data = args.Length >= 3 ? args[2] : null;
             var newEntry = new Entry(newId, args[1], data ?? string.Empty);
             setter(newEntry);
@@ -480,7 +478,8 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
 
         if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
         {
-            throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
+            WarnInvalidMeta("bg_offset", args);
+            return;
         }
 
         chart.Meta.BackgroundOffset = offset;
@@ -539,8 +538,23 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         chart.Meta.ReleaseDate = date;
     }
 
+    private void WarnInvalidMeta(string name, string[] args)
+    {
+        var command = name.Length == 0 ? "#meta" : $"#meta {name}";
+        diag.Report(new PathDiagnostic(Severity.Warning,
+            Msg.Create(MsgKeys.Warn_Invalid_metadata, command, string.Join(' ', args)), chart.Meta.FilePath)
+        {
+            Target = args
+        });
+    }
+
     private void MetaHandler(string[] args)
     {
+        if (args.Length == 0)
+        {
+            WarnInvalidMeta("", args);
+            return;
+        }
         var (name, value) = (args[0], args[1..]);
 
         switch (name)

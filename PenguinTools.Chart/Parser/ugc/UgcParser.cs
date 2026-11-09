@@ -18,6 +18,7 @@ public partial class UgcParser
     private int _currentTimeline;
     private int _sourceTicks = 480;
     private int _version = 8;
+    private int? _declaredVersion;
     private bool _highPrecision;
 
     private int Lane(char value)
@@ -250,6 +251,7 @@ public partial class UgcParser
     {
         var previous = _lastNote;
         DispatchBodyLine(text);
+        _snapshots.HeightDigits = HeightDigits;
         if (!text.Contains('\''))
         {
             _snapshots.Append(text, _currentTimeline);

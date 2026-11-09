@@ -17,6 +17,70 @@ namespace PenguinTools.Tests.Parser;
 public sealed class C2sFormatCompatibilityTests
 {
     [Fact]
+    public async Task InvalidOptionalMetadata_DoesNotBlockConversionOrReappearOnExport()
+    {
+        var input = TestTempPaths.Create(".c2s");
+        var editor = TestTempPaths.Create(".mgxc");
+        var output = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(input, """
+                VERSION	1.15.00	1.15.00
+                RESOLUTION	384
+                BPM_DEF	120	bad	150	120
+                BPM	0	0	150
+                MET	0	0	4	4
+                CLK_DEF	96
+                //MGR_CLICK_V1 bad 1
+                CLK	0	bad
+                CLK	0	48
+                T_JUDGE_TAP	-1
+                T_JUDGE_HLD	bad
+                T_JUDGE_ALL
+                TAP	1	0	3	2
+                """, ct);
+            var parsed = await new C2SParser(new(input)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.False(parsed.Diagnostics.HasError);
+            var warnings = parsed.Diagnostics.Diagnostics.Where(d => d.Message.Key == MsgKeys.Warn_Invalid_metadata).ToArray();
+            Assert.Equal(6, warnings.Length);
+            Assert.All(warnings, d =>
+            {
+                Assert.Equal(PenguinTools.Core.Diagnostic.Severity.Warning, d.Severity);
+                Assert.Equal(input, d.Path);
+                Assert.NotNull(d.Line);
+            });
+            Assert.DoesNotContain("bad", parsed.Value!.Extras.InteropSourceText!);
+            Assert.Equal([240], parsed.Value.Extras.ClickTicks);
+            Assert.Equal(1, parsed.Value.Extras.ClickCount);
+            var converted = new UgcChartConverter(new(parsed.Value)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            Assert.True((await new MgxcChartWriter(new(editor, converted.Value!)).WriteAsync(ct)).Succeeded);
+            var editorChart = await new MgxcParser(new(editor, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(editorChart.Succeeded, editorChart.ToString());
+            var returned = new C2SChartConverter(new(editorChart.Value!)).Convert();
+            Assert.True(returned.Succeeded, returned.ToString());
+            Assert.True((await new C2SChartWriter(new(output, returned.Value!)).WriteAsync(ct)).Succeeded);
+            var final = await new C2SParser(new(output)).ParseAsync(ct);
+            Assert.True(final.Succeeded, final.ToString());
+            Assert.DoesNotContain(final.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Invalid_metadata);
+            var tap = Assert.Single(final.Value!.Notes.OfType<Tap>());
+            Assert.Equal((1920, 3, 2), (tap.Tick.Original, tap.Lane, tap.Width));
+            Assert.Equal(150m, Assert.Single(final.Value.Events.OfType<Bpm>()).Value);
+            Assert.Equal([240], final.Value.Extras.ClickTicks);
+            Assert.Equal(1, final.Value.Meta.C2sJudgeTap);
+            Assert.Equal(1, final.Value.Meta.C2sJudgeAll);
+        }
+        finally
+        {
+            File.Delete(input);
+            File.Delete(editor);
+            File.Delete(output);
+        }
+    }
+
+    [Fact]
     public async Task ZeroNumeratorMet_IsPreservedAndMgxcStillWrites()
     {
         var directory = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));

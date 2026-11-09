@@ -29,6 +29,7 @@ public sealed class C2SParser
     private int _resolution = ChartResolution.ChunithmTick;
     private string? _version;
     private readonly HashSet<int> _adjustedNumberLines = [];
+    private readonly HashSet<int> _ignoredMetadataLines = [];
     private readonly Dictionary<int, string> _adjustedSourceLines = [];
     private readonly Dictionary<int, string> _sourceLines = [];
 
@@ -85,9 +86,11 @@ public sealed class C2SParser
             ct.ThrowIfCancellationRequested();
             ParseLine(line);
         }
-        if (_adjustedSourceLines.Count > 0)
+        if (_adjustedSourceLines.Count > 0 || _ignoredMetadataLines.Count > 0)
         {
-            C2s.Extras.InteropSourceText = string.Join("\n", lines.Select(l => _adjustedSourceLines.GetValueOrDefault(l.Number, l.Text)));
+            C2s.Extras.InteropSourceText = string.Join("\n", lines
+                .Where(l => !_ignoredMetadataLines.Contains(l.Number))
+                .Select(l => _adjustedSourceLines.GetValueOrDefault(l.Number, l.Text)));
         }
 
         if (string.IsNullOrWhiteSpace(_version))
@@ -121,14 +124,7 @@ public sealed class C2SParser
         }
         if (text.StartsWith("//MGR_PREROLL=", StringComparison.Ordinal))
         {
-            if (text != "//" + ChartExtras.PrerollBar1Marker)
-            {
-                ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "preroll extension"), line.Number);
-            }
-            else
-            {
-                C2s.Extras.PrerollBar1Applied = true;
-            }
+            ParsePrerollExtension(text, line.Number);
             return;
         }
         if (text.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal))
@@ -158,6 +154,12 @@ public sealed class C2SParser
         }
 
         ParseTokens(tokens, text, line.Number);
+        if (_ignoredMetadataLines.Contains(line.Number))
+        {
+            C2s.Extras.Headers.Remove(tokens[0]);
+            C2s.Extras.SourceStatistics.Remove(text);
+            return;
+        }
         if (_adjustedNumberLines.Contains(line.Number))
         {
             var adjusted = string.Join('\t', tokens);
@@ -169,12 +171,23 @@ public sealed class C2SParser
         }
     }
 
+    private void ParsePrerollExtension(string text, int lineNumber)
+    {
+        if (text != "//" + ChartExtras.PrerollBar1Marker)
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "preroll extension"), lineNumber);
+            return;
+        }
+
+        C2s.Extras.PrerollBar1Applied = true;
+    }
+
     private void ParseMetronomeExtension(string text, int lineNumber)
     {
         var fields = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if (fields.Length != 3 || !int.TryParse(fields[1], out var count) || count < 0 || fields[2] is not ("0" or "1"))
         {
-            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "metronome extension"), lineNumber);
+            WarnInvalidMetadata("MGR_CLICK_V1", fields.Skip(1), lineNumber);
             return;
         }
 
@@ -282,12 +295,7 @@ public sealed class C2SParser
 
                 break;
             case "CLK":
-                if (TryGetInt(tokens, 1, lineNumber, "CLK measure", out var bar) &&
-                    TryGetInt(tokens, 2, lineNumber, "CLK offset", out var offset))
-                {
-                    C2s.Extras.ClickTicks.Add(ScalePosition(bar, offset).Original);
-                }
-
+                ParseClick(tokens, lineNumber);
                 break;
             default:
                 if (tokens[0].Length == 3)
@@ -305,20 +313,38 @@ public sealed class C2SParser
         }
     }
 
+    private void WarnInvalidMetadata(string field, IEnumerable<string> values, int lineNumber)
+    {
+        _ignoredMetadataLines.Add(lineNumber);
+        ReportAtLine(Severity.Warning,
+            Msg.Create(MsgKeys.Warn_Invalid_metadata, $"C2S {field}", string.Join(' ', values)), lineNumber);
+    }
+
+    private void ParseClick(string[] tokens, int lineNumber)
+    {
+        if (tokens.Length >= 3 &&
+            int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var bar) &&
+            int.TryParse(tokens[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
+        {
+            try
+            {
+                C2s.Extras.ClickTicks.Add(ScalePosition(bar, offset).Original);
+                return;
+            }
+            catch (OverflowException)
+            {
+                // A malformed click must not prevent reading the playable notes.
+            }
+        }
+        WarnInvalidMetadata("CLK", tokens.Skip(1), lineNumber);
+    }
+
     private void ParseJudgeSummary(string[] tokens, int lineNumber)
     {
-        if (!TryGetInt(tokens, 1, lineNumber, tokens[0], out var value))
+        if (tokens.Length < 2 ||
+            !int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value < 0)
         {
-            return;
-        }
-
-        if (value < 0)
-        {
-            ReportAtLine(
-                Severity.Error,
-                Msg.Create(MsgKeys.C2s_Invalid_field, tokens[0]),
-                lineNumber,
-                value);
+            WarnInvalidMetadata(tokens[0], tokens.Skip(1), lineNumber);
             return;
         }
 
@@ -411,21 +437,16 @@ public sealed class C2SParser
 
     private void ParseBpmDefinition(string[] tokens, int lineNumber)
     {
-        if (tokens.Length < 2)
+        if (!TryGetDecimal(tokens, 1, lineNumber, "BPM_DEF", out var bpm, optionalMetadata: true))
         {
             return;
         }
 
-        if (!TryGetDecimal(tokens, 1, lineNumber, "BPM_DEF", out var bpm))
-        {
-            return;
-        }
-
-        C2s.Meta.MainBpm = tokens.Length > 2 && TryGetDecimal(tokens, 2, lineNumber, "BPM_DEF", out var mainBpm) ? mainBpm : bpm;
+        C2s.Meta.MainBpm = tokens.Length > 2 && TryGetDecimal(tokens, 2, lineNumber, "BPM_DEF", out var mainBpm, optionalMetadata: true) ? mainBpm : bpm;
         C2s.Meta.BgmInitialBpm = bpm;
         for (var i = 3; i < Math.Min(tokens.Length, 5); i++)
         {
-            TryGetDecimal(tokens, i, lineNumber, "BPM_DEF", out _);
+            TryGetDecimal(tokens, i, lineNumber, "BPM_DEF", out _, optionalMetadata: true);
         }
     }
 
@@ -1154,7 +1175,8 @@ public sealed class C2SParser
         return false;
     }
 
-    private bool TryGetDecimal(string[] tokens, int index, int lineNumber, string field, out decimal value)
+    private bool TryGetDecimal(string[] tokens, int index, int lineNumber, string field, out decimal value,
+        bool optionalMetadata = false)
     {
         value = default;
         if (index < tokens.Length &&
@@ -1179,8 +1201,15 @@ public sealed class C2SParser
             return true;
         }
 
-        ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
-            index < tokens.Length ? tokens[index] : null);
+        if (optionalMetadata)
+        {
+            WarnInvalidMetadata(field, tokens.Skip(index).Take(1), lineNumber);
+        }
+        else
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, field), lineNumber,
+                index < tokens.Length ? tokens[index] : null);
+        }
         return false;
     }
 

@@ -1,4 +1,6 @@
 
+using PenguinTools.Core.Diagnostic;
+
 using UmgrModel = PenguinTools.Chart.Models.umgr;
 
 namespace PenguinTools.Chart.Parser.mgxc;
@@ -89,7 +91,8 @@ public partial class MgxcParser
             var clickEnabled = Mgxc.Extras.ClickEnabled;
             var tutorial = Mgxc.Extras.Tutorial;
             var sourceSnapshot = Mgxc.Extras.SourceSnapshot;
-            Mgxc.Extras = ChartExtras.FromBookmark(bookmark.Tag);
+            Mgxc.Extras = ChartExtras.FromBookmark(bookmark.Tag, () => ReportAtPosition(Severity.Warning,
+                Msg.Key(MsgKeys.Warn_Roundtrip_metadata_ignored), br.BaseStream.Position));
             Mgxc.Extras.ClickEnabled = clickEnabled;
             Mgxc.Extras.Tutorial = tutorial;
             if (Mgxc.Extras.SourceSnapshot.Length == 0)

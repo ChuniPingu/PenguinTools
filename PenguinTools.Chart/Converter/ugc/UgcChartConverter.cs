@@ -47,6 +47,7 @@ public sealed class UgcChartConverter
 
     public OperationResult<UmgrModel.Chart> Convert()
     {
+        var diagnostics = new DiagnosticCollector();
         _target.Meta = _source.Meta with { };
         _target.Meta.BgmFixedZeroOrigin = true;
         _target.Extras = _source.Extras.Copy();
@@ -118,10 +119,11 @@ public sealed class UgcChartConverter
         _target.Extras.SpeedModelKey = ChartExtras.SpeedKey(_target);
         if (_source.Extras.InteropSourceText is { } sourceText)
         {
-            _target.Extras.SourceSnapshot = C2SRoundTrip.Decode(C2SRoundTrip.Encode(sourceText, ChartExtras.EventView(_target)));
+            _target.Extras.SourceSnapshot = C2SRoundTrip.WriteOptionalMetadata(() =>
+                C2SRoundTrip.Decode(C2SRoundTrip.Encode(sourceText, ChartExtras.EventView(_target))), diagnostics, _source.Meta.FilePath);
         }
 
-        return OperationResult<UmgrModel.Chart>.Success(_target);
+        return OperationResult<UmgrModel.Chart>.Success(_target).WithDiagnostics(diagnostics);
     }
 
     private void CaptureSourceSnapshots()

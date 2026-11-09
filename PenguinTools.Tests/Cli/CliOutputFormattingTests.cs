@@ -12,6 +12,20 @@ namespace PenguinTools.Tests.Cli;
 
 public class CliOutputFormattingTests
 {
+    [Theory]
+    [InlineData((short)16705, 16705)]
+    [InlineData(ushort.MaxValue, 65535)]
+    public void DiagnosticShortInteger_SerializesAsJsonNumber(object value, int expected)
+    {
+        var message = Msg.Create(MsgKeys.MgCrit_Unrecognized_data_type, value);
+        var response = new CliResponse(CliOutput.ResultType, 4, "chart.convert", false, 1,
+            null, null, CliDiagnostics.ToPayload(CliDiagnostics.SnapshotFromMessage(message)));
+        using var json = JsonDocument.Parse(CliOutput.Serialize(response));
+        var diagnostic = json.RootElement.GetProperty("diagnostics")[0].GetProperty("message");
+        Assert.Equal(MsgKeys.MgCrit_Unrecognized_data_type, diagnostic.GetProperty("key").GetString());
+        Assert.Equal(expected, diagnostic.GetProperty("args").GetProperty("arg0").GetInt32());
+    }
+
     [Fact]
     public void OptionScanConfig_SerializesHcaEncryptionKeyAsString()
     {

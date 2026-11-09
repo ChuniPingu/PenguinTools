@@ -1,3 +1,4 @@
+using PenguinTools.Chart.Parser;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.mgxc;
@@ -9,6 +10,31 @@ namespace PenguinTools.Tests.Parser;
 
 public class MgxcDiagnosticTests
 {
+    [Fact]
+    public void TruncatedLongString_ReportsSizeInsteadOfReturningPartialText()
+    {
+        using var stream = new MemoryStream(new byte[200]);
+        using var reader = new BinaryReader(stream);
+        var failure = Assert.Throws<DiagnosticException>(() => reader.ReadUtf8String(512));
+        Assert.Equal(MsgKeys.Error_Size_Incompatible, failure.Descriptor.Key);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(512)]
+    public void InvalidBlockSize_ReportsDiagnosticBeforeReadingPayload(int size)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+        writer.Write("TEST"u8);
+        writer.Write(size);
+        writer.Flush();
+        stream.Position = 0;
+        using var reader = new BinaryReader(stream);
+        var failure = Assert.Throws<DiagnosticException>(() => reader.ReadBlock("TEST", _ => Assert.Fail("Invalid payload was read.")));
+        Assert.Equal(MsgKeys.Error_Size_Incompatible, failure.Descriptor.Key);
+    }
+
     [Fact]
     public async Task InvalidHeader_DiagnosticIncludesFileAndOffset()
     {

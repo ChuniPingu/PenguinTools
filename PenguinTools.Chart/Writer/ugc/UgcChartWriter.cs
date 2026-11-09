@@ -108,7 +108,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.Clear();
             // Sequential readers need the version before version-dependent flags.
             _lines.Add("@VER\t9");
-            _snapshots = new();
+            _snapshots = new() { HeightDigits = 2 };
             if (_chart.Extras.FixedZeroOrigin)
             {
                 _lines.Add("'" + ChartExtras.FixedZeroOriginMarker);
@@ -150,8 +150,10 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.CaptureUserText(m);
             _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             _snapshots.Capture(_chart.Extras, _lines, _chart.Meta.C2sSlaSnapshot);
-            var copyright = "@COPYRIGHT\t" +
-                (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") + _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
+            var metadata = C2SRoundTrip.WriteOptionalMetadata(() =>
+                (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") +
+                _chart.Extras.ToCopyright(), diagnostics, path);
+            var copyright = "@COPYRIGHT\t" + metadata + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
             _lines.Insert(1, copyright);
             await AtomicFile.WriteAsync(path, async (stream, token) =>
             {
@@ -207,8 +209,8 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             $"@MAINBPM\t{m.MainBpm}", $"@FLAG\tSOFFSET\t{(m.BgmEnableBarOffset ? 1 : 0)}",
             $"@FLAG\tCLICK\t{(_chart.Extras.ClickEnabled ? 1 : 0)}", $"@CLKCNT\t{_chart.Extras.Count(m.BgmInitialNumerator)}",
             $"@FLAG\tDIFFTTL\t{(_chart.Extras.Tutorial ? 1 : 0)}"]);
-        _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(m.BgmFilePath)}",
-            $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(m.JacketFilePath)}",
+        _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(ChartMediaPaths.ForOutput(m.BgmFilePath, m.FilePath, path))}",
+            $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(ChartMediaPaths.ForOutput(m.JacketFilePath, m.FilePath, path))}",
             $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
         _lines.Add($"@LICENSE\t{Clean(m.License)}\t{Clean(m.LicenseUrl)}");
         _lines.Add($"@GENRE\t{Clean(m.Genre?.Str ?? "")}");
@@ -217,11 +219,11 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.Add($"@WEATTR\t{Clean(m.WeTag.Str)}");
         }
         _lines.Add($"@BGMPRV\t{m.BgmPreviewStart}\t{m.BgmPreviewStop}");
-        _lines.Add($"@BGIMG\t{Clean(m.BgiFilePath)}");
+        _lines.Add($"@BGIMG\t{Clean(ChartMediaPaths.ForOutput(m.BgiFilePath, m.FilePath, path))}");
         _lines.Add($"@BGSCENE\t{Clean(m.BackgroundScene)}");
         _lines.Add($"@BGMODE\t{Clean(_chart.Extras.EditorBackgroundMode)}\t{(m.BackgroundSync ? FalseValue : "TRUE")}");
         _lines.Add($"@FLDCOL\t{m.FieldColorIndex}");
-        _lines.Add($"@FLDIMG\t{Clean(m.FieldImage)}");
+        _lines.Add($"@FLDIMG\t{Clean(ChartMediaPaths.ForOutput(m.FieldImage, m.FilePath, path))}");
         _lines.Add($"@FLDSCENE\t{Clean(m.FieldScene)}");
         _lines.Add($"@ATINFO\tAUTHORS\t{m.Authors.Replace('\r', ' ').Replace('\n', ' ')}");
         _lines.Add($"@ATINFO\tSITES\t{m.AuthorSites.Replace('\r', ' ').Replace('\n', ' ')}");

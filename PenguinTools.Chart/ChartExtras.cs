@@ -187,13 +187,24 @@ public sealed partial class ChartExtras
         return string.Join('\n', lines);
     }
 
-    public static ChartExtras FromCopyright(string value)
+    public static ChartExtras FromCopyright(string value, Action? onInvalidMetadata = null)
     {
+        var result = new ChartExtras();
         var match = CopyrightMetadataRegex().Match(value);
-        var result = match.Success
-            ? JsonSerializer.Deserialize(C2SRoundTrip.Decode(match.Groups[1].Value.Replace("PT_C2S_", "MGR_C2S_", StringComparison.Ordinal)), ChartExtrasJsonContext.Default.ChartExtras) ?? new()
-            : new ChartExtras();
-        result.ReadCopyright(value);
+        if (match.Success)
+        {
+            try
+            {
+                var decoded = C2SRoundTrip.Decode(match.Groups[1].Value.Replace("PT_C2S_", "MGR_C2S_", StringComparison.Ordinal));
+                result = JsonSerializer.Deserialize(decoded, ChartExtrasJsonContext.Default.ChartExtras)
+                    ?? throw new JsonException("Empty chart metadata.");
+            }
+            catch (Exception ex) when (onInvalidMetadata is not null && ex is FormatException or JsonException)
+            {
+                onInvalidMetadata();
+            }
+        }
+        result.ReadCopyright(value, onInvalidMetadata);
         result.ClickTicks.Clear(); // Explicit clicks are read from the native note block.
         return result;
     }
@@ -207,12 +218,20 @@ public sealed partial class ChartExtras
         _ => ""
     }).Where(s => s.Length > 0));
 
-    public void ReadCopyright(string? value)
+    public void ReadCopyright(string? value, Action? onInvalidMetadata = null)
     {
         RejectPendingSnapshotShift(value);
         FixedZeroOrigin |= HasFixedZeroOrigin(value);
         PrerollBar1Applied |= HasPrerollBar1(value);
-        SourceSnapshot = C2SRoundTrip.Decode(value ?? "");
+        try
+        {
+            SourceSnapshot = C2SRoundTrip.Decode(value ?? "");
+        }
+        catch (FormatException) when (onInvalidMetadata is not null)
+        {
+            SourceSnapshot = "";
+            onInvalidMetadata();
+        }
     }
 
     public int Count(int initial) => Math.Max(0, ClickCount ?? initial);
@@ -359,11 +378,11 @@ public sealed partial class ChartExtras
     internal static bool IsExtrasBookmark(string tag) =>
         tag.StartsWith(BookmarkPrefix, StringComparison.Ordinal);
 
-    public static ChartExtras FromBookmark(string tag)
+    public static ChartExtras FromBookmark(string tag, Action? onInvalidMetadata = null)
     {
         if (tag.StartsWith(BookmarkPrefix, StringComparison.Ordinal))
         {
-            return FromCopyright(tag[BookmarkPrefix.Length..]);
+            return FromCopyright(tag[BookmarkPrefix.Length..], onInvalidMetadata);
         }
 
         throw new FormatException("Invalid chart metadata bookmark.");
@@ -531,6 +550,6 @@ public sealed record AirAppearance(string Key, PenguinTools.Chart.Models.Color C
 public sealed record MeterSnapshot(int Tick, int Numerator, int Denominator);
 public sealed record SpeedSnapshot(string Tag, int Tick, int Length, decimal Speed, int Timeline);
 
-[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, RespectNullableAnnotations = true)]
 [JsonSerializable(typeof(ChartExtras))]
 internal partial class ChartExtrasJsonContext : JsonSerializerContext;
