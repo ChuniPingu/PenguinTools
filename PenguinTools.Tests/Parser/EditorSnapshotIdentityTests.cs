@@ -15,6 +15,95 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class EditorSnapshotIdentityTests
 {
+    [Fact]
+    public async Task OversizedRoundtripMetadata_DoesNotBlockNativeEditorOutput()
+    {
+        var source = Chart();
+        source.Notes.AppendChild(new U.Tap { Tick = 480, Lane = 3, Width = 4 });
+        // JSON escapes each control character to six bytes.
+        source.Extras.Headers["TEST"] = new string('\u0001', PenguinTools.Chart.C2SRoundTrip.MaxDecodedBytes / 6 + 1);
+        var ct = TestContext.Current.CancellationToken;
+        foreach (var ugc in new[] { false, true })
+        {
+            var path = TestTempPaths.Create(ugc ? ".ugc" : ".mgxc");
+            try
+            {
+                var written = ugc ? await new UgcChartWriter(path, source).WriteAsync(ct)
+                    : await new MgxcChartWriter(new(path, source)).WriteAsync(ct);
+                Assert.True(written.Succeeded, written.ToString());
+                var warning = Assert.Single(written.Diagnostics.Diagnostics,
+                    d => d.Message.Key == PenguinTools.Core.MsgKeys.Warn_Roundtrip_metadata_not_saved);
+                Assert.Equal(PenguinTools.Core.Diagnostic.Severity.Warning, warning.Severity);
+                Assert.Equal(path, warning.Path);
+                var parsed = ugc ? await new UgcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                    : await new MgxcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+                Assert.True(parsed.Succeeded, parsed.ToString());
+                var tap = Assert.Single(parsed.Value!.Notes.Children.OfType<U.Tap>());
+                Assert.Equal((480, 3, 4), (tap.Tick.Original, tap.Lane, tap.Width));
+                Assert.Empty(parsed.Value.Extras.Headers);
+            }
+            finally { File.Delete(path); }
+        }
+    }
+
+    [Theory]
+    [InlineData("ugc", "PT_C2S_V1=ew==;")]
+    [InlineData("ugc", "PT_C2S_V1=eyJDbGlja1RpY2tzIjpudWxsfQ==;")]
+    [InlineData("ugc", "MGR_C2S_LZ1=/wAAAQ==;")]
+    [InlineData("mgxc", "PT_C2S_V1=A;")]
+    [InlineData("bookmark", "PT_C2S_LZ1=/wAAAQ==;")]
+    public async Task CorruptEncodedMetadata_WarnsAndReadsNativeNotes(string format, string payload)
+    {
+        var path = TestTempPaths.Create(format == "ugc" ? ".ugc" : ".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var metadata = PenguinTools.Chart.ChartExtras.FixedZeroOriginMarker + ";" + payload;
+            if (format == "ugc")
+            {
+                await File.WriteAllTextAsync(path,
+                    $"@VER\t9\n@COPYRIGHT\t{metadata}\n@FLAG\tSOFFSET\tTRUE\n@BPM\t0'0\t120\n#0'480:tJ4\n", ct);
+            }
+            else
+            {
+                var source = Chart();
+                source.Meta.BgmEnableBarOffset = true;
+                source.Notes.AppendChild(new U.Tap { Tick = 480, Lane = 3, Width = 4 });
+                if (format == "bookmark")
+                {
+                    source.Events.AppendChild(new U.BookmarkEvent
+                    {
+                        Tick = 0,
+                        Tag = PenguinTools.Chart.ChartExtras.BookmarkPrefix + metadata
+                    });
+                }
+                else
+                {
+                    source.Meta.Copyright = metadata;
+                }
+                Assert.True((await new MgxcChartWriter(new(path, source)).WriteAsync(ct)).Succeeded);
+            }
+            var parsed = format == "ugc"
+                ? await new UgcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct)
+                : await new MgxcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.False(parsed.Diagnostics.HasError);
+            var warning = Assert.Single(parsed.Diagnostics.Diagnostics,
+                d => d.Message.Key == PenguinTools.Core.MsgKeys.Warn_Roundtrip_metadata_ignored);
+            Assert.Equal(PenguinTools.Core.Diagnostic.Severity.Warning, warning.Severity);
+            Assert.Equal(path, warning.Path);
+            Assert.NotNull(warning.Line);
+            var tap = Assert.Single(parsed.Value!.Notes.Children.OfType<U.Tap>());
+            Assert.Equal((480, 3, 4), (tap.Tick.Original, tap.Lane, tap.Width));
+            var converted = new C2SChartConverter(new(parsed.Value)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            Assert.Equal(480, Assert.Single(converted.Value!.Notes.OfType<C.Tap>()).Tick.Original);
+            var saved = await RoundTrip(parsed.Value, format == "ugc");
+            Assert.Equal(480, Assert.Single(saved.Notes.Children.OfType<U.Tap>()).Tick.Original);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

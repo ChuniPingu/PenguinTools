@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.Chart;
 
@@ -310,6 +311,21 @@ public static partial class C2SRoundTrip
         }
         return C2sSlidePaths.PreservesPaths(notes, ordered, resolution) ? ordered : notes;
     }
+    internal static string WriteOptionalMetadata(Func<string> encode, IDiagnosticSink diagnostics, string path)
+    {
+        try
+        {
+            return encode();
+        }
+        catch (FormatException ex)
+        {
+            diagnostics.Report(new PathDiagnostic(Severity.Warning,
+                Msg.Key(MsgKeys.Warn_Roundtrip_metadata_not_saved), path)
+            { Target = ex });
+            return "";
+        }
+    }
+
     // Byte-oriented LZ encoding keeps lossless snapshots within MGXC string limits.
     public static string Pack(string text, bool forceCompression = false)
     {

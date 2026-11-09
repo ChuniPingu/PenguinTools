@@ -210,7 +210,11 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
                     WriteBookmark(bw, 0, ChartExtras.PrerollBar1Marker, DefaultBookmarkColor);
                 }
             }
-            WriteBookmark(bw, 0, _chart.Extras.ToBookmark(), DefaultBookmarkColor);
+            var metadata = C2SRoundTrip.WriteOptionalMetadata(_chart.Extras.ToBookmark, _diagnostics, request.Path);
+            if (metadata.Length > 0)
+            {
+                WriteBookmark(bw, 0, metadata, DefaultBookmarkColor);
+            }
         }
 
         foreach (var bookmark in _chart.Events.Children.OfType<UmgrModel.BookmarkEvent>()

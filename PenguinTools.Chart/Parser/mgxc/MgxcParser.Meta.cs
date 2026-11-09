@@ -154,7 +154,6 @@ public partial class MgxcParser
     {
         _copyright = copyright;
         Mgxc.Meta.Copyright = ChartExtras.CopyrightText(copyright);
-        Mgxc.Extras.ReadCopyright(copyright);
     }
 
     private void ApplyGenre(string genre)

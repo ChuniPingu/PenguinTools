@@ -123,13 +123,19 @@ public partial class MgxcParser
     private void ReadMetadata(BinaryReader br)
     {
         br.ReadBlock(HeaderMeta, ParseMeta);
+        void WarnInvalidMetadata() => ReportAtPosition(Severity.Warning,
+            Msg.Key(MsgKeys.Warn_Roundtrip_metadata_ignored), br.BaseStream.Position);
         if (_copyright.Contains("PT_C2S_", StringComparison.Ordinal))
         {
             var clickEnabled = Mgxc.Extras.ClickEnabled;
             var tutorial = Mgxc.Extras.Tutorial;
-            Mgxc.Extras = ChartExtras.FromCopyright(_copyright);
+            Mgxc.Extras = ChartExtras.FromCopyright(_copyright, WarnInvalidMetadata);
             Mgxc.Extras.ClickEnabled = clickEnabled;
             Mgxc.Extras.Tutorial = tutorial;
+        }
+        else
+        {
+            Mgxc.Extras.ReadCopyright(_copyright, WarnInvalidMetadata);
         }
     }
 

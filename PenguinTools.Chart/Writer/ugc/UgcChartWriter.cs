@@ -150,8 +150,10 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _chart.Extras.CaptureUserText(m);
             _chart.Extras.RoundTripBookmarks = C2sRoundTripComment.FormatBookmarks(m).ToList();
             _snapshots.Capture(_chart.Extras, _lines, _chart.Meta.C2sSlaSnapshot);
-            var copyright = "@COPYRIGHT\t" +
-                (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") + _chart.Extras.ToCopyright() + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
+            var metadata = C2SRoundTrip.WriteOptionalMetadata(() =>
+                (_chart.Extras.SourceSnapshot.Length > 0 ? C2SRoundTrip.Pack(_chart.Extras.SourceSnapshot) : "") +
+                _chart.Extras.ToCopyright(), diagnostics, path);
+            var copyright = "@COPYRIGHT\t" + metadata + _chart.Extras.CopyrightWithTiming(Clean(m.Copyright));
             _lines.Insert(1, copyright);
             await AtomicFile.WriteAsync(path, async (stream, token) =>
             {

@@ -21,7 +21,7 @@ Use binary MGXC only. Do not use text MGXC: PenguinTools does not support it, an
 
 MGXC and UGC inputs use the official semantics of their declared versions, including older official versions.
 
-Invalid optional metadata (C2S statistics and BPM summaries, metronome settings, and `#meta` arguments) is skipped with a warning.
+Invalid optional metadata (C2S statistics and BPM summaries, metronome settings, and `#meta` arguments) is skipped with a warning. Damaged encoded round-trip metadata also warns and falls back to native chart records. Output continues with a warning if round-trip metadata exceeds its 64 MiB decoded-size limit; values requiring the omitted metadata cannot be restored.
 
 MGXC heights use `HSCL` (default 1) to convert to internal tenths. MGXC v4 limits rescaled heights to 0–360 when `HSCL` differs from 10, matching Margrete; its usual `HSCL=10` representation retains larger heights. Nonpositive, nonfinite, or unrepresentable scales fail with `diag.mgcrit.invalid_height_scale`.
 

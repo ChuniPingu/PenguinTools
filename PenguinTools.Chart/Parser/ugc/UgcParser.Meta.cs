@@ -213,16 +213,19 @@ public partial class UgcParser
         Ugc.Extras.ClickCount = count;
     }
 
+    private void WarnInvalidRoundtripMetadata() =>
+        ReportAtCurrentLine(Severity.Warning, Msg.Key(MsgKeys.Warn_Roundtrip_metadata_ignored));
+
     private void HandleCopyright(string[] args)
     {
         Ugc.Meta.Copyright = ChartExtras.CopyrightText(Str(args));
         if (Str(args).Contains("PT_C2S_", StringComparison.Ordinal))
         {
-            Ugc.Extras = ChartExtras.FromCopyright(Str(args));
+            Ugc.Extras = ChartExtras.FromCopyright(Str(args), WarnInvalidRoundtripMetadata);
         }
         else
         {
-            Ugc.Extras.ReadCopyright(Str(args));
+            Ugc.Extras.ReadCopyright(Str(args), WarnInvalidRoundtripMetadata);
         }
 
         C2sRoundTripComment.Absorb(Ugc.Meta, Ugc.Extras.RoundTripBookmarks);

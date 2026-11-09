@@ -124,6 +124,8 @@
       "warn": {
         "mgxc_string_too_long": "MGXC 文字已截短",
         "invalid_metadata": "已忽略无效附加信息",
+        "roundtrip_metadata_ignored": "已忽略损坏的往返元数据",
+        "roundtrip_metadata_not_saved": "未保存往返元数据",
         "editor_approximation": "已调整谱面数据",
         "chart_metadata_only": "只能读取谱面的基本信息",
         "chart_skipped_version": "已跳过不支持的谱面版本",
@@ -277,6 +279,8 @@
     "warn": {
       "mgxc_string_too_long": "MGXC 的 {arg0} 字段过长，已从 {arg1} 个 UTF-8 字节截短至 {arg2} 个字节。",
       "invalid_metadata": "{arg0} 的值无效（{arg1}），已忽略此项。",
+      "roundtrip_metadata_ignored": "往返元数据损坏，已按谱面本身继续读取；其中保存的原值无法恢复。",
+      "roundtrip_metadata_not_saved": "无法保存往返元数据，已继续转换谱面；依赖这部分数据的原值将无法恢复。",
       "editor_approximation": "输出 {0} 时，已将 {1} 从 {2} 调整为 {3}。",
       "chart_metadata_only": "仅获取了 {0} v{1} 的谱面基本信息。",
       "chart_skipped_version": "已跳过 {0} v{1}，最高支持 v{2}。",
