@@ -700,4 +700,46 @@ public class UgcNoteTests
         Assert.Equal(slide.Width, c2sExTap.Width);
         Assert.Equal("SXD", c2sSlide.Id);
     }
+
+    [Theory]
+    [InlineData("h64", "s", 'U', 'D', ExEffect.UP, ExEffect.DW)]
+    [InlineData("h64", "s", 'D', 'U', ExEffect.DW, ExEffect.UP)]
+    [InlineData("s64", "s84", 'U', 'D', ExEffect.UP, ExEffect.DW)]
+    [InlineData("s64", "s84", 'D', 'U', ExEffect.DW, ExEffect.UP)]
+    public async Task ExLongMarker_UsesFirstExactEffectAndPreservesExtraChr(
+        string head, string tail, char first, char second, ExEffect markerEffect, ExEffect independentEffect)
+    {
+        var chart = await Parse($"#0'0:x64{first}\n#0'0:x64{second}\n#0'0:{head}\n#480:{tail}\n");
+        var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.Equal(markerEffect, Assert.Single(chart.Notes.Children.OfType<ExTapableNote>()).Effect);
+        Assert.Equal(markerEffect, Assert.Single(converted.Value!.Notes.OfType<Chart.Models.c2s.ExTapableLongNote>()).Effect);
+        Assert.Equal(independentEffect, Assert.Single(converted.Value.Notes.OfType<Chart.Models.c2s.ExTap>()).Effect);
+    }
+
+    [Theory]
+    [InlineData("#0'0:x48D\n#0'0:x64U\n", false)]
+    [InlineData("#0'0:x64U\n#0'0:x48D\n", false)]
+    [InlineData("#0'0:x64D\n#0'0:a64UCN\n#0'0:x64U\n", true)]
+    [InlineData("#0'0:x64U\n#0'0:x64D\n#0'0:a64UCN\n", true)]
+    public async Task ExLongMarker_UsesBareExactEffectWithWiderOrAirParentedExTap(string taps, bool hasAir)
+    {
+        var chart = await Parse(taps + "#0'0:h64\n#480:s\n");
+        var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
+
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.Equal(ExEffect.UP, Assert.Single(converted.Value!.Notes.OfType<Chart.Models.c2s.Hold>()).Effect);
+        var independent = Assert.Single(converted.Value.Notes.OfType<Chart.Models.c2s.ExTap>());
+        Assert.Equal(ExEffect.DW, independent.Effect);
+        var airs = converted.Value.Notes.OfType<Chart.Models.c2s.Air>();
+        if (hasAir)
+        {
+            Assert.Same(independent, Assert.Single(airs).Parent);
+        }
+        else
+        {
+            Assert.Empty(airs);
+        }
+    }
 }
