@@ -124,8 +124,8 @@
       "warn": {
         "mgxc_string_too_long": "MGXC text truncated",
         "invalid_metadata": "Metadata ignored",
-        "roundtrip_metadata_ignored": "Round-trip metadata ignored",
-        "roundtrip_metadata_not_saved": "Round-trip metadata omitted",
+        "roundtrip_metadata_ignored": "Damaged round-trip marker ignored",
+        "roundtrip_metadata_not_saved": "Round-trip marker not saved",
         "editor_approximation": "Chart data adjusted",
         "chart_metadata_only": "Only basic chart information read",
         "chart_skipped_version": "Unsupported chart version skipped",
@@ -279,8 +279,8 @@
     "warn": {
       "mgxc_string_too_long": "MGXC field {arg0} was truncated from {arg1} to {arg2} UTF-8 bytes.",
       "invalid_metadata": "Invalid {arg0} value ({arg1}); this entry was ignored.",
-      "roundtrip_metadata_ignored": "Damaged round-trip metadata was ignored. The chart was read from its native records; original values stored in that metadata cannot be restored.",
-      "roundtrip_metadata_not_saved": "Round-trip metadata could not be saved. Conversion continued; original values requiring that metadata cannot be restored.",
+      "roundtrip_metadata_ignored": "",
+      "roundtrip_metadata_not_saved": "",
       "editor_approximation": "In the {0} file, {1} was changed from {2} to {3}.",
       "chart_metadata_only": "Only basic chart information was read from {0} v{1}.",
       "chart_skipped_version": "This chart uses {0} v{1} and was skipped. Versions up to v{2} are supported.",
