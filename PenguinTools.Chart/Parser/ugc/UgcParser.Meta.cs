@@ -277,6 +277,11 @@ public partial class UgcParser
         {
             ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "UGC v8/v9"));
         }
+        if (_declaredVersion.HasValue && _declaredVersion.Value != v)
+        {
+            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, args[0], "one UGC format version"));
+        }
+        _declaredVersion = v;
         _version = v;
     }
 

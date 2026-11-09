@@ -12,6 +12,27 @@ namespace PenguinTools.Tests.Parser;
 public sealed class EditorVersionTests
 {
     [Theory]
+    [InlineData(8, false)]
+    [InlineData(9, true)]
+    public async Task UgcRepeatedVersion_MustAgree(int secondVersion, bool succeeds)
+    {
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path, $"@VER\t9\n@VER\t{secondVersion}\n@MAINBPM\t120\n@BEAT\t0\t4\t4\n#0'0:tG4\n", ct);
+            var parsed = await new UgcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.Equal(succeeds, parsed.Succeeded);
+            if (!succeeds)
+            {
+                Assert.Contains(parsed.Diagnostics.Diagnostics,
+                    d => d.Message.Key == MsgKeys.Error_Invalid_Header && d.Line == 2);
+            }
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
     [InlineData(".mgxc", 5, 8, 4)]
     [InlineData(".mgxc", int.MaxValue, 8, 4)]
     [InlineData(".ugc", 10, 2, 9)]
