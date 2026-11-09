@@ -446,13 +446,13 @@ public sealed class C2sAudioOffsetTests
     }
 
     [Theory]
-    [InlineData(32748, false, false)]
-    [InlineData(32749, false, false)]
-    [InlineData(32767, false, false)]
-    [InlineData(32767, true, false)]
-    [InlineData(32728, false, true)]
-    [InlineData(32729, false, true)]
-    [InlineData(32767, true, true)]
+    [InlineData(65516, false, false)]
+    [InlineData(65517, false, false)]
+    [InlineData(65535, false, false)]
+    [InlineData(65535, true, false)]
+    [InlineData(65496, false, true)]
+    [InlineData(65497, false, true)]
+    [InlineData(65535, true, true)]
     public async Task FixedOrigin_PreservesCopyrightAtNativeByteLimit(int byteCount, bool unicode, bool preroll)
     {
         var source = new U.Chart();
@@ -476,7 +476,7 @@ public sealed class C2sAudioOffsetTests
                 {
                     var tag = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));
                     var type = reader.ReadInt16();
-                    var size = reader.ReadInt16();
+                    var size = reader.ReadUInt16();
                     var bytes = reader.ReadBytes(type switch
                     {
                         1 => 0,
@@ -490,7 +490,7 @@ public sealed class C2sAudioOffsetTests
                         continue;
                     }
                     var copyright = System.Text.Encoding.UTF8.GetString(bytes);
-                    Assert.Equal(byteCount + 19 + (preroll ? 20 : 0) <= short.MaxValue,
+                    Assert.Equal(byteCount + 19 + (preroll ? 20 : 0) <= ushort.MaxValue,
                         copyright.StartsWith(PenguinTools.Chart.ChartExtras.FixedZeroOriginMarker, StringComparison.Ordinal));
                     break;
                 }

@@ -20,6 +20,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     private const string DefaultBookmarkColor = "FFFFFF";
 
     private UmgrModel.Chart _chart = null!;
+    private DiagnosticCollector _diagnostics = new();
     private bool _timingBookmarksRequired;
     private readonly List<ExTapRoleSnapshot> _writtenExTapRoles = [];
 
@@ -37,39 +38,47 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         ArgumentNullException.ThrowIfNull(request.Chart);
-        var diagnostics = new DiagnosticCollector();
+        _diagnostics = new();
         try
         {
-            _chart = EditorProjection.Create(request.Chart, ugc: false, diagnostics);
+            _chart = EditorProjection.Create(request.Chart, ugc: false, _diagnostics);
         }
         catch (DiagnosticException ex)
         {
-            diagnostics.Report(ex.ToDiagnostic().WithPathFallback(request.Path));
-            return OperationResult.Failure().WithDiagnostics(diagnostics);
+            _diagnostics.Report(ex.ToDiagnostic().WithPathFallback(request.Path));
+            return OperationResult.Failure().WithDiagnostics(_diagnostics);
         }
         CurveExpansion.Validate(_chart);
         _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
         _timingBookmarksRequired = (_chart.Extras.FixedZeroOrigin || _chart.Extras.PrerollBar1Applied) &&
-            Encoding.UTF8.GetByteCount(_chart.Extras.CopyrightWithTiming(_chart.Meta.Copyright)) > short.MaxValue;
+            Encoding.UTF8.GetByteCount(_chart.Extras.CopyrightWithTiming(_chart.Meta.Copyright)) > ushort.MaxValue;
         _chart.Extras.UgcNoteSnapshots.Clear();
         _chart.Extras.UgcSnapshotVersion = 0;
         _chart.Extras.UgcContextKey = null;
         _chart.Extras.UgcMusicalKey = null;
         _chart.Extras.UgcSlaKey = null;
-        await AtomicFile.WriteAsync(request.Path, async (stream, token) =>
+        try
         {
-            await using var buffer = new MemoryStream();
-            using (var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true))
+            await AtomicFile.WriteAsync(request.Path, async (stream, token) =>
             {
-                WriteFile(writer);
-                writer.Flush();
-            }
+                await using var buffer = new MemoryStream();
+                using (var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true))
+                {
+                    WriteFile(writer);
+                    writer.Flush();
+                }
 
-            buffer.Position = 0;
-            await buffer.CopyToAsync(stream, token);
-            await stream.FlushAsync(token);
-        }, ct);
-        return OperationResult.Success().WithDiagnostics(diagnostics);
+                buffer.Position = 0;
+                await buffer.CopyToAsync(stream, token);
+                await stream.FlushAsync(token);
+            }, ct);
+        }
+        catch (DiagnosticException ex)
+        {
+            _diagnostics.Report(ex.ToDiagnostic().WithPathFallback(request.Path));
+            return OperationResult.Failure().WithDiagnostics(_diagnostics);
+        }
+        return OperationResult.Success().WithDiagnostics(_diagnostics);
     }
 
     private void WriteFile(BinaryWriter bw)
@@ -773,13 +782,24 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
         bw.Write(bytes);
     }
 
-    private static void WriteStringField(BinaryWriter bw, string name, string value)
+    private void WriteStringField(BinaryWriter bw, string name, string value)
     {
         bw.Write(Encoding.ASCII.GetBytes(name));
         var bytes = Encoding.UTF8.GetBytes(value ?? "");
+        var length = Math.Min(bytes.Length, ushort.MaxValue);
+        if (bytes.Length > length)
+        {
+            // Exclude the entire character if the limit falls inside its UTF-8 sequence.
+            while ((bytes[length] & 0xC0) == 0x80)
+            {
+                length--;
+            }
+            _diagnostics.Report(new PathDiagnostic(Severity.Warning,
+                Msg.Create(MsgKeys.Warn_Mgxc_string_too_long, name, bytes.Length, length), request.Path));
+        }
         bw.Write((short)4);
-        bw.Write(checked((short)bytes.Length));
-        bw.Write(bytes);
+        bw.Write((ushort)length);
+        bw.Write(bytes, 0, length);
     }
 
     private static void WriteIntField(BinaryWriter bw, string name, int value)

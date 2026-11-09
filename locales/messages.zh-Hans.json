@@ -123,6 +123,7 @@
         "unsupported_tap_point_type": "不支持这种 TAP 音符"
       },
       "warn": {
+        "mgxc_string_too_long": "MGXC 文字已截短",
         "editor_approximation": "已调整谱面数据",
         "chart_metadata_only": "只能读取谱面的基本信息",
         "chart_skipped_version": "已跳过不支持的谱面版本",
@@ -275,6 +276,7 @@
       "unsupported_tap_point_type": "不支持 SUS 中类型为“{0}”的 TAP 音符。"
     },
     "warn": {
+      "mgxc_string_too_long": "MGXC 的 {arg0} 字段过长，已从 {arg1} 个 UTF-8 字节截短至 {arg2} 个字节。",
       "editor_approximation": "输出 {0} 时，已将 {1} 从 {2} 调整为 {3}。",
       "chart_metadata_only": "仅获取了 {0} v{1} 的谱面基本信息。",
       "chart_skipped_version": "已跳过 {0} v{1}，最高支持 v{2}。",

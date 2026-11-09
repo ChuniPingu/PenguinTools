@@ -50,6 +50,50 @@ public sealed class EditorInformationTests
         finally { directory.Delete(true); }
     }
 
+    [Theory]
+    [InlineData(32768, "中")]
+    [InlineData(65535, "中")]
+    [InlineData(65536, "中")]
+    [InlineData(65537, "😀")]
+    public async Task MgxcTitle_TruncatesOversizedUtf8TextWithWarning(int bytes, string character)
+    {
+        var characterBytes = Encoding.UTF8.GetByteCount(character);
+        var title = "a" + string.Concat(Enumerable.Repeat(character, (bytes - 1) / characterBytes))
+            + new string('x', (bytes - 1) % characterBytes);
+        var chart = new U.Chart();
+        chart.Meta.Title = title;
+        var path = TestTempPaths.Create(".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path, "existing chart", ct);
+            var written = await new MgxcChartWriter(new(path, chart)).WriteAsync(ct);
+            Assert.True(written.Succeeded, written.ToString());
+            var warnings = written.Diagnostics.Diagnostics.Where(
+                d => d.Message.Key == PenguinTools.Core.MsgKeys.Warn_Mgxc_string_too_long);
+            if (bytes > ushort.MaxValue)
+            {
+                var warning = Assert.Single(warnings);
+                Assert.Equal(PenguinTools.Core.Diagnostic.Severity.Warning, warning.Severity);
+                Assert.Equal(path, warning.Path);
+                Assert.Equal(bytes, warning.Message.Args!["arg1"]);
+                Assert.Equal(65533, warning.Message.Args["arg2"]);
+            }
+            else
+            {
+                Assert.Empty(warnings);
+            }
+            var parsed = await new MgxcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var savedTitle = parsed.Value!.Meta.Title;
+            Assert.StartsWith(savedTitle, title, StringComparison.Ordinal);
+            Assert.DoesNotContain('\uFFFD', savedTitle);
+            Assert.Equal(bytes > ushort.MaxValue ? 65533 : bytes, Encoding.UTF8.GetByteCount(savedTitle));
+            Assert.Equal(title, chart.Meta.Title);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public async Task EditorInformation_SurvivesRepeatedUgcMgxcSaves()
     {

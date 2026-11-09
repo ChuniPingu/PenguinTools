@@ -123,6 +123,7 @@
         "unsupported_tap_point_type": "Unsupported TAP point"
       },
       "warn": {
+        "mgxc_string_too_long": "MGXC text truncated",
         "editor_approximation": "Chart data adjusted",
         "chart_metadata_only": "Only basic chart information read",
         "chart_skipped_version": "Unsupported chart version skipped",
@@ -275,6 +276,7 @@
       "unsupported_tap_point_type": "SUS TAP point type '{0}' is not supported."
     },
     "warn": {
+      "mgxc_string_too_long": "MGXC field {arg0} was truncated from {arg1} to {arg2} UTF-8 bytes.",
       "editor_approximation": "In the {0} file, {1} was changed from {2} to {3}.",
       "chart_metadata_only": "Only basic chart information was read from {0} v{1}.",
       "chart_skipped_version": "This chart uses {0} v{1} and was skipped. Versions up to v{2} are supported.",
