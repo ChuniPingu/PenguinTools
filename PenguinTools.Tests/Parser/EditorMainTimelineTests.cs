@@ -9,6 +9,33 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class EditorMainTimelineTests
 {
+    [Fact]
+    public async Task SpeedEvents_AfterLastNoteAndOnUnusedTimelineAreRetained()
+    {
+        var source = TestTempPaths.Create(".ugc");
+        var output = TestTempPaths.Create(".mgxc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(source,
+                "@VER\t9\n@TICKS\t480\n@MAINBPM\t120\n@FLAG\tSOFFSET\tFALSE\n@BEAT\t0\t4\t4\n" +
+                "@TIL\t0\t0'0\t2\n@TIL\t0\t2'0\t1\n@TIL\t2\t0'0\t3\n#1'0:tG4\n", ct);
+            var parsed = await new UgcParser(new(source, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.True((await new MgxcChartWriter(new(output, parsed.Value!)).WriteAsync(ct)).Succeeded);
+            var saved = await new MgxcParser(new(output, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(saved.Succeeded, saved.ToString());
+            var speeds = saved.Value!.Events.Children.OfType<U.ScrollSpeedEvent>().ToArray();
+            Assert.Contains(speeds, e => e.Timeline == 0 && e.Tick.Original == 3840 && e.Speed == 1);
+            Assert.Contains(speeds, e => e.Timeline == 2 && e.Tick.Original == 0 && e.Speed == 3);
+        }
+        finally
+        {
+            File.Delete(source);
+            File.Delete(output);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

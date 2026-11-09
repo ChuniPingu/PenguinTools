@@ -45,6 +45,8 @@ C2S imports retain their coordinates even after edits invalidate saved snapshots
 
 For example, at an initial BPM of 120 with `SOFFSET` enabled, a 4/4 chart receives 2 seconds of opening silence; a 3/4 chart receives 1.5 seconds. Notes and later timing events move by the corresponding measure. The initial BPM and meter remain at the start, and the manual audio offset is applied independently.
 
+Editor saves retain speed events after the last note and on unused timelines.
+
 Overlapping C2S SLP/SFL/STP intervals become TIL speeds of `1 + Σ(speed − 1)` at each interval boundary. SLA placement includes generated AIR-CRUSH rungs as well as explicit note endpoints. C2S output assigns higher timeline IDs to nested objects when needed, copying their complete scroll curves without changing editor timelines. Conversion warns only when the resulting scroll curve differs, such as coincident objects with incompatible curves.
 
 Overlapping DCM intervals use the first active nonzero speed in start-time order, retaining statement order for equal starts. Editor SPDMOD events follow that effective speed; unedited round trips retain the original intervals. Native editor `SPDMOD 0` can stop a note's scrolling, whereas C2S ignores `DCM 0`. C2S conversion reports `diag.warn.zero_note_speed_not_reproduced` when that zero modifier affects a note on a defined, nonzero TIL segment; MGXC and UGC saves preserve it without this warning.
