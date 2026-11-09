@@ -124,14 +124,7 @@ public sealed class C2SParser
         }
         if (text.StartsWith("//MGR_PREROLL=", StringComparison.Ordinal))
         {
-            if (text != "//" + ChartExtras.PrerollBar1Marker)
-            {
-                ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "preroll extension"), line.Number);
-            }
-            else
-            {
-                C2s.Extras.PrerollBar1Applied = true;
-            }
+            ParsePrerollExtension(text, line.Number);
             return;
         }
         if (text.StartsWith("//MGR_CLICK_V1", StringComparison.Ordinal))
@@ -176,6 +169,17 @@ public sealed class C2SParser
                 C2s.Extras.Headers[tokens[0]] = adjusted;
             }
         }
+    }
+
+    private void ParsePrerollExtension(string text, int lineNumber)
+    {
+        if (text != "//" + ChartExtras.PrerollBar1Marker)
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, "preroll extension"), lineNumber);
+            return;
+        }
+
+        C2s.Extras.PrerollBar1Applied = true;
     }
 
     private void ParseMetronomeExtension(string text, int lineNumber)
