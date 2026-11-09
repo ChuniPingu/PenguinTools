@@ -15,6 +15,26 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sEditedRelationSnapshotTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(".mgxc")]
+    [InlineData(".ugc")]
+    public async Task MissingAirEditKey_DoesNotRestoreOldAirAfterEditing(string? saveAs)
+    {
+        var chart = await ReadC2s("TAP 0 0 0 4\nAIR 0 0 0 4 TAP DEF\n");
+        Assert.NotNull(chart.Meta.C2sAirSnapshot);
+        chart.Meta.C2sAirEditKey = null;
+        Assert.Single(chart.Notes.Children.OfType<U.Air>()).Color = Color.PNK;
+        if (saveAs is not null)
+        {
+            chart = await ThroughEditor(chart, saveAs);
+        }
+        var converted = new C2SChartConverter(new(chart)).Convert();
+        Assert.True(converted.Succeeded, converted.ToString());
+        Assert.Null(converted.Value!.Meta.C2sAirSnapshot);
+        Assert.Equal(Color.PNK, Assert.Single(converted.Value.Notes.OfType<PenguinTools.Chart.Models.c2s.Air>()).Color);
+    }
+
     [Fact]
     public async Task EditedOverlappingAirColorsAreNotReplacedByLegacyColorSnapshots()
     {

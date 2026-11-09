@@ -56,14 +56,16 @@ internal static class EditorProjection
         extras.EditorPathProjections.Clear();
         // Check the editable source before normalization or curve expansion changes
         // its view. A newly written checksum must not validate an older snapshot.
-        var airKey = extras.AirModelKey ?? chart.Meta.C2sAirEditKey;
-        if (airKey is not null && airKey != C2sRoundTripKeys.FormatAirEditKey(chart))
+        var airKey = C2sRoundTripKeys.FormatAirEditKey(chart);
+        if (chart.Meta.C2sAirSnapshot is not null &&
+            !(extras.BinarySnapshotValid && extras.AirModelKey == airKey) && chart.Meta.C2sAirEditKey != airKey)
         {
             chart.Meta.C2sAirSnapshot = null;
             chart.Meta.C2sAirEditKey = null;
         }
-        var slaKey = extras.SlaModelKey ?? chart.Meta.C2sSlaEditKey;
-        if (slaKey is not null && slaKey != C2sRoundTripKeys.FormatSlaEditKey(chart))
+        var slaKey = C2sRoundTripKeys.FormatSlaEditKey(chart);
+        if (chart.Meta.C2sSlaSnapshot is not null &&
+            !(extras.BinarySnapshotValid && extras.SlaModelKey == slaKey) && chart.Meta.C2sSlaEditKey != slaKey)
         {
             chart.Meta.C2sSlaSnapshot = null;
             chart.Meta.C2sSlaEditKey = null;

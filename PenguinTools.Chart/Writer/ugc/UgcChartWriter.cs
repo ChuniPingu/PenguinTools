@@ -108,7 +108,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             _lines.Clear();
             // Sequential readers need the version before version-dependent flags.
             _lines.Add("@VER\t9");
-            _snapshots = new();
+            _snapshots = new() { HeightDigits = 2 };
             if (_chart.Extras.FixedZeroOrigin)
             {
                 _lines.Add("'" + ChartExtras.FixedZeroOriginMarker);

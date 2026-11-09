@@ -1,4 +1,5 @@
 using System.Text;
+using PenguinTools.Chart;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Models;
@@ -181,6 +182,7 @@ public sealed class C2sMetadataRoundTripTests
                 C2sSlaSnapshot = snapshot
             }
         };
+        chart.Meta.C2sSlaEditKey = C2sRoundTripKeys.FormatSlaEditKey(chart);
 
         var directory = Path.Combine(
             Path.GetTempPath(),
@@ -259,6 +261,8 @@ public sealed class C2sMetadataRoundTripTests
         chart.Meta.C2sMeterDefNumerator = 4;
         chart.Meta.C2sSlpSnapshot = "0,0,480,1.25";
         chart.Meta.C2sSlaSnapshot = "0,1,4,2,480";
+        chart.Meta.C2sSlaEditKey = C2sRoundTripKeys.FormatSlaEditKey(chart);
+        chart.Meta.C2sSlpEditKey = C2sRoundTripKeys.FormatSlpEditKey(chart);
 
         var directory = Path.Combine(
             Path.GetTempPath(),

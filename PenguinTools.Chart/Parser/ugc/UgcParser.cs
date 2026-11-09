@@ -251,6 +251,7 @@ public partial class UgcParser
     {
         var previous = _lastNote;
         DispatchBodyLine(text);
+        _snapshots.HeightDigits = HeightDigits;
         if (!text.Contains('\''))
         {
             _snapshots.Append(text, _currentTimeline);

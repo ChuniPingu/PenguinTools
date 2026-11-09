@@ -1,5 +1,6 @@
 using System.Globalization;
 using PenguinTools.Application;
+using PenguinTools.Chart;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
@@ -60,6 +61,7 @@ public sealed class C2sLengthDiagnosticTests
     {
         var source = CreateChart(blank, fixedOrigin: false);
         source.Meta.C2sSlaSnapshot = $"{start},1,0,4,1";
+        source.Meta.C2sSlaEditKey = C2sRoundTripKeys.FormatSlaEditKey(source);
 
         var result = new C2SChartConverter(new C2SConvertRequest(source)).Convert();
 
