@@ -44,6 +44,7 @@ public class AudioConverter
         var wavPath = WorkingAudioPath;
 
         var ret = await Audio.NormalizeAudioAsync(srcPath, wavPath, Meta.BgmRealOffset, ct);
+        ret.ThrowIfFailed(MsgKeys.Error_Invalid_audio);
         if (ret.IsNoOperation)
         {
             wavPath = srcPath;
