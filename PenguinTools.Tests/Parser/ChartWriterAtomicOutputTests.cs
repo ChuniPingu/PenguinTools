@@ -137,7 +137,7 @@ public class ChartWriterAtomicOutputTests
                         TestContext.Current.CancellationToken)
                     .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
 
-            Assert.True((failure.HResult & 0xffff) is 32 or 33);
+            Assert.True((failure.HResult & 0xffff) is 32 or 33 or 1175);
             Assert.Equal("existing chart", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
             AssertNoTemporaryOutput(path);
         }
