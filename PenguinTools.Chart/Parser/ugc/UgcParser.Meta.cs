@@ -206,7 +206,8 @@ public partial class UgcParser
     {
         if (!int.TryParse(Str(args), out var count) || count < 0)
         {
-            ThrowAtCurrentLine(Msg.Create(MsgKeys.Error_Invalid_Header, Str(args), "nonnegative CLKCNT"));
+            ReportAtCurrentLine(Severity.Warning, Msg.Create(MsgKeys.Warn_Invalid_metadata, "UGC CLKCNT", Str(args)));
+            return;
         }
 
         Ugc.Extras.ClickCount = count;

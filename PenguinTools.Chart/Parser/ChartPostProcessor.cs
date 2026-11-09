@@ -397,9 +397,11 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
 
         if (args.Length >= 2)
         {
-            var newId = int.TryParse(args[0], out var parsedId)
-                ? parsedId
-                : throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
+            if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var newId))
+            {
+                WarnInvalidMeta(name, args);
+                return;
+            }
             var data = args.Length >= 3 ? args[2] : null;
             var newEntry = new Entry(newId, args[1], data ?? string.Empty);
             setter(newEntry);
@@ -476,7 +478,8 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
 
         if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset))
         {
-            throw new DiagnosticException(MsgKeys.Mg_Meta_First_argument_must_int);
+            WarnInvalidMeta("bg_offset", args);
+            return;
         }
 
         chart.Meta.BackgroundOffset = offset;
@@ -535,8 +538,23 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         chart.Meta.ReleaseDate = date;
     }
 
+    private void WarnInvalidMeta(string name, string[] args)
+    {
+        var command = name.Length == 0 ? "#meta" : $"#meta {name}";
+        diag.Report(new PathDiagnostic(Severity.Warning,
+            Msg.Create(MsgKeys.Warn_Invalid_metadata, command, string.Join(' ', args)), chart.Meta.FilePath)
+        {
+            Target = args
+        });
+    }
+
     private void MetaHandler(string[] args)
     {
+        if (args.Length == 0)
+        {
+            WarnInvalidMeta("", args);
+            return;
+        }
         var (name, value) = (args[0], args[1..]);
 
         switch (name)

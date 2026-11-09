@@ -10,6 +10,28 @@ namespace PenguinTools.Tests.Parser;
 public class UgcDiagnosticTests
 {
     [Fact]
+    public async Task InvalidClickCount_WarnsAndKeepsTheLastValidSetting()
+    {
+        var path = TestTempPaths.Create(".ugc");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                "@VER\t9\n@CLKCNT\t2\n@CLKCNT\t-1\n@BPM\t0'0\t150\n#0'480:tG4\n", ct);
+            var result = await new UgcParser(new(path, TestAssets.Load()), TestMediaTool.Instance).ParseAsync(ct);
+            Assert.True(result.Succeeded, result.ToString());
+            Assert.False(result.Diagnostics.HasError);
+            Assert.Equal(2, result.Value!.Extras.ClickCount);
+            Assert.Equal(480, Assert.Single(result.Value.Notes.Children).Tick.Original);
+            var warning = Assert.Single(result.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Invalid_metadata);
+            Assert.Equal(Severity.Warning, warning.Severity);
+            Assert.Equal(path, warning.Path);
+            Assert.Equal(3, warning.Line);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task InvalidHeader_DiagnosticIncludesFileAndLine()
     {
         var ct = TestContext.Current.CancellationToken;

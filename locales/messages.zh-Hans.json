@@ -86,7 +86,6 @@
         "length_smaller_than_unit_typed": "{type} 中的这一段太短",
         "main_timeline_not_found": "找不到基准时间线",
         "meta_argument_count_min_one": "命令填写的内容过多或过少",
-        "meta_first_argument_must_int": "命令中的第一个值应为整数",
         "meta_invalid_date": "日期填写有误",
         "meta_ignored": "已按谱面设置跳过此文件",
         "meta_unknown_tag": "无法识别标记",
@@ -124,6 +123,7 @@
       },
       "warn": {
         "mgxc_string_too_long": "MGXC 文字已截短",
+        "invalid_metadata": "已忽略无效附加信息",
         "editor_approximation": "已调整谱面数据",
         "chart_metadata_only": "只能读取谱面的基本信息",
         "chart_skipped_version": "已跳过不支持的谱面版本",
@@ -239,7 +239,6 @@
       "length_smaller_than_unit": "这一段太短，C2S 无法保留它原来的长度。",
       "main_timeline_not_found": "找不到指定的基准时间线 {0}。",
       "meta_argument_count_min_one": "命令“{0}”的参数数量不正确。",
-      "meta_first_argument_must_int": "命令中的第一个值应填写整数。",
       "meta_invalid_date": "日期应填写为 8 位年月日，例如 20261102。",
       "meta_ignored": "谱面中设置了 `#meta ignore`，已跳过此谱面。",
       "meta_unknown_tag": "未知标记“{0}”。",
@@ -277,6 +276,7 @@
     },
     "warn": {
       "mgxc_string_too_long": "MGXC 的 {arg0} 字段过长，已从 {arg1} 个 UTF-8 字节截短至 {arg2} 个字节。",
+      "invalid_metadata": "{arg0} 的值无效（{arg1}），已忽略此项。",
       "editor_approximation": "输出 {0} 时，已将 {1} 从 {2} 调整为 {3}。",
       "chart_metadata_only": "仅获取了 {0} v{1} 的谱面基本信息。",
       "chart_skipped_version": "已跳过 {0} v{1}，最高支持 v{2}。",
