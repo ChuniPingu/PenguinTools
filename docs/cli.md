@@ -10,6 +10,8 @@ $cli = '.\PenguinTools.CLI.exe'
 
 Use command-specific `--help` for the full parameter list. For scripts, invoke the built executable directly so build output is separate from CLI output.
 
+Song IDs must be integers from `0` to `2000000000`, including when resource IDs are set explicitly. Unlock event and wall IDs allow `0` to `2147483647`; background, genre, World's End tag, CueFile, and release tag IDs accept signed 32-bit integers. Unknown field line indices produce a warning when exporting a background and are preserved. Invalid explicit IDs stop the export; malformed optional `#meta` IDs are ignored with a warning. Editor song identifiers may contain text, but building game resources requires a numeric song ID.
+
 ## Common workflows
 
 ### Inspect and convert a chart

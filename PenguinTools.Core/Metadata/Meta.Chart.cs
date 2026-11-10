@@ -10,14 +10,14 @@ public partial record Meta
         get;
         set
         {
-            if (StageId - CustomAssetIds.SongOffset == Id)
+            if (StageId == CustomAssetIds.ForSong(Id))
             {
-                StageId = value + CustomAssetIds.SongOffset;
+                StageId = CustomAssetIds.ForSong(value);
             }
 
-            if (UnlockEventId - CustomAssetIds.SongOffset == Id)
+            if (UnlockEventId == CustomAssetIds.ForSong(Id))
             {
-                UnlockEventId = value + CustomAssetIds.SongOffset;
+                UnlockEventId = CustomAssetIds.ForSong(value);
             }
 
             field = value;

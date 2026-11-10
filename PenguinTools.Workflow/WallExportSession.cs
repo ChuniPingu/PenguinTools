@@ -58,7 +58,7 @@ public sealed class WallExportSession
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             var diagnostics = new DiagnosticCollector();
-            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_manifest_invalid),
+            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_bindings_read_failed),
                 manifestPath)
             { Target = ex });
             return OperationResult<WallExportSession>.Failure().WithDiagnostics(diagnostics);
@@ -116,7 +116,7 @@ public sealed class WallExportSession
             {
                 diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_source_required), meta.FilePath));
             }
-            else if (!meta.WallMetadataInvalid && meta.Id is >= 0 and var musicId)
+            else if (!meta.WallMetadataInvalid && meta.Id is >= 0 and <= ResourceIds.MaxSongId and var musicId)
             {
                 _changes[musicId] = new BindingChange(null);
             }
@@ -128,20 +128,32 @@ public sealed class WallExportSession
             return;
         }
 
-        var id = overrides.WallId ?? meta.EffectiveWallId;
-        var width = overrides.Width ?? meta.WallWidth;
-        if (meta.Id is not >= 0 || id is not >= 0 || !Enum.IsDefined(width))
+        int songId;
+        try
         {
-            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_id_required), meta.FilePath));
+            songId = ResourceIds.RequireSong(meta);
+        }
+        catch (DiagnosticException ex)
+        {
+            diagnostics.Report(ex.ToDiagnostic().WithPathFallback(meta.FilePath));
             return;
         }
-        if (_blockedIds.Contains(id.Value))
+
+        var id = overrides.WallId ?? meta.WallId ?? (songId + CustomAssetIds.SongOffset);
+        var width = overrides.Width ?? meta.WallWidth;
+        if (id < 0 || !Enum.IsDefined(width))
+        {
+            var key = id < 0 ? MsgKeys.Error_Wall_id_invalid : MsgKeys.Error_Wall_width_invalid;
+            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(key), meta.FilePath));
+            return;
+        }
+        if (_blockedIds.Contains(id))
         {
             return;
         }
 
-        var request = new WallBuildRequest(_services.Assets, source, id.Value, width, _assetRoot);
-        var result = await _jobs.GetOrAdd(id.Value,
+        var request = new WallBuildRequest(_services.Assets, source, id, width, _assetRoot);
+        var result = await _jobs.GetOrAdd(id,
             _ => new Lazy<Task<OperationResult<PreparedExport>>>(() => PrepareAsync(request, ct))).Value;
         foreach (var diagnostic in result.Diagnostics.Diagnostics)
         {
@@ -149,8 +161,8 @@ public sealed class WallExportSession
         }
         if (result.Succeeded)
         {
-            _completed[id.Value] = result.Value;
-            _changes[meta.Id.Value] = new BindingChange(new WallBinding(meta.Id.Value, id.Value, width));
+            _completed[id] = result.Value;
+            _changes[songId] = new BindingChange(new WallBinding(songId, id, width));
         }
     }
 
@@ -206,7 +218,7 @@ public sealed class WallExportSession
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             var diagnostics = new DiagnosticCollector();
-            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_manifest_invalid),
+            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_bindings_write_failed),
                 _manifestPath)
             { Target = ex });
             return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);

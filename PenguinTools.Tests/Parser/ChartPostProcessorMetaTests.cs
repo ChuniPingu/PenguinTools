@@ -88,6 +88,26 @@ public sealed class ChartPostProcessorMetaTests
         Assert.Same(tap, Assert.Single(chart.Notes.Children));
     }
 
+    [Fact]
+    public void SignedAssetIdsInComments_CanBeDefinedAndReferenced()
+    {
+        var tags = new[] { "genre", "stage", "fline", "wetag" };
+        var chart = CreateChart(string.Join("\n", tags.SelectMany(tag => new[]
+        {
+            $"#meta {tag} -2 Custom",
+            $"#meta {tag} 0 Valid",
+            $"#meta {tag} -2"
+        })));
+        var diagnostics = new DiagnosticCollector();
+
+        new ChartPostProcessor(chart, diagnostics, TestAssets.Load()).Run();
+
+        Assert.False(diagnostics.HasError);
+        Assert.DoesNotContain(diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Invalid_metadata);
+        Assert.All(new[] { chart.Meta.Genre!, chart.Meta.Stage, chart.Meta.NotesFieldLine, chart.Meta.WeTag },
+            entry => { Assert.Equal(-2, entry.Id); Assert.Equal("Custom", entry.Str); });
+    }
+
     private static UmgrChart CreateChart(string comment)
     {
         var chart = new UmgrChart();

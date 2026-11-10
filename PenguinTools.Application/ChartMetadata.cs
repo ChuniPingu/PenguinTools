@@ -1,5 +1,7 @@
 using System.Globalization;
+using PenguinTools.Core;
 using PenguinTools.Core.Asset;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 
 namespace PenguinTools.Application;
@@ -86,6 +88,17 @@ internal static class ChartMetadata
             return;
         }
 
+        ResourceIds.ValidateSong(overrides.SongId);
+        ResourceIds.Require(overrides.UnlockEventId, MsgKeys.Error_Event_id_invalid);
+        if (overrides.DifficultyId is { } difficulty && !Enum.IsDefined((Difficulty)difficulty))
+        {
+            throw new DiagnosticException(MsgKeys.Error_Difficulty_id_invalid, difficulty);
+        }
+        if (overrides.WeDifficultyId is { } stars && !Enum.IsDefined((StarDifficulty)stars))
+        {
+            throw new DiagnosticException(MsgKeys.Error_We_difficulty_id_invalid, stars);
+        }
+
         if (overrides.SongId is { } songId)
         {
             meta.Id = songId;
@@ -109,11 +122,6 @@ internal static class ChartMetadata
 
         if (overrides.DifficultyId is { } difficultyId)
         {
-            if (!Enum.IsDefined(typeof(Difficulty), difficultyId))
-            {
-                throw new ArgumentOutOfRangeException(nameof(overrides), difficultyId, "Unknown difficulty ID.");
-            }
-
             meta.Difficulty = (Difficulty)difficultyId;
         }
         if (overrides.Level is { } level)
@@ -150,8 +158,7 @@ internal static class ChartMetadata
             meta.WeTag = new Entry(overrides.WeTagId ?? meta.WeTag.Id, overrides.WeTagName ?? meta.WeTag.Str);
         }
 
-        if (overrides.WeDifficultyId is { } weDifficultyId &&
-            Enum.IsDefined(typeof(StarDifficulty), weDifficultyId))
+        if (overrides.WeDifficultyId is { } weDifficultyId)
         {
             meta.WeDifficulty = (StarDifficulty)weDifficultyId;
         }

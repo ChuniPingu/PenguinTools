@@ -20,6 +20,7 @@ public static class OptionExporter
         CancellationToken ct,
         IProgress<ProgressReport>? progress = null)
     {
+        settings.ValidateIds();
         var diagnostics = OptionExportBatch.CreateCollector();
         var processContext =
             new OptionExportProcessContext(diagnostics, settings.BatchSize, diagnosticsWorkingDirectory, ct, progress);
@@ -84,6 +85,8 @@ public static class OptionExporter
         var (ctx, settings, outputPaths, releaseTag, optionGenre, process, events, walls) = context;
         var ct = process.CancellationToken;
         var workingDirectory = process.WorkingDirectory;
+        ResourceIds.ValidateMetadata(book.BookMeta);
+        _ = ResourceIds.RequireSong(book.BookMeta);
         var stage = await BuildStageAsync(ctx, book, settings, outputPaths, diagnostics, ct) ?? book.Stage;
         var genre = ResolveBookGenre(book, settings, optionGenre);
 
@@ -149,6 +152,7 @@ public static class OptionExporter
                 cachedConversion.Outputs,
                 ct))
         {
+            ResourceIds.ValidateFieldLine(book.NotesFieldLine, ctx.Assets, diagnostics);
             return stageXml.Name;
         }
 

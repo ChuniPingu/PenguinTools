@@ -31,6 +31,7 @@ public static class MusicExporter
         StageRequestOverrides overrides,
         CancellationToken cancellationToken)
     {
+        ResourceIds.ValidateSong(meta.Id);
         var backgroundPath = overrides.BackgroundPath ?? meta.FullBgiFilePath;
         if (string.IsNullOrWhiteSpace(backgroundPath))
         {
@@ -84,6 +85,9 @@ public static class MusicExporter
 
         var diagnostics = DiagnosticSnapshot.Empty;
         var meta = chart.Meta;
+        ResourceIds.ValidateMetadata(meta);
+        ResourceIds.Require(wallOverrides?.WallId, MsgKeys.Error_Wall_id_invalid);
+        _ = ResourceIds.RequireSong(meta);
         var stage = meta.Stage;
         var item = Path.GetFileName(meta.FilePath);
         var label = meta.Title;

@@ -65,9 +65,12 @@ public sealed partial class PenguinToolsApplication
             .WithDiagnostics(DiagnosticSnapshot.Create(diagnostics).Merge(published.Diagnostics));
     }
 
-    private static WallRequestOverrides ToWorkflow(WallOverrides? value) =>
-        value is null ? WallRequestOverrides.None :
+    private static WallRequestOverrides ToWorkflow(WallOverrides? value)
+    {
+        ResourceIds.Require(value?.WallId, MsgKeys.Error_Wall_id_invalid);
+        return value is null ? WallRequestOverrides.None :
             new WallRequestOverrides(OptionalFullPath(value.InputPath), value.WallId, value.Width);
+    }
 
     private static List<ApplicationArtifact> CreateWallArtifacts(string output, WallExportSummary summary)
     {

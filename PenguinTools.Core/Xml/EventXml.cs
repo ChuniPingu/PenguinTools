@@ -19,6 +19,7 @@ public class EventXml : XmlElement
 
     public EventXml(int eventId, MusicType type, IEnumerable<Entry> musics)
     {
+        Metadata.ResourceIds.Require(eventId, MsgKeys.Error_Event_id_invalid);
         var eventName = type switch
         {
             MusicType.WldEnd => "WORLD'S END曲開放",
@@ -30,7 +31,11 @@ public class EventXml : XmlElement
 
         Substances.Type = 3;
         Substances.Music.MusicType = (int)type;
-        Substances.Music.MusicNames.List.AddRange(musics);
+        foreach (var music in musics)
+        {
+            Metadata.ResourceIds.ValidateSong(music.Id);
+            Substances.Music.MusicNames.List.Add(music);
+        }
     }
 
     protected override string FileName => "Event.xml";

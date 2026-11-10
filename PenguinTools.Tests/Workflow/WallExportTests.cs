@@ -1,10 +1,10 @@
 using System.Text.Json;
-using PenguinTools.Core;
 using PenguinTools.Assets;
-using PenguinTools.Infrastructure;
+using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
+using PenguinTools.Infrastructure;
 using PenguinTools.Media;
 using PenguinTools.Workflow;
 using Xunit;
@@ -109,6 +109,8 @@ public sealed class WallExportTests : IDisposable
         {
             var failed = await session.PublishAsync(Ct);
             Assert.False(failed.Succeeded);
+            Assert.Equal(MsgKeys.Error_Wall_bindings_write_failed,
+                Assert.Single(failed.Diagnostics.Diagnostics).Message.Key);
         }
         Assert.Equal("old texture", await File.ReadAllTextAsync(asset.DdsPath, Ct));
         Assert.Equal(oldXml, await File.ReadAllBytesAsync(asset.XmlPath, Ct));
@@ -124,7 +126,51 @@ public sealed class WallExportTests : IDisposable
         await File.WriteAllTextAsync(Manifest, json, Ct);
         var result = await WallExportSession.CreateAsync(Context, _root.FullName, Manifest, ct: Ct);
         Assert.False(result.Succeeded);
+        Assert.Equal(MsgKeys.Error_Wall_bindings_read_failed,
+            Assert.Single(result.Diagnostics.Diagnostics).Message.Key);
         Assert.Equal(json, await File.ReadAllTextAsync(Manifest, Ct));
+    }
+
+    [Theory]
+    [InlineData(null, null, WallWidth.Wide, MsgKeys.Error_Song_id_is_not_set)]
+    [InlineData(-1, null, WallWidth.Wide, MsgKeys.Error_Song_id_invalid)]
+    [InlineData(1, -1, WallWidth.Wide, MsgKeys.Error_Wall_id_invalid)]
+    [InlineData(2_000_000_001, null, WallWidth.Wide, MsgKeys.Error_Song_id_invalid)]
+    [InlineData(int.MaxValue, 1, WallWidth.Wide, MsgKeys.Error_Song_id_invalid)]
+    [InlineData(1, null, (WallWidth)99, MsgKeys.Error_Wall_width_invalid)]
+    public async Task InvalidSettings_ReportTheAffectedField_WithoutPublishing(
+        int? songId, int? wallId, WallWidth width, string expectedKey)
+    {
+        var meta = await Meta(1);
+        meta.Id = songId;
+        meta.WallId = wallId;
+        meta.WallWidth = width;
+        var session = await Session();
+        var diagnostics = new DiagnosticCollector();
+
+        await session.QueueAsync(meta, WallRequestOverrides.None, diagnostics, required: true, ct: Ct);
+
+        var diagnostic = Assert.Single(diagnostics.Diagnostics);
+        Assert.Equal(expectedKey, diagnostic.Message.Key);
+        Assert.Equal(meta.FilePath, diagnostic.Path);
+        var published = await session.PublishAsync(Ct);
+        Assert.True(published.Succeeded);
+        Assert.Empty(published.Value.Assets);
+        Assert.False(File.Exists(Manifest));
+    }
+
+    [Theory]
+    [InlineData(-1, WallWidth.Wide, MsgKeys.Error_Wall_id_invalid)]
+    [InlineData(1, (WallWidth)99, MsgKeys.Error_Wall_width_invalid)]
+    public async Task DirectConversion_ReportsTheAffectedField(int wallId, WallWidth width, string expectedKey)
+    {
+        var meta = await Meta(1);
+        var result = await new WallConverter(
+            new WallBuildRequest(Context.Assets, meta.FullWallFilePath, wallId, width, _root.FullName),
+            TestMediaTool.Instance).PrepareAsync(Ct);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(expectedKey, Assert.Single(result.Diagnostics.Diagnostics).Message.Key);
     }
 
     private async Task<Meta> Meta(int songId)

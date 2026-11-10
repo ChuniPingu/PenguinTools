@@ -21,7 +21,13 @@ internal static class OptionConfiguration
         try
         {
             var document = await LoadAsync(candidate, cancellationToken);
+            _ = document.ToExportSettings();
             return (candidate, document, DiagnosticSnapshot.Empty);
+        }
+        catch (DiagnosticException ex)
+        {
+            var diagnostic = ex.ToDiagnostic().WithPathFallback(candidate) with { Severity = Severity.Warning };
+            return (candidate, null, DiagnosticSnapshot.Create([diagnostic]));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -79,6 +85,7 @@ internal static class OptionConfiguration
     internal static Task SaveAsync(string path, OptionDocument document,
         CancellationToken cancellationToken)
     {
+        _ = document.ToExportSettings();
         return AtomicFile.WriteAsync(path,
             (stream, ct) => JsonSerializer.SerializeAsync(stream, document,
                 ApplicationJsonContext.Default.OptionDocument, ct), cancellationToken);

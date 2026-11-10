@@ -6,6 +6,7 @@ public sealed class DDSFieldWallXml : XmlElement
 {
     public DDSFieldWallXml(int id)
     {
+        Metadata.ResourceIds.Require(id, MsgKeys.Error_Wall_id_invalid);
         DataName = $"ddsFieldWall{id:0000}";
         Name = new Entry(id, $"custom_field_wall_{id}");
         Image = $"CHU_UI_Fieldwall_{id:0000}.dds";

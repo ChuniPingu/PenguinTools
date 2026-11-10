@@ -39,6 +39,7 @@ public sealed partial class PenguinToolsApplication
         var document = await LoadXmlAsync(xmlPath, cancellationToken);
         var root = document.Root ?? throw new InvalidDataException("Music.xml has no root element.");
         var songId = EntryId(root.Element("name"));
+        ResourceIds.ValidateSong(songId);
         var title = EntryString(root.Element("name"));
         var artist = EntryString(root.Element("artistName"));
         var cueId = EntryId(root.Element("cueFileName"));
@@ -184,6 +185,7 @@ public sealed partial class PenguinToolsApplication
     {
         var (request, root, xmlDirectory, stage, songFolder, audio, hasJacket) = context;
         var songId = EntryId(root.Element("name"));
+        ResourceIds.ValidateSong(songId);
         var title = EntryString(root.Element("name"));
         var artist = EntryString(root.Element("artistName"));
         var cueName = EntryString(root.Element("cueFileName"));

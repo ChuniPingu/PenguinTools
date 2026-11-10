@@ -86,6 +86,10 @@ public class AssetManager : INotifyPropertyChanged
         MergeAssets.MergeWith(HardAssets, PlusAssets, UserAssets);
     }
 
+    // Chart-defined names do not establish that a game table entry exists.
+    public bool IsKnownFieldLine(int id) => id >= 0 &&
+        (HardAssets.FieldLines.Any(entry => entry.Id == id) || PlusAssets.FieldLines.Any(entry => entry.Id == id));
+
     public void DefineEntry(AssetType type, Entry entry)
     {
         UserAssets[type].Add(entry);

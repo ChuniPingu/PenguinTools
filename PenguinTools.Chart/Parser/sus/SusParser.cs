@@ -194,10 +194,7 @@ public sealed class SusParser
                 break;
             case "SONGID":
                 Sus.Meta.MgxcId = value;
-                if (int.TryParse(value, out var id))
-                {
-                    Sus.Meta.Id = id;
-                }
+                Sus.Meta.Id = ResourceIds.TryParseNonNegative(value, out var id) ? id : null;
 
                 break;
             case "WAVE":

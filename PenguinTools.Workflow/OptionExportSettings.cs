@@ -1,3 +1,5 @@
+using PenguinTools.Core;
+using PenguinTools.Core.Metadata;
 using PenguinTools.Media;
 
 namespace PenguinTools.Workflow;
@@ -23,4 +25,11 @@ public sealed record OptionExportSettings(
     OptionConversionCache? ConversionCache = null,
     ulong HcaEncryptionKey = AudioConvertRequest.DefaultHcaEncryptionKey,
     bool IgnoreCache = false,
-    bool ConvertWall = true);
+    bool ConvertWall = true)
+{
+    public void ValidateIds()
+    {
+        ResourceIds.Require(UltimaEventId, MsgKeys.Error_Event_id_invalid);
+        ResourceIds.Require(WeEventId, MsgKeys.Error_Event_id_invalid);
+    }
+}

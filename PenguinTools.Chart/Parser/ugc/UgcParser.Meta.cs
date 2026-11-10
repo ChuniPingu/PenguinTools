@@ -380,10 +380,7 @@ public partial class UgcParser
         }
 
         Ugc.Meta.MgxcId = args[0];
-        if (int.TryParse(args[0], out var id))
-        {
-            Ugc.Meta.Id = id;
-        }
+        Ugc.Meta.Id = ResourceIds.TryParseNonNegative(args[0], out var id) ? id : null;
     }
 
     private void HandleReleaseDate(string[] args)

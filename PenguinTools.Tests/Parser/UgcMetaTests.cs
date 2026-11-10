@@ -54,6 +54,23 @@ public class UgcMetaTests
         Assert.Equal(5097, m.Id);
     }
 
+    [Theory]
+    [InlineData("-1", null)]
+    [InlineData("2147483648", null)]
+    [InlineData("1.5", null)]
+    [InlineData("chart_alpha", null)]
+    [InlineData("0", 0)]
+    [InlineData("2147483647", int.MaxValue)]
+    public async Task SongId_UsesLastHeaderAndPreservesEditorText(string value, int? numericId)
+    {
+        var result = await Parse("@VER\t9\n@TICKS\t480\n@BPM\t0'0\t120\n@SONGID\t42\n@SONGID\t" + value + "\n");
+        Assert.True(result.Succeeded, result.ToString());
+        Assert.Equal(value, result.Value.Meta.MgxcId);
+        Assert.Equal(numericId, result.Value.Meta.Id);
+        Assert.Equal(CustomAssetIds.ForSong(numericId), result.Value.Meta.StageId);
+        Assert.Equal(CustomAssetIds.ForSong(numericId), result.Value.Meta.UnlockEventId);
+    }
+
     [Fact]
     public async Task Meta_WrongVersion_Fails()
     {

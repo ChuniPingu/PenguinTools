@@ -31,7 +31,8 @@ public sealed class WallConverter(WallBuildRequest request, IImageService images
         var diagnostics = new DiagnosticCollector();
         if (request.WallId < 0 || !Enum.IsDefined(request.Width))
         {
-            diagnostics.Report(new Diagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_id_required)));
+            var key = request.WallId < 0 ? MsgKeys.Error_Wall_id_invalid : MsgKeys.Error_Wall_width_invalid;
+            diagnostics.Report(new Diagnostic(Severity.Error, Msg.Key(key)));
             return OperationResult<PreparedWallAsset>.Failure().WithDiagnostics(diagnostics);
         }
         if (string.IsNullOrWhiteSpace(request.SourcePath))

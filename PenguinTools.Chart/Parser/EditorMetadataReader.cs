@@ -110,7 +110,7 @@ public static class EditorMetadataReader
             case "sgid":
             case "@SONGID":
                 meta.MgxcId = value;
-                meta.Id = int.TryParse(value, out var id) ? id : null;
+                meta.Id = ResourceIds.TryParseNonNegative(value, out var id) ? id : null;
                 break;
             case "diff":
             case "@DIFF":

@@ -1,7 +1,7 @@
-using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Parser.mgxc;
-using PenguinTools.Chart.Writer.ugc;
+using PenguinTools.Chart.Parser.ugc;
 using PenguinTools.Chart.Writer.mgxc;
+using PenguinTools.Chart.Writer.ugc;
 using PenguinTools.Core.Metadata;
 using Xunit;
 

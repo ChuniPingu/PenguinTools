@@ -81,7 +81,7 @@ public sealed class OptionDocument
     {
         ConversionCache ??= new OptionConversionCache();
 
-        return new OptionExportSettings(
+        var settings = new OptionExportSettings(
             ConvertChart: ConvertChart,
             ConvertJacket: ConvertJacket,
             ConvertAudio: ConvertAudio,
@@ -102,6 +102,8 @@ public sealed class OptionDocument
             ConversionCache: ConversionCache,
             HcaEncryptionKey: HcaEncryptionKey,
             ConvertWall: ConvertWall);
+        settings.ValidateIds();
+        return settings;
     }
 
     private static string CreateOptionId()

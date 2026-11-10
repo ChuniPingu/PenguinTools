@@ -174,6 +174,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 Msg.Key(MsgKeys.App_No_export_actions_enabled));
         }
 
+        var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
         var scanned = await ScanBooksAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
             progress, cancellationToken);
         if (!scanned.Succeeded)
@@ -192,7 +193,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
         var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
         var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
-        var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
         var exported = await OptionExporter.ExportAsync(
             CreateExportContext(), exportSettings, outputPaths, snapshots, output,
             cancellationToken, progress);
@@ -339,6 +339,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputDirectory);
             var settings = request.Settings;
+            ResourceIds.ValidateSong(settings.SongId);
             if (settings.InitialBpm <= 0 || settings.InitialNumerator <= 0 || settings.InitialDenominator <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(request), "Initial timing values must be positive.");
@@ -848,6 +849,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             return snapshots;
         }
 
+        foreach (var item in overrides)
+        {
+            ResourceIds.ValidateSong(item.SongId);
+        }
         var lookup = overrides
             .GroupBy(x => x.SongId)
             .ToDictionary(group => group.Key, group => group.Last().MainDifficulty);

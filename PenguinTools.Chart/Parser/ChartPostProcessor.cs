@@ -397,7 +397,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
 
         if (args.Length >= 2)
         {
-            if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var newId))
+            if (!ResourceIds.TryParse(args[0], out var newId))
             {
                 WarnInvalidMeta(name, args);
                 return;
@@ -410,7 +410,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
 
         var value = args[0];
-        var entry = int.TryParse(value, out var id) ? assets[type].FirstOrDefault(e => e.Id == id) : null;
+        var entry = ResourceIds.TryParse(value, out var id) ? assets[type].FirstOrDefault(e => e.Id == id) : null;
         entry ??= assets[type].FirstOrDefault(e => e.Str.Equals(value, StringComparison.Ordinal));
 
         if (entry == null)
@@ -472,8 +472,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         var valid = args.Length is >= 1 and <= 3 && !string.IsNullOrWhiteSpace(args[0]);
         if (index < args.Length)
         {
-            valid &= int.TryParse(args[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId) &&
-                     parsedId >= 0;
+            valid &= ResourceIds.TryParseNonNegative(args[index], out var parsedId);
             id = parsedId;
             index++;
         }
