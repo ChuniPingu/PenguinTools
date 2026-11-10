@@ -10,13 +10,15 @@ public abstract class XmlElement
 
     [XmlElement("dataName")] public string DataName { get; set; } = string.Empty;
 
+    public XDocument ToDocument() => XmlDocumentFactory.Create(this);
+
     public async Task<string> SaveDirectoryAsync(string baseFolder)
     {
         var folder = Path.Combine(baseFolder, DataName);
         Directory.CreateDirectory(folder);
 
         var path = Path.Combine(folder, FileName);
-        var document = XmlDocumentFactory.Create(this);
+        var document = ToDocument();
 
         await using var stream = File.Create(path);
         await document.SaveAsync(stream, SaveOptions.None, CancellationToken.None);

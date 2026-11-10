@@ -27,6 +27,7 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(AudioConvertResult))]
 [JsonSerializable(typeof(CriAudioExtractResult))]
 [JsonSerializable(typeof(StageBuildResult))]
+[JsonSerializable(typeof(WallBuildResult))]
 [JsonSerializable(typeof(AfbExtractResult))]
 [JsonSerializable(typeof(AssetCollectResult))]
 [JsonSerializable(typeof(ApplicationEntry))]

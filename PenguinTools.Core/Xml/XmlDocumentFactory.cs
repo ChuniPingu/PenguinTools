@@ -16,6 +16,7 @@ internal static class XmlDocumentFactory
             MusicXml musicXml => CreateMusic(musicXml),
             ReleaseTag releaseTag => CreateReleaseTag(releaseTag),
             StageXml stageXml => CreateStage(stageXml),
+            DDSFieldWallXml wall => CreateFieldWall(wall),
             _ => throw new NotSupportedException($"Unsupported xml element type '{value.GetType().FullName}'.")
         };
     }
@@ -85,6 +86,20 @@ internal static class XmlDocumentFactory
             Element(DataNameElement, value.DataName),
             EntryElement("name", value.Name),
             Element("titleName", value.TitleName)
+        ]);
+    }
+
+    private static XDocument CreateFieldWall(DDSFieldWallXml value)
+    {
+        return CreateDocument("DDSFieldWallData",
+        [
+            Element(DataNameElement, value.DataName),
+            EntryElement("name", value.Name),
+            EntryElement("netOpenName", value.NetOpenName),
+            Element("disableFlag", value.DisableFlag),
+            PathElement("image", value.Image),
+            Element("defaultHave", value.DefaultHave),
+            Element("explainText", value.ExplainText)
         ]);
     }
 

@@ -231,6 +231,15 @@ public partial class MgxcParser
                 ("title", Mgxc.Meta.Title), ("sortName", Mgxc.Meta.SortName))));
         }
 
+        if (!string.IsNullOrWhiteSpace(Mgxc.Meta.WallFilePath))
+        {
+            QueueValidation(
+                MediaValidator.CheckImageValidAsync(Mgxc.Meta.FullWallFilePath),
+                Mgxc.Meta.FullWallFilePath,
+                MsgKeys.Error_Invalid_wall_image,
+                () => Mgxc.Meta.WallImageValid = false);
+        }
+
         if (Mgxc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Mgxc.Meta.FullBgiFilePath))
         {
             QueueValidation(

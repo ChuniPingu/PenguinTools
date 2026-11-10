@@ -6,6 +6,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Chart.Writer.ugc;
 using PenguinTools.Core;
+using PenguinTools.Core.Asset;
 using PenguinTools.Core.Metadata;
 using PenguinTools.Infrastructure;
 using PenguinTools.Workflow;
@@ -296,7 +297,8 @@ public sealed partial class PenguinToolsApplicationTests
             ConvertChart = false,
             ConvertAudio = false,
             ConvertJacket = true,
-            ConvertBackground = false
+            ConvertBackground = false,
+            ConvertWall = false
         };
         await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(document, OptionDocumentJson.Default),
             TestContext.Current.CancellationToken);
@@ -679,6 +681,84 @@ public sealed partial class PenguinToolsApplicationTests
         Directory.Delete(root, true);
     }
 
+    [Fact]
+    public async Task Walls_UseFinalSongId_AndExposeActualArtifactsAndMetadata()
+    {
+        var root = Directory.CreateTempSubdirectory("penguintools-wall-app-");
+        using var store = new TrackingAssetStore(root.FullName);
+        var assets = TestAssets.Load();
+        assets.DefineEntry(AssetType.FieldWallNames, new Entry(3, "Known wall"));
+        using var app = CreateInjectedApplication(root.FullName, store, assets);
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var chart = await WriteChartFixtureAsync(root.FullName);
+            await File.AppendAllTextAsync(chart, "@CMT\t#meta wall \"jacket.png\" normal\n", ct);
+            var inspected = await app.InspectChartAsync(new ChartInspectRequest(chart), ct);
+            Assert.True(inspected.Succeeded);
+            Assert.Equal(1001000, inspected.Value.Metadata!.WallId);
+            Assert.Null(inspected.Value.Metadata.ExplicitWallId);
+            var output = Path.Combine(root.FullName, "loose");
+            var built = await app.BuildWallAsync(new WallBuildRequest(chart, output, SongId: 9978), ct);
+            Assert.True(built.Succeeded, built.ToString());
+            Assert.Equal(1009978, built.Value.WallId);
+            Assert.Equal(WallWidth.Normal, built.Value.Width);
+            Assert.Equal(3, built.Value.Artifacts.Count);
+            Assert.All(built.Value.Artifacts, artifact => Assert.True(File.Exists(artifact.Path)));
+            Assert.True(File.Exists(Path.Combine(output, "ddsFieldWall1009978", "DDSFieldWall.xml")));
+            var explicitResult = await app.BuildWallFilesAsync(new WallFilesBuildRequest(
+                Path.Combine(root.FullName, "jacket.png"), output, 9978, new WallOverrides(WallId: 3)), ct);
+            Assert.True(explicitResult.Succeeded, explicitResult.ToString());
+            Assert.Equal(3, explicitResult.Value.WallId);
+            Assert.Equal(WallWidth.Wide, explicitResult.Value.Width);
+            Assert.Contains(explicitResult.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Warn_Wall_already_exists);
+            var failed = await app.BuildWallAsync(new WallBuildRequest(chart, output,
+                new WallOverrides(InputPath: Path.Combine(root.FullName, "missing.png"))), ct);
+            Assert.False(failed.Succeeded);
+            Assert.Contains(failed.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Invalid_wall_image);
+        }
+        finally { root.Delete(true); }
+    }
+
+    [Fact]
+    public async Task OptionWalls_UseSelectedMainDifficulty_LayoutAndSavedSwitch()
+    {
+        var root = Directory.CreateTempSubdirectory("penguintools-wall-option-");
+        using var store = new TrackingAssetStore(root.FullName);
+        using var app = CreateInjectedApplication(root.FullName, store);
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var chart = await WriteChartFixtureAsync(root.FullName);
+            var text = await File.ReadAllTextAsync(chart, ct);
+            await File.AppendAllTextAsync(chart, "@CMT\t#meta wall jacket.png normal 42\n", ct);
+            var ultima = Path.Combine(root.FullName, "ultima.ugc");
+            await File.WriteAllTextAsync(ultima, text.Replace("@DIFF\t3", "@DIFF\t5", StringComparison.Ordinal) +
+                "@CMT\t#meta wall jacket.png wide 43\n", ct);
+            var scan = await app.ScanOptionAsync(new OptionScanRequest(root.FullName), cancellationToken: ct);
+            Assert.True(scan.Succeeded, scan.ToString());
+            Assert.All(Assert.Single(scan.Value.Books).Charts, item => Assert.NotEmpty(item.FullWallFilePath));
+            var output = Path.Combine(root.FullName, "A123");
+            var overrides = new OptionBuildOverrides(OptionName: "A123", ConvertChart: false, ConvertAudio: false,
+                ConvertJacket: false, ConvertBackground: false, ConvertWall: true,
+                MainDifficulties: [new OptionMainDifficultyOverride(1000, "Ultima")]);
+            var built = await app.BuildOptionAsync(new OptionBuildRequest(root.FullName, output,
+                SkipConfig: true, SaveConfig: true, Overrides: overrides), cancellationToken: ct);
+            Assert.True(built.Succeeded, built.ToString());
+            Assert.True(File.Exists(Path.Combine(output, "ddsFieldWall", "ddsFieldWall0043", "DDSFieldWall.xml")));
+            var manifest = Path.Combine(output, "wallbind.json");
+            var original = await File.ReadAllBytesAsync(manifest, ct);
+            var disabled = await app.BuildOptionAsync(new OptionBuildRequest(root.FullName, output,
+                SaveConfig: true, Overrides: new OptionBuildOverrides(ConvertWall: false, GenerateEventXml: true)), cancellationToken: ct);
+            Assert.True(disabled.Succeeded, disabled.ToString());
+            Assert.Equal(original, await File.ReadAllBytesAsync(manifest, ct));
+            var saved = await app.ScanOptionAsync(new OptionScanRequest(root.FullName), cancellationToken: ct);
+            Assert.True(saved.Succeeded, saved.ToString());
+            Assert.False(saved.Value.Config!.ConvertWall);
+        }
+        finally { root.Delete(true); }
+    }
+
     private static async Task<string> WriteChartFixtureAsync(string root)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -691,11 +771,11 @@ public sealed partial class PenguinToolsApplicationTests
             "@BGM\taudio.wav\n@JACKET\tjacket.png\n", ct);
         return input;
     }
-    private static PenguinToolsApplication CreateInjectedApplication(string root, IAssetStore store)
+    private static PenguinToolsApplication CreateInjectedApplication(string root, IAssetStore store, AssetManager? assets = null)
     {
         var paths = new TestPaths(root);
         var dependencies = new PenguinToolsApplicationDependencies(paths, store,
-            TestAssets.Load(), TestMediaTool.Instance, TestMediaTool.Instance, new TestAssetProvider(root));
+            assets ?? TestAssets.Load(), TestMediaTool.Instance, TestMediaTool.Instance, new TestAssetProvider(root));
         return new PenguinToolsApplication(dependencies);
     }
 

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
@@ -58,12 +59,7 @@ internal static partial class ChartMetaCommands
 
     private static IEnumerable<string[]> EnumerateCommands(string comment)
     {
-        var normalized = comment
-            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\r", "\n", StringComparison.Ordinal);
-
-        foreach (var line in normalized.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        foreach (var line in CommentLines(comment))
         {
             var trimmedLine = line.Trim();
             if (C2sRoundTripComment.IsRoundTripLine(trimmedLine))
@@ -84,6 +80,40 @@ internal static partial class ChartMetaCommands
 
             yield return parts;
         }
+    }
+
+    internal static string[] CommentLines(string comment) =>
+        NormalizeComment(comment).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+
+    internal static string NormalizeComment(string comment)
+    {
+        var normalized = new StringBuilder(comment.Length);
+        var quoted = false;
+        for (var index = 0; index < comment.Length; index++)
+        {
+            var ch = comment[index];
+            if (ch == '"')
+            {
+                quoted = !quoted;
+            }
+
+            if (!quoted && ch == '\\')
+            {
+                var tail = comment.AsSpan(index);
+                var length = tail.StartsWith("\\r\\n", StringComparison.Ordinal) ? 4 :
+                    tail.StartsWith("\\r", StringComparison.Ordinal) || tail.StartsWith("\\n", StringComparison.Ordinal) ? 2 : 0;
+                if (length > 0 && comment.AsSpan(index + length).TrimStart().StartsWith("#meta", StringComparison.Ordinal))
+                {
+                    normalized.Append('\n');
+                    index += length - 1;
+                    continue;
+                }
+            }
+
+            normalized.Append(ch);
+        }
+
+        return normalized.ToString();
     }
 
     private static bool ParseBool(string str)

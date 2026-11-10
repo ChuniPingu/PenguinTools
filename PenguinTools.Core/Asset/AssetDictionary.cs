@@ -22,7 +22,10 @@ public enum AssetType
     WeTagNames,
 
     [JsonStringEnumMemberName("releaseTagName")]
-    ReleaseTagNames
+    ReleaseTagNames,
+
+    [JsonStringEnumMemberName("ddsFieldWallName")]
+    FieldWallNames
 }
 
 public class AssetDictionary()
@@ -59,6 +62,7 @@ public class AssetDictionary()
     public IReadOnlySet<Entry> StageNames => _database[AssetType.StageNames];
     public IReadOnlySet<Entry> WeTagNames => _database[AssetType.WeTagNames];
     public IReadOnlySet<Entry> ReleaseTagNames => _database[AssetType.ReleaseTagNames];
+    public IReadOnlySet<Entry> FieldWallNames => _database[AssetType.FieldWallNames];
 
     public SortedSet<Entry> this[AssetType type]
     {
@@ -182,7 +186,8 @@ public class AssetDictionary()
             (MusicXmlFileName, AssetType.WeTagNames),
             (MusicXmlFileName, AssetType.StageNames),
             (MusicXmlFileName, AssetType.ReleaseTagNames),
-            ("Stage.xml", AssetType.FieldLines)
+            ("Stage.xml", AssetType.FieldLines),
+            ("DDSFieldWall.xml", AssetType.FieldWallNames)
         };
         return await CollectManyAsync(workDir, specs, ct);
     }
@@ -318,6 +323,7 @@ public class AssetDictionary()
             AssetType.StageNames => "stageName",
             AssetType.WeTagNames => "worldsEndTagName",
             AssetType.ReleaseTagNames => "releaseTagName",
+            AssetType.FieldWallNames => "name",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported asset type.")
         };
     }

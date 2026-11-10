@@ -7,6 +7,7 @@ namespace PenguinTools.Chart.Parser.ugc;
 
 public partial class UgcParser
 {
+    private readonly List<string> _commentLines = [];
     private void DispatchHeaderLine(string line)
     {
         var tokens = line.Split('\t');
@@ -100,7 +101,8 @@ public partial class UgcParser
                 HandleClickCount(args);
                 break;
             case "CMT":
-                Ugc.Meta.Comment = Str(args);
+                _commentLines.Add(Str(args));
+                Ugc.Meta.Comment = string.Join('\n', _commentLines);
                 break;
 
             case "ATINFO":

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
 using PenguinTools.Core.Diagnostic;
+using PenguinTools.Core.Metadata;
 
 namespace PenguinTools.Application;
 
@@ -78,7 +79,14 @@ public sealed record ChartConversionMetadata(
     string SortName,
     int? UnlockEventId,
     string ReleaseDate,
-    int MainTil);
+    int MainTil)
+{
+    public string WallFilePath { get; init; } = "";
+    public string FullWallFilePath { get; init; } = "";
+    public int? WallId { get; init; }
+    public int? ExplicitWallId { get; init; }
+    public WallWidth WallWidth { get; init; } = WallWidth.Wide;
+}
 
 public sealed record ChartInspectRequest(
     string InputPath);
@@ -154,7 +162,14 @@ public sealed record OptionScanDifficulty(
     string BgiFilePath,
     ApplicationEntry NotesFieldLine,
     ApplicationEntry Stage,
-    IReadOnlyList<ApplicationDiagnostic> Diagnostics);
+    IReadOnlyList<ApplicationDiagnostic> Diagnostics)
+{
+    public string WallFilePath { get; init; } = "";
+    public string FullWallFilePath { get; init; } = "";
+    public int? WallId { get; init; }
+    public int? ExplicitWallId { get; init; }
+    public WallWidth WallWidth { get; init; } = WallWidth.Wide;
+}
 
 public sealed record OptionScanBook(
     int? SongId,
@@ -183,7 +198,14 @@ public sealed record OptionScanBook(
     decimal BgmInitialBpm,
     int BgmInitialNumerator,
     int BgmInitialDenominator,
-    IReadOnlyList<OptionScanDifficulty> Charts);
+    IReadOnlyList<OptionScanDifficulty> Charts)
+{
+    public string WallFilePath { get; init; } = "";
+    public string FullWallFilePath { get; init; } = "";
+    public int? WallId { get; init; }
+    public int? ExplicitWallId { get; init; }
+    public WallWidth WallWidth { get; init; } = WallWidth.Wide;
+}
 
 public sealed record OptionMainDifficultyOverride(int SongId, string MainDifficulty);
 
@@ -209,7 +231,10 @@ public sealed record OptionScanConfig(
     bool OverrideChartGenre,
     int UltimaEventId,
     int WeEventId,
-    int BatchSize);
+    int BatchSize)
+{
+    public bool ConvertWall { get; init; } = true;
+}
 
 public sealed record OptionScanResult(
     string InputDirectory,
@@ -251,7 +276,8 @@ public sealed record OptionBuildOverrides(
     bool? OverrideChartGenre = null,
     int? UltimaEventId = null,
     int? WeEventId = null,
-    IReadOnlyList<OptionMainDifficultyOverride>? MainDifficulties = null);
+    IReadOnlyList<OptionMainDifficultyOverride>? MainDifficulties = null,
+    bool? ConvertWall = null);
 
 public sealed record OptionBuildRequest(
     string InputDirectory,
@@ -325,7 +351,8 @@ public sealed record MusicBuildRequest(
     string? JacketInputPath = null,
     AudioOverrides? Audio = null,
     StageOverrides? Stage = null,
-    MusicBuildOverrides? Overrides = null);
+    MusicBuildOverrides? Overrides = null,
+    WallOverrides? Wall = null);
 
 public sealed record MusicBuildResult(
     string InputPath,
@@ -495,6 +522,12 @@ public interface IPenguinToolsApplication : IDisposable
 
     Task<OperationResult<MusicExtractResult>> ExtractMusicAsync(MusicExtractRequest request,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
+
+    Task<OperationResult<WallBuildResult>> BuildWallAsync(WallBuildRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OperationResult<WallBuildResult>> BuildWallFilesAsync(WallFilesBuildRequest request,
+        CancellationToken cancellationToken = default);
 
     Task<OperationResult<StageBuildResult>> BuildStageAsync(StageBuildRequest request,
         CancellationToken cancellationToken = default);

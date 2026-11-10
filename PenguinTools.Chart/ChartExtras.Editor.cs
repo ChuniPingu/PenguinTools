@@ -7,6 +7,7 @@ public sealed record EditorBookmark(string Id, int Tick, string Tag, string Rgb)
 public sealed partial class ChartExtras
 {
     public string? EditorCommentText { get; set; }
+    public string? EditorCommentProjection { get; set; }
     public string? EditorCopyrightText { get; set; }
 
     internal static string CleanEditorText(string value) =>
@@ -15,13 +16,16 @@ public sealed partial class ChartExtras
     internal void CaptureUserText(PenguinTools.Core.Metadata.Meta meta)
     {
         var comment = PenguinTools.Core.Metadata.C2sRoundTripComment.Strip(meta.Comment);
-        EditorCommentText = comment == CleanEditorText(comment) ? null : comment;
+        var projectedComment = comment.ReplaceLineEndings("\n").Replace('\t', ' ');
+        EditorCommentText = comment == projectedComment ? null : comment;
+        EditorCommentProjection = EditorCommentText is null ? null : projectedComment;
         EditorCopyrightText = meta.Copyright == CleanEditorText(meta.Copyright) ? null : meta.Copyright;
     }
 
     internal void RestoreUserText(PenguinTools.Core.Metadata.Meta meta)
     {
-        if (EditorCommentText is { } comment && meta.Comment == CleanEditorText(comment))
+        if (EditorCommentText is { } comment &&
+            meta.Comment == (EditorCommentProjection ?? CleanEditorText(comment)))
         {
             meta.Comment = comment;
         }

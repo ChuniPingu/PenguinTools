@@ -10,7 +10,7 @@ using UmgrModel = PenguinTools.Chart.Models.umgr;
 namespace PenguinTools.Workflow;
 
 public sealed record MusicExportOverrides(
-    string? JacketInput, AudioRequestOverrides Audio, StageRequestOverrides Stage);
+    string? JacketInput, AudioRequestOverrides Audio, StageRequestOverrides Stage, WallRequestOverrides? Wall = null);
 
 public static class MusicExporter
 {
@@ -71,7 +71,7 @@ public static class MusicExporter
         return await new AudioConverter(request, ctx.Audio).ConvertAsync(cancellationToken);
     }
 
-    public static async Task<OperationResult> ExportAsync(
+    public static async Task<OperationResult<WallExportSummary>> ExportAsync(
         MusicExportContext ctx,
         UmgrModel.Chart chart,
         string output,
@@ -79,7 +79,7 @@ public static class MusicExporter
         CancellationToken cancellationToken,
         IProgress<ProgressReport>? progress = null)
     {
-        var (jacketInput, audioOverrides, stageOverrides) = overrides;
+        var (jacketInput, audioOverrides, stageOverrides, wallOverrides) = overrides;
         cancellationToken.ThrowIfCancellationRequested();
 
         var diagnostics = DiagnosticSnapshot.Empty;
@@ -96,7 +96,7 @@ public static class MusicExporter
             diagnostics = diagnostics.Merge(builtStage.Diagnostics);
             if (!builtStage.Succeeded)
             {
-                return OperationResult.Failure().WithDiagnostics(diagnostics);
+                return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
             }
 
             stage = builtStage.Value;
@@ -128,7 +128,7 @@ public static class MusicExporter
         diagnostics = diagnostics.Merge(convertedChart.Diagnostics);
         if (!convertedChart.Succeeded)
         {
-            return OperationResult.Failure().WithDiagnostics(diagnostics);
+            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 
         var writtenChart =
@@ -137,7 +137,7 @@ public static class MusicExporter
         diagnostics = diagnostics.Merge(writtenChart.Diagnostics);
         if (!writtenChart.Succeeded)
         {
-            return OperationResult.Failure().WithDiagnostics(diagnostics);
+            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -149,7 +149,7 @@ public static class MusicExporter
         diagnostics = diagnostics.Merge(convertedJacket.Diagnostics);
         if (!convertedJacket.Succeeded)
         {
-            return OperationResult.Failure().WithDiagnostics(diagnostics);
+            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -157,7 +157,29 @@ public static class MusicExporter
         var convertedAudio = await ConvertAudioAsync(ctx, meta, output, audioOverrides, cancellationToken);
         diagnostics = diagnostics.Merge(convertedAudio.Diagnostics);
 
-        return (convertedAudio.Succeeded ? OperationResult.Success() : OperationResult.Failure())
-            .WithDiagnostics(diagnostics);
+        if (!convertedAudio.Succeeded)
+        {
+            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
+        }
+
+        var created = await WallExportSession.CreateAsync(ctx, output, Path.Combine(output, "wallbind.json"),
+            ct: cancellationToken);
+        diagnostics = diagnostics.Merge(created.Diagnostics);
+        if (!created.Succeeded)
+        {
+            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
+        }
+
+        var wallDiagnostics = new DiagnosticCollector();
+        await created.Value.QueueAsync(meta, wallOverrides ?? WallRequestOverrides.None, wallDiagnostics,
+            ct: cancellationToken);
+        diagnostics = diagnostics.Merge(DiagnosticSnapshot.Create(wallDiagnostics));
+        if (diagnostics.HasError)
+        {
+            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
+        }
+
+        var published = await created.Value.PublishAsync(cancellationToken);
+        return published.WithDiagnostics(diagnostics.Merge(published.Diagnostics));
     }
 }

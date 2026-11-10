@@ -17,6 +17,7 @@
         "assets_collected": "Assets collected",
         "audio_exported": "Audio exported",
         "built_stage": "Stage exported",
+        "built_wall": "Wall exported",
         "chart_written": "Chart saved",
         "command_line_parsing_failed": "Invalid command-line arguments",
         "exported_music": "Music exported",
@@ -63,6 +64,7 @@
         "invalid_bg_image": "Invalid background image format",
         "invalid_header": "Value is not accepted",
         "invalid_jk_image": "Invalid jacket image format",
+        "invalid_wall_image": "Invalid wall image",
         "jacket_file_not_found": "Jacket file not found",
         "main_meta_is_null": "Missing information for the baseline chart",
         "main_difficulty_invalid": "Invalid baseline difficulty",
@@ -71,7 +73,11 @@
         "song_id_is_not_set": "Song ID not set",
         "stage_background_required": "Background image not specified",
         "stage_id_is_not_set": "Stage ID not set",
-        "unhandled": "Unexpected error"
+        "unhandled": "Unexpected error",
+        "wall_conflict": "Wall ID conflict",
+        "wall_id_required": "Invalid wall settings",
+        "wall_manifest_invalid": "Cannot read or save wall settings",
+        "wall_source_required": "Wall image not specified"
       },
       "hint": {
         "preview_start_clamped": "Preview start time adjusted",
@@ -135,6 +141,7 @@
         "no_chart_marked_main": "Baseline difficulty selected automatically",
         "preview_later_than_120": "Preview starts after 120 seconds",
         "stage_already_exists": "Stage already exists",
+        "wall_already_exists": "Wall already exists",
         "we_chart_must_be_unique_id": "World's End needs a separate Song ID",
         "editor_lane_adjusted": "Note position adjusted",
         "editor_width_adjusted": "Note width adjusted",
@@ -173,6 +180,7 @@
       "assets_collected": "Collected assets and saved them to {0}.",
       "audio_exported": "Exported audio: {0}",
       "built_stage": "Exported stage: {0}",
+      "built_wall": "Exported wall: {0}",
       "chart_written": "Saved chart: {0}",
       "command_line_parsing_failed": "Cannot use these command-line options: {0}",
       "exported_music": "Exported music: {0}",
@@ -219,6 +227,7 @@
       "invalid_bg_image": "This file cannot be read as a background image.",
       "invalid_header": "'{0}' cannot be used here. Expected: {1}.",
       "invalid_jk_image": "This file cannot be read as a jacket image.",
+      "invalid_wall_image": "This file cannot be read or converted as a wall image.",
       "jacket_file_not_found": "The specified jacket file was not found.",
       "main_meta_is_null": "The chart used for the baseline difficulty has no song information.",
       "main_difficulty_invalid": "'{0}' cannot be used as the baseline difficulty.",
@@ -227,7 +236,11 @@
       "song_id_is_not_set": "Song ID is not set.",
       "stage_background_required": "No background image has been selected for this stage.",
       "stage_id_is_not_set": "Stage ID is not set.",
-      "unhandled": "An unexpected error occurred: {detail}"
+      "unhandled": "An unexpected error occurred: {detail}",
+      "wall_conflict": "Wall ID {0} has different images or widths in this batch, so its wall assets were not exported.",
+      "wall_id_required": "Song and wall IDs must be non-negative integers, and the width must be normal or wide.",
+      "wall_manifest_invalid": "The wall settings file (wallbind.json) could not be read or saved.",
+      "wall_source_required": "No image has been selected for this wall."
     },
     "hint": {
       "preview_start_clamped": "The preview cannot start at {0} seconds, so the start was moved to {1} seconds.",
@@ -290,6 +303,7 @@
       "no_chart_marked_main": "No baseline difficulty is set for this Song ID. The highest-difficulty chart will be used.",
       "preview_later_than_120": "The preview starts more than 120 seconds into the song. This may make the game pause on the song selection screen.",
       "stage_already_exists": "Stage '{0}' with ID {1} is already in the asset library.",
+      "wall_already_exists": "Wall '{0}' with ID {1} is already in the asset library.",
       "we_chart_must_be_unique_id": "World's End charts must use a unique Song ID; otherwise other difficulties will not appear under normal song categories.",
       "editor_lane_adjusted": "In the {0} file, {1} was moved from {2} to {3}.",
       "editor_width_adjusted": "In the {0} file, the width of {1} was changed from {2} to {3}.",

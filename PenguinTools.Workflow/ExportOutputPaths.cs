@@ -7,6 +7,10 @@ public sealed record ExportOutputPaths(
     string EventFolder,
     string ReleaseTagPath)
 {
+    private string BundleRoot => Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(MusicFolder)))!;
+    public string WallFolder => Path.Combine(BundleRoot, "ddsFieldWall");
+    public string WallBindingsPath => Path.Combine(BundleRoot, "wallbind.json");
+
     /// <summary>Resolves the on-disk bundle root from a working directory and output folder name.</summary>
     public static string ResolveBundleRootPath(string workingDirectory, string optionName)
     {

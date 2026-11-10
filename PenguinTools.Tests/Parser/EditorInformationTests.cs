@@ -225,7 +225,9 @@ public sealed class EditorInformationTests
                 .ParseAsync(TestContext.Current.CancellationToken);
             Assert.True(saved.Succeeded);
             chart = saved.Value!;
-            // A native editor reads the single-line view and retains the extension payload.
+            // Legacy files have a flattened comment and no explicit projection guard.
+            chart.Extras.EditorCommentText = comment;
+            chart.Extras.EditorCommentProjection = null;
             chart.Meta.Comment = comment.Replace('\n', ' ').Replace('\t', ' ') + "\r\n";
             chart.Meta.Copyright = copyright.Replace('\n', ' ');
             foreach (var edited in new[] { false, true })
@@ -255,7 +257,7 @@ public sealed class EditorInformationTests
     public async Task RetainedUserText_DoesNotOverwriteEdits()
     {
         var chart = new U.Chart();
-        chart.Meta.Comment = "Original comment\n第二行";
+        chart.Meta.Comment = "Original comment\n第二行\t保留";
         chart.Meta.Copyright = "Original copyright\n第二行";
         chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
         chart.Events.AppendChild(new U.BeatEvent { Bar = 0, Numerator = 4, Denominator = 4 });
@@ -266,7 +268,7 @@ public sealed class EditorInformationTests
             Assert.True((await new UgcChartWriter(path, chart)
                 .WriteAsync(TestContext.Current.CancellationToken)).Succeeded);
             var text = await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken);
-            text = text.Replace("@CMT\tOriginal comment 第二行", "@CMT\tEdited comment", StringComparison.Ordinal)
+            text = text.ReplaceLineEndings("\n").Replace("@CMT\tOriginal comment\n@CMT\t第二行 保留", "@CMT\tEdited comment", StringComparison.Ordinal)
                 .Replace("Original copyright 第二行", "Edited copyright", StringComparison.Ordinal);
             await File.WriteAllTextAsync(path, text, TestContext.Current.CancellationToken);
             var parsed = await new UgcParser(new UgcParseRequest(path, TestAssets.Load()), TestMediaTool.Instance)

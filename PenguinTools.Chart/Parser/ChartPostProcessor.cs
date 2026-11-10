@@ -457,6 +457,52 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
     }
 
+    private void MetaWallHandler(string[] args)
+    {
+        var width = WallWidth.Wide;
+        int? id = null;
+        var index = 1;
+        if (args.Length is >= 2 && Enum.TryParse<WallWidth>(args[1], true, out var parsedWidth) &&
+            Enum.IsDefined(parsedWidth) && !int.TryParse(args[1], out _))
+        {
+            width = parsedWidth;
+            index++;
+        }
+
+        var valid = args.Length is >= 1 and <= 3 && !string.IsNullOrWhiteSpace(args[0]);
+        if (index < args.Length)
+        {
+            valid &= int.TryParse(args[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId) &&
+                     parsedId >= 0;
+            id = parsedId;
+            index++;
+        }
+        valid &= index == args.Length;
+        if (valid)
+        {
+            try
+            {
+                _ = Path.GetFullPath(args[0]);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                valid = false;
+            }
+        }
+        if (!valid)
+        {
+            chart.Meta.WallMetadataInvalid = string.IsNullOrWhiteSpace(chart.Meta.WallFilePath);
+            WarnInvalidMeta("wall", args);
+            return;
+        }
+
+        chart.Meta.WallFilePath = args[0];
+        chart.Meta.WallWidth = width;
+        chart.Meta.WallId = id;
+        chart.Meta.WallMetadataInvalid = false;
+        chart.Meta.WallImageValid = true;
+    }
+
     private void MetaBackgroundHandler(string[] args)
     {
         if (!HasSingleArgument("bg", args))
@@ -559,6 +605,9 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
 
         switch (name)
         {
+            case "wall":
+                MetaWallHandler(value);
+                break;
             case "bg":
                 MetaBackgroundHandler(value);
                 break;
@@ -603,7 +652,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             }
         };
 
-        var lines = chart.Meta.Comment.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        var lines = ChartMetaCommands.CommentLines(chart.Meta.Comment);
 
         foreach (var line in lines)
         {

@@ -24,6 +24,7 @@ public static class MsgKeys
     public const string Cli_Msg_assets_collected = "cli.msg.assets_collected";
     public const string Cli_Msg_audio_exported = "cli.msg.audio_exported";
     public const string Cli_Msg_built_stage = "cli.msg.built_stage";
+    public const string Cli_Msg_built_wall = "cli.msg.built_wall";
     public const string Cli_Msg_chart_written = "cli.msg.chart_written";
     public const string Cli_Msg_command_line_parsing_failed = "cli.msg.command_line_parsing_failed";
     public const string Cli_Msg_exported_music = "cli.msg.exported_music";
@@ -71,6 +72,7 @@ public static class MsgKeys
     public const string Error_Invalid_bg_image = "diag.error.invalid_bg_image";
     public const string Error_Invalid_Header = "diag.error.invalid_header";
     public const string Error_Invalid_jk_image = "diag.error.invalid_jk_image";
+    public const string Error_Invalid_wall_image = "diag.error.invalid_wall_image";
     public const string Error_Jacket_file_not_found = "diag.error.jacket_file_not_found";
     public const string Error_Main_meta_is_null = "diag.error.main_meta_is_null";
     public const string Error_Main_difficulty_invalid = "diag.error.main_difficulty_invalid";
@@ -80,6 +82,10 @@ public static class MsgKeys
     public const string Error_Stage_background_required = "diag.error.stage_background_required";
     public const string Error_Stage_id_is_not_set = "diag.error.stage_id_is_not_set";
     public const string Error_Unhandled = "diag.error.unhandled";
+    public const string Error_Wall_conflict = "diag.error.wall_conflict";
+    public const string Error_Wall_id_required = "diag.error.wall_id_required";
+    public const string Error_Wall_manifest_invalid = "diag.error.wall_manifest_invalid";
+    public const string Error_Wall_source_required = "diag.error.wall_source_required";
     public const string Hint_Preview_start_clamped = "diag.hint.preview_start_clamped";
     public const string Hint_Preview_stop_clamped = "diag.hint.preview_stop_clamped";
     public const string Mg_Concurrent_ex_effects = "diag.mg.concurrent_ex_effects";
@@ -127,5 +133,6 @@ public static class MsgKeys
     public const string Warn_No_chart_marked_main = "diag.warn.no_chart_marked_main";
     public const string Warn_Preview_later_than_120 = "diag.warn.preview_later_than_120";
     public const string Warn_Stage_already_exists = "diag.warn.stage_already_exists";
+    public const string Warn_Wall_already_exists = "diag.warn.wall_already_exists";
     public const string Warn_We_chart_must_be_unique_id = "diag.warn.we_chart_must_be_unique_id";
 }

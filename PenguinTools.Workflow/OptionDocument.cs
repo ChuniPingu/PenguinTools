@@ -28,6 +28,8 @@ public sealed class OptionDocument
 
     public bool ConvertBackground { get; set; } = true;
 
+    public bool ConvertWall { get; set; } = true;
+
     public ulong HcaEncryptionKey { get; set; } = AudioConvertRequest.DefaultHcaEncryptionKey;
 
     public bool GenerateEventXml { get; set; } = true;
@@ -72,7 +74,7 @@ public sealed class OptionDocument
 
     public bool HasExportableWork()
     {
-        return ConvertChart || ConvertAudio || ConvertJacket || ConvertBackground || GenerateEventXml;
+        return ConvertChart || ConvertAudio || ConvertJacket || ConvertBackground || ConvertWall || GenerateEventXml;
     }
 
     public OptionExportSettings ToExportSettings()
@@ -98,7 +100,8 @@ public sealed class OptionDocument
             WeEventId: WeEventId,
             BatchSize: BatchSize,
             ConversionCache: ConversionCache,
-            HcaEncryptionKey: HcaEncryptionKey);
+            HcaEncryptionKey: HcaEncryptionKey,
+            ConvertWall: ConvertWall);
     }
 
     private static string CreateOptionId()

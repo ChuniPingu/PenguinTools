@@ -62,6 +62,30 @@ public sealed class ImageService : IImageService
             await PublishBytesAsync(destination, bytes, token).ConfigureAwait(false);
         }, MsgKeys.Error_Invalid_jk_image, ct);
 
+    public Task ConvertWallAsync(string source, string destination, WallWidth width, CancellationToken ct = default) =>
+        WithWorkspaceAsync(async (workspace, token) =>
+        {
+            var (pixelsWide, pixelsHigh) = width switch
+            {
+                WallWidth.Normal => (640, 480),
+                WallWidth.Wide => (2048, 512),
+                _ => throw new ArgumentOutOfRangeException(nameof(width))
+            };
+            var image = Path.Combine(workspace, "wall.tga");
+            await RunToolAsync(_imageToolsPath, ["resize", "--input", source, "--output", image,
+                "--width", pixelsWide.ToString(CultureInfo.InvariantCulture),
+                "--height", pixelsHigh.ToString(CultureInfo.InvariantCulture)], token).ConfigureAwait(false);
+            var dds = await EncodeAsync(image, "BC1_UNORM", workspace, token).ConfigureAwait(false);
+            var bytes = await File.ReadAllBytesAsync(dds, token).ConfigureAwait(false);
+            var header = DdsContainer.Read(bytes);
+            if (header.Width != pixelsWide || header.Height != pixelsHigh || header.Format != "DXT1" ||
+                header.MipLevels != 1 || bytes.Length != 128 + pixelsWide * pixelsHigh / 2)
+            {
+                throw new InvalidDataException("texconv produced an incompatible wall DDS.");
+            }
+            await PublishBytesAsync(destination, bytes, token).ConfigureAwait(false);
+        }, MsgKeys.Error_Invalid_wall_image, ct);
+
     public Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
         IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
         CancellationToken ct = default) => WithWorkspaceAsync(async (workspace, token) =>

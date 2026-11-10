@@ -44,7 +44,14 @@ internal static class ChartMetadata
             meta.SortName,
             meta.UnlockEventId,
             meta.ReleaseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            meta.MainTil);
+            meta.MainTil)
+        {
+            WallFilePath = meta.WallFilePath,
+            FullWallFilePath = meta.FullWallFilePath,
+            WallId = meta.EffectiveWallId,
+            ExplicitWallId = meta.WallId,
+            WallWidth = meta.WallWidth
+        };
     }
 
     internal static string GetStarDifficultyLabel(StarDifficulty value)

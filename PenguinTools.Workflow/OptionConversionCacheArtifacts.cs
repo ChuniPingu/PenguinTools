@@ -12,6 +12,29 @@ internal sealed record OptionCachedConversion(
 
 internal static class OptionConversionCacheArtifacts
 {
+    public static Task<OptionCachedConversion> CreateWallAsync(WallBuildRequest request, CancellationToken ct)
+    {
+        var xml = new DDSFieldWallXml(request.WallId);
+        var directory = Path.Combine(request.OutputDirectory, xml.DataName);
+        return CreateAsync(
+            $"wall:{request.WallId}",
+            new Dictionary<string, string?>
+            {
+                ["kind"] = "wall",
+                ["recipeVersion"] = "1",
+                ["wallId"] = request.WallId.ToString(CultureInfo.InvariantCulture),
+                ["width"] = request.Width.ToString(),
+                ["netOpenName.id"] = xml.NetOpenName.Id.ToString(CultureInfo.InvariantCulture),
+                ["netOpenName.str"] = xml.NetOpenName.Str,
+                ["netOpenName.data"] = xml.NetOpenName.Data
+            },
+            new Dictionary<string, string> { ["wall"] = request.SourcePath },
+            [
+                new OptionConversionArtifact("wallXml", Path.Combine(directory, "DDSFieldWall.xml")),
+                new OptionConversionArtifact("wallDds", Path.Combine(directory, xml.Image))
+            ], ct);
+    }
+
     public static Task<OptionCachedConversion> CreateStageAsync(
         OptionBook book,
         string stageOutputFolder,

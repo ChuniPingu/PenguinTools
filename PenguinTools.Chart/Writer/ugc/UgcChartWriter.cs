@@ -101,6 +101,7 @@ public sealed class UgcChartWriter(string path, U.Chart source)
                 diagnostics.Report(ex.ToDiagnostic().WithPathFallback(path));
                 return OperationResult.Failure().WithDiagnostics(diagnostics);
             }
+            _chart.Meta.Comment = ChartMediaPaths.CommentForOutput(_chart.Meta.Comment, _chart.Meta.FilePath, path);
             CurveExpansion.Expand(_chart);
             _chart.Extras.MgxcNoteSnapshots.Clear();
             _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
@@ -211,7 +212,11 @@ public sealed class UgcChartWriter(string path, U.Chart source)
             $"@FLAG\tDIFFTTL\t{(_chart.Extras.Tutorial ? 1 : 0)}"]);
         _lines.AddRange([$"@SORT\t{Clean(m.SortName)}", $"@BGM\t{Clean(ChartMediaPaths.ForOutput(m.BgmFilePath, m.FilePath, path))}",
             $"@BGMOFS\t{m.BgmManualOffset}", $"@JACKET\t{Clean(ChartMediaPaths.ForOutput(m.JacketFilePath, m.FilePath, path))}",
-            $"@MAINTIL\t{m.MainTil}", $"@CMT\t{Clean(C2sRoundTripComment.Strip(m.Comment))}"]);
+            $"@MAINTIL\t{m.MainTil}"]);
+        foreach (var commentLine in C2sRoundTripComment.Strip(m.Comment).ReplaceLineEndings("\n").Split('\n'))
+        {
+            _lines.Add("@CMT\t" + commentLine.Replace('\t', ' '));
+        }
         _lines.Add($"@LICENSE\t{Clean(m.License)}\t{Clean(m.LicenseUrl)}");
         _lines.Add($"@GENRE\t{Clean(m.Genre?.Str ?? "")}");
         if (m.Difficulty == Difficulty.WorldsEnd)

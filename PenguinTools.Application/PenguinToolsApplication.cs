@@ -246,10 +246,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
 
             ChartMetadata.ApplyMusicBuildOverrides(chart.Meta, request.Overrides);
 
-            var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, new MusicExportOverrides(jacket, audio, stage),
+            var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, new MusicExportOverrides(jacket, audio, stage, ToWorkflow(request.Wall)),
                 cancellationToken, progress);
-            var value = CreateMusicResult(input, output, chart.Meta, stage);
-            return ApplicationDiagnostics.Merge(value, parsed.Diagnostics, exported);
+            var value = CreateMusicResult(input, output, chart.Meta, stage, exported.Succeeded ? exported.Value : null);
+            return ApplicationDiagnostics.Merge(value, parsed.Diagnostics, exported.ToResult());
         });
     }
 
@@ -610,7 +610,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             document.OverrideChartGenre,
             document.UltimaEventId,
             document.WeEventId,
-            document.BatchSize);
+            document.BatchSize)
+        { ConvertWall = document.ConvertWall };
     }
 
     private static (OptionScanResult Result, DiagnosticSnapshot UnmatchedDiagnostics) CreateScanResult(
@@ -643,7 +644,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     meta.BgmEnableBarOffset, meta.BgmInitialBpm, meta.BgmInitialNumerator, meta.BgmInitialDenominator,
                     meta.IsCustomStage, meta.StageId, meta.BgiFilePath, ApplicationEntry.From(meta.NotesFieldLine),
                     ApplicationEntry.From(meta.Stage),
-                    matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray());
+                    matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray())
+                {
+                    WallFilePath = meta.WallFilePath,
+                    FullWallFilePath = meta.FullWallFilePath,
+                    WallId = meta.EffectiveWallId,
+                    ExplicitWallId = meta.WallId,
+                    WallWidth = meta.WallWidth
+                };
             }).ToArray();
             var main = book.MainDifficulty.ToString();
             var mainMeta = book.BookMeta;
@@ -655,7 +663,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 ChartMetadata.GetStarDifficultyLabel(mainMeta.WeDifficulty), mainMeta.JacketFilePath, mainMeta.BgmFilePath,
                 mainMeta.BgmPreviewStart, mainMeta.BgmPreviewStop, mainMeta.BgmManualOffset, mainMeta.BgmRealOffset,
                 mainMeta.BgmEnableBarOffset, mainMeta.BgmInitialBpm, mainMeta.BgmInitialNumerator,
-                mainMeta.BgmInitialDenominator, charts);
+                mainMeta.BgmInitialDenominator, charts)
+            {
+                WallFilePath = mainMeta.WallFilePath,
+                FullWallFilePath = mainMeta.FullWallFilePath,
+                WallId = mainMeta.EffectiveWallId,
+                ExplicitWallId = mainMeta.WallId,
+                WallWidth = mainMeta.WallWidth
+            };
         }).ToArray();
         var unmatched = remaining.Select(x => x.value).ToArray();
         var result = new OptionScanResult(input, discovery.Select(ToChartFormatName).ToArray(), batchSize, books,
@@ -735,6 +750,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (value.ConvertJacket is { } convertJacket)
         {
             document.ConvertJacket = convertJacket;
+        }
+
+        if (value.ConvertWall is { } convertWall)
+        {
+            document.ConvertWall = convertWall;
         }
 
         if (value.ConvertBackground is { } convertBackground)
@@ -951,7 +971,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
     }
 
     private static MusicBuildResult CreateMusicResult(string input, string output, Meta meta,
-        StageRequestOverrides stage)
+        StageRequestOverrides stage, WallExportSummary? wall)
     {
         var artifacts = new List<ApplicationArtifact>();
         var musicXml = new MusicXml(new Dictionary<Difficulty, Meta> { [meta.Difficulty] = meta }, meta.Difficulty);
@@ -966,6 +986,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         artifacts.Add(new ApplicationArtifact("audio.acb", Path.Combine(cueDirectory, cue.AcbFile)));
         artifacts.Add(new ApplicationArtifact("audio.awb", Path.Combine(cueDirectory, cue.AwbFile)));
         artifacts.AddRange(CreateStageArtifacts(output, meta, stage, out var stageName));
+        if (wall is not null)
+        {
+            artifacts.AddRange(CreateWallArtifacts(output, wall));
+        }
         return new MusicBuildResult(input, output, ChartMetadata.CreateChartSummary(meta), stage.StageId ?? meta.StageId,
             stageName, artifacts);
     }

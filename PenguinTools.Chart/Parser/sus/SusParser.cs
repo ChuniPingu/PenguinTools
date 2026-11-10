@@ -950,6 +950,15 @@ public sealed class SusParser
                 ("title", Sus.Meta.Title), ("sortName", Sus.Meta.SortName))));
         }
 
+        if (!string.IsNullOrWhiteSpace(Sus.Meta.WallFilePath))
+        {
+            QueueValidation(
+                MediaValidator.CheckImageValidAsync(Sus.Meta.FullWallFilePath),
+                Sus.Meta.FullWallFilePath,
+                MsgKeys.Error_Invalid_wall_image,
+                () => Sus.Meta.WallImageValid = false);
+        }
+
         if (Sus.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Sus.Meta.FullBgiFilePath))
         {
             QueueValidation(

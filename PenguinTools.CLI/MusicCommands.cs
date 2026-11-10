@@ -22,6 +22,7 @@ internal static class MusicCommands
         { Description = "Override the jacket source path used for export." };
         var audio = CommandLineOptions.CreateAudioCommandOptions();
         var stage = CommandLineOptions.CreateStageCommandOptions();
+        var wall = new WallCommandOptions();
         var meta = CommandLineOptions.CreateMusicBuildMetaOptions();
         var command = new Command("build", "Build a complete music bundle.");
         command.Arguments.Add(input);
@@ -29,6 +30,7 @@ internal static class MusicCommands
         command.Options.Add(jacket);
         CommandLineOptions.AddAudioCommandOptions(command, audio);
         CommandLineOptions.AddStageCommandOptions(command, stage);
+        wall.AddTo(command);
         CommandLineOptions.AddMusicBuildMetaOptions(command, meta);
         var noProgress = GlobalCliOptions.AddNoProgressOption(command);
         command.SetAction((parseResult, cancellationToken) =>
@@ -37,7 +39,7 @@ internal static class MusicCommands
                         parseResult.GetRequiredValue(input), parseResult.GetRequiredValue(output),
                         parseResult.GetValue(jacket), CommandLineOptions.GetAudioOverrides(parseResult, audio),
                         CommandLineOptions.GetStageOverrides(parseResult, stage),
-                        CommandLineOptions.GetMusicBuildOverrides(parseResult, meta, stage)), progress, ct),
+                        CommandLineOptions.GetMusicBuildOverrides(parseResult, meta, stage), wall.GetOverrides(parseResult)), progress, ct),
                 value => Msg.Create(MsgKeys.Cli_Msg_exported_music, value.OutputDirectory),
                 CliJsonSerializerContext.Default.MusicBuildResult, cancellationToken,
                 GlobalCliOptions.IsNoProgress(parseResult, noProgress), parseResult));

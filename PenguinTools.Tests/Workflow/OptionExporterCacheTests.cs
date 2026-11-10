@@ -586,6 +586,9 @@ public sealed class OptionExporterCacheTests
             await File.WriteAllTextAsync(dst, await File.ReadAllTextAsync(src, ct), ct);
         }
 
+        public Task ConvertWallAsync(string source, string destination, WallWidth width,
+            CancellationToken ct = default) => File.WriteAllBytesAsync(destination, [1, 2, 3], ct);
+
         public async Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
             IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
             CancellationToken ct = default)

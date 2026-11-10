@@ -13,7 +13,7 @@ Editor output uses MGXC v4 or UGC v9. MGXC versions above 4 and UGC versions abo
 
 The format references describe the source specifications. Implementation coverage is determined by the parsers, writers, and their tests.
 
-Writing MGXC or UGC to another directory rebases relative media paths to keep the same referenced files. MGXC text fields exceeding 65,535 UTF-8 bytes are truncated at a complete character boundary with a warning.
+Saving MGXC or UGC in another folder updates media paths, including `#meta bg` and `#meta wall`, so they still point to the same files. Comments keep their line order. MGXC text over 65,535 UTF-8 bytes is shortened with a warning; characters are kept whole.
 
 Use binary MGXC only. Do not use text MGXC: PenguinTools does not support it, and Margrete has deprecated it.
 
