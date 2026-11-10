@@ -91,7 +91,7 @@
         "meta_unknown_tag": "无法识别标记",
         "no_sortname_provided": "已自动生成排序名称",
         "note_overlapped_in_different_til": "重叠音符的流速不同",
-        "string_id_not_found": "找不到素材编号",
+        "string_id_not_found": "找不到素材 ID",
         "unrecognized_meta": "无法识别谱面属性",
         "unrecognized_note": "无法识别音符类型"
       },
@@ -246,7 +246,7 @@
       "meta_unknown_tag": "未知标记“{0}”。",
       "no_sortname_provided": "未设置排序名称，已根据标题自动生成。",
       "note_overlapped_in_different_til": "C2S 无法让这些重叠音符使用不同的流速。原属时间线 {0} 的音符会按时间线 {1} 的流速滚动。",
-      "string_id_not_found": "在“{1}”中未找到素材编号“{0}”。",
+      "string_id_not_found": "在“{1}”中未找到素材 ID“{0}”。",
       "unrecognized_meta": "无法识别谱面属性“{0}”，填写的内容是：{1}。",
       "unrecognized_note": "无法识别音符类型 {0}。"
     },
@@ -260,14 +260,14 @@
       "invalid_number": "{0} 需要有效的数字，当前填写的是“{1}”。",
       "pairing_notes_incompatible": "找不到可以连接的音符，或这两种音符不能连接。",
       "soflanarea_has_no_tail": "局部变速区域缺少终点。",
-      "unrecognized_data_type": "无法读取这部分谱面数据，类型编号为 {0}。",
+      "unrecognized_data_type": "无法读取这部分谱面数据，类型 ID 为 {0}。",
       "unrecognized_event": "无法识别谱面中的设置“{0}”。"
     },
     "sus": {
       "air_hold_ignored": "找不到 AIR-HOLD 应连接的音符，已跳过这一条。",
       "air_hold_joint_ignored": "找不到这个连接点对应的 AIR-HOLD 起点，已跳过这个点。",
       "air_note_ignored": "找不到 AIR 应连接的音符，已跳过这一条。",
-      "bpm_definition_not_found": "谱面使用了 BPM 编号“{0}”，但没有填写对应的 BPM 数值。",
+      "bpm_definition_not_found": "谱面使用了 BPM ID“{0}”，但没有填写对应的 BPM 数值。",
       "hold_joint_ignored": "找不到这个连接点对应的 HOLD 起点，已跳过这个点。",
       "malformed_line": "SUS 行格式错误：{0}",
       "slide_joint_ignored": "找不到这个连接点对应的 SLIDE 起点，已跳过这个点。",
