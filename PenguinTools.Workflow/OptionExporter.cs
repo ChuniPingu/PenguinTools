@@ -18,8 +18,7 @@ public static class OptionExporter
         IEnumerable<OptionBook> books,
         string diagnosticsWorkingDirectory,
         CancellationToken ct,
-        IProgress<ProgressReport>? progress = null,
-        bool inputComplete = true)
+        IProgress<ProgressReport>? progress = null)
     {
         settings.ValidateIds();
         var diagnostics = OptionExportBatch.CreateCollector();
@@ -54,7 +53,7 @@ public static class OptionExporter
         if (walls is not null)
         {
             var published = await walls.PublishAsync(
-                batchComplete: inputComplete && !batchDiagnostics.HasError && !diagnostics.HasError, ct: ct);
+                batchComplete: settings.InputComplete && !batchDiagnostics.HasError && !diagnostics.HasError, ct: ct);
             foreach (var diagnostic in published.Diagnostics.Diagnostics)
             {
                 diagnostics.Report(diagnostic);

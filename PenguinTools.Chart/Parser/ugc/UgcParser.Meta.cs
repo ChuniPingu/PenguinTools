@@ -101,8 +101,7 @@ public partial class UgcParser
                 HandleClickCount(args);
                 break;
             case "CMT":
-                _commentLines.Add(Str(args));
-                Ugc.Meta.Comment = string.Join('\n', _commentLines);
+                HandleComment(args);
                 break;
 
             case "ATINFO":
@@ -152,6 +151,12 @@ public partial class UgcParser
                 PreserveUnknownHeader(name, args, line);
                 break;
         }
+    }
+
+    private void HandleComment(string[] args)
+    {
+        _commentLines.Add(Str(args));
+        Ugc.Meta.Comment = string.Join('\n', _commentLines);
     }
 
     private void HandleBackgroundMode(string[] args)

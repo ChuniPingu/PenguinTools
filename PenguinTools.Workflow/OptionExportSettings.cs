@@ -27,6 +27,8 @@ public sealed record OptionExportSettings(
     bool IgnoreCache = false,
     bool ConvertWall = true)
 {
+    public bool InputComplete { get; init; } = true;
+
     public void ValidateIds()
     {
         ResourceIds.Require(UltimaEventId, MsgKeys.Error_Event_id_invalid);

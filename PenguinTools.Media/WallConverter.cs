@@ -63,7 +63,7 @@ public sealed class WallConverter(WallBuildRequest request, IImageService images
                     Msg.Create(MsgKeys.Warn_Wall_already_exists, existing.Str, request.WallId)));
             }
 
-            var xml = new DDSFieldWallXml(request.WallId);
+            var xml = new DdsFieldWallXml(request.WallId);
             var directory = Path.Combine(request.OutputDirectory, xml.DataName);
             var xmlPath = Path.Combine(directory, "DDSFieldWall.xml");
             var ddsPath = Path.Combine(directory, xml.Image);

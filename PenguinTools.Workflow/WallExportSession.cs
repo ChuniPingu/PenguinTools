@@ -132,15 +132,14 @@ public sealed class WallExportSession
         {
             diagnostics.Report(diagnostic);
         }
-        if (result.Succeeded)
-        {
-            _completed[id] = result.Value;
-            _bindings[songId] = new WallBinding(songId, id, width);
-        }
-        else
+        if (!result.Succeeded)
         {
             _incomplete = true;
+            return;
         }
+
+        _completed[id] = result.Value;
+        _bindings[songId] = new WallBinding(songId, id, width);
     }
 
     private async Task<OperationResult<PreparedExport>> PrepareAsync(WallBuildRequest request, CancellationToken ct)
@@ -148,7 +147,7 @@ public sealed class WallExportSession
         var cached = await OptionConversionCacheArtifacts.CreateWallAsync(request, ct);
         if (!_ignoreCache && await OptionConversionCacheValidator.IsHitAsync(_cache, cached.Key, cached.State, cached.Outputs, ct))
         {
-            var xml = new DDSFieldWallXml(request.WallId);
+            var xml = new DdsFieldWallXml(request.WallId);
             var folder = Path.Combine(_assetRoot, xml.DataName);
             return OperationResult<PreparedExport>.Success(new PreparedExport(
                 new WallAsset(xml.Name, folder, Path.Combine(folder, "DDSFieldWall.xml"), Path.Combine(folder, xml.Image)),
@@ -186,9 +185,9 @@ public sealed class WallExportSession
             return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 
-        foreach (var value in complete)
+        foreach (var cached in complete.Select(value => value.Cache))
         {
-            await OptionConversionCacheValidator.StoreAsync(_cache, value.Cache.Key, value.Cache.State, value.Cache.Outputs, ct);
+            await OptionConversionCacheValidator.StoreAsync(_cache, cached.Key, cached.State, cached.Outputs, ct);
         }
         return OperationResult<WallExportSummary>.Success(new WallExportSummary(
             complete.Select(value => value.Asset).ToArray(), true));

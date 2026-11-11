@@ -89,7 +89,8 @@ internal static partial class ChartMetaCommands
     {
         var normalized = new StringBuilder(comment.Length);
         var quoted = false;
-        for (var index = 0; index < comment.Length; index++)
+        var index = 0;
+        while (index < comment.Length)
         {
             var ch = comment[index];
             if (ch == '"')
@@ -97,23 +98,34 @@ internal static partial class ChartMetaCommands
                 quoted = !quoted;
             }
 
-            if (!quoted && ch == '\\')
+            var length = !quoted && ch == '\\' ? EscapedMetaLineBreakLength(comment.AsSpan(index)) : 0;
+            if (length > 0)
             {
-                var tail = comment.AsSpan(index);
-                var length = tail.StartsWith("\\r\\n", StringComparison.Ordinal) ? 4 :
-                    tail.StartsWith("\\r", StringComparison.Ordinal) || tail.StartsWith("\\n", StringComparison.Ordinal) ? 2 : 0;
-                if (length > 0 && comment.AsSpan(index + length).TrimStart().StartsWith("#meta", StringComparison.Ordinal))
-                {
-                    normalized.Append('\n');
-                    index += length - 1;
-                    continue;
-                }
+                normalized.Append('\n');
+                index += length;
+                continue;
             }
 
             normalized.Append(ch);
+            index++;
         }
 
         return normalized.ToString();
+    }
+
+    private static int EscapedMetaLineBreakLength(ReadOnlySpan<char> text)
+    {
+        var length = 0;
+        if (text.StartsWith("\\r\\n", StringComparison.Ordinal))
+        {
+            length = 4;
+        }
+        else if (text.StartsWith("\\r", StringComparison.Ordinal) || text.StartsWith("\\n", StringComparison.Ordinal))
+        {
+            length = 2;
+        }
+
+        return length > 0 && text[length..].TrimStart().StartsWith("#meta", StringComparison.Ordinal) ? length : 0;
     }
 
     private static bool ParseBool(string str)

@@ -163,7 +163,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 Msg.Key(MsgKeys.App_Option_name_required));
         }
 
-        if (document.BatchSize == 0 || document.BatchSize < -1)
+        if (document.BatchSize is 0 or < -1)
         {
             return ApplicationDiagnostics.Failure<OptionBuildResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
         }
@@ -194,9 +194,13 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
         var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
         var skippedCharts = SkippedVersionCharts(scanned.Diagnostics);
+        exportSettings = exportSettings with
+        {
+            InputComplete = !scanned.Diagnostics.HasError && skippedCharts.Length == 0
+        };
         var exported = await OptionExporter.ExportAsync(
             CreateExportContext(), exportSettings, outputPaths, snapshots, output,
-            cancellationToken, progress, inputComplete: !scanned.Diagnostics.HasError && skippedCharts.Length == 0);
+            cancellationToken, progress);
         var diagnostics = scanned.Diagnostics.Merge(exported.Diagnostics);
         if (!exported.Succeeded)
         {

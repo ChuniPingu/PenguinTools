@@ -2,9 +2,9 @@ using PenguinTools.Core.Asset;
 
 namespace PenguinTools.Core.Xml;
 
-public sealed class DDSFieldWallXml : XmlElement
+public sealed class DdsFieldWallXml : XmlElement
 {
-    public DDSFieldWallXml(int id)
+    public DdsFieldWallXml(int id)
     {
         Metadata.ResourceIds.Require(id, MsgKeys.Error_Wall_id_invalid);
         DataName = $"ddsFieldWall{id:0000}";
