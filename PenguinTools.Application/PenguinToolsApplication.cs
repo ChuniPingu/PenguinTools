@@ -214,11 +214,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             await OptionConfiguration.SaveAsync(savedConfigPath, document, cancellationToken);
         }
 
-        var artifacts = Directory.Exists(bundleRoot)
-            ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
-                .OrderBy(x => x, StringComparer.Ordinal)
-                .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
-            : [];
+        var artifacts = CollectOptionArtifacts(bundleRoot);
         var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
             scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts)
         {
@@ -226,6 +222,15 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         };
         return (value.IsPartial ? OperationResult<OptionBuildResult>.Failure(value)
             : OperationResult<OptionBuildResult>.Success(value)).WithDiagnostics(diagnostics);
+    }
+
+    private static ApplicationArtifact[] CollectOptionArtifacts(string bundleRoot)
+    {
+        return Directory.Exists(bundleRoot)
+            ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
+                .OrderBy(x => x, StringComparer.Ordinal)
+                .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
+            : [];
     }
 
     public async Task<OperationResult<JacketConvertResult>> ConvertJacketAsync(
