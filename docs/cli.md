@@ -72,7 +72,7 @@ out/
 
 Install the wallbind plugin to display the wall in-game. Put the `ddsFieldWall1009978/` folder inside the option's `ddsFieldWall/` folder, and `wallbind.json` in the option root. `option build` arranges these files automatically.
 
-Rebuilding a song updates its wall setting; removing `#meta wall` removes that setting after a successful build. Failed or skipped songs keep their settings. Songs sharing a wall ID must use the same image and width.
+Each build replaces `wallbind.json` with the bindings from its current inputs, including an empty list when no walls are configured. Single-chart and image commands replace the list with at most one binding. Wall settings and images are published after all charts and enabled conversions finish successfully. Failed conversions, skipped unsupported charts, or invalid wall settings keep the previous wall files. Media caches still apply; unused asset files are not deleted. Songs sharing a wall ID must use the same image and width.
 
 ### Extract charts and media
 

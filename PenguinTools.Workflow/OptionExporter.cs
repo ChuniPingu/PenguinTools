@@ -18,7 +18,8 @@ public static class OptionExporter
         IEnumerable<OptionBook> books,
         string diagnosticsWorkingDirectory,
         CancellationToken ct,
-        IProgress<ProgressReport>? progress = null)
+        IProgress<ProgressReport>? progress = null,
+        bool inputComplete = true)
     {
         settings.ValidateIds();
         var diagnostics = OptionExportBatch.CreateCollector();
@@ -33,17 +34,9 @@ public static class OptionExporter
         WallExportSession? walls = null;
         if (settings.ConvertWall)
         {
-            var created = await WallExportSession.CreateAsync(ctx, outputPaths.WallFolder, outputPaths.WallBindingsPath,
-                settings.ConversionCache, settings.IgnoreCache, ct);
-            foreach (var diagnostic in created.Diagnostics.Diagnostics)
-            {
-                diagnostics.Report(diagnostic);
-            }
-            if (created.Succeeded)
-            {
-                walls = created.Value;
-                await walls.CheckConflictsAsync(bookList.Select(book => book.BookMeta), diagnostics, ct);
-            }
+            walls = new WallExportSession(ctx, outputPaths.WallFolder, outputPaths.WallBindingsPath,
+                settings.ConversionCache, settings.IgnoreCache);
+            await walls.CheckConflictsAsync(bookList.Select(book => book.BookMeta), diagnostics, ct);
         }
 
         var bookContext = new BookExportContext(ctx, settings, outputPaths, releaseTag, optionGenre, processContext,
@@ -60,7 +53,8 @@ public static class OptionExporter
 
         if (walls is not null)
         {
-            var published = await walls.PublishAsync(ct);
+            var published = await walls.PublishAsync(
+                batchComplete: inputComplete && !batchDiagnostics.HasError && !diagnostics.HasError, ct: ct);
             foreach (var diagnostic in published.Diagnostics.Diagnostics)
             {
                 diagnostics.Report(diagnostic);

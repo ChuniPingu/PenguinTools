@@ -41,18 +41,13 @@ public sealed partial class PenguinToolsApplication
         Meta meta, WallRequestOverrides overrides, CancellationToken ct)
     {
         var diagnostics = new DiagnosticCollector();
-        var created = await WallExportSession.CreateAsync(CreateExportContext(), output,
-            Path.Combine(output, "wallbind.json"), ct: ct);
-        if (!created.Succeeded)
-        {
-            return OperationResult<WallBuildResult>.Failure().WithDiagnostics(created.Diagnostics);
-        }
-        await created.Value.QueueAsync(meta, overrides, diagnostics, required: true, ct);
+        var walls = new WallExportSession(CreateExportContext(), output, Path.Combine(output, "wallbind.json"));
+        await walls.QueueAsync(meta, overrides, diagnostics, required: true, ct);
         if (diagnostics.HasError)
         {
             return OperationResult<WallBuildResult>.Failure().WithDiagnostics(diagnostics);
         }
-        var published = await created.Value.PublishAsync(ct);
+        var published = await walls.PublishAsync(ct: ct);
         if (!published.Succeeded)
         {
             return OperationResult<WallBuildResult>.Failure()

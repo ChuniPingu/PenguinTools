@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using PenguinTools.Core.Metadata;
 
@@ -13,25 +12,6 @@ internal sealed class WallBindingsDocument
 {
     [JsonRequired] public int Version { get; set; } = 1;
     [JsonRequired] public List<WallBinding> Bindings { get; set; } = [];
-
-    public Dictionary<int, WallBinding> ToLookup()
-    {
-        if (Version != 1 || Bindings is null)
-        {
-            throw new JsonException("Unsupported wallbind document.");
-        }
-
-        var result = new Dictionary<int, WallBinding>();
-        foreach (var binding in Bindings)
-        {
-            if (binding is null || binding.MusicId < 0 || binding.WallId < 0 || !Enum.IsDefined(binding.Width))
-            {
-                throw new JsonException("Invalid wall binding.");
-            }
-            result[binding.MusicId] = binding;
-        }
-        return result;
-    }
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]

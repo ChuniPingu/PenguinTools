@@ -91,7 +91,8 @@ public sealed partial class PenguinToolsApplicationTests
         {
             if (includeSupported)
             {
-                await WriteChartFixtureAsync(input);
+                var chart = await WriteChartFixtureAsync(input);
+                await File.AppendAllTextAsync(chart, "@CMT\t#meta wall jacket.png wide\n", ct);
             }
 
             await WriteNewEditorFixtureAsync(Path.Combine(input, "new.ugc"), 10, ct);
@@ -112,6 +113,15 @@ public sealed partial class PenguinToolsApplicationTests
             Assert.Equal(CliExitCodes.Failure, await command.InvokeAsync(cancellationToken: ct));
 
             var output = Path.Combine(root, "output");
+            var manifest = Path.Combine(output, "TEST", "wallbind.json");
+            var oldDds = Path.Combine(output, "TEST", "ddsFieldWall", "ddsFieldWall1001000", "CHU_UI_Fieldwall_1001000.dds");
+            if (includeSupported)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(oldDds)!);
+                await File.WriteAllTextAsync(manifest, """{"version":1,"bindings":[{"musicId":1000,"wallId":1001000}]}""", ct);
+                await File.WriteAllTextAsync(oldDds, "previous texture", ct);
+            }
+            var oldManifest = includeSupported ? await File.ReadAllTextAsync(manifest, ct) : null;
             var build = await application.BuildOptionAsync(new OptionBuildRequest(input, output, SkipConfig: true,
                 Overrides: new OptionBuildOverrides(OptionName: "TEST", ConvertChart: true,
                     ConvertAudio: false, ConvertJacket: false, ConvertBackground: false,
@@ -125,6 +135,8 @@ public sealed partial class PenguinToolsApplicationTests
                 Assert.Equal(2, build.Value.SkippedCharts.Count);
                 Assert.Equal(1, build.Value.ChartCount);
                 Assert.Contains(build.Value.Artifacts, a => a.Path.EndsWith(".c2s", StringComparison.Ordinal));
+                Assert.Equal(oldManifest, await File.ReadAllTextAsync(manifest, ct));
+                Assert.Equal("previous texture", await File.ReadAllTextAsync(oldDds, ct));
             }
             else
             {

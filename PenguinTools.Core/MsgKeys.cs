@@ -86,8 +86,6 @@ public static class MsgKeys
     public const string Error_Stage_background_required = "diag.error.stage_background_required";
     public const string Error_Stage_id_is_not_set = "diag.error.stage_id_is_not_set";
     public const string Error_Unhandled = "diag.error.unhandled";
-    public const string Error_Wall_bindings_read_failed = "diag.error.wall_bindings_read_failed";
-    public const string Error_Wall_bindings_write_failed = "diag.error.wall_bindings_write_failed";
     public const string Error_Wall_conflict = "diag.error.wall_conflict";
     public const string Error_Wall_id_invalid = "diag.error.wall_id_invalid";
     public const string Error_Wall_source_required = "diag.error.wall_source_required";

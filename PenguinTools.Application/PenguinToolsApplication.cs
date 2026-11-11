@@ -193,9 +193,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
         var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
         var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
+        var skippedCharts = SkippedVersionCharts(scanned.Diagnostics);
         var exported = await OptionExporter.ExportAsync(
             CreateExportContext(), exportSettings, outputPaths, snapshots, output,
-            cancellationToken, progress);
+            cancellationToken, progress, inputComplete: !scanned.Diagnostics.HasError && skippedCharts.Length == 0);
         var diagnostics = scanned.Diagnostics.Merge(exported.Diagnostics);
         if (!exported.Succeeded)
         {
@@ -217,7 +218,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
             scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts)
         {
-            SkippedCharts = SkippedVersionCharts(scanned.Diagnostics)
+            SkippedCharts = skippedCharts
         };
         return (value.IsPartial ? OperationResult<OptionBuildResult>.Failure(value)
             : OperationResult<OptionBuildResult>.Success(value)).WithDiagnostics(diagnostics);

@@ -18,51 +18,22 @@ public sealed class WallExportSession
     private readonly string _manifestPath;
     private readonly OptionConversionCache? _cache;
     private readonly bool _ignoreCache;
-    private readonly Dictionary<int, WallBinding> _original;
+    private volatile bool _incomplete;
     private readonly HashSet<int> _blockedIds = [];
     private readonly ConcurrentDictionary<int, Lazy<Task<OperationResult<PreparedExport>>>> _jobs = new();
     private readonly ConcurrentDictionary<int, PreparedExport> _completed = new();
-    private readonly ConcurrentDictionary<int, BindingChange> _changes = new();
+    private readonly ConcurrentDictionary<int, WallBinding> _bindings = new();
 
     private sealed record PreparedExport(WallAsset Asset, PreparedWallAsset? Prepared, OptionCachedConversion Cache);
-    private sealed record BindingChange(WallBinding? Binding);
 
-    private WallExportSession(MusicExportContext services, string assetRoot, string manifestPath,
-        OptionConversionCache? cache, bool ignoreCache, Dictionary<int, WallBinding> original)
+    public WallExportSession(MusicExportContext services, string assetRoot, string manifestPath,
+        OptionConversionCache? cache = null, bool ignoreCache = false)
     {
         _services = services;
         _assetRoot = assetRoot;
         _manifestPath = manifestPath;
         _cache = cache;
         _ignoreCache = ignoreCache;
-        _original = original;
-    }
-
-    public static async Task<OperationResult<WallExportSession>> CreateAsync(MusicExportContext services,
-        string assetRoot, string manifestPath, OptionConversionCache? cache = null, bool ignoreCache = false,
-        CancellationToken ct = default)
-    {
-        try
-        {
-            Dictionary<int, WallBinding> original = [];
-            if (File.Exists(manifestPath))
-            {
-                await using var stream = File.OpenRead(manifestPath);
-                var document = await JsonSerializer.DeserializeAsync(stream,
-                    WallBindingsJsonContext.Default.WallBindingsDocument, ct);
-                original = (document ?? throw new JsonException("Empty wallbind document.")).ToLookup();
-            }
-            return OperationResult<WallExportSession>.Success(
-                new WallExportSession(services, assetRoot, manifestPath, cache, ignoreCache, original));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            var diagnostics = new DiagnosticCollector();
-            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_bindings_read_failed),
-                manifestPath)
-            { Target = ex });
-            return OperationResult<WallExportSession>.Failure().WithDiagnostics(diagnostics);
-        }
     }
 
     public async Task CheckConflictsAsync(IEnumerable<Meta> metadata, IDiagnosticSink diagnostics,
@@ -85,12 +56,14 @@ public sealed class WallExportSession
                     {
                         conflicting = true;
                         _blockedIds.Add(group.Key);
+                        _incomplete = true;
                     }
                     first ??= fingerprint;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _blockedIds.Add(group.Key);
+                    _incomplete = true;
                     diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Invalid_wall_image),
                         meta.FullWallFilePath)
                     { Target = ex });
@@ -109,22 +82,20 @@ public sealed class WallExportSession
     public async Task QueueAsync(Meta meta, WallRequestOverrides overrides, IDiagnosticSink diagnostics,
         bool required = false, CancellationToken ct = default)
     {
+        if (!required && !overrides.HasBuildInputs && (!meta.WallImageValid || meta.WallMetadataInvalid))
+        {
+            _incomplete = true;
+            return;
+        }
+
         var source = overrides.InputPath ?? meta.FullWallFilePath;
         if (string.IsNullOrWhiteSpace(source))
         {
             if (required || overrides.HasBuildInputs)
             {
                 diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_source_required), meta.FilePath));
+                _incomplete = true;
             }
-            else if (!meta.WallMetadataInvalid && meta.Id is >= 0 and <= ResourceIds.MaxSongId and var musicId)
-            {
-                _changes[musicId] = new BindingChange(null);
-            }
-            return;
-        }
-
-        if (!required && !overrides.HasBuildInputs && (!meta.WallImageValid || meta.WallMetadataInvalid))
-        {
             return;
         }
 
@@ -136,6 +107,7 @@ public sealed class WallExportSession
         catch (DiagnosticException ex)
         {
             diagnostics.Report(ex.ToDiagnostic().WithPathFallback(meta.FilePath));
+            _incomplete = true;
             return;
         }
 
@@ -145,6 +117,7 @@ public sealed class WallExportSession
         {
             var key = id < 0 ? MsgKeys.Error_Wall_id_invalid : MsgKeys.Error_Wall_width_invalid;
             diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(key), meta.FilePath));
+            _incomplete = true;
             return;
         }
         if (_blockedIds.Contains(id))
@@ -162,7 +135,11 @@ public sealed class WallExportSession
         if (result.Succeeded)
         {
             _completed[id] = result.Value;
-            _changes[songId] = new BindingChange(new WallBinding(songId, id, width));
+            _bindings[songId] = new WallBinding(songId, id, width);
+        }
+        else
+        {
+            _incomplete = true;
         }
     }
 
@@ -185,42 +162,27 @@ public sealed class WallExportSession
             : OperationResult<PreparedExport>.Failure().WithDiagnostics(prepared.Diagnostics);
     }
 
-    public async Task<OperationResult<WallExportSummary>> PublishAsync(CancellationToken ct = default)
+    public async Task<OperationResult<WallExportSummary>> PublishAsync(bool batchComplete = true,
+        CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+        if (!batchComplete || _incomplete)
+        {
+            return OperationResult<WallExportSummary>.Success(new WallExportSummary([], false));
+        }
+
         var complete = _completed.Values.OrderBy(value => value.Asset.Name.Id).ToArray();
-        var updated = new Dictionary<int, WallBinding>(_original);
-        foreach (var (musicId, change) in _changes)
-        {
-            if (change.Binding is null)
-            {
-                updated.Remove(musicId);
-            }
-            else
-            {
-                updated[musicId] = change.Binding;
-            }
-        }
-
         var prepared = complete.Where(value => value.Prepared is not null).Select(value => value.Prepared!).ToArray();
-        var changed = !_original.OrderBy(pair => pair.Key).SequenceEqual(updated.OrderBy(pair => pair.Key));
-        if (prepared.Length == 0 && !changed)
-        {
-            return OperationResult<WallExportSummary>.Success(new WallExportSummary(
-                complete.Select(value => value.Asset).ToArray(), false));
-        }
-
         try
         {
-            var document = new WallBindingsDocument { Bindings = updated.Values.OrderBy(binding => binding.MusicId).ToList() };
+            var document = new WallBindingsDocument { Bindings = _bindings.Values.OrderBy(binding => binding.MusicId).ToList() };
             var bytes = JsonSerializer.SerializeToUtf8Bytes(document, WallBindingsJsonContext.Default.WallBindingsDocument);
             await WallConverter.PublishAsync(prepared, _manifestPath, bytes, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             var diagnostics = new DiagnosticCollector();
-            diagnostics.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Wall_bindings_write_failed),
-                _manifestPath)
-            { Target = ex });
+            diagnostics.Report(ex);
             return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 

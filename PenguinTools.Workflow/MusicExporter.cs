@@ -166,16 +166,9 @@ public static class MusicExporter
             return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 
-        var created = await WallExportSession.CreateAsync(ctx, output, Path.Combine(output, "wallbind.json"),
-            ct: cancellationToken);
-        diagnostics = diagnostics.Merge(created.Diagnostics);
-        if (!created.Succeeded)
-        {
-            return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
-        }
-
+        var walls = new WallExportSession(ctx, output, Path.Combine(output, "wallbind.json"));
         var wallDiagnostics = new DiagnosticCollector();
-        await created.Value.QueueAsync(meta, wallOverrides ?? WallRequestOverrides.None, wallDiagnostics,
+        await walls.QueueAsync(meta, wallOverrides ?? WallRequestOverrides.None, wallDiagnostics,
             ct: cancellationToken);
         diagnostics = diagnostics.Merge(DiagnosticSnapshot.Create(wallDiagnostics));
         if (diagnostics.HasError)
@@ -183,7 +176,7 @@ public static class MusicExporter
             return OperationResult<WallExportSummary>.Failure().WithDiagnostics(diagnostics);
         }
 
-        var published = await created.Value.PublishAsync(cancellationToken);
+        var published = await walls.PublishAsync(ct: cancellationToken);
         return published.WithDiagnostics(diagnostics.Merge(published.Diagnostics));
     }
 }
