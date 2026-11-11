@@ -2,7 +2,6 @@ using System.Xml.Linq;
 using PenguinTools.Application;
 using PenguinTools.Core;
 using PenguinTools.Core.Asset;
-using PenguinTools.Core.Metadata;
 using Xunit;
 
 namespace PenguinTools.Tests.Application;
@@ -11,14 +10,9 @@ public sealed partial class PenguinToolsApplicationTests
 {
     [Theory]
     [InlineData("song", MsgKeys.Error_Song_id_invalid)]
-    [InlineData("event", MsgKeys.Error_Event_id_invalid)]
     [InlineData("difficulty", MsgKeys.Error_Difficulty_id_invalid)]
-    [InlineData("we-difficulty", MsgKeys.Error_We_difficulty_id_invalid)]
-    [InlineData("wall", MsgKeys.Error_Wall_id_invalid)]
     [InlineData("difficulty", MsgKeys.Error_Difficulty_id_invalid, 6)]
-    [InlineData("we-difficulty", MsgKeys.Error_We_difficulty_id_invalid, 2)]
-    [InlineData("we-difficulty", MsgKeys.Error_We_difficulty_id_invalid, 10)]
-    public async Task MusicBuild_InvalidExplicitIdsFailBeforeWriting(string field, string key, int id = -1)
+    public async Task ChartConvert_InvalidExplicitIdsFailBeforeWriting(string field, string key, int id = -1)
     {
         var root = Directory.CreateTempSubdirectory("penguintools-ids-");
         using var store = new TrackingAssetStore(root.FullName);
@@ -26,69 +20,49 @@ public sealed partial class PenguinToolsApplicationTests
         try
         {
             var input = await WriteChartFixtureAsync(root.FullName);
-            var output = Path.Combine(root.FullName, "output");
-            var settings = field switch
-            {
-                "song" => new MusicBuildOverrides(SongId: id),
-                "event" => new MusicBuildOverrides(UnlockEventId: id),
-                "difficulty" => new MusicBuildOverrides(DifficultyId: id),
-                "we-difficulty" => new MusicBuildOverrides(WeDifficultyId: id),
-                _ => new MusicBuildOverrides()
-            };
-            var result = await application.BuildMusicAsync(new MusicBuildRequest(input, output,
-                Overrides: settings, Wall: field == "wall" ? new WallOverrides(WallId: id) : null),
+            var output = Path.Combine(root.FullName, "output", "chart.c2s");
+            var settings = field == "song"
+                ? new ChartConvertOverrides(SongId: id)
+                : new ChartConvertOverrides(DifficultyId: id);
+            var result = await application.ConvertChartAsync(new ChartConvertRequest(input, output, settings),
                 cancellationToken: TestContext.Current.CancellationToken);
 
             Assert.False(result.Succeeded);
             Assert.Contains(result.Diagnostics.Diagnostics, d => d.Message.Key == key);
-            Assert.False(Directory.Exists(output));
+            Assert.False(File.Exists(output));
         }
         finally { root.Delete(true); }
     }
 
-    [Fact]
-    public async Task MusicBuild_ZeroIdsAndUnspecifiedReferencesRemainValid()
+    [Theory]
+    [InlineData(0, 0, 0, -1)]
+    [InlineData(1000, -2, -3, -4)]
+    public async Task OptionBuild_PreservesZeroIdsAndSignedResourceReferences(
+        int songId, int stageId, int genreId, int weTagId)
     {
         var root = Directory.CreateTempSubdirectory("penguintools-ids-");
         using var store = new TrackingAssetStore(root.FullName);
         using var application = CreateInjectedApplication(root.FullName, store);
+        var ct = TestContext.Current.CancellationToken;
         try
         {
             var input = await WriteChartFixtureAsync(root.FullName);
-            var output = Path.Combine(root.FullName, "output");
-            var result = await application.BuildMusicAsync(new MusicBuildRequest(input, output,
-                Overrides: new MusicBuildOverrides(SongId: 0, StageEntryId: 0, GenreId: 0)),
-                cancellationToken: TestContext.Current.CancellationToken);
+            var text = await File.ReadAllTextAsync(input, ct);
+            await File.WriteAllTextAsync(input, text.Replace("@SONGID\t1000", $"@SONGID\t{songId}") +
+                $"@CMT\t#meta stage {stageId} Stage\n@CMT\t#meta genre {genreId} Genre\n" +
+                (weTagId == -1 ? "" : $"@CMT\t#meta wetag {weTagId} Tag\n"), ct);
+            var output = Path.Combine(root.FullName, "A123");
+            var settings = new OptionBuildOverrides(OptionName: "A123", OverrideChartGenre: false);
+            var result = await application.BuildOptionAsync(new OptionBuildRequest(root.FullName, output,
+                SkipConfig: true, Overrides: settings), cancellationToken: ct);
 
             Assert.True(result.Succeeded, result.ToString());
-            var xml = XDocument.Load(Path.Combine(output, "music0000", "Music.xml")).Root!;
-            Assert.Equal("0", xml.Element("name")!.Element("id")!.Value);
-            Assert.Equal("0", xml.Element("stageName")!.Element("id")!.Value);
-            Assert.Equal("-1", xml.Element("worldsEndTagName")!.Element("id")!.Value);
-            Assert.True(File.Exists(Path.Combine(output, "cueFile000000", "CueFile.xml")));
-        }
-        finally { root.Delete(true); }
-    }
-
-    [Fact]
-    public async Task MusicBuild_PreservesSignedResourceReferences()
-    {
-        var root = Directory.CreateTempSubdirectory("penguintools-ids-");
-        using var store = new TrackingAssetStore(root.FullName);
-        using var application = CreateInjectedApplication(root.FullName, store);
-        try
-        {
-            var input = await WriteChartFixtureAsync(root.FullName);
-            var output = Path.Combine(root.FullName, "output");
-            var result = await application.BuildMusicAsync(new MusicBuildRequest(input, output,
-                Overrides: new MusicBuildOverrides(StageEntryId: -2, GenreId: -3, WeTagId: -4)),
-                cancellationToken: TestContext.Current.CancellationToken);
-
-            Assert.True(result.Succeeded, result.ToString());
-            var xml = XDocument.Load(Path.Combine(output, "music1000", "Music.xml")).Root!;
-            Assert.Equal("-2", xml.Element("stageName")!.Element("id")!.Value);
-            Assert.Equal("-3", xml.Element("genreNames")!.Element("list")!.Element("StringID")!.Element("id")!.Value);
-            Assert.Equal("-4", xml.Element("worldsEndTagName")!.Element("id")!.Value);
+            var xml = XDocument.Load(Path.Combine(output, "music", $"music{songId:0000}", "Music.xml")).Root!;
+            Assert.Equal(songId, (int)xml.Element("name")!.Element("id")!);
+            Assert.Equal(stageId, (int)xml.Element("stageName")!.Element("id")!);
+            Assert.Equal(genreId, (int)xml.Element("genreNames")!.Element("list")!.Element("StringID")!.Element("id")!);
+            Assert.Equal(weTagId, (int)xml.Element("worldsEndTagName")!.Element("id")!);
+            Assert.True(File.Exists(Path.Combine(output, "cueFile", $"cueFile{songId:000000}", "CueFile.xml")));
         }
         finally { root.Delete(true); }
     }
@@ -132,7 +106,7 @@ public sealed partial class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task SongIdUpperBound_RejectsOverridesAndAllowsAutomaticResourcesAtTheLimit()
+    public async Task SongIdUpperBound_RejectsOverridesAndAllowsAutomaticStageAtTheLimit()
     {
         var root = Directory.CreateTempSubdirectory("penguintools-ids-");
         using var store = new TrackingAssetStore(root.FullName);
@@ -143,11 +117,10 @@ public sealed partial class PenguinToolsApplicationTests
             var input = await WriteChartFixtureAsync(root.FullName);
             var text = await File.ReadAllTextAsync(input, ct);
             var output = Path.Combine(root.FullName, "output");
-            var options = new MusicBuildOverrides(DifficultyId: (int)Difficulty.Ultima);
             var stageSettings = new StageOverrides(BackgroundPath: Path.Combine(root.FullName, "jacket.png"));
-            var invalidOptions = options with { SongId = 2_000_000_001, UnlockEventId = 0 };
-            var invalid = await application.BuildMusicAsync(new MusicBuildRequest(input, output,
-                Overrides: invalidOptions, Stage: stageSettings with { StageId = 0 }), cancellationToken: ct);
+            var invalid = await application.ConvertChartAsync(new ChartConvertRequest(input,
+                Path.Combine(output, "chart.c2s"), new ChartConvertOverrides(SongId: 2_000_000_001)),
+                cancellationToken: ct);
             Assert.False(invalid.Succeeded);
             Assert.Contains(invalid.Diagnostics.Diagnostics, d => d.Message.Key == MsgKeys.Error_Song_id_invalid);
             Assert.False(Directory.Exists(output));
@@ -160,10 +133,8 @@ public sealed partial class PenguinToolsApplicationTests
             Assert.False(Directory.Exists(output));
 
             await File.WriteAllTextAsync(input, text.Replace("@SONGID\t1000", "@SONGID\t2000000000"), ct);
-            var valid = await application.BuildMusicAsync(new MusicBuildRequest(input, output,
-                Overrides: options, Stage: stageSettings), cancellationToken: ct);
+            var valid = await application.BuildStageAsync(new StageBuildRequest(input, output, stageSettings), ct);
             Assert.True(valid.Succeeded, valid.ToString());
-            Assert.True(File.Exists(Path.Combine(output, "event2001000000", "Event.xml")));
             Assert.True(File.Exists(Path.Combine(output, "stage2001000000", "Stage.xml")));
         }
         finally { root.Delete(true); }

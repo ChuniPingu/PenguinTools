@@ -224,36 +224,6 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             : OperationResult<OptionBuildResult>.Success(value)).WithDiagnostics(diagnostics);
     }
 
-    public async Task<OperationResult<MusicBuildResult>> BuildMusicAsync(
-        MusicBuildRequest request,
-        IProgress<ProgressReport>? progress = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await GuardAsync(async () =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var input = FullPath(request.InputPath);
-            var output = FullPath(request.OutputDirectory);
-            var jacket = OptionalFullPath(request.JacketInputPath);
-            var audio = ToWorkflow(request.Audio);
-            var stage = ToWorkflow(request.Stage);
-            var parsed = await _charts.ParseChartAsync(input, cancellationToken);
-            if (!parsed.Succeeded)
-            {
-                return OperationResult<MusicBuildResult>.Failure().WithDiagnostics(parsed.Diagnostics);
-            }
-
-            var chart = parsed.Value;
-
-            ChartMetadata.ApplyMusicBuildOverrides(chart.Meta, request.Overrides);
-
-            var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, new MusicExportOverrides(jacket, audio, stage, ToWorkflow(request.Wall)),
-                cancellationToken, progress);
-            var value = CreateMusicResult(input, output, chart.Meta, stage, exported.Succeeded ? exported.Value : null);
-            return ApplicationDiagnostics.Merge(value, parsed.Diagnostics, exported.ToResult());
-        });
-    }
-
     public async Task<OperationResult<JacketConvertResult>> ConvertJacketAsync(
         JacketConvertRequest request,
         CancellationToken cancellationToken = default)
@@ -316,7 +286,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             }
 
             var chart = parsed.Value;
-            var converted = await MusicExporter.ConvertAudioAsync(CreateExportContext(), chart.Meta, output,
+            var converted = await MusicMediaExporter.ConvertAudioAsync(CreateExportContext(), chart.Meta, output,
                 ToWorkflow(request.Overrides), cancellationToken);
             var xml = new CueFileXml(chart.Meta.Id ?? 0);
             var directory = Path.Combine(output, xml.DataName);
@@ -359,7 +329,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 BgmInitialNumerator = settings.InitialNumerator,
                 BgmInitialDenominator = settings.InitialDenominator
             };
-            var converted = await MusicExporter.ConvertAudioAsync(CreateExportContext(), meta, output,
+            var converted = await MusicMediaExporter.ConvertAudioAsync(CreateExportContext(), meta, output,
                 new AudioRequestOverrides(null, settings.HcaEncryptionKey), cancellationToken);
             var value = CreateAudioConvertResult(input, output, settings.SongId);
             return ApplicationDiagnostics.Merge(value, DiagnosticSnapshot.Empty, converted);
@@ -383,7 +353,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             }
 
             var chart = parsed.Value;
-            var built = await MusicExporter.BuildStageAsync(CreateExportContext(), chart.Meta, output, overrides,
+            var built = await MusicMediaExporter.BuildStageAsync(CreateExportContext(), chart.Meta, output, overrides,
                 cancellationToken);
             var stageId = overrides.StageId ?? chart.Meta.StageId;
             var artifacts = CreateStageArtifacts(output, chart.Meta, overrides, out var stageName);
@@ -411,7 +381,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 IsCustomStage = true,
                 StageId = overrides.StageId
             };
-            var built = await MusicExporter.BuildStageAsync(CreateExportContext(), meta, output, overrides,
+            var built = await MusicMediaExporter.BuildStageAsync(CreateExportContext(), meta, output, overrides,
                 cancellationToken);
             var artifacts = CreateStageArtifacts(output, meta, overrides, out var stageName);
             var value = new StageBuildResult(background, background, output, overrides.StageId, stageName, artifacts);
@@ -976,41 +946,17 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 value.NoteFieldLaneId, value.NoteFieldLaneName, value.NoteFieldLaneData);
     }
 
-    private static MusicBuildResult CreateMusicResult(string input, string output, Meta meta,
-        StageRequestOverrides stage, WallExportSummary? wall)
-    {
-        var artifacts = new List<ApplicationArtifact>();
-        var musicXml = new MusicXml(new Dictionary<Difficulty, Meta> { [meta.Difficulty] = meta }, meta.Difficulty);
-        var musicDirectory = Path.Combine(output, musicXml.DataName);
-        artifacts.Add(new ApplicationArtifact("music.xml", Path.Combine(musicDirectory, "Music.xml")));
-        artifacts.Add(
-            new ApplicationArtifact("chart.c2s", Path.Combine(musicDirectory, musicXml[meta.Difficulty].File)));
-        artifacts.Add(new ApplicationArtifact("jacket.dds", Path.Combine(musicDirectory, musicXml.JaketFile)));
-        var cue = new CueFileXml(meta.Id ?? 0);
-        var cueDirectory = Path.Combine(output, cue.DataName);
-        artifacts.Add(new ApplicationArtifact("cue-file.xml", Path.Combine(cueDirectory, "CueFile.xml")));
-        artifacts.Add(new ApplicationArtifact("audio.acb", Path.Combine(cueDirectory, cue.AcbFile)));
-        artifacts.Add(new ApplicationArtifact("audio.awb", Path.Combine(cueDirectory, cue.AwbFile)));
-        artifacts.AddRange(CreateStageArtifacts(output, meta, stage, out var stageName));
-        if (wall is not null)
-        {
-            artifacts.AddRange(CreateWallArtifacts(output, wall));
-        }
-        return new MusicBuildResult(input, output, ChartMetadata.CreateChartSummary(meta), stage.StageId ?? meta.StageId,
-            stageName, artifacts);
-    }
-
     private static IReadOnlyList<ApplicationArtifact> CreateStageArtifacts(string output, Meta meta,
         StageRequestOverrides overrides, out string? stageName)
     {
         stageName = null;
         var stageId = overrides.StageId ?? meta.StageId;
-        if (!MusicExporter.ShouldBuildStage(meta, overrides) || stageId is not { } id)
+        if (!MusicMediaExporter.ShouldBuildStage(meta, overrides) || stageId is not { } id)
         {
             return [];
         }
 
-        var xml = new StageXml(id, MusicExporter.CreateNoteFieldEntry(meta.NotesFieldLine,
+        var xml = new StageXml(id, MusicMediaExporter.CreateNoteFieldEntry(meta.NotesFieldLine,
             overrides.NoteFieldLaneId, overrides.NoteFieldLaneName, overrides.NoteFieldLaneData));
         var directory = Path.Combine(output, xml.DataName);
         stageName = xml.Name.Str;

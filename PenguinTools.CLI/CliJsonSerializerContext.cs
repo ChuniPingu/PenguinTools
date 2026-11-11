@@ -21,7 +21,6 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(OptionScanConfig))]
 [JsonSerializable(typeof(OptionScanResult))]
 [JsonSerializable(typeof(OptionBuildResult))]
-[JsonSerializable(typeof(MusicBuildResult))]
 [JsonSerializable(typeof(MusicExtractResult))]
 [JsonSerializable(typeof(JacketConvertResult))]
 [JsonSerializable(typeof(AudioConvertResult))]

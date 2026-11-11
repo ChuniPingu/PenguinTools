@@ -313,55 +313,6 @@ public sealed record StageOverrides(
     string? NoteFieldLaneName = null,
     string? NoteFieldLaneData = null);
 
-public sealed record MusicBuildOverrides(
-    int? SongId = null,
-    string? Title = null,
-    string? Artist = null,
-    string? Designer = null,
-    int? DifficultyId = null,
-    decimal? Level = null,
-    decimal? MainBpm = null,
-    bool? InsertBlankMeasure = null,
-    int? GenreId = null,
-    string? GenreName = null,
-    int? WeTagId = null,
-    string? WeTagName = null,
-    int? WeDifficultyId = null,
-    bool? IsCustomStage = null,
-    int? StageId = null,
-    int? NotesFieldLineId = null,
-    string? NotesFieldLineName = null,
-    string? NotesFieldLineData = null,
-    int? StageEntryId = null,
-    string? StageEntryName = null,
-    decimal? BgmPreviewStart = null,
-    decimal? BgmPreviewStop = null,
-    decimal? BgmManualOffset = null,
-    decimal? BgmInitialBpm = null,
-    int? BgmInitialNumerator = null,
-    int? BgmInitialDenominator = null,
-    string? SortName = null,
-    int? UnlockEventId = null,
-    string? ReleaseDate = null,
-    int? MainTil = null);
-
-public sealed record MusicBuildRequest(
-    string InputPath,
-    string OutputDirectory,
-    string? JacketInputPath = null,
-    AudioOverrides? Audio = null,
-    StageOverrides? Stage = null,
-    MusicBuildOverrides? Overrides = null,
-    WallOverrides? Wall = null);
-
-public sealed record MusicBuildResult(
-    string InputPath,
-    string OutputDirectory,
-    ChartSummary Chart,
-    int? StageId,
-    string? StageName,
-    IReadOnlyList<ApplicationArtifact> Artifacts);
-
 public sealed record JacketConvertRequest(string InputPath, string OutputPath, string? JacketInputPath = null);
 
 public sealed record JacketFileConvertRequest(string InputPath, string OutputPath);
@@ -500,9 +451,6 @@ public interface IPenguinToolsApplication : IDisposable
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
 
     Task<OperationResult<OptionBuildResult>> BuildOptionAsync(OptionBuildRequest request,
-        IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
-
-    Task<OperationResult<MusicBuildResult>> BuildMusicAsync(MusicBuildRequest request,
         IProgress<ProgressReport>? progress = null, CancellationToken cancellationToken = default);
 
     Task<OperationResult<JacketConvertResult>> ConvertJacketAsync(JacketConvertRequest request,

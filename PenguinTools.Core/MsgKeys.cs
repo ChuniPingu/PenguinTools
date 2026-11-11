@@ -80,7 +80,6 @@ public static class MsgKeys
     public const string Error_Size_Incompatible = "diag.error.size_incompatible";
     public const string Error_Event_id_invalid = "diag.error.event_id_invalid";
     public const string Error_Difficulty_id_invalid = "diag.error.difficulty_id_invalid";
-    public const string Error_We_difficulty_id_invalid = "diag.error.we_difficulty_id_invalid";
     public const string Error_Song_id_invalid = "diag.error.song_id_invalid";
     public const string Error_Song_id_is_not_set = "diag.error.song_id_is_not_set";
     public const string Error_Stage_background_required = "diag.error.stage_background_required";

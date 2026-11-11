@@ -465,8 +465,6 @@ public sealed partial class PenguinToolsApplicationTests
         var missing = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".mgxc");
         var output = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var ct = TestContext.Current.CancellationToken;
-        Assert.False((await application.BuildMusicAsync(new MusicBuildRequest(missing, output),
-            cancellationToken: ct)).Succeeded);
         Assert.False((await application.ConvertJacketAsync(new JacketConvertRequest(missing, output),
             cancellationToken: ct)).Succeeded);
         Assert.False((await application.ConvertAudioAsync(new AudioConvertRequest(missing, output),
@@ -640,31 +638,39 @@ public sealed partial class PenguinToolsApplicationTests
     }
 
     [Fact]
-    public async Task MusicBuild_ForwardsProgressAndWritesChart()
+    public async Task OptionBuild_ExportsAllDifficultiesForOneSong()
     {
-        var reports = new List<ProgressReport>();
-        var progress = new InlineProgress(reports.Add);
-
-        var root = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        using var store = new TrackingAssetStore(root);
-        using var application = CreateInjectedApplication(root, store);
-        var output = Path.Combine(root, "music");
+        var root = Directory.CreateTempSubdirectory("penguintools-single-song-");
+        var input = Path.Combine(root.FullName, "song");
+        Directory.CreateDirectory(input);
+        using var store = new TrackingAssetStore(root.FullName);
+        using var application = CreateInjectedApplication(root.FullName, store);
+        var ct = TestContext.Current.CancellationToken;
         try
         {
-            var input = await WriteChartFixtureAsync(root);
-            var result = await application.BuildMusicAsync(new MusicBuildRequest(input, output), progress,
-                TestContext.Current.CancellationToken);
-            Assert.True(result.Succeeded);
-            Assert.False(result.Diagnostics.HasError);
-            Assert.NotEmpty(Directory.EnumerateFiles(output, "*.c2s", SearchOption.AllDirectories));
-            Assert.NotEmpty(reports);
-            Assert.All(reports, report => Assert.NotNull(report.Item));
+            var master = await WriteChartFixtureAsync(input);
+            var text = await File.ReadAllTextAsync(master, ct);
+            await File.WriteAllTextAsync(Path.Combine(input, "expert.ugc"),
+                text.Replace("@DIFF\t3", "@DIFF\t2"), ct);
+            var reports = new System.Collections.Concurrent.ConcurrentQueue<ProgressReport>();
+            var output = Path.Combine(root.FullName, "A123");
+            var result = await application.BuildOptionAsync(new OptionBuildRequest(input, output,
+                SkipConfig: true, Overrides: new OptionBuildOverrides(OptionName: "A123")),
+                new InlineProgress(reports.Enqueue), ct);
+
+            Assert.True(result.Succeeded, result.ToString());
+            Assert.Equal(1, result.Value.BookCount);
+            Assert.Equal(2, result.Value.ChartCount);
+            var music = Path.Combine(output, "music", "music1000");
+            var xml = System.Xml.Linq.XDocument.Load(Path.Combine(music, "Music.xml"));
+            var enabled = xml.Descendants("MusicFumenData").Where(fumen => (bool)fumen.Element("enable")!)
+                .Select(fumen => (string)fumen.Element("file")!.Element("path")!).ToArray();
+            Assert.Equal(["1000_02.c2s", "1000_03.c2s"], enabled);
+            Assert.All(enabled, file => Assert.True(File.Exists(Path.Combine(music, file))));
+            Assert.True(File.Exists(Path.Combine(output, "cueFile", "cueFile001000", "CueFile.xml")));
+            Assert.Contains(reports, report => report is { Completed: 1, Total: 1, Item: not null });
         }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
+        finally { root.Delete(true); }
     }
 
     [Fact]
