@@ -12,6 +12,31 @@ internal sealed record OptionCachedConversion(
 
 internal static class OptionConversionCacheArtifacts
 {
+    private const string RecipeVersionKey = "recipeVersion";
+
+    public static Task<OptionCachedConversion> CreateWallAsync(WallBuildRequest request, CancellationToken ct)
+    {
+        var xml = new DdsFieldWallXml(request.WallId);
+        var directory = Path.Combine(request.OutputDirectory, xml.DataName);
+        return CreateAsync(
+            $"wall:{request.WallId}",
+            new Dictionary<string, string?>
+            {
+                ["kind"] = "wall",
+                [RecipeVersionKey] = "1",
+                ["wallId"] = request.WallId.ToString(CultureInfo.InvariantCulture),
+                ["width"] = request.Width.ToString(),
+                ["netOpenName.id"] = xml.NetOpenName.Id.ToString(CultureInfo.InvariantCulture),
+                ["netOpenName.str"] = xml.NetOpenName.Str,
+                ["netOpenName.data"] = xml.NetOpenName.Data
+            },
+            new Dictionary<string, string> { ["wall"] = request.SourcePath },
+            [
+                new OptionConversionArtifact("wallXml", Path.Combine(directory, "DDSFieldWall.xml")),
+                new OptionConversionArtifact("wallDds", Path.Combine(directory, xml.Image))
+            ], ct);
+    }
+
     public static Task<OptionCachedConversion> CreateStageAsync(
         OptionBook book,
         string stageOutputFolder,
@@ -53,7 +78,7 @@ internal static class OptionConversionCacheArtifacts
             new Dictionary<string, string?>
             {
                 ["kind"] = "jacket",
-                ["recipeVersion"] = "1"
+                [RecipeVersionKey] = "1"
             },
             new Dictionary<string, string>
             {
@@ -122,7 +147,7 @@ internal static class OptionConversionCacheArtifacts
         return new Dictionary<string, string?>
         {
             ["kind"] = "stage",
-            ["recipeVersion"] = "3",
+            [RecipeVersionKey] = "3",
             ["stageId"] = book.StageId?.ToString(CultureInfo.InvariantCulture),
             ["backgroundOffset"] = OptionConversionCacheValidator.FormatInvariant(book.BookMeta.BackgroundOffset),
             ["notesFieldLine.id"] = book.NotesFieldLine.Id.ToString(CultureInfo.InvariantCulture),
@@ -137,7 +162,7 @@ internal static class OptionConversionCacheArtifacts
         return new Dictionary<string, string?>
         {
             ["kind"] = "audio",
-            ["recipeVersion"] = "2",
+            [RecipeVersionKey] = "2",
             ["songId"] = meta.Id?.ToString(CultureInfo.InvariantCulture),
             ["bgmRealOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmRealOffset),
             ["bgmPreviewStart"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStart),

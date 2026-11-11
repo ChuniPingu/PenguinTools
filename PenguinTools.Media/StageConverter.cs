@@ -57,6 +57,7 @@ public class StageConverter
     private async Task<bool> ValidateAsync(CancellationToken ct = default)
     {
         var hasError = false;
+        ResourceIds.ValidateFieldLine(NoteFieldLane, Assets, Diagnostic);
         var duplicates = Assets.StageNames.Where(p => p.Id == StageId);
         foreach (var d in duplicates)
         {

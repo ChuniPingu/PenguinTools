@@ -394,6 +394,15 @@ public partial class UgcParser
                 ("title", Ugc.Meta.Title), ("sortName", Ugc.Meta.SortName))));
         }
 
+        if (!string.IsNullOrWhiteSpace(Ugc.Meta.WallFilePath))
+        {
+            QueueValidation(
+                MediaValidator.CheckImageValidAsync(Ugc.Meta.FullWallFilePath),
+                Ugc.Meta.FullWallFilePath,
+                MsgKeys.Error_Invalid_wall_image,
+                () => Ugc.Meta.WallImageValid = false);
+        }
+
         if (Ugc.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Ugc.Meta.FullBgiFilePath))
         {
             QueueValidation(
@@ -417,6 +426,7 @@ public partial class UgcParser
     private static bool TryGetIgnoreLine(SourceLine[] lines, out int lineNumber)
     {
         lineNumber = 0;
+        var comments = new List<string>();
         foreach (var line in lines)
         {
             if (!line.Text.StartsWith('@'))
@@ -436,16 +446,14 @@ public partial class UgcParser
             }
 
             var comment = tokens.Length >= 2 ? tokens[1] : string.Empty;
-            if (!ChartMetaCommands.IsIgnored(comment))
+            comments.Add(comment);
+            if (ChartMetaCommands.IsIgnored(comment))
             {
-                continue;
+                lineNumber = line.Number;
             }
-
-            lineNumber = line.Number;
-            return true;
         }
 
-        return false;
+        return ChartMetaCommands.IsIgnored(string.Join('\n', comments));
     }
 
     private readonly record struct SourceLine(int Number, string Text);

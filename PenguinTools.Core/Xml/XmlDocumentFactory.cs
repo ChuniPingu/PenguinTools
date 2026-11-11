@@ -6,6 +6,7 @@ namespace PenguinTools.Core.Xml;
 internal static class XmlDocumentFactory
 {
     private const string DataNameElement = "dataName";
+    private const string NetOpenNameElement = "netOpenName";
 
     internal static XDocument Create(XmlElement value)
     {
@@ -16,6 +17,7 @@ internal static class XmlDocumentFactory
             MusicXml musicXml => CreateMusic(musicXml),
             ReleaseTag releaseTag => CreateReleaseTag(releaseTag),
             StageXml stageXml => CreateStage(stageXml),
+            DdsFieldWallXml wall => CreateFieldWall(wall),
             _ => throw new NotSupportedException($"Unsupported xml element type '{value.GetType().FullName}'.")
         };
     }
@@ -36,7 +38,7 @@ internal static class XmlDocumentFactory
         return CreateDocument("EventData",
         [
             Element(DataNameElement, value.DataName),
-            EntryElement("netOpenName", value.NetOpenName),
+            EntryElement(NetOpenNameElement, value.NetOpenName),
             EntryElement("name", value.Name),
             Element("text", value.Text),
             EntryElement("ddsBannerName", value.DdsBannerName),
@@ -55,7 +57,7 @@ internal static class XmlDocumentFactory
         [
             Element(DataNameElement, value.DataName),
             EntryElement("releaseTagName", value.ReleaseTagName),
-            EntryElement("netOpenName", value.NetOpenName),
+            EntryElement(NetOpenNameElement, value.NetOpenName),
             Element("disableFlag", value.DisableFlag),
             Element("exType", value.ExType),
             EntryElement("name", value.Name),
@@ -88,12 +90,26 @@ internal static class XmlDocumentFactory
         ]);
     }
 
+    private static XDocument CreateFieldWall(DdsFieldWallXml value)
+    {
+        return CreateDocument("DDSFieldWallData",
+        [
+            Element(DataNameElement, value.DataName),
+            EntryElement("name", value.Name),
+            EntryElement(NetOpenNameElement, value.NetOpenName),
+            Element("disableFlag", value.DisableFlag),
+            PathElement("image", value.Image),
+            Element("defaultHave", value.DefaultHave),
+            Element("explainText", value.ExplainText)
+        ]);
+    }
+
     private static XDocument CreateStage(StageXml value)
     {
         return CreateDocument("StageData",
         [
             Element(DataNameElement, value.DataName),
-            EntryElement("netOpenName", value.NetOpenName),
+            EntryElement(NetOpenNameElement, value.NetOpenName),
             EntryElement("releaseTagName", value.ReleaseTagName),
             EntryElement("name", value.Name),
             EntryElement("notesFieldLine", value.NotesFieldLine),

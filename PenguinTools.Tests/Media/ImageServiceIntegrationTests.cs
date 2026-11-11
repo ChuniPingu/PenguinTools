@@ -31,6 +31,23 @@ public sealed class ImageServiceIntegrationTests : IDisposable
         Assert.Empty(Directory.EnumerateDirectories(Workspace));
     }
 
+    [Theory]
+    [InlineData(Core.Metadata.WallWidth.Normal, 640, 480)]
+    [InlineData(Core.Metadata.WallWidth.Wide, 2048, 512)]
+    public async Task Wall_ProducesStretchedSingleMipDxt1(Core.Metadata.WallWidth width, int pixelsWide, int pixelsHigh)
+    {
+        var process = new RecordingProcess();
+        var destination = Path.Combine(_root.FullName, "wall.dds");
+        await Service(process).ConvertWallAsync(Fixture(), destination, width, Ct);
+        Assert.Equal("resize", Assert.Single(process.CallsFor("image-tools.exe")).ArgumentList[0]);
+        Assert.Single(process.CallsFor("texconv.exe"));
+        var bytes = await File.ReadAllBytesAsync(destination, Ct);
+        var header = DdsContainer.Read(bytes);
+        Assert.Equal((pixelsWide, pixelsHigh, 1, "DXT1", 128 + pixelsWide * pixelsHigh / 2),
+            (header.Width, header.Height, header.MipLevels, header.Format, bytes.Length));
+        Assert.Empty(Directory.EnumerateDirectories(Workspace));
+    }
+
     [Fact]
     public async Task Stage_UsesOneImageJobAndPreservesContainer()
     {

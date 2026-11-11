@@ -75,7 +75,7 @@ public class CliOutputFormattingTests
     {
         var payload = new CliProgressEvent(
             CliOutput.ProgressType,
-            "music.build",
+            "option.build",
             "song.mgxc",
             "Ver seX",
             2,
@@ -84,7 +84,7 @@ public class CliOutputFormattingTests
         var json = CliOutput.SerializeProgress(payload);
         using var document = JsonDocument.Parse(json);
         Assert.Equal("progress", document.RootElement.GetProperty("type").GetString());
-        Assert.Equal("music.build", document.RootElement.GetProperty("operation").GetString());
+        Assert.Equal("option.build", document.RootElement.GetProperty("operation").GetString());
         Assert.False(document.RootElement.TryGetProperty("phase", out _));
         Assert.False(document.RootElement.TryGetProperty("step", out _));
         Assert.False(document.RootElement.TryGetProperty("unit", out _));
@@ -124,7 +124,6 @@ public class CliOutputFormattingTests
     [InlineData("option scan input --no-progress")]
     [InlineData("option scan input")]
     [InlineData("option build input output --no-progress")]
-    [InlineData("music build input.mgxc output --no-progress")]
     [InlineData("music extract input output --no-progress")]
     [InlineData("music extract input output --debug-til --no-progress")]
     [InlineData("audio extract input.acb output --no-progress")]

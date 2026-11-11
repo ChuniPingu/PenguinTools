@@ -20,6 +20,7 @@ public static class OptionExporter
         CancellationToken ct,
         IProgress<ProgressReport>? progress = null)
     {
+        settings.ValidateIds();
         var diagnostics = OptionExportBatch.CreateCollector();
         var processContext =
             new OptionExportProcessContext(diagnostics, settings.BatchSize, diagnosticsWorkingDirectory, ct, progress);
@@ -28,10 +29,19 @@ public static class OptionExporter
         var releaseTag = ResolveReleaseTag(ctx.Assets, settings);
         var optionGenre = ResolveOptionGenre(ctx.Assets, settings);
 
+        var bookList = books.ToArray();
+        WallExportSession? walls = null;
+        if (settings.ConvertWall)
+        {
+            walls = new WallExportSession(ctx, outputPaths.WallFolder, outputPaths.WallBindingsPath,
+                settings.ConversionCache, settings.IgnoreCache);
+            await walls.CheckConflictsAsync(bookList.Select(book => book.BookMeta), diagnostics, ct);
+        }
+
         var bookContext = new BookExportContext(ctx, settings, outputPaths, releaseTag, optionGenre, processContext,
-            new EventEntries(weEntries, ultEntries));
+            new EventEntries(weEntries, ultEntries), walls);
         var batchDiagnostics = await OptionExportBatch.BatchAsync(
-            books,
+            bookList,
             (book, innerDiagnostics) => ConvertBookAsync(bookContext, book, innerDiagnostics),
             book => book.BookMeta.FilePath,
             processContext,
@@ -39,6 +49,16 @@ public static class OptionExporter
             book => book.Title);
 
         await GenerateAuxiliaryFilesAsync(settings, outputPaths, weEntries, ultEntries, releaseTag, ct);
+
+        if (walls is not null)
+        {
+            var published = await walls.PublishAsync(
+                batchComplete: settings.InputComplete && !batchDiagnostics.HasError && !diagnostics.HasError, ct: ct);
+            foreach (var diagnostic in published.Diagnostics.Diagnostics)
+            {
+                diagnostics.Report(diagnostic);
+            }
+        }
 
         var snapshot = batchDiagnostics.Merge(DiagnosticSnapshot.Create(diagnostics));
         return (snapshot.HasError ? OperationResult.Failure() : OperationResult.Success())
@@ -49,14 +69,17 @@ public static class OptionExporter
 
     private sealed record BookExportContext(
         MusicExportContext Services, OptionExportSettings Settings, ExportOutputPaths OutputPaths,
-        ReleaseTag ReleaseTag, Entry Genre, OptionExportProcessContext Process, EventEntries Events);
+        ReleaseTag ReleaseTag, Entry Genre, OptionExportProcessContext Process, EventEntries Events,
+        WallExportSession? Walls);
 
     private static async Task ConvertBookAsync(
         BookExportContext context, OptionBook book, IDiagnosticSink diagnostics)
     {
-        var (ctx, settings, outputPaths, releaseTag, optionGenre, process, events) = context;
+        var (ctx, settings, outputPaths, releaseTag, optionGenre, process, events, walls) = context;
         var ct = process.CancellationToken;
         var workingDirectory = process.WorkingDirectory;
+        ResourceIds.ValidateMetadata(book.BookMeta);
+        _ = ResourceIds.RequireSong(book.BookMeta);
         var stage = await BuildStageAsync(ctx, book, settings, outputPaths, diagnostics, ct) ?? book.Stage;
         var genre = ResolveBookGenre(book, settings, optionGenre);
 
@@ -78,6 +101,11 @@ public static class OptionExporter
         if (settings.ConvertAudio)
         {
             await ConvertAudioAsync(book, outputPaths.CueFileFolder, settings, ctx, diagnostics, ct);
+        }
+
+        if (walls is not null && !DiagnosticSnapshot.Create(diagnostics).HasError)
+        {
+            await walls.QueueAsync(book.BookMeta, WallRequestOverrides.None, diagnostics, ct: ct);
         }
     }
 
@@ -117,6 +145,7 @@ public static class OptionExporter
                 cachedConversion.Outputs,
                 ct))
         {
+            ResourceIds.ValidateFieldLine(book.NotesFieldLine, ctx.Assets, diagnostics);
             return stageXml.Name;
         }
 

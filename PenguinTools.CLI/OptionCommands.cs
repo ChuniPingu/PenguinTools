@@ -112,7 +112,7 @@ internal static class OptionCommands
         internal Option<bool> IgnoreCache { get; } = new("--ignore-cache")
         {
             Description =
-                "Force reconversion of jacket, stage, and audio even when the conversion cache matches."
+                "Rebuild jackets, backgrounds, walls, and audio."
         };
 
         private Option<string?> OptionName { get; } = new("--option-name")
@@ -131,6 +131,8 @@ internal static class OptionCommands
         { Description = "Convert jackets." };
         private Option<bool?> ConvertBackground { get; } = new("--convert-background")
         { Description = "Build stage backgrounds." };
+        private Option<bool?> ConvertWall { get; } = new("--convert-wall")
+        { Description = "Export walls (default: true)." };
         private Option<ulong?> HcaKey { get; } = new("--hca-key")
         { Description = "HCA encryption key." };
         private Option<bool?> GenerateEventXml { get; } = new("--generate-event-xml")
@@ -177,6 +179,7 @@ internal static class OptionCommands
             command.Options.Add(ConvertAudio);
             command.Options.Add(ConvertJacket);
             command.Options.Add(ConvertBackground);
+            command.Options.Add(ConvertWall);
             command.Options.Add(HcaKey);
             command.Options.Add(GenerateEventXml);
             command.Options.Add(CustomReleaseTagXml);
@@ -205,7 +208,7 @@ internal static class OptionCommands
                 result.GetValue(CustomGenreId), result.GetValue(CustomGenreName),
                 result.GetValue(OverrideChartGenre),
                 result.GetValue(UltimaEventId), result.GetValue(WeEventId),
-                ParseMainDifficulties(result.GetValue(MainDifficulties)));
+                ParseMainDifficulties(result.GetValue(MainDifficulties)), result.GetValue(ConvertWall));
         }
 
         private static List<OptionMainDifficultyOverride>? ParseMainDifficulties(string[]? values)

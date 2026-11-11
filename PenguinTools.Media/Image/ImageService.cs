@@ -8,6 +8,8 @@ namespace PenguinTools.Media;
 /// <summary>Raster and DDS operations using supplied native tools, with managed AFB handling.</summary>
 public sealed class ImageService : IImageService
 {
+    private const string InputArgument = "--input";
+
     private readonly string _texconvPath;
     private readonly string _imageToolsPath;
     private readonly string _temporaryRoot;
@@ -35,7 +37,7 @@ public sealed class ImageService : IImageService
         {
             ct.ThrowIfCancellationRequested();
             ArgumentException.ThrowIfNullOrWhiteSpace(source);
-            await RunToolAsync(_imageToolsPath, ["validate", "--input", source], ct).ConfigureAwait(false);
+            await RunToolAsync(_imageToolsPath, ["validate", InputArgument, source], ct).ConfigureAwait(false);
             return MediaValidationResult.Valid;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -49,7 +51,7 @@ public sealed class ImageService : IImageService
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(source);
             var image = Path.Combine(workspace, "jacket.tga");
-            await RunToolAsync(_imageToolsPath, ["resize", "--input", source, "--output", image,
+            await RunToolAsync(_imageToolsPath, ["resize", InputArgument, source, "--output", image,
                 "--width", "300", "--height", "300", "--opaque"], token).ConfigureAwait(false);
             var dds = await EncodeAsync(image, "BC1_UNORM", workspace, token).ConfigureAwait(false);
             var bytes = await File.ReadAllBytesAsync(dds, token).ConfigureAwait(false);
@@ -61,6 +63,32 @@ public sealed class ImageService : IImageService
 
             await PublishBytesAsync(destination, bytes, token).ConfigureAwait(false);
         }, MsgKeys.Error_Invalid_jk_image, ct);
+
+    public Task ConvertWallAsync(string source, string destination, WallWidth width, CancellationToken ct = default) =>
+        WithWorkspaceAsync(async (workspace, token) =>
+        {
+            var (pixelsWide, pixelsHigh) = GetWallDimensions(width);
+            var image = Path.Combine(workspace, "wall.tga");
+            await RunToolAsync(_imageToolsPath, ["resize", InputArgument, source, "--output", image,
+                "--width", pixelsWide.ToString(CultureInfo.InvariantCulture),
+                "--height", pixelsHigh.ToString(CultureInfo.InvariantCulture)], token).ConfigureAwait(false);
+            var dds = await EncodeAsync(image, "BC1_UNORM", workspace, token).ConfigureAwait(false);
+            var bytes = await File.ReadAllBytesAsync(dds, token).ConfigureAwait(false);
+            var header = DdsContainer.Read(bytes);
+            if (header.Width != pixelsWide || header.Height != pixelsHigh || header.Format != "DXT1" ||
+                header.MipLevels != 1 || bytes.Length != 128 + pixelsWide * pixelsHigh / 2)
+            {
+                throw new InvalidDataException("texconv produced an incompatible wall DDS.");
+            }
+            await PublishBytesAsync(destination, bytes, token).ConfigureAwait(false);
+        }, MsgKeys.Error_Invalid_wall_image, ct);
+
+    private static (int Width, int Height) GetWallDimensions(WallWidth width) => width switch
+    {
+        WallWidth.Normal => (640, 480),
+        WallWidth.Wide => (2048, 512),
+        _ => throw new ArgumentOutOfRangeException(nameof(width), width, null)
+    };
 
     public Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
         IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
@@ -152,7 +180,7 @@ public sealed class ImageService : IImageService
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(source);
             var input = Path.Combine(workspace, "decode.tga");
-            await RunToolAsync(_imageToolsPath, ["convert", "--input", source, "--output", input], token).ConfigureAwait(false);
+            await RunToolAsync(_imageToolsPath, ["convert", InputArgument, source, "--output", input], token).ConfigureAwait(false);
             await WritePngAsync(input, destination, workspace, token).ConfigureAwait(false);
         }, MsgKeys.Error_Invalid_jk_image, ct);
 

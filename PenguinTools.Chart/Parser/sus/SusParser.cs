@@ -194,10 +194,7 @@ public sealed class SusParser
                 break;
             case "SONGID":
                 Sus.Meta.MgxcId = value;
-                if (int.TryParse(value, out var id))
-                {
-                    Sus.Meta.Id = id;
-                }
+                Sus.Meta.Id = ResourceIds.TryParseNonNegative(value, out var id) ? id : null;
 
                 break;
             case "WAVE":
@@ -948,6 +945,15 @@ public sealed class SusParser
             Sus.Meta.SortName = ChartPostProcessor.GetSortName(Sus.Meta.Title);
             Diagnostic.Report(new Diagnostic(Severity.Information, Msg.Create(MsgKeys.Mg_No_sortname_provided,
                 ("title", Sus.Meta.Title), ("sortName", Sus.Meta.SortName))));
+        }
+
+        if (!string.IsNullOrWhiteSpace(Sus.Meta.WallFilePath))
+        {
+            QueueValidation(
+                MediaValidator.CheckImageValidAsync(Sus.Meta.FullWallFilePath),
+                Sus.Meta.FullWallFilePath,
+                MsgKeys.Error_Invalid_wall_image,
+                () => Sus.Meta.WallImageValid = false);
         }
 
         if (Sus.Meta.IsCustomStage && !string.IsNullOrWhiteSpace(Sus.Meta.FullBgiFilePath))

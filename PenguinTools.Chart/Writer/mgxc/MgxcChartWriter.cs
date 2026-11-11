@@ -48,6 +48,7 @@ public sealed class MgxcChartWriter(MgxcWriteRequest request)
             _diagnostics.Report(ex.ToDiagnostic().WithPathFallback(request.Path));
             return OperationResult.Failure().WithDiagnostics(_diagnostics);
         }
+        _chart.Meta.Comment = ChartMediaPaths.CommentForOutput(_chart.Meta.Comment, _chart.Meta.FilePath, request.Path);
         CurveExpansion.Validate(_chart);
         _chart.Extras.FixedZeroOrigin |= _chart.Extras.UsesFixedCoordinateOrigin;
         _timingBookmarksRequired = (_chart.Extras.FixedZeroOrigin || _chart.Extras.PrerollBar1Applied) &&

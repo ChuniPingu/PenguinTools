@@ -122,6 +122,7 @@ public static class ChartScanner
 
         var meta = chart.Meta;
         var id = meta.Id ?? throw new DiagnosticException(MsgKeys.Error_File_ignored_due_to_id_missing);
+        ResourceIds.ValidateSong(id);
         var item = new OptionDifficulty(chart);
         var book = booksById.GetOrAdd(id, _ => new BookAccumulator());
 

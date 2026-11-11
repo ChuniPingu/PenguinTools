@@ -32,8 +32,13 @@ public sealed class AssetDictionaryCollectionTests : IDisposable
             </list></notesFieldLine></StageData>
             """);
 
+        WriteXml("A000/ddsFieldWall/ddsFieldWall9/DDSFieldWall.xml", """
+            <DDSFieldWallData><name><id>9</id><str>Wall</str></name></DDSFieldWallData>
+            """);
+
         var result = await AssetDictionary.CollectAsync(_root, TestContext.Current.CancellationToken);
 
+        Assert.Equal([(9, "Wall", "")], Values(result[AssetType.FieldWallNames]));
         Assert.Equal([(2, "Genre", "Extra")], Values(result[AssetType.GenreNames]));
         Assert.Equal([(10, "First", "Kept"), (30, "Last", "")], Values(result[AssetType.StageNames]));
         Assert.Equal([(4, "Tag", "")], Values(result[AssetType.WeTagNames]));

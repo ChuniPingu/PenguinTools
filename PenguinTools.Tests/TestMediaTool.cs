@@ -29,6 +29,9 @@ internal sealed class TestMediaTool : IAudioService, IImageService, IMediaValida
         return Task.CompletedTask;
     }
 
+    public Task ConvertWallAsync(string source, string destination, PenguinTools.Core.Metadata.WallWidth width,
+        CancellationToken ct = default) => File.WriteAllBytesAsync(destination, [1, 2, 3], ct);
+
     public Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
         IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,
         CancellationToken ct = default)

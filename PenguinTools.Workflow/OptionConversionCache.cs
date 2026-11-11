@@ -44,7 +44,8 @@ public sealed class OptionConversionCache
         }
 
         if (key.StartsWith("jacket:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("stage:", StringComparison.OrdinalIgnoreCase))
+            || key.StartsWith("stage:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("wall:", StringComparison.OrdinalIgnoreCase))
         {
             partition = Image;
             currentVersion = ImageCurrentVersion;
@@ -213,7 +214,7 @@ internal static class OptionConversionCacheValidator
             ? kind switch
             {
                 "audio" => OptionConversionCache.AudioCurrentVersion,
-                "jacket" or "stage" => OptionConversionCache.ImageCurrentVersion,
+                "jacket" or "stage" or "wall" => OptionConversionCache.ImageCurrentVersion,
                 _ => throw new ArgumentException($"Unsupported recipe kind: {kind}", nameof(recipeFields))
             }
             : throw new ArgumentException("Recipe kind is required.", nameof(recipeFields));

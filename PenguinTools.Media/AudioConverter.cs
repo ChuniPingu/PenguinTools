@@ -102,9 +102,13 @@ public class AudioConverter
     private bool Validate()
     {
         var hasError = false;
-        if (Meta.Id is null)
+        try
         {
-            Diagnostic.Report(new Diagnostic(Severity.Error, Msg.Key(MsgKeys.Error_Song_id_is_not_set)));
+            _ = ResourceIds.RequireSong(Meta);
+        }
+        catch (DiagnosticException ex)
+        {
+            Diagnostic.Report(ex.ToDiagnostic());
             hasError = true;
         }
 

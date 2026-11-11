@@ -7,6 +7,7 @@ namespace PenguinTools.Chart.Parser.ugc;
 
 public partial class UgcParser
 {
+    private readonly List<string> _commentLines = [];
     private void DispatchHeaderLine(string line)
     {
         var tokens = line.Split('\t');
@@ -100,7 +101,7 @@ public partial class UgcParser
                 HandleClickCount(args);
                 break;
             case "CMT":
-                Ugc.Meta.Comment = Str(args);
+                HandleComment(args);
                 break;
 
             case "ATINFO":
@@ -150,6 +151,12 @@ public partial class UgcParser
                 PreserveUnknownHeader(name, args, line);
                 break;
         }
+    }
+
+    private void HandleComment(string[] args)
+    {
+        _commentLines.Add(Str(args));
+        Ugc.Meta.Comment = string.Join('\n', _commentLines);
     }
 
     private void HandleBackgroundMode(string[] args)
@@ -378,10 +385,7 @@ public partial class UgcParser
         }
 
         Ugc.Meta.MgxcId = args[0];
-        if (int.TryParse(args[0], out var id))
-        {
-            Ugc.Meta.Id = id;
-        }
+        Ugc.Meta.Id = ResourceIds.TryParseNonNegative(args[0], out var id) ? id : null;
     }
 
     private void HandleReleaseDate(string[] args)

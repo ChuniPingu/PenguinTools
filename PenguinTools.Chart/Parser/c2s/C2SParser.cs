@@ -393,10 +393,7 @@ public sealed class C2SParser
         }
 
         C2s.Meta.MgxcId = tokens[1];
-        if (int.TryParse(tokens[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
-        {
-            C2s.Meta.Id = id;
-        }
+        C2s.Meta.Id = PenguinTools.Core.Metadata.ResourceIds.TryParseNonNegative(tokens[1], out var id) ? id : null;
     }
 
     private void ParseDifficulty(string[] tokens)

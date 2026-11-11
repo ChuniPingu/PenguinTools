@@ -212,8 +212,10 @@ public sealed class OptionExporterCacheTests
         }
     }
 
-    [Fact]
-    public async Task ExportAsync_SkipsStage_WhenCachedInputsAndOutputsMatch()
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(9999, true)]
+    public async Task ExportAsync_SkipsStageButKeepsFieldLineWarnings_WhenCachedInputsAndOutputsMatch(int fieldLine, bool warning)
     {
         var workPath = Path.Combine(Path.GetTempPath(), "PenguinToolsTests", Guid.NewGuid().ToString("N"));
         var outputPaths = ExportOutputPaths.FromOptionDirectory(Path.Combine(workPath, "AXXX"));
@@ -226,6 +228,9 @@ public sealed class OptionExporterCacheTests
 
         var cache = new OptionConversionCache();
         var settings = CreateSettings(false, true, cache);
+        using var catalog = new MemoryStream("""{"notesFieldLine":[{"id":0,"str":"Orange"}]}"""u8.ToArray());
+        var assets = new AssetManager(catalog);
+        assets.DefineEntry(AssetType.FieldLines, new(fieldLine, "Chart-defined line"));
         var images = new CountingImageService();
         using var assetStore = new DummyAssetStore(workPath);
         var context = new MusicExportContext(
@@ -236,15 +241,21 @@ public sealed class OptionExporterCacheTests
             new DummyInfrastructureAssetProvider(workPath));
         var meta = CreateMeta(workPath, chartPath) with
         {
-            BgiFilePath = backgroundPath
+            BgiFilePath = backgroundPath,
+            NotesFieldLine = new Entry(fieldLine, "Chart-defined line")
         };
+        context = context with { Assets = assets };
         var book = CreateBook(meta, true);
 
         try
         {
-            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
-            AssertExportSucceeded(await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct));
-
+            for (var build = 0; build < 2; build++)
+            {
+                var result = await OptionExporter.ExportAsync(context, settings, outputPaths, [book], workPath, ct);
+                AssertExportSucceeded(result);
+                Assert.Equal(warning ? 1 : 0, result.Diagnostics.Diagnostics.Count(d =>
+                    d.Message.Key == MsgKeys.Warn_Field_line_unknown));
+            }
             Assert.Equal(1, images.StageConversions);
         }
         finally
@@ -585,6 +596,9 @@ public sealed class OptionExporterCacheTests
             Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
             await File.WriteAllTextAsync(dst, await File.ReadAllTextAsync(src, ct), ct);
         }
+
+        public Task ConvertWallAsync(string source, string destination, WallWidth width,
+            CancellationToken ct = default) => File.WriteAllBytesAsync(destination, [1, 2, 3], ct);
 
         public async Task ConvertStageAsync(string background, string destination, string? notesFieldDestination,
             IReadOnlyList<string?>? effects = null, int backgroundOffset = 160, string? templatePath = null,

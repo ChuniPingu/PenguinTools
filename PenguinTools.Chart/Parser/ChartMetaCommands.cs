@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
@@ -58,12 +59,7 @@ internal static partial class ChartMetaCommands
 
     private static IEnumerable<string[]> EnumerateCommands(string comment)
     {
-        var normalized = comment
-            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\r", "\n", StringComparison.Ordinal);
-
-        foreach (var line in normalized.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        foreach (var line in CommentLines(comment))
         {
             var trimmedLine = line.Trim();
             if (C2sRoundTripComment.IsRoundTripLine(trimmedLine))
@@ -84,6 +80,52 @@ internal static partial class ChartMetaCommands
 
             yield return parts;
         }
+    }
+
+    internal static string[] CommentLines(string comment) =>
+        NormalizeComment(comment).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+
+    internal static string NormalizeComment(string comment)
+    {
+        var normalized = new StringBuilder(comment.Length);
+        var quoted = false;
+        var index = 0;
+        while (index < comment.Length)
+        {
+            var ch = comment[index];
+            if (ch == '"')
+            {
+                quoted = !quoted;
+            }
+
+            var length = !quoted && ch == '\\' ? EscapedMetaLineBreakLength(comment.AsSpan(index)) : 0;
+            if (length > 0)
+            {
+                normalized.Append('\n');
+                index += length;
+                continue;
+            }
+
+            normalized.Append(ch);
+            index++;
+        }
+
+        return normalized.ToString();
+    }
+
+    private static int EscapedMetaLineBreakLength(ReadOnlySpan<char> text)
+    {
+        var length = 0;
+        if (text.StartsWith("\\r\\n", StringComparison.Ordinal))
+        {
+            length = 4;
+        }
+        else if (text.StartsWith("\\r", StringComparison.Ordinal) || text.StartsWith("\\n", StringComparison.Ordinal))
+        {
+            length = 2;
+        }
+
+        return length > 0 && text[length..].TrimStart().StartsWith("#meta", StringComparison.Ordinal) ? length : 0;
     }
 
     private static bool ParseBool(string str)

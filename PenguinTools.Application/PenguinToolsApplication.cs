@@ -163,7 +163,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 Msg.Key(MsgKeys.App_Option_name_required));
         }
 
-        if (document.BatchSize == 0 || document.BatchSize < -1)
+        if (document.BatchSize is 0 or < -1)
         {
             return ApplicationDiagnostics.Failure<OptionBuildResult>(Msg.Key(MsgKeys.App_Batch_size_invalid));
         }
@@ -174,6 +174,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 Msg.Key(MsgKeys.App_No_export_actions_enabled));
         }
 
+        var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
         var scanned = await ScanBooksAsync(input, document.ChartFileDiscovery, document.BatchSize, output,
             progress, cancellationToken);
         if (!scanned.Succeeded)
@@ -192,7 +193,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         var snapshots = ApplyMainDifficultyOverrides(scanned.Value, request.Overrides?.MainDifficulties);
         var bundleRoot = ExportOutputPaths.ResolveBundleRootPath(output, document.OptionName);
         var outputPaths = ExportOutputPaths.FromOptionDirectory(bundleRoot);
-        var exportSettings = document.ToExportSettings() with { IgnoreCache = request.IgnoreCache };
+        var skippedCharts = SkippedVersionCharts(scanned.Diagnostics);
+        exportSettings = exportSettings with
+        {
+            InputComplete = !scanned.Diagnostics.HasError && skippedCharts.Length == 0
+        };
         var exported = await OptionExporter.ExportAsync(
             CreateExportContext(), exportSettings, outputPaths, snapshots, output,
             cancellationToken, progress);
@@ -209,48 +214,23 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             await OptionConfiguration.SaveAsync(savedConfigPath, document, cancellationToken);
         }
 
-        var artifacts = Directory.Exists(bundleRoot)
-            ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
-                .OrderBy(x => x, StringComparer.Ordinal)
-                .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
-            : [];
+        var artifacts = CollectOptionArtifacts(bundleRoot);
         var value = new OptionBuildResult(input, bundleRoot, savedConfigPath ?? configPath, document.OptionName,
             scanned.Value.Count, scanned.Value.Sum(x => x.Difficulties.Count), artifacts)
         {
-            SkippedCharts = SkippedVersionCharts(scanned.Diagnostics)
+            SkippedCharts = skippedCharts
         };
         return (value.IsPartial ? OperationResult<OptionBuildResult>.Failure(value)
             : OperationResult<OptionBuildResult>.Success(value)).WithDiagnostics(diagnostics);
     }
 
-    public async Task<OperationResult<MusicBuildResult>> BuildMusicAsync(
-        MusicBuildRequest request,
-        IProgress<ProgressReport>? progress = null,
-        CancellationToken cancellationToken = default)
+    private static ApplicationArtifact[] CollectOptionArtifacts(string bundleRoot)
     {
-        return await GuardAsync(async () =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var input = FullPath(request.InputPath);
-            var output = FullPath(request.OutputDirectory);
-            var jacket = OptionalFullPath(request.JacketInputPath);
-            var audio = ToWorkflow(request.Audio);
-            var stage = ToWorkflow(request.Stage);
-            var parsed = await _charts.ParseChartAsync(input, cancellationToken);
-            if (!parsed.Succeeded)
-            {
-                return OperationResult<MusicBuildResult>.Failure().WithDiagnostics(parsed.Diagnostics);
-            }
-
-            var chart = parsed.Value;
-
-            ChartMetadata.ApplyMusicBuildOverrides(chart.Meta, request.Overrides);
-
-            var exported = await MusicExporter.ExportAsync(CreateExportContext(), chart, output, new MusicExportOverrides(jacket, audio, stage),
-                cancellationToken, progress);
-            var value = CreateMusicResult(input, output, chart.Meta, stage);
-            return ApplicationDiagnostics.Merge(value, parsed.Diagnostics, exported);
-        });
+        return Directory.Exists(bundleRoot)
+            ? Directory.EnumerateFiles(bundleRoot, "*", SearchOption.AllDirectories)
+                .OrderBy(x => x, StringComparer.Ordinal)
+                .Select(x => new ApplicationArtifact("option.file", x)).ToArray()
+            : [];
     }
 
     public async Task<OperationResult<JacketConvertResult>> ConvertJacketAsync(
@@ -315,7 +295,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             }
 
             var chart = parsed.Value;
-            var converted = await MusicExporter.ConvertAudioAsync(CreateExportContext(), chart.Meta, output,
+            var converted = await MusicMediaExporter.ConvertAudioAsync(CreateExportContext(), chart.Meta, output,
                 ToWorkflow(request.Overrides), cancellationToken);
             var xml = new CueFileXml(chart.Meta.Id ?? 0);
             var directory = Path.Combine(output, xml.DataName);
@@ -339,6 +319,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             var input = FullPath(request.InputPath);
             var output = FullPath(request.OutputDirectory);
             var settings = request.Settings;
+            ResourceIds.ValidateSong(settings.SongId);
             if (settings.InitialBpm <= 0 || settings.InitialNumerator <= 0 || settings.InitialDenominator <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(request), "Initial timing values must be positive.");
@@ -357,7 +338,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 BgmInitialNumerator = settings.InitialNumerator,
                 BgmInitialDenominator = settings.InitialDenominator
             };
-            var converted = await MusicExporter.ConvertAudioAsync(CreateExportContext(), meta, output,
+            var converted = await MusicMediaExporter.ConvertAudioAsync(CreateExportContext(), meta, output,
                 new AudioRequestOverrides(null, settings.HcaEncryptionKey), cancellationToken);
             var value = CreateAudioConvertResult(input, output, settings.SongId);
             return ApplicationDiagnostics.Merge(value, DiagnosticSnapshot.Empty, converted);
@@ -381,7 +362,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             }
 
             var chart = parsed.Value;
-            var built = await MusicExporter.BuildStageAsync(CreateExportContext(), chart.Meta, output, overrides,
+            var built = await MusicMediaExporter.BuildStageAsync(CreateExportContext(), chart.Meta, output, overrides,
                 cancellationToken);
             var stageId = overrides.StageId ?? chart.Meta.StageId;
             var artifacts = CreateStageArtifacts(output, chart.Meta, overrides, out var stageName);
@@ -409,7 +390,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 IsCustomStage = true,
                 StageId = overrides.StageId
             };
-            var built = await MusicExporter.BuildStageAsync(CreateExportContext(), meta, output, overrides,
+            var built = await MusicMediaExporter.BuildStageAsync(CreateExportContext(), meta, output, overrides,
                 cancellationToken);
             var artifacts = CreateStageArtifacts(output, meta, overrides, out var stageName);
             var value = new StageBuildResult(background, background, output, overrides.StageId, stageName, artifacts);
@@ -610,7 +591,8 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             document.OverrideChartGenre,
             document.UltimaEventId,
             document.WeEventId,
-            document.BatchSize);
+            document.BatchSize)
+        { ConvertWall = document.ConvertWall };
     }
 
     private static (OptionScanResult Result, DiagnosticSnapshot UnmatchedDiagnostics) CreateScanResult(
@@ -643,7 +625,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                     meta.BgmEnableBarOffset, meta.BgmInitialBpm, meta.BgmInitialNumerator, meta.BgmInitialDenominator,
                     meta.IsCustomStage, meta.StageId, meta.BgiFilePath, ApplicationEntry.From(meta.NotesFieldLine),
                     ApplicationEntry.From(meta.Stage),
-                    matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray());
+                    matches.Select(x => ToApplicationDiagnostic(x.value)).ToArray())
+                {
+                    WallFilePath = meta.WallFilePath,
+                    FullWallFilePath = meta.FullWallFilePath,
+                    WallId = meta.EffectiveWallId,
+                    ExplicitWallId = meta.WallId,
+                    WallWidth = meta.WallWidth
+                };
             }).ToArray();
             var main = book.MainDifficulty.ToString();
             var mainMeta = book.BookMeta;
@@ -655,7 +644,14 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 ChartMetadata.GetStarDifficultyLabel(mainMeta.WeDifficulty), mainMeta.JacketFilePath, mainMeta.BgmFilePath,
                 mainMeta.BgmPreviewStart, mainMeta.BgmPreviewStop, mainMeta.BgmManualOffset, mainMeta.BgmRealOffset,
                 mainMeta.BgmEnableBarOffset, mainMeta.BgmInitialBpm, mainMeta.BgmInitialNumerator,
-                mainMeta.BgmInitialDenominator, charts);
+                mainMeta.BgmInitialDenominator, charts)
+            {
+                WallFilePath = mainMeta.WallFilePath,
+                FullWallFilePath = mainMeta.FullWallFilePath,
+                WallId = mainMeta.EffectiveWallId,
+                ExplicitWallId = mainMeta.WallId,
+                WallWidth = mainMeta.WallWidth
+            };
         }).ToArray();
         var unmatched = remaining.Select(x => x.value).ToArray();
         var result = new OptionScanResult(input, discovery.Select(ToChartFormatName).ToArray(), batchSize, books,
@@ -735,6 +731,11 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         if (value.ConvertJacket is { } convertJacket)
         {
             document.ConvertJacket = convertJacket;
+        }
+
+        if (value.ConvertWall is { } convertWall)
+        {
+            document.ConvertWall = convertWall;
         }
 
         if (value.ConvertBackground is { } convertBackground)
@@ -828,6 +829,10 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             return snapshots;
         }
 
+        foreach (var item in overrides)
+        {
+            ResourceIds.ValidateSong(item.SongId);
+        }
         var lookup = overrides
             .GroupBy(x => x.SongId)
             .ToDictionary(group => group.Key, group => group.Last().MainDifficulty);
@@ -950,37 +955,17 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
                 value.NoteFieldLaneId, value.NoteFieldLaneName, value.NoteFieldLaneData);
     }
 
-    private static MusicBuildResult CreateMusicResult(string input, string output, Meta meta,
-        StageRequestOverrides stage)
-    {
-        var artifacts = new List<ApplicationArtifact>();
-        var musicXml = new MusicXml(new Dictionary<Difficulty, Meta> { [meta.Difficulty] = meta }, meta.Difficulty);
-        var musicDirectory = Path.Combine(output, musicXml.DataName);
-        artifacts.Add(new ApplicationArtifact("music.xml", Path.Combine(musicDirectory, "Music.xml")));
-        artifacts.Add(
-            new ApplicationArtifact("chart.c2s", Path.Combine(musicDirectory, musicXml[meta.Difficulty].File)));
-        artifacts.Add(new ApplicationArtifact("jacket.dds", Path.Combine(musicDirectory, musicXml.JaketFile)));
-        var cue = new CueFileXml(meta.Id ?? 0);
-        var cueDirectory = Path.Combine(output, cue.DataName);
-        artifacts.Add(new ApplicationArtifact("cue-file.xml", Path.Combine(cueDirectory, "CueFile.xml")));
-        artifacts.Add(new ApplicationArtifact("audio.acb", Path.Combine(cueDirectory, cue.AcbFile)));
-        artifacts.Add(new ApplicationArtifact("audio.awb", Path.Combine(cueDirectory, cue.AwbFile)));
-        artifacts.AddRange(CreateStageArtifacts(output, meta, stage, out var stageName));
-        return new MusicBuildResult(input, output, ChartMetadata.CreateChartSummary(meta), stage.StageId ?? meta.StageId,
-            stageName, artifacts);
-    }
-
     private static IReadOnlyList<ApplicationArtifact> CreateStageArtifacts(string output, Meta meta,
         StageRequestOverrides overrides, out string? stageName)
     {
         stageName = null;
         var stageId = overrides.StageId ?? meta.StageId;
-        if (!MusicExporter.ShouldBuildStage(meta, overrides) || stageId is not { } id)
+        if (!MusicMediaExporter.ShouldBuildStage(meta, overrides) || stageId is not { } id)
         {
             return [];
         }
 
-        var xml = new StageXml(id, MusicExporter.CreateNoteFieldEntry(meta.NotesFieldLine,
+        var xml = new StageXml(id, MusicMediaExporter.CreateNoteFieldEntry(meta.NotesFieldLine,
             overrides.NoteFieldLaneId, overrides.NoteFieldLaneName, overrides.NoteFieldLaneData));
         var directory = Path.Combine(output, xml.DataName);
         stageName = xml.Name.Str;
