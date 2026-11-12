@@ -71,7 +71,7 @@ out/
     CHU_UI_Fieldwall_1009978.dds
 ```
 
-Install the wallbind plugin to display the wall in-game. Put the `ddsFieldWall1009978/` folder inside the option's `ddsFieldWall/` folder, and `wallbind.json` in the option root. `option build` arranges these files automatically.
+Install the [wallbind plugin](https://github.com/ChuniPingu/wallbind#install) to display the wall in-game. The plugin is a separate download for MATE 2.50 x86. Put the `ddsFieldWall1009978/` folder inside the option's `ddsFieldWall/` folder, and `wallbind.json` in the option root. `option build` arranges these files automatically.
 
 Each build replaces `wallbind.json` with the bindings from its current inputs, including an empty list when no walls are configured. Standalone wall commands replace the list with one binding. Wall settings and images are published after all charts and enabled conversions finish successfully. Failed conversions, skipped unsupported charts, or invalid wall settings keep the previous wall files. Media caches still apply; unused asset files are not deleted. Songs sharing a wall ID must use the same image and width.
 
