@@ -16,6 +16,13 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Content Include="..\LICENSE;..\THIRD-PARTY-NOTICES.md">
+            <Link>%(Filename)%(Extension)</Link>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="System.CommandLine" Version="3.0.0" />
     </ItemGroup>
 
