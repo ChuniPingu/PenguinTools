@@ -6,10 +6,14 @@ using PenguinTools.Core.Diagnostic;
 
 namespace PenguinTools.CLI;
 
-internal sealed record SessionGreeting(bool Ready = true, int Protocol = 1);
+internal sealed record SessionGreeting(bool Ready = true, int Protocol = 1)
+{
+    public string[] Capabilities { get; } = ["persistentMediaCache"];
+}
 internal sealed record SessionRequest(long Id, string Method, string? DocumentId = null,
     string? BaseDirectory = null, string? Format = null, string? Content = null,
-    string? InputPath = null, string? OutputDirectory = null, OptionBuildOverrides? Overrides = null);
+    string? InputPath = null, string? OutputDirectory = null, OptionBuildOverrides? Overrides = null,
+    string? CacheDirectory = null, string? CacheIdentity = null);
 internal sealed record SessionResponse(long? Id, bool Success, IncrementalBuildResult? Result,
     CliDiagnosticPayload[] Diagnostics);
 
@@ -73,7 +77,7 @@ internal static class SessionCommands
                     }
                     var result = await session.PrepareAsync(new IncrementalBuildRequest(
                         request.DocumentId ?? "", request.BaseDirectory ?? "", format, request.OutputDirectory ?? "",
-                        request.Content, request.InputPath, request.Overrides), ct);
+                        request.Content, request.InputPath, request.Overrides, request.CacheDirectory, request.CacheIdentity), ct);
                     response = new(id, result.Succeeded, result.Value, CliDiagnostics.ToPayload(result.Diagnostics));
                 }
                 else

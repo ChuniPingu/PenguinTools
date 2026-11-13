@@ -36,6 +36,14 @@ C2S reuse requires identical input bytes and source identity within the session.
 
 Publication copies the completed tree into the requested empty destination using exclusive file creation. A caller consumes that tree after the successful result; the result follows completion and closure of all writes. The session commits its cache after publication succeeds. Failure preserves the preceding cache and published snapshots; a failed destination is not a usable snapshot. Only artifacts requested by the current build enter the candidate tree; removed optional resources are absent. Disposal removes session-owned work files and leaves caller-owned snapshots intact. The [session protocol](cli.md#incremental-build-session) exposes the same service over JSONL.
 
+### Persistent media reuse
+
+`PersistentMediaCache` stores `OptionConversionCache` and audio, jacket, stage, and wall artifacts below a caller-owned cache directory. The checkpoint records a schema version, caller-supplied converter identity, conversion recipes, input and output content hashes, and relative artifact paths. Source-generated JSON serialization supports managed and NativeAOT builds. Chart models, C2S caches, diagnostics, and media validation results remain session-local.
+
+Each cold request parses the current chart and reads current configuration. The exporter recomputes media recipes from that model, including timing and encryption settings, and checks source and cached output SHA-256 hashes before copying a hit into its private candidate. The checkpoint cannot bypass current chart validation or retain a removed optional resource. A missing or invalid checkpoint is a cache miss. Artifact paths must remain inside their generation, and reparse points are rejected.
+
+Storage copies media into a distinct generation and replaces the checkpoint after every write closes. A failed build cannot update the checkpoint. Optional cache I/O failure preserves the usable published result. Cleanup removes recognized generations only; caller sidecars remain intact. The [caller lease and identity contract](cli.md#incremental-build-session) separates cache lifecycle from snapshot ownership.
+
 ## Messages
 
 `PenguinTools.Core` defines `MessageDescriptor`, `Msg`, and `MsgKeys`. Diagnostics carry message keys and named arguments rather than already translated text.

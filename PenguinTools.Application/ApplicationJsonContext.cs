@@ -9,4 +9,6 @@ namespace PenguinTools.Application;
     WriteIndented = true)]
 [JsonSerializable(typeof(OptionDocument))]
 [JsonSerializable(typeof(OptionBuildOverrides))]
+[JsonSerializable(typeof(PersistentMediaCheckpoint))]
+[JsonSerializable(typeof(OptionConversionCache))]
 internal partial class ApplicationJsonContext : JsonSerializerContext;
