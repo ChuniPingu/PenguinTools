@@ -42,6 +42,100 @@ public sealed partial class PenguinToolsApplicationTests
         Assert.Equal(3, duplicate.Revision);
     }
 
+    [Fact]
+    public async Task IncrementalSession_AbsoluteMediaAliasesShareRequestHashes()
+    {
+        using var fixture = new SessionFixture();
+        var alias = Path.Combine(fixture.Root, ".", "jacket.png");
+        var content = SessionChart + "@BGIMG\t" + alias + "\n";
+        var first = await fixture.Build(content);
+        Assert.Contains(first.Artifacts, item => item.Kind == "stage");
+        var edited = await fixture.Build(content.Replace("#0'0:t02", "#0'120:t02"));
+        Assert.Equal(["chart"], edited.Changes);
+        Assert.Equal(1, fixture.Media.JacketConversions);
+        Assert.Equal(1, fixture.Media.StageConversions);
+        Assert.Equal(1, fixture.Media.AudioConversions);
+        await File.WriteAllTextAsync(Path.Combine(fixture.Root, "jacket.png"), "image-2", TestContext.Current.CancellationToken);
+        var changed = await fixture.Build(content);
+        Assert.Contains("jacket", changed.Changes);
+        Assert.Contains("stage", changed.Changes);
+        Assert.Equal(2, fixture.Media.JacketConversions);
+        Assert.Equal(2, fixture.Media.StageConversions);
+    }
+
+    [Fact]
+    public async Task IncrementalSession_ChangedSourceDuringExportRetriesBeforeCommitting()
+    {
+        using var fixture = new SessionFixture();
+        var first = await fixture.Build(SessionChart);
+        var original = Assert.Single(first.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        var originalBytes = await File.ReadAllBytesAsync(original.Path, TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(fixture.Root, "jacket.png"), "image-2", TestContext.Current.CancellationToken);
+        var edits = 0;
+        fixture.Media.BeforeJacketConversion = () =>
+        {
+            if (edits++ == 0)
+            {
+                var source = Path.Combine(fixture.Root, "audio.wav");
+                var timestamp = File.GetLastWriteTimeUtc(source);
+                File.WriteAllText(source, "audio-2");
+                File.SetLastWriteTimeUtc(source, timestamp);
+            }
+        };
+        var updated = await fixture.Build(SessionChart);
+        Assert.Equal(2, updated.Revision);
+        Assert.Equal(2, edits);
+        Assert.Equal(2, fixture.Media.AudioConversions);
+        var audio = Assert.Single(updated.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        Assert.StartsWith("audio-2:", await File.ReadAllTextAsync(audio.Path, TestContext.Current.CancellationToken));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.Path, TestContext.Current.CancellationToken));
+        Assert.Single(Directory.GetDirectories(fixture.TempDirectory, "b-*")
+            .SelectMany(directory => Directory.GetDirectories(directory)), directory => Path.GetFileName(directory) != "m");
+    }
+
+    [Fact]
+    public async Task IncrementalSession_ContinuouslyChangingSourcePreservesCommittedState()
+    {
+        using var fixture = new SessionFixture();
+        var first = await fixture.Build(SessionChart);
+        await File.WriteAllTextAsync(Path.Combine(fixture.Root, "jacket.png"), "image-2", TestContext.Current.CancellationToken);
+        var edits = 0;
+        fixture.Media.BeforeJacketConversion = () => File.WriteAllText(Path.Combine(fixture.Root, "audio.wav"), $"audio-{++edits + 1}");
+        var request = fixture.Request(SessionChart);
+        var rejected = await fixture.Session.PrepareAsync(request, TestContext.Current.CancellationToken);
+        Assert.False(rejected.Succeeded);
+        Assert.Contains(rejected.Diagnostics.Diagnostics, item => item.Message.Key == MsgKeys.App_Inputs_changed_during_export);
+        Assert.Equal(2, edits);
+        Assert.False(Directory.Exists(request.OutputDirectory));
+        Assert.All(first.Artifacts, item => Assert.True(File.Exists(item.Path)));
+        fixture.Media.BeforeJacketConversion = null;
+        var corrected = await fixture.Build(SessionChart);
+        Assert.Equal(first.Revision + 1, corrected.Revision);
+        var audio = Assert.Single(corrected.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        Assert.StartsWith("audio-3:", await File.ReadAllTextAsync(audio.Path, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task IncrementalSession_CorruptCachedOutputRebuildsWithoutChangingPublishedSnapshot()
+    {
+        using var fixture = new SessionFixture();
+        var first = await fixture.Build(SessionChart);
+        var original = Assert.Single(first.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        var originalBytes = await File.ReadAllBytesAsync(original.Path, TestContext.Current.CancellationToken);
+        var work = Assert.Single(Directory.GetDirectories(fixture.TempDirectory, "b-*"));
+        var cached = Assert.Single(Directory.GetFiles(work, "*.awb", SearchOption.AllDirectories));
+        await File.WriteAllTextAsync(cached, "corrupt", TestContext.Current.CancellationToken);
+        var corrected = await fixture.Build(SessionChart.Replace("#0'0:t02", "#0'120:t02"));
+        Assert.Equal(2, fixture.Media.AudioConversions);
+        var audio = Assert.Single(corrected.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(audio.Path, TestContext.Current.CancellationToken));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.Path, TestContext.Current.CancellationToken));
+        await File.WriteAllTextAsync(audio.Path, "caller-owned edit", TestContext.Current.CancellationToken);
+        var duplicate = await fixture.Build(SessionChart.Replace("#0'0:t02", "#0'120:t02"));
+        var repeatedAudio = Assert.Single(duplicate.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(repeatedAudio.Path, TestContext.Current.CancellationToken));
+    }
+
     [Theory]
     [InlineData("@BPM\t0'0\t120", "@BPM\t0'0\t150")]
     [InlineData("@BEAT\t0\t4\t4", "@BEAT\t0\t3\t4")]
@@ -376,6 +470,7 @@ public sealed partial class PenguinToolsApplicationTests
         internal int ImageValidations { get; private set; }
         internal int StageConversions { get; private set; }
         internal int WallConversions { get; private set; }
+        internal Action? BeforeJacketConversion { get; set; }
         internal bool FailJacket { get; set; }
         internal bool CheckNativeWorkingDirectory { get; set; }
         internal List<string> NativeWorkingDirectories { get; } = [];
@@ -418,6 +513,7 @@ public sealed partial class PenguinToolsApplicationTests
         public async Task ConvertJacketAsync(string source, string destination, CancellationToken ct = default)
         {
             JacketConversions++;
+            BeforeJacketConversion?.Invoke();
             if (FailJacket)
             {
                 throw new IOException("Image conversion failed.");

@@ -6,6 +6,7 @@ public static class MsgKeys
     public const string App_Chart_file_not_found = "app.chart_file_not_found";
     public const string App_Config_path_conflict = "app.config_path_conflict";
     public const string App_Game_directory_not_found = "app.game_directory_not_found";
+    public const string App_Inputs_changed_during_export = "app.inputs_changed_during_export";
     public const string App_Input_directory_not_found = "app.input_directory_not_found";
     public const string App_No_charts_to_export = "app.no_charts_to_export";
     public const string App_No_export_actions_enabled = "app.no_export_actions_enabled";

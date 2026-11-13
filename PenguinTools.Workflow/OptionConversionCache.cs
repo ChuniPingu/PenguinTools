@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,6 +13,31 @@ public sealed class OptionConversionCache
 
     public OptionConversionCachePartition Audio { get; set; } = CreatePartition(AudioCurrentVersion);
     public OptionConversionCachePartition Image { get; set; } = CreatePartition(ImageCurrentVersion);
+
+    private readonly ConcurrentDictionary<string, string> _verifiedOutputs = new(StringComparer.Ordinal);
+    internal IReadOnlyDictionary<string, string>? VerifiedInputs { get; private set; }
+
+    /// <summary>Supplies request-local input hashes; revalidate these dependencies before publishing the build.</summary>
+    public void SetVerifiedInputs(IReadOnlyDictionary<string, string> inputs)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (path, hash) in inputs)
+        {
+            normalized[Path.GetFullPath(path)] = hash;
+        }
+        VerifiedInputs = normalized;
+    }
+
+    /// <summary>Returns the digest verified while writing a private candidate that the caller has not modified.</summary>
+    public string? VerifiedOutputHash(string path) => _verifiedOutputs.GetValueOrDefault(Path.GetFullPath(path));
+
+    internal void RememberOutputs(IReadOnlyList<OptionConversionArtifact> outputs, IReadOnlyDictionary<string, string> hashes)
+    {
+        foreach (var output in outputs)
+        {
+            _verifiedOutputs[Path.GetFullPath(output.Path)] = hashes[output.Name];
+        }
+    }
 
     internal string? SourceDirectory { get; private init; }
     internal string? TargetDirectory { get; private init; }
@@ -150,7 +177,8 @@ internal static class OptionConversionCacheValidator
     public static async Task<OptionConversionCacheState?> CreateStateAsync(
         IReadOnlyDictionary<string, string?> recipeFields,
         IReadOnlyDictionary<string, string> inputFiles,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyDictionary<string, string>? verifiedInputs = null)
     {
         var inputHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -161,7 +189,8 @@ internal static class OptionConversionCacheValidator
                 return null;
             }
 
-            inputHashes[name] = await HashFileAsync(path, ct);
+            inputHashes[name] = verifiedInputs is not null && verifiedInputs.TryGetValue(Path.GetFullPath(path), out var hash)
+                ? hash : await HashFileAsync(path, ct);
         }
 
         var recipeHash = HashRecipe(recipeFields, RecipeCacheVersion(recipeFields));
@@ -199,6 +228,7 @@ internal static class OptionConversionCacheValidator
         var outputHashes = await HashExistingOutputsAsync(outputs, ct);
         if (outputHashes is not null && Matches(entry.Outputs, outputHashes))
         {
+            cache.RememberOutputs(outputs, outputHashes);
             return true;
         }
 
@@ -217,20 +247,49 @@ internal static class OptionConversionCacheValidator
             }
             sources.Add(new(output.Name, Path.Combine(cache.SourceDirectory, relative)));
         }
-        var sourceHashes = await HashExistingOutputsAsync(sources, ct);
-        if (sourceHashes is null || !Matches(entry.Outputs, sourceHashes))
+        if (entry.Outputs.Count != outputs.Count || outputs.Any(output => !entry.Outputs.ContainsKey(output.Name)) ||
+            sources.Any(source => !File.Exists(source.Path)))
         {
             return false;
         }
 
-        for (var index = 0; index < outputs.Count; index++)
+        var copied = new List<(string Temporary, string Destination)>();
+        var complete = false;
+        try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(outputs[index].Path)!);
-            await using var source = File.OpenRead(sources[index].Path);
-            await using var target = File.Create(outputs[index].Path);
-            await source.CopyToAsync(target, ct);
+            var copiedHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (var index = 0; index < outputs.Count; index++)
+            {
+                var output = outputs[index];
+                Directory.CreateDirectory(Path.GetDirectoryName(output.Path)!);
+                var temporary = output.Path + ".cache-" + Guid.NewGuid().ToString("N");
+                copied.Add((temporary, output.Path));
+                var hash = await CopyAndHashAsync(sources[index].Path, temporary, ct);
+                if (!string.Equals(hash, entry.Outputs[output.Name], StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                copiedHashes[output.Name] = hash;
+            }
+            foreach (var (temporary, destination) in copied)
+            {
+                ct.ThrowIfCancellationRequested();
+                File.Move(temporary, destination, overwrite: true);
+            }
+            cache.RememberOutputs(outputs, copiedHashes);
+            complete = true;
+            return true;
         }
-        return true;
+        finally
+        {
+            if (!complete)
+            {
+                foreach (var (temporary, _) in copied)
+                {
+                    File.Delete(temporary);
+                }
+            }
+        }
     }
 
     public static async Task StoreAsync(
@@ -251,6 +310,7 @@ internal static class OptionConversionCacheValidator
             return;
         }
 
+        cache.RememberOutputs(outputs, outputHashes);
         cache.SetEntry(key, new OptionConversionCacheEntry
         {
             RecipeHash = state.RecipeHash,
@@ -318,6 +378,28 @@ internal static class OptionConversionCacheValidator
         }
 
         return true;
+    }
+
+    private static async Task<string> CopyAndHashAsync(string sourcePath, string targetPath, CancellationToken ct)
+    {
+        await using var source = File.OpenRead(sourcePath);
+        await using var target = new FileStream(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            int count;
+            while ((count = await source.ReadAsync(buffer.AsMemory(), ct)) != 0)
+            {
+                hash.AppendData(buffer.AsSpan(0, count));
+                await target.WriteAsync(buffer.AsMemory(0, count), ct);
+            }
+            return Convert.ToHexString(hash.GetHashAndReset());
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     private static async Task<string> HashFileAsync(string path, CancellationToken ct)

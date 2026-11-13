@@ -144,7 +144,7 @@ public sealed class WallExportSession
 
     private async Task<OperationResult<PreparedExport>> PrepareAsync(WallBuildRequest request, CancellationToken ct)
     {
-        var cached = await OptionConversionCacheArtifacts.CreateWallAsync(request, ct);
+        var cached = await OptionConversionCacheArtifacts.CreateWallAsync(request, ct, _cache);
         if (!_ignoreCache && await OptionConversionCacheValidator.IsHitAsync(_cache, cached.Key, cached.State, cached.Outputs, ct))
         {
             var xml = new DdsFieldWallXml(request.WallId);

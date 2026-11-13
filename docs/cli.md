@@ -34,7 +34,7 @@ Use `option build` to export songs with their difficulties and media. The input 
 
 For a chart-only build, first save the configuration below as `charts/options.json`. Otherwise, enabled audio, jacket, and background exports need their source media.
 
-The bundle is written under `out/A001/`; an output directory already named `A001` is used directly. Generated music files are under `music/`, with other enabled exports under `stage/`, `cueFile/`, `event/`, `releaseTag/`, and `ddsFieldWall/`. Wall settings are saved in the bundle root's `wallbind.json`. The result lists artifact paths.
+The bundle is written under `out/A001/`; an output directory already named `A001` is used directly. Generated music files are under `music/`, with other enabled exports under `stage/`, `cueFile/`, `event/`, `releaseTag/`, and `ddsFieldWall/`. Audio is encoded as stereo 48 kHz HCA at 384 kbps. Wall settings are saved in the bundle root's `wallbind.json`. The result lists artifact paths.
 
 Discovery order chooses the preferred format when a song ID and difficulty occur in several formats. Set a song's main difficulty with `--main-difficulty 1234:Master`. `--batch-size` controls maximum parallelism; `-1` selects automatic parallelism. `--ignore-cache` forces audio, jacket, stage, and wall reconversion. `--convert-wall false` skips wall export and keeps existing wall settings.
 
