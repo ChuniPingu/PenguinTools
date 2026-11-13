@@ -28,6 +28,7 @@ public sealed record OptionExportSettings(
     bool ConvertWall = true)
 {
     public bool InputComplete { get; init; } = true;
+    public OptionChartConversionCache? ChartCache { get; init; }
 
     public void ValidateIds()
     {

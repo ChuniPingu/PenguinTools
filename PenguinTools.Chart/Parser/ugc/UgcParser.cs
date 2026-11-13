@@ -75,6 +75,7 @@ public partial class UgcParser
 
         MediaValidator = mediaValidator;
         Path = request.Path;
+        Content = request.Content;
         Assets = request.Assets;
         Ugc.Meta.ExVersion = 0;
         Ugc.Meta.ExLongEnabled = false;
@@ -83,6 +84,7 @@ public partial class UgcParser
     private IMediaValidator MediaValidator { get; }
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
+    private string? Content { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
     private UmgrModel.Chart Ugc { get; } = new();
@@ -92,7 +94,7 @@ public partial class UgcParser
         try
         {
             Ugc.Meta.FilePath = Path;
-            var lines = await ReadLinesAsync(Path, ct);
+            var lines = await ReadLinesAsync(Path, Content, ct);
 
             if (TryGetIgnoreLine(lines, out var ignoreLine))
             {
@@ -262,17 +264,20 @@ public partial class UgcParser
         }
     }
 
-    private static async Task<SourceLine[]> ReadLinesAsync(string path, CancellationToken ct)
+    private static async Task<SourceLine[]> ReadLinesAsync(string path, string? content, CancellationToken ct)
     {
-        var bytes = await File.ReadAllBytesAsync(path, ct);
-        string text;
-        try
+        var text = content;
+        if (text is null)
         {
-            text = new UTF8Encoding(false, true).GetString(bytes);
-        }
-        catch (DecoderFallbackException)
-        {
-            text = Encoding.GetEncoding(932).GetString(bytes);
+            var bytes = await File.ReadAllBytesAsync(path, ct);
+            try
+            {
+                text = new UTF8Encoding(false, true).GetString(bytes);
+            }
+            catch (DecoderFallbackException)
+            {
+                text = Encoding.GetEncoding(932).GetString(bytes);
+            }
         }
 
         using var reader = new StringReader(text.TrimStart('\uFEFF'));

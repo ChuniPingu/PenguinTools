@@ -8,4 +8,5 @@ namespace PenguinTools.Application;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = true)]
 [JsonSerializable(typeof(OptionDocument))]
+[JsonSerializable(typeof(OptionBuildOverrides))]
 internal partial class ApplicationJsonContext : JsonSerializerContext;

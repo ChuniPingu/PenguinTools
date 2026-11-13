@@ -17,6 +17,7 @@ internal static class RootCommands
         rootCommand.Subcommands.Add(WallCommands.BuildWallCommand());
         rootCommand.Subcommands.Add(AssetCommands.BuildAssetCommand());
         rootCommand.Subcommands.Add(InfoCommands.BuildInfoCommand());
+        rootCommand.Subcommands.Add(SessionCommands.BuildSessionCommand());
         return rootCommand;
     }
 }

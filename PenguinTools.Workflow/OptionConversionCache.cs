@@ -12,6 +12,29 @@ public sealed class OptionConversionCache
     public OptionConversionCachePartition Audio { get; set; } = CreatePartition(AudioCurrentVersion);
     public OptionConversionCachePartition Image { get; set; } = CreatePartition(ImageCurrentVersion);
 
+    internal string? SourceDirectory { get; private init; }
+    internal string? TargetDirectory { get; private init; }
+
+    /// <summary>Copies cache state for an independent output tree, reusing verified artifacts from a completed build.</summary>
+    public OptionConversionCache ForSnapshot(string sourceDirectory, string targetDirectory) => new()
+    {
+        Audio = ClonePartition(Audio),
+        Image = ClonePartition(Image),
+        SourceDirectory = Path.GetFullPath(sourceDirectory),
+        TargetDirectory = Path.GetFullPath(targetDirectory)
+    };
+
+    private static OptionConversionCachePartition ClonePartition(OptionConversionCachePartition partition) => new()
+    {
+        Version = partition.Version,
+        Entries = partition.Entries.ToDictionary(pair => pair.Key, pair => new OptionConversionCacheEntry
+        {
+            RecipeHash = pair.Value.RecipeHash,
+            Inputs = new(pair.Value.Inputs, StringComparer.OrdinalIgnoreCase),
+            Outputs = new(pair.Value.Outputs, StringComparer.OrdinalIgnoreCase)
+        }, StringComparer.OrdinalIgnoreCase)
+    };
+
     private static OptionConversionCachePartition CreatePartition(int version)
     {
         return new OptionConversionCachePartition { Version = version };
@@ -174,7 +197,40 @@ internal static class OptionConversionCacheValidator
         }
 
         var outputHashes = await HashExistingOutputsAsync(outputs, ct);
-        return outputHashes is not null && Matches(entry.Outputs, outputHashes);
+        if (outputHashes is not null && Matches(entry.Outputs, outputHashes))
+        {
+            return true;
+        }
+
+        if (cache.SourceDirectory is null || cache.TargetDirectory is null)
+        {
+            return false;
+        }
+
+        var sources = new List<OptionConversionArtifact>();
+        foreach (var output in outputs)
+        {
+            var relative = Path.GetRelativePath(cache.TargetDirectory, output.Path);
+            if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                return false;
+            }
+            sources.Add(new(output.Name, Path.Combine(cache.SourceDirectory, relative)));
+        }
+        var sourceHashes = await HashExistingOutputsAsync(sources, ct);
+        if (sourceHashes is null || !Matches(entry.Outputs, sourceHashes))
+        {
+            return false;
+        }
+
+        for (var index = 0; index < outputs.Count; index++)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(outputs[index].Path)!);
+            await using var source = File.OpenRead(sources[index].Path);
+            await using var target = File.Create(outputs[index].Path);
+            await source.CopyToAsync(target, ct);
+        }
+        return true;
     }
 
     public static async Task StoreAsync(

@@ -89,7 +89,7 @@ public static class OptionExporter
 
             if (settings.ConvertChart)
             {
-                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, events, ct);
+                await ConvertChartsAsync(book, xml, chartFolder, workingDirectory, diagnostics, events, settings.ChartCache, ct);
             }
 
             if (settings.ConvertJacket)
@@ -218,6 +218,7 @@ public static class OptionExporter
         string workingDirectory,
         IDiagnosticSink diagnostics,
         EventEntries events,
+        OptionChartConversionCache? cache,
         CancellationToken ct)
     {
         foreach (var (difficulty, item) in book.Difficulties)
@@ -230,6 +231,11 @@ public static class OptionExporter
             TrackEventEntry(book, difficulty, songId, events.WorldsEnd, events.Ultima);
 
             var chartPath = Path.Combine(chartFolder, xml[difficulty].File);
+            if (cache is not null && await cache.TryCopyAsync(item.Meta.FilePath, chartPath, ct) is { } cachedDiagnostics)
+            {
+                diagnostics.Report(cachedDiagnostics);
+                continue;
+            }
             var chartDiagnostics = OptionExportBatch.CreateCollector();
 
             void FlushChartDiagnostics()
@@ -254,6 +260,12 @@ public static class OptionExporter
             if (!writtenChart.Succeeded)
             {
                 return;
+            }
+
+            if (cache is not null)
+            {
+                await cache.StoreAsync(item.Meta.FilePath, chartPath,
+                    OptionExportBatch.CreateItemDiagnostics(chartDiagnostics, item.Meta.FilePath, workingDirectory), ct);
             }
 
             ct.ThrowIfCancellationRequested();
