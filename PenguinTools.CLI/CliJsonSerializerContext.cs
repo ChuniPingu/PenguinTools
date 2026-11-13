@@ -32,4 +32,7 @@ namespace PenguinTools.CLI;
 [JsonSerializable(typeof(ApplicationEntry))]
 [JsonSerializable(typeof(Entry))]
 [JsonSerializable(typeof(ApplicationInfo))]
+[JsonSerializable(typeof(SessionRequest))]
+[JsonSerializable(typeof(SessionGreeting))]
+[JsonSerializable(typeof(SessionResponse))]
 internal sealed partial class CliJsonSerializerContext : JsonSerializerContext;

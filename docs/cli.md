@@ -38,6 +38,33 @@ The bundle is written under `out/A001/`; an output directory already named `A001
 
 Discovery order chooses the preferred format when a song ID and difficulty occur in several formats. Set a song's main difficulty with `--main-difficulty 1234:Master`. `--batch-size` controls maximum parallelism; `-1` selects automatic parallelism. `--ignore-cache` forces audio, jacket, stage, and wall reconversion. `--convert-wall false` skips wall export and keeps existing wall settings.
 
+### Incremental build session
+
+Run `PenguinTools.CLI.exe session` to keep one application and asset catalog alive for repeated builds. Standard input and output carry one JSON object per line, encoded as UTF-8. The worker first writes `{"ready":true,"protocol":1}`. Requests execute serially, and each response echoes its numeric `id`. No progress records are written.
+
+Send `prepare` with in-memory UGC `content`, or with `inputPath` and `format` set to `ugc`, `mgxc`, or `sus`. Supply exactly one of `content` and `inputPath`. Relative input paths start at `baseDirectory`; saved charts resolve their media from their own directory. In-memory UGC resolves media from `baseDirectory`.
+
+```json
+{"id":1,"method":"prepare","documentId":"editor-document","baseDirectory":"C:/charts/song","format":"ugc","content":"@VER\t8\n@TICKS\t480\n@SONGID\t1234\n@BPM\t0'0\t120\n@BEAT\t0\t4\t4\n#0'0:t02\n","outputDirectory":"C:/preview/revision-1","overrides":{"optionName":"A001","convertChart":true,"convertAudio":false,"convertJacket":false,"convertBackground":false,"convertWall":false}}
+```
+
+`baseDirectory/options.json` is read for every request, then `overrides` applies the camelCase fields of `OptionBuildOverrides`. `hcaEncryptionKey` accepts an unsigned integer or decimal string. `outputDirectory` must be absent or empty; the complete option is published below it using `optionName`. Each request needs a distinct directory. Consume the output after success and discard it after failure. The source chart, media, and configuration are read without modification.
+
+A response has `id`, `success`, `diagnostics`, and a `result` on success. Diagnostics use the existing message descriptors and locations. The result contains:
+
+| Field | Meaning |
+| --- | --- |
+| `revision` | Increasing successful-build number; failed requests do not advance it. |
+| `optionDirectory` | Absolute path to the published option. |
+| `chartPath` | Absolute C2S path; omitted when chart export is disabled. |
+| `chart`, `metadata` | The same chart summary and conversion metadata shapes as inspection. |
+| `artifacts` | Every live output file plus records for files removed since the preceding successful build. |
+| `changes` | Distinct kinds whose artifact paths or hashes changed. |
+
+Each artifact has `kind`, absolute `path`, SHA-256 `hash` in uppercase hex, and `status` (`changed`, `reused`, or `removed`). Kinds are `chart`, `audio`, `jacket`, `stage`, `wall`, and `metadata`. Comparison uses paths relative to the option root and file contents. Removed records use the absent path in the requested snapshot and its preceding hash. C2S and metadata are compared independently. Clients that discard intermediate responses should compare the complete live manifest with their active snapshot instead of relying on `changes` alone.
+
+A failure leaves the preceding session state usable; the next corrected request can reuse its artifacts. Changing `documentId` or `baseDirectory` starts a separate cache lineage within the worker. `{"id":2,"method":"close"}` receives a successful response and ends the session. End-of-input also ends it. Both dispose internal working files; published snapshots belong to the caller. Requests are limited to 32 Mi characters per line. See [incremental build architecture](architecture.md#incremental-builds) for cache dependencies and publication semantics.
+
 ### Build field walls
 
 In the chart's Comment field, add:

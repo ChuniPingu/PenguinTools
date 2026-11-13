@@ -51,6 +51,12 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
         return GuardAsync(() => _charts.InspectAsync(request, cancellationToken));
     }
 
+    public IncrementalBuildSession CreateBuildSession()
+    {
+        ThrowIfDisposed();
+        return new IncrementalBuildSession(_dependencies, ThrowIfDisposed);
+    }
+
     public Task<OperationResult<ChartConvertResult>> ConvertChartAsync(
         ChartConvertRequest request, IProgress<ProgressReport>? progress = null,
         CancellationToken cancellationToken = default)
@@ -696,7 +702,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void ApplyOverrides(OptionDocument document, OptionBuildOverrides? value)
+    internal static void ApplyOverrides(OptionDocument document, OptionBuildOverrides? value)
     {
         if (value is null)
         {
@@ -820,7 +826,7 @@ public sealed partial class PenguinToolsApplication : IPenguinToolsApplication
             _dependencies.Assets, _dependencies.Audio, _dependencies.Images, _dependencies.AssetStore, _dependencies.AssetProvider);
     }
 
-    private static IReadOnlyList<OptionBook> ApplyMainDifficultyOverrides(
+    internal static IReadOnlyList<OptionBook> ApplyMainDifficultyOverrides(
         IReadOnlyList<OptionBook> snapshots,
         IReadOnlyList<OptionMainDifficultyOverride>? overrides)
     {

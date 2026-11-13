@@ -263,7 +263,7 @@ public sealed record OptionBuildOverrides(
     bool? ConvertAudio = null,
     bool? ConvertJacket = null,
     bool? ConvertBackground = null,
-    ulong? HcaEncryptionKey = null,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] ulong? HcaEncryptionKey = null,
     bool? GenerateEventXml = null,
     bool? CustomReleaseTagXml = null,
     int? SelectedReleaseTagId = null,
@@ -441,6 +441,8 @@ public sealed record ApplicationInfo(
 
 public interface IPenguinToolsApplication : IDisposable
 {
+    IncrementalBuildSession CreateBuildSession();
+
     Task<OperationResult<ChartInspectResult>> InspectChartAsync(ChartInspectRequest request,
         CancellationToken cancellationToken = default);
 
