@@ -40,7 +40,7 @@ Discovery order chooses the preferred format when a song ID and difficulty occur
 
 ### Incremental build session
 
-Run `PenguinTools.CLI.exe session` to keep one application and asset catalog alive for repeated builds. Standard input and output carry one JSON object per line, encoded as UTF-8. The worker first writes `{"ready":true,"protocol":1}`. Requests execute serially, and each response echoes its numeric `id`. No progress records are written.
+Run `PenguinTools.CLI.exe session` to keep one application and asset catalog alive for repeated builds. Standard input and output carry one JSON object per line, encoded as UTF-8. The worker first writes `{"ready":true,"protocol":1,"capabilities":["persistentMediaCache"]}`. Clients can check `capabilities` before using optional request fields. Requests execute serially, and each response echoes its numeric `id`. No progress records are written.
 
 Send `prepare` with in-memory UGC `content`, or with `inputPath` and `format` set to `ugc`, `mgxc`, or `sus`. Supply exactly one of `content` and `inputPath`. Relative input paths start at `baseDirectory`; saved charts resolve their media from their own directory. In-memory UGC resolves media from `baseDirectory`.
 
@@ -49,6 +49,10 @@ Send `prepare` with in-memory UGC `content`, or with `inputPath` and `format` se
 ```
 
 `baseDirectory/options.json` is read for every request, then `overrides` applies the camelCase fields of `OptionBuildOverrides`. `hcaEncryptionKey` accepts an unsigned integer or decimal string. `outputDirectory` must be absent or empty; the complete option is published below it using `optionName`. Each request needs a distinct directory. Consume the output after success and discard it after failure. The source chart, media, and configuration are read without modification.
+
+To reuse media across worker lifetimes, supply both `cacheDirectory` and `cacheIdentity`. `cacheDirectory` is an absolute, dedicated directory owned by the caller. `cacheIdentity` is a nonempty opaque identifier for the converter implementation, native tools, templates, and service configuration; the caller must change it whenever those dependencies change. A stable source-based directory can be shared by requests with different `documentId` values. The caller must hold an exclusive cross-process lease on the directory throughout each request and any eviction or clearing operation. PenguinTools does not acquire that external lease.
+
+The directory contains `checkpoint.json` and `g-<GUID>` media generations; these are private versioned cache data. Cache content is optional: missing, corrupt, incompatible, or inaccessible data causes normal conversion, and cache storage failure does not reject a completed export. The caller manages capacity and eviction. Published snapshots and active session work files are independent copies, so deleting an idle disk cache cannot invalidate them. See [persistent media reuse](architecture.md#persistent-media-reuse) for validation and storage rules.
 
 A response has `id`, `success`, `diagnostics`, and a `result` on success. Diagnostics use the existing message descriptors and locations. The result contains:
 

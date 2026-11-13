@@ -15,8 +15,12 @@ internal sealed class SessionMediaValidator(IMediaValidator inner) : IMediaValid
 
     public void Dispose() => _gate.Dispose();
 
-    internal void BeginRequest()
+    internal void BeginRequest(bool invalidate = false)
     {
+        if (invalidate)
+        {
+            _validated.Clear();
+        }
         _observed.Clear();
         _allValid = true;
     }

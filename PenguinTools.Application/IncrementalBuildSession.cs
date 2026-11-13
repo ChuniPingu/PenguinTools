@@ -20,10 +20,11 @@ public sealed class IncrementalBuildSession : IDisposable
     private BuildState? _state;
     private long _revision;
     private long _nextBuild;
+    private string? _cacheIdentity;
     private bool _disposed;
 
     private sealed record ArtifactState(string RelativePath, string Kind, string Hash);
-    private sealed record BuildState(string DocumentId, string BaseDirectory, string Directory,
+    private sealed record BuildState(string DocumentId, string BaseDirectory, string? CacheIdentity, string Directory,
         OptionConversionCache Cache, IReadOnlyList<ArtifactState> Artifacts, string? InputHash,
         OptionChartConversionCache ChartCache, string? ReuseKey, IReadOnlyDictionary<string, string>? Dependencies,
         IncrementalBuildResult Result, DiagnosticSnapshot Diagnostics);
@@ -80,7 +81,9 @@ public sealed class IncrementalBuildSession : IDisposable
         CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.DocumentId);
-        _validator.BeginRequest();
+        var persistent = PersistentMediaCache.FromRequest(request);
+        _validator.BeginRequest(request.CacheIdentity != _cacheIdentity);
+        _cacheIdentity = request.CacheIdentity;
         var baseDirectory = Path.GetFullPath(request.BaseDirectory);
         var outputDirectory = Path.GetFullPath(request.OutputDirectory);
         if (!Directory.Exists(baseDirectory))
@@ -121,7 +124,8 @@ public sealed class IncrementalBuildSession : IDisposable
         }
 
         var inputHash = await HashInputAsync(request, baseDirectory, ct);
-        var previous = _state is { } state && state.DocumentId == request.DocumentId && state.BaseDirectory == baseDirectory ? state : null;
+        var previous = _state is { } state && state.DocumentId == request.DocumentId &&
+            state.BaseDirectory == baseDirectory && state.CacheIdentity == request.CacheIdentity ? state : null;
         var reuseKey = request.Content is not null && configHash == await HashConfigurationAsync(configPath, ct)
             ? configHash + ":" + DateTime.Today.Ticks + ":" + JsonSerializer.Serialize(request.Overrides, ApplicationJsonContext.Default.OptionBuildOverrides)
             : null;
@@ -142,6 +146,10 @@ public sealed class IncrementalBuildSession : IDisposable
             };
             await PublishAsync(previous.Directory, outputDirectory, document.OptionName, ct);
             _revision++;
+            if (persistent is not null)
+            {
+                await persistent.StoreAsync(previous.Cache, previous.Directory, MediaArtifacts(previous.Artifacts), ct);
+            }
             return OperationResult<IncrementalBuildResult>.Success(duplicate).WithDiagnostics(previous.Diagnostics);
         }
         var parsed = request.Content is not null
@@ -158,7 +166,8 @@ public sealed class IncrementalBuildSession : IDisposable
 
         var candidate = Path.Combine(_workingDirectory, $"{checked(++_nextBuild):x}");
         var mediaWork = Path.Combine(_workingDirectory, "m");
-        var cache = previous?.Cache.ForSnapshot(previous.Directory, candidate) ?? new OptionConversionCache();
+        var cache = previous?.Cache.ForSnapshot(previous.Directory, candidate)
+            ?? (persistent is null ? null : await persistent.RestoreAsync(candidate, ct)) ?? new OptionConversionCache();
         document.ConversionCache = cache;
         var chartCache = inputHash is not null && inputHash == previous?.InputHash
             ? previous.ChartCache.Fork() : new OptionChartConversionCache();
@@ -198,13 +207,17 @@ public sealed class IncrementalBuildSession : IDisposable
             await PublishAsync(candidate, outputDirectory, document.OptionName, ct);
 
             var retired = _state;
-            _state = new(request.DocumentId, baseDirectory, candidate, cache, artifacts, inputHash, chartCache,
+            _state = new(request.DocumentId, baseDirectory, request.CacheIdentity, candidate, cache, artifacts, inputHash, chartCache,
                 reuseKey, observed, value, diagnostics);
             _revision++;
             candidate = "";
             if (retired is not null)
             {
                 DeleteOwnedDirectory(retired.Directory);
+            }
+            if (persistent is not null)
+            {
+                await persistent.StoreAsync(cache, _state.Directory, MediaArtifacts(artifacts), ct);
             }
             return OperationResult<IncrementalBuildResult>.Success(value).WithDiagnostics(diagnostics);
         }
@@ -290,6 +303,10 @@ public sealed class IncrementalBuildSession : IDisposable
         }
         return "metadata";
     }
+
+    private static PersistentMediaArtifact[] MediaArtifacts(IReadOnlyList<ArtifactState> artifacts) => artifacts
+        .Where(item => item.Kind is "audio" or "jacket" or "stage" or "wall")
+        .Select(item => new PersistentMediaArtifact(item.RelativePath, item.Hash)).ToArray();
 
     private static List<IncrementalArtifact> CreateManifest(IReadOnlyList<ArtifactState> current,
         IReadOnlyList<ArtifactState> previous, string optionDirectory)

@@ -7,7 +7,9 @@ public sealed record IncrementalBuildRequest(
     string OutputDirectory,
     string? Content = null,
     string? InputPath = null,
-    OptionBuildOverrides? Overrides = null);
+    OptionBuildOverrides? Overrides = null,
+    string? CacheDirectory = null,
+    string? CacheIdentity = null);
 
 public sealed record IncrementalArtifact(string Kind, string Path, string Hash, string Status);
 

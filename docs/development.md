@@ -4,6 +4,8 @@
 
 Install Git, the .NET SDK selected by [global.json](../global.json), and Visual Studio C++ x64 build tools. Managed target frameworks and package versions are declared in [Common.props](../Common.props) and the project files.
 
+Windows x64 builds and CLI binaries require a CPU that supports the [x86-64-v2 instruction set](https://learn.microsoft.com/en-us/dotnet/core/compatibility/jit/11/minimum-hardware-requirements).
+
 Builds automatically prepare the pinned FFmpeg, texconv, and image-tools binaries from [native-tools.json](../PenguinTools.Assets/native-tools.json), verifying hashes and reusing `artifacts/tools` offline.
 
 Initialize the pinned dependencies:

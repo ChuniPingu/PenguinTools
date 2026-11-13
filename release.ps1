@@ -21,11 +21,6 @@ function Assert-Command {
     }
 }
 
-function Get-ProjectVersion {
-    [xml]$commonProps = Get-Content (Join-Path $PSScriptRoot 'Common.props')
-    return $commonProps.Project.PropertyGroup.Version
-}
-
 function Get-PreviousReleaseTag {
     param(
         [Parameter(Mandatory = $true)][string]$CurrentTag,
@@ -135,7 +130,9 @@ if (-not $SkipBuild) {
     Assert-Command 'dotnet'
 }
 
-$currentVersionTag = "v$(Get-ProjectVersion)"
+[xml]$commonProps = Get-Content (Join-Path $PSScriptRoot 'Common.props')
+$projectProperties = $commonProps.Project.PropertyGroup
+$currentVersionTag = "v$($projectProperties.Version)"
 
 if (-not $Tag) {
     $Tag = $currentVersionTag
@@ -203,13 +200,14 @@ try {
     $releaseNotesPath = Join-Path $artifactRoot 'release-notes.md'
     [IO.File]::WriteAllText($releaseNotesPath, $Notes, [Text.UTF8Encoding]::new($false))
 
+    $publishRoot = "PenguinTools.CLI/bin/Release/$($projectProperties.DotNetVersion)/publish"
     $assetDefinitions = @(
         @{
-            Source    = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64'
+            Source    = "$publishRoot/WinX64"
             AssetName = "PenguinTools.CLI.$Tag.zip"
         },
         @{
-            Source    = 'PenguinTools.CLI/bin/Release/net10.0/publish/WinX64-NativeAOT'
+            Source    = "$publishRoot/WinX64-NativeAOT"
             AssetName = "PenguinTools.CLI.$Tag.AOT.zip"
         }
     )
