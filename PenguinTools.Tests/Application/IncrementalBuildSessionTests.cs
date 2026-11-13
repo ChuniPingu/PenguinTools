@@ -42,6 +42,27 @@ public sealed partial class PenguinToolsApplicationTests
         Assert.Equal(3, duplicate.Revision);
     }
 
+    [Fact]
+    public async Task IncrementalSession_CorruptCachedOutputRebuildsWithoutChangingPublishedSnapshot()
+    {
+        using var fixture = new SessionFixture();
+        var first = await fixture.Build(SessionChart);
+        var original = Assert.Single(first.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        var originalBytes = await File.ReadAllBytesAsync(original.Path, TestContext.Current.CancellationToken);
+        var work = Assert.Single(Directory.GetDirectories(fixture.TempDirectory, "b-*"));
+        var cached = Assert.Single(Directory.GetFiles(work, "*.awb", SearchOption.AllDirectories));
+        await File.WriteAllTextAsync(cached, "corrupt", TestContext.Current.CancellationToken);
+        var corrected = await fixture.Build(SessionChart.Replace("#0'0:t02", "#0'120:t02"));
+        Assert.Equal(2, fixture.Media.AudioConversions);
+        var audio = Assert.Single(corrected.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(audio.Path, TestContext.Current.CancellationToken));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(original.Path, TestContext.Current.CancellationToken));
+        await File.WriteAllTextAsync(audio.Path, "caller-owned edit", TestContext.Current.CancellationToken);
+        var duplicate = await fixture.Build(SessionChart.Replace("#0'0:t02", "#0'120:t02"));
+        var repeatedAudio = Assert.Single(duplicate.Artifacts, item => item.Path.EndsWith(".awb", StringComparison.Ordinal));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(repeatedAudio.Path, TestContext.Current.CancellationToken));
+    }
+
     [Theory]
     [InlineData("@BPM\t0'0\t120", "@BPM\t0'0\t150")]
     [InlineData("@BEAT\t0\t4\t4", "@BEAT\t0\t3\t4")]

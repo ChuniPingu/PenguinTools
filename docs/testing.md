@@ -15,6 +15,8 @@ Synthetic parser and workflow tests do not need local chart samples. Native tool
 
 `IncrementalSession_*` application tests cover immutable snapshots, resource reuse, timing dependencies, changed and removed media, failure recovery, configuration changes, and the JSONL session contract. Their injected media services count validation and conversion calls, so an unchanged output hash alone cannot hide redundant media conversion.
 
+Cache-copy tests verify output hashes and independent ownership of published snapshots.
+
 `PersistentMediaCache_*` tests create separate sessions sharing a disk checkpoint. They cover note edits, changed content with preserved timestamps, timing and configuration changes, converter identity changes, corrupt outputs and checkpoints, unsafe paths, failed builds, and eviction without affecting published snapshots.
 
 Parser and writer changes need regression tests for the affected metadata, timing, note relationships, or payloads, including round-trip preservation where relevant. Prefer small synthetic fixtures for distinct behavior; add format combinations or repeated conversions when they exercise a different code path or state change. Keep proprietary samples local and report any missing coverage.

@@ -190,7 +190,7 @@ public sealed class IncrementalBuildSession : IDisposable
                 return OperationResult<IncrementalBuildResult>.Failure().WithDiagnostics(diagnostics);
             }
 
-            var artifacts = await ReadArtifactsAsync(candidate, ct);
+            var artifacts = await ReadArtifactsAsync(candidate, cache, ct);
             var optionDirectory = Path.Combine(outputDirectory, document.OptionName);
             var manifest = CreateManifest(artifacts, previous?.Artifacts ?? [], optionDirectory);
             var chartPath = artifacts.FirstOrDefault(item => item.Kind == "chart")?.RelativePath;
@@ -265,14 +265,18 @@ public sealed class IncrementalBuildSession : IDisposable
         return Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
     }
 
-    private static async Task<IReadOnlyList<ArtifactState>> ReadArtifactsAsync(string directory, CancellationToken ct)
+    private static async Task<IReadOnlyList<ArtifactState>> ReadArtifactsAsync(string directory, OptionConversionCache cache, CancellationToken ct)
     {
         var artifacts = new List<ArtifactState>();
         foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
         {
-            await using var stream = File.OpenRead(file);
             var relative = Path.GetRelativePath(directory, file);
-            var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
+            var hash = cache.VerifiedOutputHash(file);
+            if (hash is null)
+            {
+                await using var stream = File.OpenRead(file);
+                hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
+            }
             artifacts.Add(new(relative, ArtifactKind(relative), hash));
         }
         return artifacts;
