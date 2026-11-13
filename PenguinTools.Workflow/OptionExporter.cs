@@ -136,7 +136,7 @@ public static class OptionExporter
         var cachedConversion = await OptionConversionCacheArtifacts.CreateStageAsync(
             book,
             outputPaths.StageFolder,
-            ct);
+            ct, settings.ConversionCache);
         if (!settings.IgnoreCache &&
             await OptionConversionCacheValidator.IsHitAsync(
                 settings.ConversionCache,
@@ -294,7 +294,7 @@ public static class OptionExporter
             xml.DataName,
             jacketPath,
             outputPath,
-            ct);
+            ct, settings.ConversionCache);
         if (!settings.IgnoreCache &&
             await OptionConversionCacheValidator.IsHitAsync(
                 settings.ConversionCache,
@@ -341,7 +341,7 @@ public static class OptionExporter
                 book.BookMeta,
                 cueFileFolder,
                 settings.HcaEncryptionKey,
-                ct);
+                ct, settings.ConversionCache);
         if (songId is not null &&
             cachedConversion is not null &&
             !settings.IgnoreCache &&

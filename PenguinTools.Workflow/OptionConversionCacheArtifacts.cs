@@ -14,7 +14,7 @@ internal static class OptionConversionCacheArtifacts
 {
     private const string RecipeVersionKey = "recipeVersion";
 
-    public static Task<OptionCachedConversion> CreateWallAsync(WallBuildRequest request, CancellationToken ct)
+    public static Task<OptionCachedConversion> CreateWallAsync(WallBuildRequest request, CancellationToken ct, OptionConversionCache? cache = null)
     {
         var xml = new DdsFieldWallXml(request.WallId);
         var directory = Path.Combine(request.OutputDirectory, xml.DataName);
@@ -34,13 +34,14 @@ internal static class OptionConversionCacheArtifacts
             [
                 new OptionConversionArtifact("wallXml", Path.Combine(directory, "DDSFieldWall.xml")),
                 new OptionConversionArtifact("wallDds", Path.Combine(directory, xml.Image))
-            ], ct);
+            ], cache, ct);
     }
 
     public static Task<OptionCachedConversion> CreateStageAsync(
         OptionBook book,
         string stageOutputFolder,
-        CancellationToken ct)
+        CancellationToken ct,
+        OptionConversionCache? cache = null)
     {
         if (book.StageId is not { } stageId)
         {
@@ -64,14 +65,15 @@ internal static class OptionConversionCacheArtifacts
                 ["background"] = book.BookMeta.FullBgiFilePath
             },
             outputs,
-            ct);
+            cache, ct);
     }
 
     public static Task<OptionCachedConversion> CreateJacketAsync(
         string musicDataName,
         string jacketPath,
         string outputPath,
-        CancellationToken ct)
+        CancellationToken ct,
+        OptionConversionCache? cache = null)
     {
         return CreateAsync(
             $"jacket:{musicDataName}",
@@ -85,7 +87,7 @@ internal static class OptionConversionCacheArtifacts
                 ["jacket"] = jacketPath
             },
             [new OptionConversionArtifact("jacketDds", outputPath)],
-            ct);
+            cache, ct);
     }
 
     public static Task<OptionCachedConversion> CreateAudioAsync(
@@ -104,7 +106,8 @@ internal static class OptionConversionCacheArtifacts
         Meta meta,
         string cueFileFolder,
         ulong hcaEncryptionKey,
-        CancellationToken ct)
+        CancellationToken ct,
+        OptionConversionCache? cache = null)
     {
         if (meta.Id is not { } songId)
         {
@@ -128,7 +131,7 @@ internal static class OptionConversionCacheArtifacts
                 ["bgm"] = meta.FullBgmFilePath
             },
             outputs,
-            ct);
+            cache, ct);
     }
 
     private static async Task<OptionCachedConversion> CreateAsync(
@@ -136,9 +139,10 @@ internal static class OptionConversionCacheArtifacts
         IReadOnlyDictionary<string, string?> recipe,
         IReadOnlyDictionary<string, string> inputs,
         IReadOnlyList<OptionConversionArtifact> outputs,
+        OptionConversionCache? cache,
         CancellationToken ct)
     {
-        var state = await OptionConversionCacheValidator.CreateStateAsync(recipe, inputs, ct);
+        var state = await OptionConversionCacheValidator.CreateStateAsync(recipe, inputs, ct, cache?.VerifiedInputs);
         return new OptionCachedConversion(key, state, outputs);
     }
 

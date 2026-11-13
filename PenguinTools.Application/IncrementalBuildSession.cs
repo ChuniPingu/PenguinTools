@@ -78,7 +78,7 @@ public sealed class IncrementalBuildSession : IDisposable
     }
 
     private async Task<OperationResult<IncrementalBuildResult>> PrepareCoreAsync(IncrementalBuildRequest request,
-        CancellationToken ct)
+        CancellationToken ct, bool retryChangedInputs = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.DocumentId);
         var persistent = PersistentMediaCache.FromRequest(request);
@@ -168,6 +168,11 @@ public sealed class IncrementalBuildSession : IDisposable
         var mediaWork = Path.Combine(_workingDirectory, "m");
         var cache = previous?.Cache.ForSnapshot(previous.Directory, candidate)
             ?? (persistent is null ? null : await persistent.RestoreAsync(candidate, ct)) ?? new OptionConversionCache();
+        var verifiedInputs = _validator.CaptureDependencies();
+        if (verifiedInputs is not null)
+        {
+            cache.SetVerifiedInputs(verifiedInputs);
+        }
         document.ConversionCache = cache;
         var chartCache = inputHash is not null && inputHash == previous?.InputHash
             ? previous.ChartCache.Fork() : new OptionChartConversionCache();
@@ -199,8 +204,20 @@ public sealed class IncrementalBuildSession : IDisposable
                 ChartMetadata.CreateChartSummary(chart.Meta), ChartMetadata.CreateChartConversionMetadata(chart.Meta),
                 manifest, manifest.Where(item => item.Status != "reused").Select(item => item.Kind).Distinct().Order().ToArray());
             var observed = _validator.CaptureDependencies();
-            if (observed is null || !await SessionMediaValidator.DependenciesMatchAsync(observed, ct) ||
+            if ((observed is not null && !await SessionMediaValidator.DependenciesMatchAsync(observed, ct)) ||
                 configHash != await HashConfigurationAsync(configPath, ct))
+            {
+                DeleteOwnedDirectory(candidate);
+                candidate = "";
+                if (Directory.Exists(mediaWork))
+                {
+                    DeleteOwnedDirectory(mediaWork);
+                }
+                return retryChangedInputs
+                    ? await PrepareCoreAsync(request, ct, retryChangedInputs: false)
+                    : ApplicationDiagnostics.Failure<IncrementalBuildResult>(Msg.Key(MsgKeys.App_Inputs_changed_during_export));
+            }
+            if (observed is null)
             {
                 reuseKey = null;
             }

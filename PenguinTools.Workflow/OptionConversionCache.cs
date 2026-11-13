@@ -15,6 +15,19 @@ public sealed class OptionConversionCache
     public OptionConversionCachePartition Image { get; set; } = CreatePartition(ImageCurrentVersion);
 
     private readonly ConcurrentDictionary<string, string> _verifiedOutputs = new(StringComparer.Ordinal);
+    internal IReadOnlyDictionary<string, string>? VerifiedInputs { get; private set; }
+
+    /// <summary>Supplies request-local input hashes; revalidate these dependencies before publishing the build.</summary>
+    public void SetVerifiedInputs(IReadOnlyDictionary<string, string> inputs)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (path, hash) in inputs)
+        {
+            normalized[Path.GetFullPath(path)] = hash;
+        }
+        VerifiedInputs = normalized;
+    }
+
     /// <summary>Returns the digest verified while writing a private candidate that the caller has not modified.</summary>
     public string? VerifiedOutputHash(string path) => _verifiedOutputs.GetValueOrDefault(Path.GetFullPath(path));
 
@@ -164,7 +177,8 @@ internal static class OptionConversionCacheValidator
     public static async Task<OptionConversionCacheState?> CreateStateAsync(
         IReadOnlyDictionary<string, string?> recipeFields,
         IReadOnlyDictionary<string, string> inputFiles,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyDictionary<string, string>? verifiedInputs = null)
     {
         var inputHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -175,7 +189,8 @@ internal static class OptionConversionCacheValidator
                 return null;
             }
 
-            inputHashes[name] = await HashFileAsync(path, ct);
+            inputHashes[name] = verifiedInputs is not null && verifiedInputs.TryGetValue(Path.GetFullPath(path), out var hash)
+                ? hash : await HashFileAsync(path, ct);
         }
 
         var recipeHash = HashRecipe(recipeFields, RecipeCacheVersion(recipeFields));
