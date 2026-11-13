@@ -44,7 +44,7 @@ internal static class SessionCommands
 
     internal static async Task<int> RunAsync(IncrementalBuildSession session, TextReader input, TextWriter output, CancellationToken ct)
     {
-        await output.WriteLineAsync(JsonSerializer.Serialize(new SessionGreeting(), CliJsonSerializerContext.Default.SessionGreeting));
+        await output.WriteLineAsync(JsonSerializer.Serialize(new SessionGreeting(), CliJsonSerializerContext.Default.SessionGreeting).AsMemory(), ct);
         await output.FlushAsync(ct);
         while (await input.ReadLineAsync(ct) is { } line)
         {
@@ -87,7 +87,7 @@ internal static class SessionCommands
                 diagnostics.Report(ex);
                 response = new(id, false, null, CliDiagnostics.ToPayload(diagnostics.Diagnostics));
             }
-            await output.WriteLineAsync(JsonSerializer.Serialize(response, CliJsonSerializerContext.Default.SessionResponse));
+            await output.WriteLineAsync(JsonSerializer.Serialize(response, CliJsonSerializerContext.Default.SessionResponse).AsMemory(), ct);
             await output.FlushAsync(ct);
             if (close)
             {
