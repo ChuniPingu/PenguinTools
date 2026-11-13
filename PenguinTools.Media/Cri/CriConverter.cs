@@ -16,7 +16,7 @@ public sealed record CriEncodingOptions(long PreviewStartMs, long PreviewStopMs,
 public static class CriConverter
 {
     public const ulong DefaultHcaKey = 32931609366120192UL;
-    public const uint DefaultBitrate = 16384 * 8;
+    public const uint DefaultBitrate = 384_000;
 
     static CriConverter()
     {

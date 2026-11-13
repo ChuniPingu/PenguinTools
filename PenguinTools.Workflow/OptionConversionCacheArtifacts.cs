@@ -173,7 +173,8 @@ internal static class OptionConversionCacheArtifacts
             ["bgmPreviewStop"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStop),
             ["bgmEnableBarOffset"] = meta.BgmEnableBarOffset.ToString(),
             ["bgmBarOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmBarOffset),
-            ["hcaEncryptionKey"] = hcaEncryptionKey.ToString(CultureInfo.InvariantCulture)
+            ["hcaEncryptionKey"] = hcaEncryptionKey.ToString(CultureInfo.InvariantCulture),
+            ["hcaBitrate"] = CriConverter.DefaultBitrate.ToString(CultureInfo.InvariantCulture)
         };
     }
 }
