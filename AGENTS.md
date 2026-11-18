@@ -15,13 +15,4 @@ Use [architecture](docs/architecture.md) for project boundaries, [development](d
 
 ## C# changes
 
-Prefer modern, stable C# supported by the affected project's SDK, target framework,
-and effective `LangVersion`.
-Check [global.json](global.json), [Common.props](Common.props), and the affected project and its imports when choosing syntax.
-Keep modernization within the requested change.
-
-Prefer file-scoped namespaces, target-typed `new`, collection expressions, primary
-constructors, patterns, switch expressions, using declarations, raw strings, and
-supported `field` or extension blocks where they improve clarity. Preserve collection
-and disposal semantics, framework behavior, and binding, source-generator,
-serialization, and public API contracts. Explain meaningful compatibility exceptions.
+Follow the affected project's SDK and [.editorconfig](.editorconfig). Keep modernization within the requested change.
