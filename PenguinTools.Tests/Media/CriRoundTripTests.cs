@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using PenguinTools.Core;
 using PenguinTools.Core.Diagnostic;
@@ -65,6 +66,45 @@ public class CriRoundTripTests
         Assert.Equal(2400u, cue.SampleFrames);
         Assert.True(File.Exists(cue.WavPath));
 
+    }
+
+    [Theory]
+    [InlineData(2400, 24)]
+    [InlineData(144000, 28)]
+    public void Convert_writes_matching_stream_awb_metadata(int sampleFrames, int awbHeaderSize)
+    {
+        using var dir = new TempDirectory();
+        var wavPath = Path.Combine(dir.Path, "input.wav");
+        WriteStereo48kWav(wavPath, sampleFrames);
+        var acbPath = Path.Combine(dir.Path, "out.acb");
+        var awbPath = Path.Combine(dir.Path, "out.awb");
+        CriConverter.Convert(wavPath, acbPath, awbPath, "cue",
+            new CriEncodingOptions(0, 1, CriConverter.DefaultHcaKey), TestContext.Current.CancellationToken);
+
+        var cueSheet = new CriTable();
+        cueSheet.Load(acbPath);
+        var headerTable = new CriTable();
+        headerTable.Load(Assert.IsType<byte[]>(cueSheet.Rows[0]["StreamAwbAfs2Header"]));
+        var hashTable = new CriTable();
+        hashTable.Load(Assert.IsType<byte[]>(cueSheet.Rows[0]["StreamAwbHash"]));
+
+        using var awbStream = File.OpenRead(awbPath);
+        var header = new byte[awbHeaderSize];
+        awbStream.ReadExactly(header);
+        Assert.Equal(header, Assert.IsType<byte[]>(headerTable.Rows[0]["Header"]));
+
+        awbStream.Position = 0;
+        // The ACB stores the MD5 of the whole AWB.
+#pragma warning disable CA5351, S4790
+        Assert.Equal(MD5.HashData(awbStream), Assert.IsType<byte[]>(hashTable.Rows[0]["Hash"]));
+#pragma warning restore CA5351, S4790
+
+        awbStream.Position = 0;
+        var archive = new CriAfs2Archive();
+        archive.Read(awbStream);
+        using var entry = archive[0].Open(awbStream);
+        var metadata = new HcaReader().ReadMetadata(entry);
+        Assert.Equal(512, metadata.Hca.FrameSize);
     }
 
     [Fact]

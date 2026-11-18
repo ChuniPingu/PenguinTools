@@ -166,7 +166,7 @@ internal static class OptionConversionCacheArtifacts
         return new Dictionary<string, string?>
         {
             ["kind"] = "audio",
-            [RecipeVersionKey] = "2",
+            [RecipeVersionKey] = "3",
             ["songId"] = meta.Id?.ToString(CultureInfo.InvariantCulture),
             ["bgmRealOffset"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmRealOffset),
             ["bgmPreviewStart"] = OptionConversionCacheValidator.FormatInvariant(meta.BgmPreviewStart),
