@@ -362,6 +362,20 @@ public class UgcNoteTests
     }
 
     [Theory]
+    [InlineData("#0'480:t64\n#0'0:h64\n#480:s\n", true)]
+    [InlineData("#0'0:h64\n#480:s\n#0'480:t64\n", false)]
+    public async Task Air_PairsWithLastMatchingRootOrChildAfterClick(string ground, bool pairsWithHoldTail)
+    {
+        var chart = await Parse(ground + "#0'480:c\n#0'480:a64ULI\n");
+        var tap = Assert.Single(chart.Notes.Children.OfType<Tap>());
+        var hold = Assert.Single(chart.Notes.Children.OfType<Hold>());
+        var tail = Assert.Single(hold.Children.OfType<HoldJoint>());
+        var air = Assert.Single(chart.Notes.Children.OfType<Air>());
+        PositiveNote expected = pairsWithHoldTail ? tail : tap;
+        Assert.Same(expected, air.PairNote);
+    }
+
+    [Theory]
     [InlineData("UC", "AIR")]
     [InlineData("UL", "AUL")]
     [InlineData("UR", "AUR")]

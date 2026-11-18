@@ -28,6 +28,14 @@ internal sealed class C2sAirScheduler
         var heads = new Dictionary<C.Note, C.Note>();
         C.Note Head(C.Note note)
         {
+            if (!IsContinuation(note))
+            {
+                return note;
+            }
+            if (heads.TryGetValue(note, out var known))
+            {
+                return known;
+            }
             var visited = new HashSet<C.Note>();
             var current = note;
             while (IsContinuation(current) && !heads.ContainsKey(current) && visited.Add(current))
@@ -137,6 +145,14 @@ internal sealed class C2sAirScheduler
 
     private static Dictionary<C.Note, C.Note> ResolveGroundParents(List<C.Note> notes)
     {
+        var ground = notes.Where(note => note is not C.IPairable).ToHashSet();
+        var detachedHeads = notes.Where(note => note is C.IPairable { Parent: { } parent } &&
+            parent is not C.IPairable && !ground.Contains(parent)).ToArray();
+        if (detachedHeads.Length == 0)
+        {
+            return [];
+        }
+
         var roots = new Dictionary<C.Note, C.Note>();
         foreach (var path in C2sSlidePaths.Build(notes.OfType<C.Slide>(), rounded: true))
         {
@@ -158,16 +174,14 @@ internal sealed class C2sAirScheduler
         }
 
         var positions = notes.Select((note, index) => (note, index)).ToDictionary(x => x.note, x => x.index);
-        var candidates = roots.Keys.GroupBy(GroundEnd).ToDictionary(g => g.Key,
-            g => g.OrderBy(n => positions[roots[n]]).ThenBy(n => positions[n]).ToArray());
+        var candidates = EndpointCandidates(roots, positions);
         var used = notes.OfType<C.IPairable>().Select(p => p.Parent)
             .Where(p => p is not null && roots.ContainsKey(p)).Select(p => roots[p!]).ToHashSet();
         var resolved = new Dictionary<C.Note, C.Note>();
-        foreach (var head in notes.Where(n => n is C.IPairable))
+        foreach (var head in detachedHeads)
         {
-            var pair = (C.IPairable)head;
-            if (pair.Parent is not { } parent || parent is C.IPairable || roots.ContainsKey(parent) ||
-                !candidates.TryGetValue(new GroundCell(head.Tick.Round, head.Lane, Math.Clamp(head.Width, 1, 16),
+            var parent = ((C.IPairable)head).Parent!;
+            if (!candidates.TryGetValue(new GroundCell(head.Tick.Round, head.Lane, Math.Clamp(head.Width, 1, 16),
                     parent.GetType()), out var matching))
             {
                 continue;
@@ -184,6 +198,11 @@ internal sealed class C2sAirScheduler
         return resolved;
     }
 
+    private static Dictionary<GroundCell, C.Note[]> EndpointCandidates(
+        Dictionary<C.Note, C.Note> roots, Dictionary<C.Note, int> positions) =>
+        roots.Keys.GroupBy(GroundEnd).ToDictionary(g => g.Key,
+            g => g.OrderBy(n => positions[roots[n]]).ThenBy(n => positions[n]).ToArray());
+
     private static List<C.Note> ScheduleGroundParents(List<C.Note> notes, IEnumerable<C.Slide[]> slidePaths,
         IReadOnlyDictionary<C.Note, C.Note> groundParents)
     {
@@ -191,14 +210,19 @@ internal sealed class C2sAirScheduler
         var slides = C2sSlideScheduler.Schedule(slidePaths, parents);
         // Establish ground-path order; endpoint dependencies interleave AIR later.
         var revised = slides.Cast<C.Note>().Concat(notes.Where(n => n is not C.Slide)).ToList();
-        var positions = revised.Select((note, index) => (note, index)).ToDictionary(x => x.note, x => x.index);
-        foreach (var group in revised.Where(n => n is not C.Slide and not C.AirCrash and not C.IPairable).GroupBy(GroundEnd))
+        foreach (var group in revised.Select((note, index) => (note, index))
+                     .Where(x => x.note is not C.Slide and not C.AirCrash and not C.IPairable)
+                     .GroupBy(x => GroundEnd(x.note)))
         {
-            var records = group.OrderBy(n => parents.GetValueOrDefault(n, int.MaxValue)).ToArray();
-            var slots = group.Select(n => positions[n]).Order().ToArray();
-            for (var i = 0; i < slots.Length; i++)
+            if (!group.Skip(1).Any())
             {
-                revised[slots[i]] = records[i];
+                continue;
+            }
+            var records = group.OrderBy(x => parents.GetValueOrDefault(x.note, int.MaxValue)).ToArray();
+            var i = 0;
+            foreach (var (_, index) in group)
+            {
+                revised[index] = records[i++].note;
             }
         }
         return revised;
@@ -236,9 +260,8 @@ internal sealed class C2sAirScheduler
     {
         var roots = new Dictionary<C.Note, C.Note>();
         var successors = new Dictionary<C.Note, C.Note>();
-        void Register(IEnumerable<C.Note> path)
+        void Register(C.Note[] members)
         {
-            var members = path.ToArray();
             for (var index = 0; index < members.Length; index++)
             {
                 roots[members[index]] = members[0];
@@ -261,10 +284,7 @@ internal sealed class C2sAirScheduler
         int? previous = null;
         foreach (var note in _notes.Where(n => n is not C.IPairable))
         {
-            if (!roots.ContainsKey(note))
-            {
-                Register([note]);
-            }
+            roots.TryAdd(note, note);
 
             var node = AddNode([note], _positions[note]);
             if (previous is { } before)
@@ -275,8 +295,7 @@ internal sealed class C2sAirScheduler
             previous = node;
         }
 
-        var candidates = roots.Keys.GroupBy(GroundEnd).ToDictionary(g => g.Key,
-            g => g.OrderBy(n => _positions[roots[n]]).ThenBy(n => _positions[n]).ToArray());
+        Dictionary<GroundCell, C.Note[]>? candidates = null;
         var owners = new Dictionary<int, int>();
         var used = new HashSet<C.Note>();
         for (var i = 0; i < _pathCount; i++)
@@ -290,7 +309,7 @@ internal sealed class C2sAirScheduler
                 root = actual;
                 attachment = parent;
             }
-            else if (parent is not null && candidates.TryGetValue(
+            else if (parent is not null && (candidates ??= EndpointCandidates(roots, _positions)).TryGetValue(
                          new GroundCell(head.Tick.Round, head.Lane, Math.Clamp(head.Width, 1, 16), parent.GetType()), out var matching))
             {
                 attachment = matching.FirstOrDefault(n => !used.Contains(roots[n]));
@@ -366,13 +385,18 @@ internal sealed class C2sAirScheduler
             }
         }
         var result = new List<int>(_nodes.Count);
+        var fallback = 0;
         while (result.Count < _nodes.Count)
         {
             if (!ready.TryDequeue(out var node, out _))
             {
                 // Degenerate geometry can make path dependencies cyclic.
                 _cyclic = true;
-                node = Array.FindIndex(emitted, value => !value);
+                while (emitted[fallback])
+                {
+                    fallback++;
+                }
+                node = fallback;
             }
             if (emitted[node])
             {

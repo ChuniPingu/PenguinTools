@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using PenguinTools.Media;
@@ -112,8 +113,23 @@ internal sealed class SessionMediaValidator(IMediaValidator inner) : IMediaValid
     {
         try
         {
-            await using var stream = File.OpenRead(path);
-            return Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                bufferSize: 1, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var buffer = ArrayPool<byte>.Shared.Rent(128 * 1024);
+            try
+            {
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                int count;
+                while ((count = await stream.ReadAsync(buffer.AsMemory(), ct)) > 0)
+                {
+                    hash.AppendData(buffer, 0, count);
+                }
+                return Convert.ToHexString(hash.GetHashAndReset());
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {

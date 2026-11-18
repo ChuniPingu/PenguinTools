@@ -124,8 +124,7 @@ public partial class C2SChartWriter
     {
         text = RestoreSourceHeaders(text);
         text = Chart.Extras.RestoreSourceOrder(text, Resolution);
-        var unchanged = Chart.Extras.SourceKey == GetContentKey(Chart);
-        if (unchanged && Chart.Extras.SourceStatistics.Count > 0)
+        if (Chart.Extras.SourceStatistics.Count > 0 && Chart.Extras.SourceKey is { } sourceKey && sourceKey == GetContentKey(Chart))
         {
             text += "\n" + string.Join("\n", Chart.Extras.SourceStatistics) + "\n";
         }
