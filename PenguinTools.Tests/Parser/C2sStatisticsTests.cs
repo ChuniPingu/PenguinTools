@@ -10,6 +10,27 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sStatisticsTests
 {
+    [Theory]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    [InlineData(-1923)]
+    [InlineData(-3)]
+    [InlineData(-2)]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(1918)]
+    public void GameTickRounding_MatchesDecimalGrid(int tick)
+    {
+        const int grid = PenguinTools.Chart.Models.ChartResolution.SingleTick;
+        var rounded = (int)Math.Round((decimal)tick / grid) * grid;
+        var time = new PenguinTools.Chart.Models.Time(tick);
+        Assert.Equal(rounded, time.Round);
+        Assert.Equal((int)(rounded / (decimal)grid), time.Scaled);
+        Assert.Equal(rounded / 1920, time.Position.Measure);
+        Assert.Equal((int)(rounded % 1920 / (decimal)grid), time.Position.Offset);
+    }
+
     public static TheoryData<string, int[]> AcceptedRecords => new()
     {
         { "AIR 0 0 0 4 TAP", [0, 0, 0, 0, 0] },
@@ -73,6 +94,18 @@ public sealed class C2sStatisticsTests
         var records = $"ALD 0 0 0 4 48 5 96 4 4 {endHeight} DEF DEF\n" +
             $"ALD 0 96 4 4 48 {nextHeight} 96 8 4 5 DEF AxisY";
         AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), [0, 0, 0, airCount, 0]);
+    }
+
+    [Fact]
+    public void AirCrashContinuation_UsesFirstRootEvenIfAnotherTailArrivesFirst()
+    {
+        const string records = """
+            ALD 0 0 0 4 96 1 96 4 4 1 DEF CEN
+            ALD 0 48 12 4 96 1 144 8 4 1 DEF CEN
+            ALD 0 96 4 4 96 1 96 8 4 1 DEF CEN
+            ALD 0 192 8 4 96 1 48 0 4 1 DEF CEN
+            """;
+        AssertCounts(ChartStatistics.Calculate(Header + records.Replace(' ', '\t')), [0, 0, 0, 5, 0]);
     }
 
     [Theory]

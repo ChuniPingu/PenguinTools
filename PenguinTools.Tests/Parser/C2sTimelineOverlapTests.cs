@@ -3,6 +3,7 @@ using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Diagnostics;
 using PenguinTools.Chart.Models;
+using PenguinTools.Chart.Parser;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Parser.ugc;
@@ -169,6 +170,37 @@ public sealed class C2sTimelineOverlapTests
             "@USETIL\t1\n#0'480:t12\n#0'960:t84\n@USETIL\t2\n#0'480:t12\n");
         var rows = await Serialize(Convert(source));
         Assert.Equal(2m, Speed(rows, Selected(rows, 96, 1, 2), 48));
+    }
+
+    [Fact]
+    public async Task CompactedRegionsSplitAtNotesOnLowerTimeline()
+    {
+        var source = await ReadUgc(
+            "@TIL\t1\t0'0\t2\n@USETIL\t1\n#0'20:t12\n#0'40:t12\n" +
+            "@USETIL\t0\n#0'45:t12\n@USETIL\t1\n#0'60:t12\n#0'80:t12\n");
+
+        var rows = await Serialize(Convert(source));
+        Assert.Equal([(4, 5), (12, 5)], rows.Where(r => r[0] == "SLA").Select(r => (Tick(r), Int(r[5]))));
+        Assert.Equal(0, Selected(rows, 9, 1, 2));
+    }
+
+    [Fact]
+    public void GreedyCoverRetainsTieOrderAndRemovesRedundantCenterRegion()
+    {
+        var targets = Enumerable.Range(0, 34).SelectMany(index => new[]
+        {
+            new U.Tap { Tick = index * 10, Lane = 0, Width = 1, Timeline = 1 },
+            new U.Tap { Tick = index * 10, Lane = 1, Width = 1, Timeline = 1 }
+        }).ToArray();
+        U.Note[] notes = [.. targets, new U.Tap { Tick = 45, Width = 2 }, new U.Tap { Tick = 285, Width = 2 }];
+        var legacy = targets.Select(note => new SlaPlacement(note.Tick.Original, note.Timeline,
+            note.Lane, note.Width, ChartResolution.SingleTick)).ToArray();
+
+        var cover = SlaPlacementOptimizer.Optimize(notes, legacy);
+
+        // The center wins initially. The two full-length lane regions win the
+        // later ties against the end regions, making the center redundant.
+        Assert.Equal([new SlaPlacement(0, 1, 0, 1, 335), new SlaPlacement(0, 1, 1, 1, 335)], cover);
     }
 
     [Theory]

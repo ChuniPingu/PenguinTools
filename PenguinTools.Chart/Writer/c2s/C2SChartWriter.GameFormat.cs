@@ -9,7 +9,8 @@ public partial class C2SChartWriter
     private static string FormatForGame(string text)
     {
         var lines = text.Replace("\r", "").Split('\n');
-        var sourceResolution = lines.Select(C2SRoundTrip.Parts)
+        var parts = lines.Select(C2SRoundTrip.Parts).ToArray();
+        var sourceResolution = parts
             .Where(p => p.Length > 1 && p[0] == "RESOLUTION")
             .Select(p => decimal.Parse(p[1], CultureInfo.InvariantCulture)).Single();
         if (sourceResolution <= 0)
@@ -20,26 +21,24 @@ public partial class C2SChartWriter
         var timingChanged = false;
         for (var i = 0; i < lines.Length; i++)
         {
-            lines[i] = FormatGameLine(lines[i], sourceResolution, ref timingChanged);
+            lines[i] = FormatGameLine(lines[i], parts[i], sourceResolution, ref timingChanged);
         }
 
         // Judge counts describe the final accepted statements, after ordering,
         // snapshot restoration and quantization. Saved totals cannot prove that
         // the emitted note relationships remain valid.
         var prefix = timingChanged ? "T_" : "T_JUDGE_";
-        lines = lines.Where(line => !(C2SRoundTrip.Parts(line).FirstOrDefault() ?? "")
-            .StartsWith(prefix, StringComparison.Ordinal)).ToArray();
-        var result = string.Join('\n', lines);
-        return result + ChartStatistics.Calculate(result);
+        bool Retain(int index) => !(parts[index].FirstOrDefault() ?? "").StartsWith(prefix, StringComparison.Ordinal);
+        var result = string.Join('\n', lines.Where((_, index) => Retain(index)));
+        return result + ChartStatistics.Calculate(parts.Where((_, index) => Retain(index)));
     }
     private static decimal Number(string value) => decimal.Parse(value, CultureInfo.InvariantCulture);
     // Match the original Time.Round implementation's Math.Round semantics.
     private static long Round(decimal value) => checked((long)Math.Round(value));
     private static string Integer(long value) => value.ToString(CultureInfo.InvariantCulture);
 
-    private static string FormatGameLine(string line, decimal sourceResolution, ref bool timingChanged)
+    private static string FormatGameLine(string line, string[] p, decimal sourceResolution, ref bool timingChanged)
     {
-        var p = C2SRoundTrip.Parts(line);
         if (p.Length < 2)
         {
             return line;
@@ -47,11 +46,13 @@ public partial class C2SChartWriter
 
         if (p[0] == "RESOLUTION")
         {
-            return $"RESOLUTION\t{GameResolution}";
+            p[1] = Integer(GameResolution);
+            return $"RESOLUTION\t{p[1]}";
         }
         if (p[0] == "CLK_DEF")
         {
-            return "CLK_DEF\t" + Integer(Round(Number(p[1]) * GameResolution / sourceResolution));
+            p[1] = Integer(Round(Number(p[1]) * GameResolution / sourceResolution));
+            return "CLK_DEF\t" + p[1];
         }
         if (!C2SRoundTrip.IsRecord(p[0]))
         {

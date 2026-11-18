@@ -224,10 +224,13 @@ internal static class EditorProjection
         {
             return;
         }
-        // Resolve keys first: restoring a ground note also changes its paired AIR coordinates.
-        var matches = AllNotes(chart).Select(n => (Note: n, Key: Key(n))).ToArray();
-        RestoreNotes(extras.EditorNoteProjections, matches, eligible);
-        RestorePaths(extras.EditorPathProjections, matches, eligible);
+        if (eligible is not { Count: 0 } && (extras.EditorNoteProjections.Count > 0 || extras.EditorPathProjections.Count > 0))
+        {
+            // Resolve keys first: restoring a ground note also changes its paired AIR coordinates.
+            var matches = AllNotes(chart).Select(n => (Note: n, Key: Key(n))).ToArray();
+            RestoreNotes(extras.EditorNoteProjections, matches, eligible);
+            RestorePaths(extras.EditorPathProjections, matches, eligible);
+        }
         if (extras.BinarySnapshotValid || restoreEvents)
         {
             RestoreEvents(chart);

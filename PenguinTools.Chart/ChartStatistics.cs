@@ -4,7 +4,10 @@ namespace PenguinTools.Chart;
 
 public static partial class ChartStatistics
 {
-    public static string Calculate(string text) => new Calculator(text).BuildSummary();
+    public static string Calculate(string text) => Calculate(
+        text.Replace("\r", "").Split('\n').Select(C2SRoundTrip.Parts));
+
+    internal static string Calculate(IEnumerable<string[]> parts) => new Calculator(parts).BuildSummary();
 
     private sealed partial class Calculator
     {
@@ -17,10 +20,9 @@ public static partial class ChartStatistics
         private readonly long[] _counts = new long[5];
         private readonly List<Note> _notes = [];
 
-        public Calculator(string text)
+        public Calculator(IEnumerable<string[]> parts)
         {
-            _rows = text.Replace("\r", "").Split('\n')
-                .Select(C2SRoundTrip.Parts)
+            _rows = parts
                 .Where(p => p.Length > 0 && !p[0].StartsWith("//", StringComparison.Ordinal)).ToArray();
             _resolution = Header("RESOLUTION", 384);
             _bpms = _rows.Where(p => p[0] == "BPM")

@@ -12,6 +12,7 @@ public partial class C2SChartConverter
     private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairTargets = [];
     private readonly Dictionary<UmgrModel.PositiveNote, C2sModel.Note> _positivePairRealTargets = [];
     private readonly List<C2sModel.Slide[]> _slidePaths = [];
+    private ILookup<(int Tick, int Lane, int Width), UmgrModel.ExTapableNote>? _longHeadCells;
 
     private T CreateNote<TSource, T>(TSource source, Action<T>? action = null)
         where TSource : UmgrModel.Note where T : C2sModel.Note, new()
@@ -133,14 +134,15 @@ public partial class C2SChartConverter
 
     private bool ShouldConsumeExLongCarrier(UmgrModel.ExTap exTap)
     {
-        if (!exTap.IsBareLongCarrier ||
-            !Mgxc.Notes.Children.OfType<UmgrModel.ExTapableNote>().Any(exTap.MatchesLongHead))
+        if (!exTap.IsBareLongCarrier)
         {
             return false;
         }
 
-        return _consumedExLongCarrierCells.Add(
-            (exTap.Tick.Original, exTap.Lane, exTap.Width));
+        _longHeadCells ??= Mgxc.Notes.Children.OfType<UmgrModel.ExTapableNote>()
+            .ToLookup(note => (note.Tick.Original, note.Lane, note.Width));
+        var cell = (exTap.Tick.Original, exTap.Lane, exTap.Width);
+        return _longHeadCells[cell].Any(exTap.MatchesLongHead) && _consumedExLongCarrierCells.Add(cell);
     }
 
     private void ConvertNote(UmgrModel.Note e)

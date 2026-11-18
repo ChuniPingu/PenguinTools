@@ -204,7 +204,7 @@ public partial class UgcParser
     {
         // Restore extension defaults first; native fields take precedence
         // even when an editor moves COPYRIGHT to the end of the header.
-        foreach (var line in lines.OrderBy(line =>
+        foreach (var line in lines.Where(line => line.Text.StartsWith('@')).OrderBy(line =>
                      line.Text.Split('\t')[0].ToUpperInvariant() switch
                      {
                          "@COPYRIGHT" => 0,
@@ -214,10 +214,7 @@ public partial class UgcParser
         {
             ct.ThrowIfCancellationRequested();
             SetCurrentLine(line);
-            if (line.Text.StartsWith('@'))
-            {
-                DispatchHeaderLine(line.Text);
-            }
+            DispatchHeaderLine(line.Text);
         }
 
         ClearCurrentLine();
@@ -228,11 +225,17 @@ public partial class UgcParser
         }
         Diagnostic.TimeCalculator = Ugc.GetCalculator();
 
+        _positiveNotes.Clear();
+        foreach (var parent in Ugc.Notes.Children)
+        {
+            RememberPositiveNote(parent);
+            foreach (var child in parent.Children)
+            {
+                RememberPositiveNote(child);
+            }
+        }
         _currentTimeline = 0;
-        // Restore extension defaults first; native fields take precedence
-        // even when an editor moves COPYRIGHT to the end of the header.
-        foreach (var line in lines.OrderBy(line =>
-                     line.Text.Split('\t')[0].Equals("@COPYRIGHT", StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+        foreach (var line in lines)
         {
             ct.ThrowIfCancellationRequested();
             SetCurrentLine(line);
@@ -253,6 +256,10 @@ public partial class UgcParser
     {
         var previous = _lastNote;
         DispatchBodyLine(text);
+        if (Ugc.Extras.UgcSnapshotVersion != 2)
+        {
+            return;
+        }
         _snapshots.HeightDigits = HeightDigits;
         if (!text.Contains('\''))
         {
@@ -369,6 +376,10 @@ public partial class UgcParser
             next.Tick = accum;
         }
 
+        // Accumulation includes every declared meter, while lookups use the
+        // first declaration at a given bar, including when a default was added.
+        _beatAxis = Ugc.Events.Children.OfType<UmgrModel.BeatEvent>()
+            .GroupBy(beat => beat.Bar).Select(group => group.First()).OrderBy(beat => beat.Bar).ToArray();
         foreach (var (bar, tick, bpm) in _pendingBpms)
         {
             Ugc.Events.AppendChild(new UmgrModel.BpmEvent { Tick = BarTickToAbsTick(bar, tick), Bpm = bpm });

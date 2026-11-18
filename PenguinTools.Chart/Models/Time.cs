@@ -4,11 +4,26 @@ public readonly record struct Position(int Measure, int Offset);
 
 public readonly record struct Time(int Original) : IComparable<Time>
 {
-    public int Round => (int)Math.Round((decimal)Original / ChartResolution.SingleTick) * ChartResolution.SingleTick;
-    public int Scaled => (int)(Round * ChartResolution.TickFactor);
+    public int Round
+    {
+        get
+        {
+            // An odd grid step has no integer midpoint.
+            const int half = ChartResolution.SingleTick / 2;
+            var biased = (long)Original + (Original < 0 ? -half : half);
+            return (int)(biased / ChartResolution.SingleTick) * ChartResolution.SingleTick;
+        }
+    }
+    public int Scaled => Round / ChartResolution.SingleTick;
 
-    public Position Position => new(Round / ChartResolution.UmiguriTick,
-        (int)(Round % ChartResolution.UmiguriTick * ChartResolution.TickFactor));
+    public Position Position
+    {
+        get
+        {
+            var rounded = Round;
+            return new(rounded / ChartResolution.UmiguriTick, rounded % ChartResolution.UmiguriTick / ChartResolution.SingleTick);
+        }
+    }
 
     public int CompareTo(Time other)
     {

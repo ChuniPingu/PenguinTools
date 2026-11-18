@@ -62,6 +62,20 @@ public class UgcEventTests
     }
 
     [Fact]
+    public async Task Beat_LookupUsesFirstDuplicateWithoutChangingLaterBarTicks()
+    {
+        const string ugc =
+            "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120\n@BPM\t3'7\t135\n" +
+            "@BEAT\t0\t4\t4\n@BEAT\t2\t3\t4\n@BEAT\t2\t7\t8\n@BEAT\t4\t5\t4\n" +
+            "#4'7:t64\n#-1'0:t64\n#3'7:t64\n";
+
+        var chart = await Parse(ugc);
+        var taps = chart.Notes.Children.OfType<Tap>().Select(tap => tap.Tick.Original);
+        Assert.Equal([7207, -1920, 5287], taps);
+        Assert.Equal(5287, Assert.Single(chart.Events.Children.OfType<BpmEvent>(), bpm => bpm.Bpm == 135m).Tick.Original);
+    }
+
+    [Fact]
     public async Task SpdMod_CreatesNoteSpeedEvent()
     {
         const string ugc =
