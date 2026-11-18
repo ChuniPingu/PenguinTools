@@ -16,7 +16,7 @@ public sealed record CriEncodingOptions(long PreviewStartMs, long PreviewStopMs,
 public static class CriConverter
 {
     public const ulong DefaultHcaKey = 32931609366120192UL;
-    public const uint DefaultBitrate = 384_000;
+    public const uint DefaultBitrate = 192_000;
 
     static CriConverter()
     {
@@ -113,14 +113,23 @@ public static class CriConverter
 
             var streamAwbHashTbl = new CriTable();
             streamAwbHashTbl.Load(cueSheetTable.Rows[0]["StreamAwbHash"] as byte[]);
-            // CRI's StreamAwbHash field requires SHA-1 for format compatibility, not authentication.
-#pragma warning disable CA5350, S4790
-            var sha = SHA1.HashData(awbStream);
-#pragma warning restore CA5350, S4790
+            // StreamAwbHash stores the AWB's MD5 for format compatibility.
+#pragma warning disable CA5351, S4790
+            var hash = MD5.HashData(awbStream);
+#pragma warning restore CA5351, S4790
             streamAwbHashTbl.Rows[0]["Name"] = name;
-            streamAwbHashTbl.Rows[0]["Hash"] = sha;
+            streamAwbHashTbl.Rows[0]["Hash"] = hash;
             cueSheetTable.Rows[0]["StreamAwbHash"] = streamAwbHashTbl.Save();
         }
+
+        var awbHeader = awbArchive.Header ?? throw new InvalidOperationException("Generated AWB header is missing");
+        // CRI stores the AFS2 header padded to a four-byte boundary in the ACB.
+        Array.Resize(ref awbHeader, (awbHeader.Length + 3) & ~3);
+        var streamAwbHeaderTable = new CriTable();
+        streamAwbHeaderTable.Load(cueSheetTable.Rows[0]["StreamAwbAfs2Header"] as byte[]);
+        streamAwbHeaderTable.Rows[0]["Header"] = awbHeader;
+        streamAwbHeaderTable.WriterSettings = CriTableWriterSettings.Adx2Settings;
+        cueSheetTable.Rows[0]["StreamAwbAfs2Header"] = streamAwbHeaderTable.Save();
 
         var waveformTable = new CriTable();
         waveformTable.Load(cueSheetTable.Rows[0]["WaveformTable"] as byte[]);
