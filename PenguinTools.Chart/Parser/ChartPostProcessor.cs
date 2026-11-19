@@ -17,11 +17,11 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
     private readonly Dictionary<int, List<UmgrModel.Note>> _noteGroups = [];
     private readonly Dictionary<int, List<UmgrModel.ScrollSpeedEvent>> _tilGroups = [];
 
-    public void Run()
+    public void Run(bool forC2sExport = false)
     {
         ProcessEvent();
         ProcessNote();
-        ProcessTil();
+        ProcessTil(forC2sExport);
         ProcessCommand();
         ProcessRoundTripBookmarks();
     }
@@ -156,7 +156,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
     }
 
     // thanks to @tangent 90
-    private void ProcessTil()
+    private void ProcessTil(bool forC2sExport)
     {
         GroupEventByTimeline(chart.Events);
         GroupNoteByTimeline(chart.Notes);
@@ -171,7 +171,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         }
         MoveMainTimeline(chart.Meta.MainTil);
         ClearEmptyNoteGroups();
-        PlaceSoflanArea();
+        PlaceSoflanArea(forC2sExport);
         FinalizeEvent();
 
         _tilGroups.Clear();
@@ -210,7 +210,7 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
         ? (int)Math.Round((decimal)ChartResolution.UmiguriTick * chart.Meta.BgmInitialNumerator / chart.Meta.BgmInitialDenominator)
         : 0;
 
-    private void PlaceSoflanArea()
+    private void PlaceSoflanArea(bool forC2sExport)
     {
         foreach (var tils in _tilGroups.Values.ToArray())
         {
@@ -255,21 +255,38 @@ internal sealed partial class ChartPostProcessor(UmgrModel.Chart chart, IDiagnos
             }
         }
 
+        if (forC2sExport && legacyAreas.Count > 0 && chart.Extras.EditorPathProjections.Count == 0 &&
+            legacyAreas.All(area => area.Timeline > 0 && area.Width is > 0 and <= 16))
+        {
+            // C2S derives regions from playable notes and uses the editor regions only
+            // for the chart end. A cover must include the last target and every region
+            // ends one tick after its last target, just like the one-note regions.
+            var last = legacyAreas.MaxBy(area => area.Tick);
+            if (!chart.Notes.Children.Any(note => note is UmgrModel.PositiveNote && note.Tick.Original >= last.EndTick))
+            {
+                AppendSoflanArea(last);
+            }
+            return;
+        }
+
         var allNotes = _noteGroups.Values.SelectMany(x => x).ToArray();
         foreach (var area in SlaPlacementOptimizer.Optimize(allNotes, legacyAreas, tickOffset))
         {
-            var head = new UmgrModel.SoflanArea
-            {
-                Tick = area.Tick,
-                Timeline = area.Timeline,
-                Lane = area.Lane,
-                Width = area.Width
-            };
-            var tail = new UmgrModel.SoflanAreaJoint { Tick = area.EndTick };
-
-            head.AppendChild(tail);
-            chart.Notes.AppendChild(head);
+            AppendSoflanArea(area);
         }
+    }
+
+    private void AppendSoflanArea(SlaPlacement area)
+    {
+        var head = new UmgrModel.SoflanArea
+        {
+            Tick = area.Tick,
+            Timeline = area.Timeline,
+            Lane = area.Lane,
+            Width = area.Width
+        };
+        head.AppendChild(new UmgrModel.SoflanAreaJoint { Tick = area.EndTick });
+        chart.Notes.AppendChild(head);
     }
 
     private void GroupEventByTimeline(UmgrModel.Event events)

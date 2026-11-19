@@ -29,6 +29,10 @@ internal sealed class C2sSlideScheduler
                     starts[key] = pathsAtStart = [];
                 }
                 pathsAtStart.Add(i);
+                if (airParentOrder is null)
+                {
+                    continue;
+                }
                 var cell = new AirPosition(slide.EndTick.Round, slide.EndLane, Math.Clamp(slide.EndWidth, 1, 16));
                 if (!airCells.TryGetValue(cell, out var airPaths))
                 {
@@ -63,6 +67,10 @@ internal sealed class C2sSlideScheduler
             {
                 // AIR declarations ignore line type and use ground-root creation
                 // order, including declarations before later SLIDE continuations.
+                if (group.Count == 1)
+                {
+                    continue;
+                }
                 var attached = group.Where(p => airParentOrder.ContainsKey(p.Parent))
                     .OrderBy(p => airParentOrder[p.Parent]).Select(p => p.Path).Distinct().ToArray();
                 for (var i = 1; i < attached.Length; i++)

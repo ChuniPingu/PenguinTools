@@ -89,6 +89,7 @@ public partial class C2SChartConverter
         private readonly SoflanPoint[] _points;
         private readonly Dictionary<int, C.SpeedEventBase[]> _speeds;
         private readonly Dictionary<int, (int Tick, decimal Delta)[]> _profiles;
+        private readonly Dictionary<(int, int), int> _firstDifferentTick = [];
         private readonly Dictionary<int, int> _outputs;
         private readonly Dictionary<int, int> _sources;
         private readonly Dictionary<int, int> _aliases = [];
@@ -172,9 +173,27 @@ public partial class C2SChartConverter
             return id;
         }
 
-        private bool Equivalent(int left, int right, int endTick = int.MaxValue) =>
-            left == right || (_profiles.GetValueOrDefault(left) ?? []).Where(p => p.Tick < endTick)
-                .SequenceEqual((_profiles.GetValueOrDefault(right) ?? []).Where(p => p.Tick < endTick));
+        private bool Equivalent(int left, int right, int endTick = int.MaxValue)
+        {
+            if (left == right)
+            {
+                return true;
+            }
+            var pair = left < right ? (left, right) : (right, left);
+            if (!_firstDifferentTick.TryGetValue(pair, out var difference))
+            {
+                var a = _profiles.GetValueOrDefault(left) ?? [];
+                var b = _profiles.GetValueOrDefault(right) ?? [];
+                var i = 0;
+                while (i < a.Length && i < b.Length && a[i] == b[i])
+                {
+                    i++;
+                }
+                difference = Math.Min(i < a.Length ? a[i].Tick : int.MaxValue, i < b.Length ? b[i].Tick : int.MaxValue);
+                _firstDifferentTick.Add(pair, difference);
+            }
+            return endTick <= difference;
+        }
 
         // Compare the whole serialized scroll function, including additive SLP/SFL/STP,
         // implicit speed 1 and zero-length intervals. Equal instantaneous speeds are insufficient.
