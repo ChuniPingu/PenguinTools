@@ -76,6 +76,7 @@ public partial class UgcParser
         MediaValidator = mediaValidator;
         Path = request.Path;
         Content = request.Content;
+        ForC2sExport = request.ForC2sExport;
         Assets = request.Assets;
         Ugc.Meta.ExVersion = 0;
         Ugc.Meta.ExLongEnabled = false;
@@ -85,6 +86,7 @@ public partial class UgcParser
     private DiagnosticCollector Diagnostic { get; } = new();
     private string Path { get; }
     private string? Content { get; }
+    private bool ForC2sExport { get; }
     private AssetManager Assets { get; }
     private List<Task> Tasks { get; } = [];
     private UmgrModel.Chart Ugc { get; } = new();
@@ -136,7 +138,7 @@ public partial class UgcParser
             var (matches, contextValid, slaValid) = _snapshots.Validate(Ugc.Extras, lines.Select(l => l.Text).ToArray(), Ugc.Meta.C2sSlaSnapshot);
             RestoreExTapSnapshots(matches);
             var post = new ChartPostProcessor(Ugc, Diagnostic, Assets);
-            post.Run();
+            post.Run(ForC2sExport);
             var eligible = Ugc.Extras.BinarySnapshotValid ? null : matches.Keys.SelectMany(n => new[] { n }.Concat(n.Children)).ToHashSet();
             if (Ugc.Extras.BinarySnapshotValid || matches.Count > 0)
             {
@@ -147,8 +149,14 @@ public partial class UgcParser
 
             Ugc.Extras.SpeedModelKey = ChartExtras.SpeedKey(Ugc);
             Ugc.Extras.ParsedEventModelKey = C2SRoundTrip.OrderedViewHash(ChartExtras.EventView(Ugc).Split('\n'));
-            Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
-            Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
+            if (!ForC2sExport || Ugc.Meta.C2sAirSnapshot is not null)
+            {
+                Ugc.Extras.AirModelKey = C2sRoundTripKeys.FormatAirEditKey(Ugc);
+            }
+            if (!ForC2sExport || Ugc.Meta.C2sSlaSnapshot is not null || Ugc.Extras.UgcSlaKey is not null)
+            {
+                Ugc.Extras.SlaModelKey = C2sRoundTripKeys.FormatSlaEditKey(Ugc);
+            }
             ValidateSlaSnapshot(slaValid);
             ProcessMeta();
 

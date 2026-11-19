@@ -53,6 +53,11 @@ internal sealed class C2sAirScheduler
         var children = notes.Where(IsContinuation).ToLookup(n => ((C.IPairable)n).Parent!);
         foreach (var group in notes.Where(n => n is C.IPairable).GroupBy(Head))
         {
+            if (group.Count() == 1 && _positions.TryGetValue(group.Key, out var position) && !children.Contains(group.Key))
+            {
+                AddNode([group.Key], position);
+                continue;
+            }
             var ordered = new List<C.Note>();
             var pending = new Queue<C.Note>();
             var visited = new HashSet<C.Note>();
@@ -174,7 +179,9 @@ internal sealed class C2sAirScheduler
         }
 
         var positions = notes.Select((note, index) => (note, index)).ToDictionary(x => x.note, x => x.index);
-        var candidates = EndpointCandidates(roots, positions);
+        var needed = detachedHeads.Select(head => new GroundCell(head.Tick.Round, head.Lane, Math.Clamp(head.Width, 1, 16),
+            ((C.IPairable)head).Parent!.GetType())).ToHashSet();
+        var candidates = EndpointCandidates(roots, positions, needed);
         var used = notes.OfType<C.IPairable>().Select(p => p.Parent)
             .Where(p => p is not null && roots.ContainsKey(p)).Select(p => roots[p!]).ToHashSet();
         var resolved = new Dictionary<C.Note, C.Note>();
@@ -199,9 +206,11 @@ internal sealed class C2sAirScheduler
     }
 
     private static Dictionary<GroundCell, C.Note[]> EndpointCandidates(
-        Dictionary<C.Note, C.Note> roots, Dictionary<C.Note, int> positions) =>
-        roots.Keys.GroupBy(GroundEnd).ToDictionary(g => g.Key,
-            g => g.OrderBy(n => positions[roots[n]]).ThenBy(n => positions[n]).ToArray());
+        Dictionary<C.Note, C.Note> roots, Dictionary<C.Note, int> positions, HashSet<GroundCell>? needed = null) =>
+        roots.Keys.Select(note => (Note: note, Cell: GroundEnd(note)))
+            .Where(item => needed is null || needed.Contains(item.Cell))
+            .GroupBy(item => item.Cell, item => item.Note)
+            .ToDictionary(g => g.Key, g => g.OrderBy(n => positions[roots[n]]).ThenBy(n => positions[n]).ToArray());
 
     private static List<C.Note> ScheduleGroundParents(List<C.Note> notes, IEnumerable<C.Slide[]> slidePaths,
         IReadOnlyDictionary<C.Note, C.Note> groundParents)

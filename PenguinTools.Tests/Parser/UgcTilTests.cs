@@ -20,14 +20,14 @@ public class UgcTilTests
         "@VER\t8\n@TICKS\t480\n@BPM\t0'0\t120.0\n@BEAT\t0\t4\t4\n";
 
     private static async Task<OperationResult<Chart.Models.umgr.Chart>> ParseResult(
-        string body, string header = Header)
+        string body, string header = Header, bool forC2sExport = false)
     {
         var ct = TestContext.Current.CancellationToken;
         var tmp = TestTempPaths.Create(".ugc");
         await File.WriteAllTextAsync(tmp, header + body, ct);
         try
         {
-            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()), TestMediaTool.Instance)
+            return await new UgcParser(new UgcParseRequest(tmp, TestAssets.Load()) { ForC2sExport = forC2sExport }, TestMediaTool.Instance)
                 .ParseAsync(ct);
         }
         finally
@@ -47,9 +47,9 @@ public class UgcTilTests
         chart.Notes.Children.OfType<SoflanArea>().ToArray();
 
     private static async Task<string[]> WriteC2s(string body, string header = Header,
-        bool throughMgxc = false)
+        bool throughMgxc = false, bool forC2sExport = false)
     {
-        var parsed = await ParseResult(body, header);
+        var parsed = await ParseResult(body, header, forC2sExport);
         Assert.True(parsed.Succeeded, parsed.ToString());
         if (throughMgxc)
         {
@@ -95,6 +95,33 @@ public class UgcTilTests
                            note.Tick < area[0] * 384 + area[1] + area[4] &&
                            note.Lane >= area[2] && note.Lane + note.Width <= area[2] + area[3])
             .Select(area => area[5]).Append(0).Max()).ToArray();
+    }
+
+    [Theory]
+    [InlineData(83, true)]
+    [InlineData(98, true)]
+    [InlineData(111, false)]
+    public async Task C2sExportPreservesSpeedDurationAndSerializedRegions(int regionTick, bool redundant)
+    {
+        var body = "@FLAG\tSOFFSET\tFALSE\n@TIL\t0\t0'0\t1\n@TIL\t1\t0'0\t2\n" +
+            $"@USETIL\t1\n#0'0:t04\n#0'{regionTick}:t04\n" +
+            "@USETIL\t0\n#0'40:t04\n#0'110:t84\n";
+
+        var editor = await ParseResult(body);
+        var export = await ParseResult(body, forC2sExport: true);
+        Assert.True(editor.Succeeded, editor.ToString());
+        Assert.True(export.Succeeded, export.ToString());
+        Assert.Equal(2, GetSoflanAreas(editor.Value!).Length);
+        if (redundant)
+        {
+            Assert.Empty(GetSoflanAreas(export.Value!));
+        }
+        else
+        {
+            Assert.Single(GetSoflanAreas(export.Value!));
+        }
+        Assert.Equal(editor.Value!.GetLastTick(), export.Value!.GetLastTick());
+        Assert.Equal(await WriteC2s(body), await WriteC2s(body, forC2sExport: true));
     }
 
     [Fact]

@@ -153,7 +153,10 @@ public sealed class IncrementalBuildSession : IDisposable
             return OperationResult<IncrementalBuildResult>.Success(duplicate).WithDiagnostics(previous.Diagnostics);
         }
         var parsed = request.Content is not null
-            ? await new UgcParser(new UgcParseRequest(Path.Combine(baseDirectory, "document.ugc"), _dependencies.Assets, request.Content), _validator).ParseAsync(ct)
+            ? await new UgcParser(new UgcParseRequest(Path.Combine(baseDirectory, "document.ugc"), _dependencies.Assets, request.Content)
+            {
+                ForC2sExport = true
+            }, _validator).ParseAsync(ct)
             : await new ChartOperations(_dependencies.Assets, _validator).ParseChartAsync(ResolveInput(request, baseDirectory), ct);
         if (!parsed.Succeeded)
         {
