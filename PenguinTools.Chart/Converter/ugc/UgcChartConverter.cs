@@ -54,7 +54,7 @@ public sealed class UgcChartConverter
             var first = group.First();
             diagnostics.Report(new LocationDiagnostic(Severity.Error,
                 Msg.Create(MsgKeys.C2s_Unsupported_note_type, ("noteType", first.Id)), first.Line, _source.Meta.FilePath)
-                { Target = first });
+            { Target = first });
         }
         if (unsupported.Length > 0)
         {
