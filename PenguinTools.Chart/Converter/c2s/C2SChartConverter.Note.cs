@@ -245,18 +245,8 @@ public partial class C2SChartConverter
             var curr = joints[i];
             var next = joints[i + 1];
             RegisterSoflanPoint(next);
-            var prevSeg = previousSegment;
-            var segment = CreateNote<UmgrModel.AirSlideJoint, C2sModel.AirSlide>(curr, x =>
-            {
-                x.Parent = prevSeg;
-                x.Color = airSlide.Color;
-                x.Height = curr.Height;
-                x.Joint = next.Joint;
-                x.EndTick = next.Tick;
-                x.EndLane = next.Lane;
-                x.EndWidth = next.Width;
-                x.EndHeight = next.Height;
-            });
+            var segment = CreateAirSlideSegment(curr, next, previousSegment, airSlide.Color,
+                curr.Height, next.Height, next.Joint);
             firstSegment ??= segment;
             previousSegment = segment;
         }
@@ -267,6 +257,20 @@ public partial class C2SChartConverter
         }
     }
 
+    private C2sModel.AirSlide CreateAirSlideSegment(UmgrModel.Note start, UmgrModel.Note end,
+        C2sModel.Note? parent, Color color, decimal startHeight, decimal endHeight, Joint joint) =>
+        CreateNote<UmgrModel.Note, C2sModel.AirSlide>(start, note =>
+        {
+            note.Parent = parent;
+            note.Color = color;
+            note.Height = startHeight;
+            note.EndHeight = endHeight;
+            note.Joint = joint;
+            note.EndTick = end.Tick;
+            note.EndLane = end.Lane;
+            note.EndWidth = end.Width;
+        });
+
     private void ProcessAirHold(UmgrModel.AirHold airHold)
     {
         if (airHold.PairNote?.PairNote != airHold)
@@ -276,13 +280,23 @@ public partial class C2SChartConverter
         }
 
         var joints = airHold.Children.OfType<UmgrModel.AirHoldJoint>().Prepend(airHold.AsChild()).ToArray();
-        C2sModel.AirHold? firstSegment = null;
+        var customHeight = joints.Any(point => point.Height != UmgrModel.AirHold.DefaultHeight);
+
+        C2sModel.IPairable? firstSegment = null;
         C2sModel.Note? previousSegment = null;
         for (var i = 0; i < joints.Length - 1; i++)
         {
             var curr = joints[i];
             var next = joints[i + 1];
             RegisterSoflanPoint(next);
+            if (customHeight)
+            {
+                var slide = CreateAirSlideSegment(curr, next, previousSegment, airHold.Color,
+                    curr.Height, next.Height, next.Joint);
+                firstSegment ??= slide;
+                previousSegment = slide;
+                continue;
+            }
             var prevSeg = previousSegment;
             var segment = CreateNote<UmgrModel.AirHoldJoint, C2sModel.AirHold>(curr, x =>
             {

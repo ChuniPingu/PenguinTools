@@ -283,13 +283,14 @@ public partial class MgxcParser
         if (longAttr == LongAttr.Begin)
         {
             // Invert is set on the AIR arrow and applies to the whole long note.
-            return (type == NoteType.AirHold ? CreateAirHold() : CreateAirSlide(height), false, true);
+            return (type == NoteType.AirHold ? CreateAirHold(height) : CreateAirSlide(height), false, true);
         }
         if (type == NoteType.AirHold)
         {
             return (new UmgrModel.AirHoldJoint
             {
-                Joint = ParseJoint(longAttr, nameof(UmgrModel.AirHoldJoint), tick)
+                Joint = ParseJoint(longAttr, nameof(UmgrModel.AirHoldJoint), tick),
+                Height = height
             }, true, false);
         }
 
@@ -313,9 +314,9 @@ public partial class MgxcParser
         return air;
     }
 
-    private UmgrModel.AirHold CreateAirHold()
+    private UmgrModel.AirHold CreateAirHold(decimal height)
     {
-        var note = new UmgrModel.AirHold();
+        var note = new UmgrModel.AirHold { Height = height };
         if (TakeLastAir() is { } air)
         {
             note.Color = air.Color;

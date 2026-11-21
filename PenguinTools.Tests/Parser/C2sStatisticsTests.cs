@@ -84,6 +84,24 @@ public sealed class C2sStatisticsTests
     }
 
     [Theory]
+    [InlineData("ASX", "AHX")]
+    [InlineData("AHX", "ASX")]
+    public async Task Parser_AcceptsLegacyAirHoldTagWithoutDiagnostics(string firstTag, string parentTag)
+    {
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var notes = $"TAP 0 0 0 4\n{firstTag} 0 0 0 4 TAP 96 DEF\nAHD 0 96 0 4 {parentTag} 96 DEF";
+            await File.WriteAllTextAsync(path, Header + notes.Replace(' ', '\t'), ct);
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.Empty(parsed.Diagnostics.Diagnostics);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
     [InlineData("5.06", "5.10", 3)]
     [InlineData("5.04", "5.09", 2)]
     public void AirSlideContinuation_UsesNativeHeightKey(string endHeight, string nextHeight, int airCount)

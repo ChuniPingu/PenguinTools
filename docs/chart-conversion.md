@@ -25,6 +25,8 @@ Invalid optional metadata (C2S statistics and BPM summaries, metronome settings,
 
 MGXC heights use `HSCL` (default 1) to convert to internal tenths. MGXC v4 limits rescaled heights to 0–360 when `HSCL` differs from 10, matching Margrete; its usual `HSCL=10` representation retains larger heights. Nonpositive, nonfinite, or unrepresentable scales fail with `diag.mgcrit.invalid_height_scale`.
 
+MGXC round trips retain AIR-HOLD head and joint heights. C2S encodes AIR-HOLD with a custom height as a same-lane AIR-SLIDE with the original heights and action points.
+
 C2S reads and writes `ASO`, `HHD`, and `HHX`, including AIR attachments. Conversion to MGXC or UGC reports an error because those formats have no equivalent notes.
 
 C2S import reports invalid `PROGJUDGE_BPM`, `PROGJUDGE_AER`, and `TUTORIAL` values at their source lines. C2S export validates the quantized BPM timeline before writing, including a starting tempo, positive finite BPMs, and finite chart times.
