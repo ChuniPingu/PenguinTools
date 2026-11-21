@@ -64,14 +64,7 @@ public partial class C2SChartWriter
         timingChanged |= start != roundedStart;
         // Quantize absolute endpoints, not individual segment lengths, so
         // adjacent curve segments and AIR parents keep the same boundary.
-        var durationIndex = p[0] switch
-        {
-            "HLD" or "HXD" or "SLC" or "SLD" or "SXC" or "SXD" or "SLA" => 5,
-            "ASC" or "ASD" or "ALD" => 7,
-            "AHD" or "AHX" or "ASX" => 6,
-            "SLP" or "SFL" or "DCM" or "STP" => 3,
-            _ => -1
-        };
+        var durationIndex = C2SRoundTrip.DurationIndex(p[0]);
         if (durationIndex >= 0)
         {
             var end = start + Number(p[durationIndex]) * GameResolution / sourceResolution;

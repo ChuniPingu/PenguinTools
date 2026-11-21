@@ -133,7 +133,7 @@ public partial class C2SChartWriter
             (Chart.Extras.SourceKey is null || !Chart.Extras.BinarySnapshotValid || !Chart.Extras.HasSpeedSnapshot))
         {
             Chart.Extras.Resolution = Resolution;
-            text = Chart.Extras.FinalizeText(Chart, text);
+            text = Chart.Extras.FinalizeText(Chart, text, calculateJudgeCounts: false);
         }
         return text;
     }

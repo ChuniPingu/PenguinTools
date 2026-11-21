@@ -57,7 +57,13 @@ public sealed class C2sStatisticsTests
         { "TUTORIAL 1\nSTP 0 0 200\nHLD 0 0 0 4 100", [1, 0, 0, 0, 0] },
         { "TUTORIAL 1\nSTP 0 0 100\nHLD 0 0 0 4 100", [1, 1, 0, 0, 0] },
         { "TUTORIAL 1\nSLP 0 0 200 0 1\nHLD 0 0 0 4 100", [1, 3, 0, 0, 0] },
-        { "TUTORIAL 1\nSTP 0 0 200\nTAP 0 0 0 4\nAHD 0 0 0 4 TAP 100 DEF", [1, 0, 0, 2, 0] }
+        { "TUTORIAL 1\nSTP 0 0 200\nTAP 0 0 0 4\nAHD 0 0 0 4 TAP 100 DEF", [1, 0, 0, 2, 0] },
+        { "TUTORIAL 2\nSTP 0 0 200\nHLD 0 0 0 4 100", [1, 0, 0, 0, 0] },
+        { "TUTORIAL 1\nSLP 2 0 48 0 0\nSTP 1 10 140\nHLD 1 0 0 2 192", [1, 4, 0, 0, 0] },
+        { "HHD 1 0 0 2 1.0 96 0 2 1.0 0", [1, 2, 0, 0, 0] },
+        { "HHX 1 0 0 2 1.0 96 0 2 1.0 0 Trace", [1, 2, 0, 0, 0] },
+        { "HHD 1 0 0 2 1.0 24 0 2 1.0 0\nHHD 1 24 0 2 1.0 72 0 2 1.0 0", [1, 2, 0, 0, 0] },
+        { "ASO 1 0 0 4 1.0 1.0 192 0 4 2.0 2.0 DEF\nAIR 1 192 0 4 ASO DEF", [0, 0, 0, 1, 0] }
     };
 
     [Theory]
@@ -144,6 +150,54 @@ public sealed class C2sStatisticsTests
     {
         var text = $"VERSION\t1.15.00\t1.15.00\nBPM\t0\t0\t{bpm}\nPROGJUDGE_BPM\t{judgeBpm}\nHLD\t0\t0\t0\t4\t96";
         AssertCounts(ChartStatistics.Calculate(text), [1, holds, 0, 0, 0]);
+    }
+
+    [Theory]
+    [InlineData("BPM 1 12 3\nBPM 1 24 120\nSLC 1 0 0 2 12 0 2 SLD\nSLD 1 12 0 2 96 0 2 SLD")]
+    [InlineData("BPM 1 12 3\nBPM 1 24 120\nTAP 1 0 0 2\nASC 1 0 0 2 TAP 1.0 12 0 2 1.0 DEF\nASD 1 12 0 2 ASC 1.0 96 0 2 1.0 DEF")]
+    [InlineData("BPM 1 24 3\nTAP 1 0 0 2\nASC 1 0 0 2 TAP 1.0 24 0 2 1.0 DEF")]
+    public void JudgementInterval_ChecksSegmentStartsAndOpenAirTail(string records)
+    {
+        var error = Assert.Throws<FormatException>(() => ChartStatistics.Calculate(Header + records.Replace(' ', '\t')));
+        Assert.Contains("one C2S tick", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(6, false)]
+    public async Task Writer_ChecksJudgementIntervalsAfterQuantizingRestoredChart(int restoreBpmTick, bool valid)
+    {
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var source = FormattableString.Invariant($"""
+                VERSION 1.15.00 1.15.00
+                RESOLUTION 1920
+                BPM_DEF 120 120 120 3
+                BPM 0 0 120
+                BPM 1 1 3
+                BPM 1 {restoreBpmTick} 120
+                HLD 1 1 0 2 480
+                """);
+            await File.WriteAllTextAsync(path, source.Replace(' ', '\t'), ct);
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            parsed.Value!.Extras.SourceSnapshot = "HASH\tunused\nRESOLUTION\t1920";
+            var writer = new C2SChartWriter(new C2SWriteRequest(path, parsed.Value));
+            if (valid)
+            {
+                var result = await writer.WriteAsync(ct);
+                Assert.True(result.Succeeded, result.ToString());
+                AssertCounts(await File.ReadAllTextAsync(path, ct), [1, 2, 0, 0, 0]);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<FormatException>(() => writer.WriteAsync(ct));
+                Assert.Equal(source.Replace(' ', '\t'), await File.ReadAllTextAsync(path, ct));
+            }
+        }
+        finally { File.Delete(path); }
     }
 
     [Theory]

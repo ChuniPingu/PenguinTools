@@ -20,7 +20,7 @@ Media operations are split between `IAudioService` and `IImageService`. `AudioSe
 
 ## Charts
 
-[Parsers](../PenguinTools.Chart/Parser/) and [writers](../PenguinTools.Chart/Writer/) connect the [editor models](../PenguinTools.Chart/Models/umgr/) and [C2S models](../PenguinTools.Chart/Models/c2s/) through conversion and post-processing. `ChartExtras` carries editor extensions and round-trip state. UGC and C2S share curve expansion, and writers operate on a copy of the chart.
+[Parsers](../PenguinTools.Chart/Parser/) and [writers](../PenguinTools.Chart/Writer/) connect the [editor models](../PenguinTools.Chart/Models/umgr/) and [C2S models](../PenguinTools.Chart/Models/c2s/) through conversion and post-processing. `ChartExtras` carries editor extensions and round-trip state. UGC and C2S share curve expansion, and writers operate on a copy of the chart. The C2S writer restores source records and quantizes their timing to 384 ticks per measure before validating judgement intervals and computing `T_JUDGE_*`.
 
 [Chart conversion](chart-conversion.md) defines supported conversions, timing, approximation, and round-trip behavior. [Format references](formats/README.md) describe file syntax and provenance; [testing](testing.md) covers regression and fixture requirements.
 

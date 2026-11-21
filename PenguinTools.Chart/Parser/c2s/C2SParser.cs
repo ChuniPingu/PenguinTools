@@ -95,11 +95,11 @@ public sealed class C2SParser
 
         if (string.IsNullOrWhiteSpace(_version))
         {
-            Diagnostic.Report(new PathDiagnostic(Severity.Error, Msg.Key(MsgKeys.C2s_Version_line_not_found), Path));
+            var severity = C2s.Notes.Count > 0 || C2s.Events.Count > 0 ? Severity.Warning : Severity.Error;
+            Diagnostic.Report(new PathDiagnostic(severity, Msg.Key(MsgKeys.C2s_Version_line_not_found), Path));
         }
 
         C2s.Extras.InferClickCount(C2s);
-        C2s.Extras.Tutorial = C2s.Extras.Headers.GetValueOrDefault("TUTORIAL", "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() == "1";
         C2s.Extras.CaptureClock(C2s);
         C2s.Extras.SourceMetaKey = ChartExtras.MetaKey(C2s);
         ResolvePairings();
@@ -286,13 +286,16 @@ public sealed class C2SParser
             case "CLK_DEF":
             case "PROGJUDGE_BPM":
             case "PROGJUDGE_AER":
-            case "TUTORIAL":
                 C2s.Extras.Headers[tokens[0]] = text;
                 if (tokens[0] == "CLK_DEF" && !C2s.Extras.ClickCount.HasValue && tokens.Length > 1)
                 {
                     C2s.Extras.ClickEnabled = tokens[1] != "0";
                 }
 
+                break;
+            case "TUTORIAL":
+                C2s.Extras.Headers[tokens[0]] = text;
+                C2s.Extras.Tutorial = ChartExtras.IsTutorialValue(tokens.ElementAtOrDefault(1));
                 break;
             case "CLK":
                 ParseClick(tokens, lineNumber);
@@ -373,11 +376,12 @@ public sealed class C2SParser
 
     private void ParseVersion(string[] tokens, int lineNumber)
     {
-        if (!TryGetToken(tokens, 1, lineNumber, "VERSION", out var version))
+        if (!HasToken(tokens, 1))
         {
             return;
         }
 
+        var version = tokens[1];
         _version = version;
         if (!SupportedVersions.Contains(version))
         {
@@ -951,8 +955,22 @@ public sealed class C2SParser
     {
         noteBase = default;
         if (!TryParseNode(tokens, lineNumber, out var tick) ||
-            !TryGetInt(tokens, 3, lineNumber, "lane", out var lane) ||
-            !TryGetInt(tokens, 4, lineNumber, "width", out var width))
+            !TryGetInt(tokens, 3, lineNumber, "lane", out var lane))
+        {
+            return false;
+        }
+
+        var width = 1;
+        if (!HasToken(tokens, 4))
+        {
+            ReportAtLine(Severity.Warning, Msg.Create(MsgKeys.C2s_Missing_field, "width"), lineNumber);
+            if (tokens.Length > 4)
+            {
+                tokens[4] = "1";
+                _adjustedNumberLines.Add(lineNumber);
+            }
+        }
+        else if (!TryGetInt(tokens, 4, lineNumber, "width", out width))
         {
             return false;
         }

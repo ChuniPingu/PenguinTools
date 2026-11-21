@@ -8,6 +8,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
@@ -16,6 +17,26 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sFormatCompatibilityTests
 {
+    [Fact]
+    public async Task Parser_DefaultsMissingVersionAndWidthForUsableChart()
+    {
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path, "BPM\t0\t0\t120\nTUTORIAL\t2\nTAP\t1\t0\t0\n", ct);
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.True(parsed.Value!.Extras.Tutorial);
+            Assert.Equal(1, Assert.Single(parsed.Value.Notes).Width);
+            Assert.Contains(parsed.Diagnostics.Diagnostics, d =>
+                d.Severity == Severity.Warning && d.Message.Key == MsgKeys.C2s_Version_line_not_found);
+            Assert.Contains(parsed.Diagnostics.Diagnostics, d =>
+                d.Severity == Severity.Warning && d.Message.Key == MsgKeys.C2s_Missing_field);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public async Task InvalidOptionalMetadata_DoesNotBlockConversionOrReappearOnExport()
     {
