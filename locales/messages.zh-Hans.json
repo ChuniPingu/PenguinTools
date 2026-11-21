@@ -32,6 +32,10 @@
     },
     "diag": {
       "c2s": {
+        "bpm_must_be_positive": "无效 BPM",
+        "bpm_timeline_not_covered": "缺少起始 BPM",
+        "bpm_time_nonfinite": "谱面时间超出范围",
+        "judgement_step_collapsed": "此处 BPM 过低，无法生成判定点 (Combo)",
         "invalid_field": "C2S 的 {0} 未填写或填写有误",
         "missing_field": "缺少 C2S {0}",
         "parent_not_resolved": "找不到这个音符要连接的音符",
@@ -200,6 +204,10 @@
   },
   "diag": {
     "c2s": {
+      "bpm_must_be_positive": "BPM 必须是大于零的有限数值，当前为“{0}”。",
+      "bpm_timeline_not_covered": "请在谱面起点或更早设置 BPM。如果起点前已有音符，请把 BPM 放在第一条音符处或更早。",
+      "bpm_time_nonfinite": "游戏无法计算这个位置的时间，请检查此处之前的 BPM。",
+      "judgement_step_collapsed": "此处 BPM 为 {0}，游戏无法为这条长音符生成判定点 (Combo)。请提高此处的 BPM，或移动受影响的音符。",
       "invalid_field": "C2S 的 {0} 未填写或填写不正确。",
       "missing_field": "缺少 C2S {0}。",
       "parent_not_resolved": "找不到与 C2S 音符“{1}”连接的“{0}”音符。",

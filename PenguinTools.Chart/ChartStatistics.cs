@@ -7,7 +7,8 @@ public static partial class ChartStatistics
     public static string Calculate(string text) => Calculate(
         text.Replace("\r", "").Split('\n').Select(C2SRoundTrip.Parts));
 
-    internal static string Calculate(IEnumerable<string[]> parts) => new Calculator(parts).BuildSummary();
+    internal static string Calculate(IEnumerable<string[]> parts, Func<decimal, float, Exception>? collapsedStep = null) =>
+        new Calculator(parts, collapsedStep).BuildSummary();
 
     private sealed partial class Calculator
     {
@@ -18,14 +19,16 @@ public static partial class ChartStatistics
         private readonly float _airExclusion;
         private readonly bool _tutorial;
         private readonly (decimal Start, decimal End, bool Stops)[] _tutorialIntervals;
+        private readonly Func<decimal, float, Exception>? _collapsedStep;
         private readonly long[] _counts = new long[5];
         private readonly List<Note> _notes = [];
 
-        public Calculator(IEnumerable<string[]> parts)
+        public Calculator(IEnumerable<string[]> parts, Func<decimal, float, Exception>? collapsedStep)
         {
             _rows = parts
                 .Where(p => p.Length > 0 && !p[0].StartsWith("//", StringComparison.Ordinal)).ToArray();
             _resolution = Header("RESOLUTION", 384);
+            _collapsedStep = collapsedStep;
             _bpms = _rows.Where(p => p[0] == "BPM")
                 .Select(p => (Tick: Tick(p), Bpm: float.Parse(p[3], CultureInfo.InvariantCulture))).OrderBy(p => p.Tick).ToArray();
             _judgeBpm = FloatHeader("PROGJUDGE_BPM", 240);
@@ -83,7 +86,8 @@ public static partial class ChartStatistics
                 step /= 2;
                 if (step == 0)
                 {
-                    throw new FormatException("Judgement interval is smaller than one C2S tick.");
+                    throw _collapsedStep?.Invoke(tick, bpm) ??
+                        new FormatException("Judgement interval is smaller than one C2S tick.");
                 }
             }
             return step * _resolution / 384;

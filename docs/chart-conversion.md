@@ -27,6 +27,8 @@ MGXC heights use `HSCL` (default 1) to convert to internal tenths. MGXC v4 limit
 
 C2S `ASO`, `HHD`, and `HHX` objects are not supported. They are skipped with `diag.c2s.unsupported_note_type` warnings; conversion continues with the remaining objects.
 
+C2S import reports invalid `PROGJUDGE_BPM`, `PROGJUDGE_AER`, and `TUTORIAL` values at their source lines. C2S export validates the quantized BPM timeline before writing, including a starting tempo, positive finite BPMs, and finite chart times.
+
 UGC output uses `HIPRECISION` (internal heights 0–1295) and silently clamps unencodable heights, keeping their originals in validated metadata.
 
 UGC `SPDDEF`/`SPDFLD` relative note-speed definitions are retained when writing UGC and in MGXC metadata. Their playback effects are not reproduced by MGXC or C2S output; conversion reports `diag.warn.ugc_relative_speed_not_reproduced` when a non-default definition applies to a note. Unused definitions and lossless UGC saves do not produce this warning.

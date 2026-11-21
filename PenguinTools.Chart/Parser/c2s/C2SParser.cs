@@ -284,8 +284,6 @@ public sealed class C2SParser
                 break;
             case "SEQUENCEID":
             case "CLK_DEF":
-            case "PROGJUDGE_BPM":
-            case "PROGJUDGE_AER":
                 C2s.Extras.Headers[tokens[0]] = text;
                 if (tokens[0] == "CLK_DEF" && !C2s.Extras.ClickCount.HasValue && tokens.Length > 1)
                 {
@@ -293,9 +291,23 @@ public sealed class C2SParser
                 }
 
                 break;
+            case "PROGJUDGE_BPM":
+            case "PROGJUDGE_AER":
+                if (C2sNumber.TryReadFiniteSingle(tokens.ElementAtOrDefault(1), out _))
+                {
+                    C2s.Extras.Headers[tokens[0]] = text;
+                }
+                else
+                {
+                    ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Invalid_field, tokens[0]), lineNumber);
+                }
+                break;
             case "TUTORIAL":
-                C2s.Extras.Headers[tokens[0]] = text;
-                C2s.Extras.Tutorial = ChartExtras.IsTutorialValue(tokens.ElementAtOrDefault(1));
+                if (TryGetInt(tokens, 1, lineNumber, "TUTORIAL", out var tutorial))
+                {
+                    C2s.Extras.Headers[tokens[0]] = text;
+                    C2s.Extras.Tutorial = tutorial > 0;
+                }
                 break;
             case "CLK":
                 ParseClick(tokens, lineNumber);
@@ -494,6 +506,11 @@ public sealed class C2SParser
             return;
         }
 
+        if (value <= 0)
+        {
+            ReportAtLine(Severity.Error, Msg.Create(MsgKeys.C2s_Bpm_must_be_positive, tokens[3]), lineNumber);
+            return;
+        }
         C2s.Events.Add(new c2sModel.Bpm
         {
             Tick = tick,

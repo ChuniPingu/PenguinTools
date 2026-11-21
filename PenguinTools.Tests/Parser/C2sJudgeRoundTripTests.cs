@@ -567,6 +567,7 @@ public sealed class C2sJudgeRoundTripTests
                 C2sJudgeAirProxyBaseline = 1
             }
         };
+        source.Events.Add(new Bpm { Tick = 0, Value = 120 });
 
         var tap = new Tap
         {

@@ -4,6 +4,7 @@ using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Converter.ugc;
 using PenguinTools.Chart.Parser.c2s;
 using PenguinTools.Chart.Writer.c2s;
+using PenguinTools.Core;
 using Xunit;
 
 namespace PenguinTools.Tests.Parser;
@@ -193,7 +194,11 @@ public sealed class C2sStatisticsTests
             }
             else
             {
-                await Assert.ThrowsAsync<FormatException>(() => writer.WriteAsync(ct));
+                var result = await writer.WriteAsync(ct);
+                Assert.False(result.Succeeded);
+                var diagnostic = Assert.Single(result.Diagnostics.Diagnostics, d =>
+                    d.Message.Key == MsgKeys.C2s_Judgement_step_collapsed);
+                Assert.Equal(1920, diagnostic.Time);
                 Assert.Equal(source.Replace(' ', '\t'), await File.ReadAllTextAsync(path, ct));
             }
         }

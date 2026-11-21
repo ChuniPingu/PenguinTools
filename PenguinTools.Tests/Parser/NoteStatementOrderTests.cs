@@ -175,6 +175,7 @@ public sealed class NoteStatementOrderTests
             Joint = Joint.D
         };
         var chart = new C.Chart();
+        chart.Events.Add(new C.Bpm { Tick = 0, Value = 120 });
         chart.Notes.AddRange([tap, slide, first, firstTail, second, secondTail]);
         var path = TestTempPaths.Create(".c2s");
         var ct = TestContext.Current.CancellationToken;
@@ -215,6 +216,7 @@ public sealed class NoteStatementOrderTests
         var firstRoot = Segment(first, 0, 960);
         var secondRoot = Segment(second, 480, 960);
         var chart = new C.Chart();
+        chart.Events.Add(new C.Bpm { Tick = 0, Value = 120 });
         chart.Notes.AddRange([first, second, secondRoot, firstRoot,
             Segment(secondRoot, 960, 1920), Segment(firstRoot, 960, 1440)]);
         var path = TestTempPaths.Create(".c2s");

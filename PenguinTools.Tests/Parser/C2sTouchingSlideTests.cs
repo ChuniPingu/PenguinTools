@@ -167,6 +167,10 @@ public sealed class C2sTouchingSlideTests
 
     private static async Task<U.Chart> WriteAndRead(C.Chart chart)
     {
+        if (!chart.Events.OfType<C.Bpm>().Any())
+        {
+            chart.Events.Add(new C.Bpm { Tick = 0, Value = 120 });
+        }
         var path = TestTempPaths.Create(".c2s");
         var ct = TestContext.Current.CancellationToken;
         try

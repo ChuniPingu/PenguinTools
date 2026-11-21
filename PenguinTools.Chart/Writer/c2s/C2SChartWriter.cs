@@ -45,8 +45,11 @@ public partial class C2SChartWriter
                 return OperationResult.Failure().WithDiagnostics(Diagnostic);
             }
 
-            var text = FinalizeChartText(sb.ToString());
-            text = FormatForGame(text);
+            var text = FormatForGame(FinalizeChartText(sb.ToString()));
+            if (text is null)
+            {
+                return OperationResult.Failure().WithDiagnostics(Diagnostic);
+            }
             await AtomicFile.WriteAsync(OutPath, async (stream, token) =>
             {
                 await using var writer = new StreamWriter(stream, new UTF8Encoding(false, true), leaveOpen: true);
