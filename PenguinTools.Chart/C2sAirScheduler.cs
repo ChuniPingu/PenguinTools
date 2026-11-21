@@ -289,6 +289,10 @@ internal sealed class C2sAirScheduler
         {
             Register(path);
         }
+        foreach (var path in C2sNativeLongPaths.Build(_notes.OfType<C.NativeLongNote>()))
+        {
+            Register(path);
+        }
 
         int? previous = null;
         foreach (var note in _notes.Where(n => n is not C.IPairable))

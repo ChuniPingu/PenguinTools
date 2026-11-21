@@ -43,7 +43,7 @@
         "unknown_air_color": "无法识别 AIR 颜色",
         "unknown_air_ladder_attr": "无法识别 AIR-CRUSH 设置",
         "unknown_ex_effect": "无法识别 EX 效果",
-        "unsupported_note_type": "跳过不支持的 {noteType} 音符",
+        "unsupported_note_type": "编辑器谱面无法表示 {noteType}",
         "unsupported_version": "不支持的 C2S 版本",
         "version_line_not_found": "缺少 C2S 版本信息"
       },
@@ -215,7 +215,7 @@
       "unknown_air_color": "无法识别 C2S 中的 AIR 颜色“{0}”。",
       "unknown_air_ladder_attr": "无法识别 C2S 中的 AIR-CRUSH 设置“{0}”（ALD）。",
       "unknown_ex_effect": "无法识别 C2S 中的 EX 效果“{0}”。",
-      "unsupported_note_type": "不支持 {noteType} 音符，已略过。",
+      "unsupported_note_type": "编辑器格式无法表示 C2S 音符 {noteType}。",
       "unsupported_version": "不支持的 C2S 版本“{0}”。",
       "version_line_not_found": "C2S 文件中缺少版本信息（VERSION）。"
     },

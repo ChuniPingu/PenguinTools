@@ -43,7 +43,7 @@
         "unknown_air_color": "Unknown AIR color",
         "unknown_air_ladder_attr": "Unknown AIR-CRUSH setting",
         "unknown_ex_effect": "Unknown EX effect",
-        "unsupported_note_type": "Unsupported {noteType} note skipped",
+        "unsupported_note_type": "{noteType} cannot be represented in the editor chart",
         "unsupported_version": "Unsupported C2S version",
         "version_line_not_found": "Missing C2S version information"
       },
@@ -215,7 +215,7 @@
       "unknown_air_color": "C2S AIR color '{0}' is not recognized.",
       "unknown_air_ladder_attr": "The C2S AIR-CRUSH setting '{0}' (ALD) is not recognized.",
       "unknown_ex_effect": "C2S EX effect '{0}' is not recognized.",
-      "unsupported_note_type": "{noteType} notes are not supported, so this note was skipped.",
+      "unsupported_note_type": "The editor format cannot represent the C2S note {noteType}.",
       "unsupported_version": "C2S version '{0}' is not supported.",
       "version_line_not_found": "The file is missing the VERSION line that identifies its C2S version."
     },

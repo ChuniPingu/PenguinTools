@@ -266,8 +266,7 @@ public sealed class C2SParser
             case "ASO":
             case "HHD":
             case "HHX":
-                ReportAtLine(Severity.Warning,
-                    Msg.Create(MsgKeys.C2s_Unsupported_note_type, ("noteType", tokens[0])), lineNumber);
+                ParseNativeLongNote(tokens, lineNumber);
                 break;
             case "AHD":
             case "AHX":
@@ -996,6 +995,53 @@ public sealed class C2SParser
         return true;
     }
 
+    private void ParseNativeLongNote(string[] tokens, int lineNumber)
+    {
+        var tag = tokens[0].ToUpperInvariant();
+        var duration = C2SRoundTrip.DurationIndex(tag);
+        if (!TryParseNoteBase(tokens, lineNumber, out var start) ||
+            !TryGetDecimal(tokens, 5, lineNumber, "start height", out var startHeight) ||
+            !TryGetInt(tokens, duration, lineNumber, "length", out var length) ||
+            !TryGetInt(tokens, duration + 1, lineNumber, "end lane", out var endLane) ||
+            !TryGetInt(tokens, duration + 2, lineNumber, "end width", out var endWidth) ||
+            !TryGetDecimal(tokens, duration + 3, lineNumber, "end height", out var endHeight))
+        {
+            return;
+        }
+
+        var fields = tokens[5..];
+        fields[0] = C2sNumber.Speed(startHeight);
+        fields[duration - 2] = C2sNumber.Speed(endHeight);
+        if (tag == "ASO")
+        {
+            if (!TryGetDecimal(tokens, 6, lineNumber, "second start height", out var secondStart) ||
+                !TryGetDecimal(tokens, 11, lineNumber, "second end height", out var secondEnd))
+            {
+                return;
+            }
+            fields[1] = C2sNumber.Speed(secondStart);
+            fields[6] = C2sNumber.Speed(secondEnd);
+        }
+        else if (HasToken(tokens, 10) && !TryGetInt(tokens, 10, lineNumber, "Heaven Hold flags", out _))
+        {
+            return;
+        }
+        else if (fields.Length > 5 && string.IsNullOrEmpty(fields[5]))
+        {
+            fields[5] = "0";
+        }
+
+        C2s.Notes.Add(new c2sModel.NativeLongNote(tag, fields, lineNumber)
+        {
+            Tick = start.Tick,
+            Lane = start.Lane,
+            Width = start.Width,
+            EndTick = AddLength(start.Tick, length),
+            EndLane = endLane,
+            EndWidth = Math.Clamp(endWidth, 1, 16)
+        });
+    }
+
     private void ResolvePairings()
     {
         var roots = new Dictionary<c2sModel.Note, c2sModel.Note>();
@@ -1007,6 +1053,13 @@ public sealed class C2SParser
             }
         }
         foreach (var path in C2sAirCrashPaths.Build(C2s.Notes.OfType<c2sModel.AirCrash>()))
+        {
+            foreach (var segment in path)
+            {
+                roots[segment] = path[0];
+            }
+        }
+        foreach (var path in C2sNativeLongPaths.Build(C2s.Notes.OfType<c2sModel.NativeLongNote>()))
         {
             foreach (var segment in path)
             {
@@ -1082,6 +1135,7 @@ public sealed class C2SParser
     {
         c2sModel.Hold => parentId is "HLD" or "HXD",
         c2sModel.Slide => parentId is "SLD" or "SXD" or "SLC" or "SXC",
+        c2sModel.NativeLongNote { Id: "HHD" or "HHX" } => parentId is "HHD" or "HHX",
         _ => candidate.Id == parentId
     };
 
