@@ -134,7 +134,7 @@ public sealed partial class ChartExtras
     public string? SpeedModelKey { get; set; }
 
     public static readonly FrozenSet<string> NoteTags =
-        "TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD".Split(' ').ToFrozenSet();
+        "TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD ASO HHD HHX".Split(' ').ToFrozenSet();
 
     public static readonly FrozenSet<string> EventTags = "BPM MET SLP SFL DCM STP CLK".Split(' ').ToFrozenSet();
     [JsonIgnore] public string? InteropSourceText { get; set; }

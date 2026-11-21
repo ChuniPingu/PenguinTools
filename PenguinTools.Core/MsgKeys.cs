@@ -12,7 +12,11 @@ public static class MsgKeys
     public const string App_No_export_actions_enabled = "app.no_export_actions_enabled";
     public const string App_Option_name_required = "app.option_name_required";
     public const string App_Unsupported_chart_extension = "app.unsupported_chart_extension";
+    public const string C2s_Bpm_must_be_positive = "diag.c2s.bpm_must_be_positive";
+    public const string C2s_Bpm_timeline_not_covered = "diag.c2s.bpm_timeline_not_covered";
+    public const string C2s_Bpm_time_nonfinite = "diag.c2s.bpm_time_nonfinite";
     public const string C2s_Invalid_field = "diag.c2s.invalid_field";
+    public const string C2s_Judgement_step_collapsed = "diag.c2s.judgement_step_collapsed";
     public const string C2s_Missing_field = "diag.c2s.missing_field";
     public const string C2s_Parent_not_resolved = "diag.c2s.parent_not_resolved";
     public const string C2s_Resolution_must_be_positive = "diag.c2s.resolution_must_be_positive";

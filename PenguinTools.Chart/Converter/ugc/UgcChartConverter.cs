@@ -48,6 +48,19 @@ public sealed class UgcChartConverter
     public OperationResult<UmgrModel.Chart> Convert()
     {
         var diagnostics = new DiagnosticCollector();
+        var unsupported = _source.Notes.OfType<C2sModel.NativeLongNote>().GroupBy(note => note.Id).ToArray();
+        foreach (var group in unsupported)
+        {
+            var first = group.First();
+            diagnostics.Report(new LocationDiagnostic(Severity.Error,
+                Msg.Create(MsgKeys.C2s_Unsupported_note_type, ("noteType", first.Id)), first.Line, _source.Meta.FilePath)
+            { Target = first });
+        }
+        if (unsupported.Length > 0)
+        {
+            return OperationResult<UmgrModel.Chart>.Failure().WithDiagnostics(diagnostics);
+        }
+
         _target.Meta = _source.Meta with { };
         _target.Meta.BgmFixedZeroOrigin = true;
         _target.Extras = _source.Extras.Copy();

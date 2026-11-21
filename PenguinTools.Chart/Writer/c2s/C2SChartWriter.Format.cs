@@ -84,6 +84,15 @@ public partial class C2SChartWriter
                 line += $"\t{airCrash.Attr}";
                 error = null;
                 return true;
+            case C2sModel.NativeLongNote native:
+                var fields = (string[])native.Fields.Clone();
+                var duration = C2SRoundTrip.DurationIndex(native.Id) - 5;
+                fields[duration] = Integer(ScaleLength(native));
+                fields[duration + 1] = Integer(native.EndLane);
+                fields[duration + 2] = Integer(native.EndWidth);
+                line = $"{FormatNote(native)}\t{string.Join('\t', fields)}";
+                error = null;
+                return true;
             default:
                 throw new InvalidOperationException($"Unsupported c2s note type '{note.GetType().FullName}'.");
         }

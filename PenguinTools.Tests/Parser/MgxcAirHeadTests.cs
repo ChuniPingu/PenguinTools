@@ -3,7 +3,9 @@ using System.Text;
 using PenguinTools.Chart.Converter.c2s;
 using PenguinTools.Chart.Models;
 using PenguinTools.Chart.Parser.mgxc;
+using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
+using PenguinTools.Core;
 using Xunit;
 using C = PenguinTools.Chart.Models.c2s;
 using U = PenguinTools.Chart.Models.umgr;
@@ -12,6 +14,107 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class MgxcAirHeadTests
 {
+    [Theory]
+    [InlineData(80, 80, 80, false, false)]
+    [InlineData(120, 140, 160, true, false)]
+    [InlineData(80, 140, 80, true, false)]
+    [InlineData(80, 140, 80, true, true)]
+    public async Task AirHoldHeight_RoundTripsInMgxcAndExportsCustomHeightAsAirSlide(
+        int headHeight, int jointHeight, int endHeight, bool customHeight, bool slowAtJoint)
+    {
+        var chart = new U.Chart();
+        chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
+        chart.Events.AppendChild(new U.BeatEvent { Bar = 0 });
+        if (slowAtJoint)
+        {
+            chart.Events.AppendChild(new U.BpmEvent { Tick = 540, Bpm = 3 });
+            chart.Events.AppendChild(new U.BpmEvent { Tick = 600, Bpm = 120 });
+        }
+        var tap = new U.Tap { Tick = 480, Lane = 2, Width = 4 };
+        var hold = new U.AirHold();
+        hold.AppendChild(new U.AirHoldJoint { Tick = slowAtJoint ? 540 : 960, Joint = Joint.C });
+        hold.AppendChild(new U.AirHoldJoint { Tick = 1440, Joint = Joint.D });
+        tap.MakePair(hold);
+        chart.Notes.AppendChild(tap);
+        chart.Notes.AppendChild(hold);
+        var mgxcPath = TestTempPaths.Create(".mgxc");
+        var c2sPath = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var original = await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, chart)).WriteAsync(ct);
+            Assert.True(original.Succeeded, original.ToString());
+            var bytes = await File.ReadAllBytesAsync(mgxcPath, ct);
+            int[] heights = [headHeight, jointHeight, endHeight];
+            var airPositions = AirHoldHeightPositions(bytes);
+            Assert.Equal(heights.Length, airPositions.Length);
+            for (var i = 0; i < airPositions.Length; i++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(airPositions[i]), (ushort)heights[i]);
+            }
+            await File.WriteAllBytesAsync(mgxcPath, bytes, ct);
+
+            var parsed = await new MgxcParser(new MgxcParseRequest(mgxcPath, TestAssets.Load()), TestMediaTool.Instance)
+                .ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            var mgxc = await new MgxcChartWriter(new MgxcWriteRequest(mgxcPath, parsed.Value!)).WriteAsync(ct);
+            Assert.True(mgxc.Succeeded, mgxc.ToString());
+            var rewritten = await File.ReadAllBytesAsync(mgxcPath, ct);
+            Assert.Equal(heights, AirHoldHeightPositions(rewritten)
+                .Select(offset => (int)BinaryPrimitives.ReadUInt16LittleEndian(rewritten.AsSpan(offset))));
+
+            var converted = new C2SChartConverter(new C2SConvertRequest(parsed.Value!)).Convert();
+            Assert.True(converted.Succeeded, converted.ToString());
+            Assert.Empty(converted.Diagnostics.Diagnostics);
+
+            var result = await new C2SChartWriter(new C2SWriteRequest(c2sPath, converted.Value!)).WriteAsync(ct);
+            if (slowAtJoint)
+            {
+                Assert.False(result.Succeeded);
+                Assert.Contains(result.Diagnostics.Diagnostics,
+                    d => d.Message.Key == MsgKeys.C2s_Judgement_step_collapsed && d.Time.HasValue);
+                return;
+            }
+            Assert.True(result.Succeeded, result.ToString());
+            var c2s = await File.ReadAllLinesAsync(c2sPath, ct);
+            if (!customHeight)
+            {
+                Assert.Single(c2s, row => row.StartsWith("AHX\t", StringComparison.Ordinal));
+                Assert.Single(c2s, row => row.StartsWith("AHD\t", StringComparison.Ordinal));
+            }
+            else
+            {
+                var control = Assert.Single(c2s, row => row.StartsWith("ASC\t", StringComparison.Ordinal)).Split('\t');
+                var action = Assert.Single(c2s, row => row.StartsWith("ASD\t", StringComparison.Ordinal)).Split('\t');
+                Assert.Equal("TAP", control[5]);
+                Assert.Equal("ASC", action[5]);
+                Assert.Equal(control[3], control[8]);
+                Assert.Equal(action[3], action[8]);
+                Assert.Equal(new Height(headHeight).Result, decimal.Parse(control[6], System.Globalization.CultureInfo.InvariantCulture));
+                Assert.Equal(new Height(jointHeight).Result, decimal.Parse(control[10], System.Globalization.CultureInfo.InvariantCulture));
+                Assert.Equal(control[10], action[6]);
+                Assert.Equal(new Height(endHeight).Result, decimal.Parse(action[10], System.Globalization.CultureInfo.InvariantCulture));
+                Assert.DoesNotContain(c2s, row => row.StartsWith("AHX\t", StringComparison.Ordinal) ||
+                    row.StartsWith("AHD\t", StringComparison.Ordinal));
+            }
+            Assert.Contains("T_JUDGE_ALL\t5", c2s);
+        }
+        finally
+        {
+            File.Delete(mgxcPath);
+            File.Delete(c2sPath);
+        }
+    }
+
+    private static int[] AirHoldHeightPositions(byte[] bytes)
+    {
+        var chunk = bytes.AsSpan().IndexOf("dat2"u8);
+        Assert.True(chunk >= 0);
+        var length = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(chunk + 4));
+        return Enumerable.Range(0, length / 20).Select(i => chunk + 8 + i * 20)
+            .Where(offset => bytes[offset] == 8).Select(offset => offset + 8).ToArray();
+    }
+
     [Theory]
     [InlineData(false, 2)]
     [InlineData(true, 2)]

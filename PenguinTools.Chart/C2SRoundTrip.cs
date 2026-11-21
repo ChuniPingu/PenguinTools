@@ -17,7 +17,7 @@ public static partial class C2SRoundTrip
     internal const int MaxDecodedBytes = 64 * 1024 * 1024;
     [GeneratedRegex(@"(?:^|;)MGR_C2S_(V1|LZ1)=([A-Za-z0-9+/=]+);", RegexOptions.None, 1000)]
     private static partial Regex MetadataRegex();
-    public const string Records = "BPM MET SLP SFL DCM STP CLK TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD";
+    public const string Records = "BPM MET SLP SFL DCM STP CLK TAP CHR FLK MNE HLD HXD SLC SLD SXC SXD SLA AIR AUL AUR ADW ADL ADR ASC ASD AHD AHX ASX ALD ASO HHD HHX";
     public static string[] Parts(string s)
     {
         return s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
@@ -66,11 +66,11 @@ public static partial class C2SRoundTrip
         return string.Join("\t", p);
     }
 
-    private static int DurationIndex(string tag) => tag switch
+    internal static int DurationIndex(string tag) => tag switch
     {
-        "HLD" or "HXD" or "SLC" or "SLD" or "SXC" or "SXD" => 5,
-        "ALD" or "ASC" or "ASD" => 7,
-        "AHD" or "AHX" or "ASX" => 6,
+        "HLD" or "HXD" or "SLC" or "SLD" or "SXC" or "SXD" or "SLA" => 5,
+        "ALD" or "ASO" or "ASC" or "ASD" => 7,
+        "AHD" or "AHX" or "ASX" or "HHD" or "HHX" => 6,
         "SLP" or "SFL" or "DCM" or "STP" => 3,
         _ => -1
     };

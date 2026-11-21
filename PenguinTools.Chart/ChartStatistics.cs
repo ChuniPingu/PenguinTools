@@ -7,7 +7,8 @@ public static partial class ChartStatistics
     public static string Calculate(string text) => Calculate(
         text.Replace("\r", "").Split('\n').Select(C2SRoundTrip.Parts));
 
-    internal static string Calculate(IEnumerable<string[]> parts) => new Calculator(parts).BuildSummary();
+    internal static string Calculate(IEnumerable<string[]> parts, Func<decimal, float, Exception>? collapsedStep = null) =>
+        new Calculator(parts, collapsedStep).BuildSummary();
 
     private sealed partial class Calculator
     {
@@ -17,19 +18,26 @@ public static partial class ChartStatistics
         private readonly float _judgeBpm;
         private readonly float _airExclusion;
         private readonly bool _tutorial;
+        private readonly (decimal Start, decimal End, bool Stops)[] _tutorialIntervals;
+        private readonly Func<decimal, float, Exception>? _collapsedStep;
         private readonly long[] _counts = new long[5];
         private readonly List<Note> _notes = [];
 
-        public Calculator(IEnumerable<string[]> parts)
+        public Calculator(IEnumerable<string[]> parts, Func<decimal, float, Exception>? collapsedStep)
         {
             _rows = parts
                 .Where(p => p.Length > 0 && !p[0].StartsWith("//", StringComparison.Ordinal)).ToArray();
             _resolution = Header("RESOLUTION", 384);
+            _collapsedStep = collapsedStep;
             _bpms = _rows.Where(p => p[0] == "BPM")
                 .Select(p => (Tick: Tick(p), Bpm: float.Parse(p[3], CultureInfo.InvariantCulture))).OrderBy(p => p.Tick).ToArray();
             _judgeBpm = FloatHeader("PROGJUDGE_BPM", 240);
             _airExclusion = FloatHeader("PROGJUDGE_AER", 0.999f);
-            _tutorial = Header("TUTORIAL", 0) == 1;
+            _tutorial = Header("TUTORIAL", 0) > 0;
+            _tutorialIntervals = !_tutorial ? [] : _rows
+                .Where(p => p[0] is "STP" or "SFL" || p[0] == "SLP" && I(p, 5) == 0)
+                .Select(p => (Tick(p), Tick(p) + N(p, 3), p[0] == "STP" || Float(p, 4) == 0))
+                .ToArray();
         }
 
         private decimal Header(string tag, decimal fallback) =>
@@ -37,7 +45,10 @@ public static partial class ChartStatistics
         private float FloatHeader(string tag, float fallback) =>
             _rows.Where(p => p[0] == tag).Select(p => float.Parse(p[1], CultureInfo.InvariantCulture)).LastOrDefault(fallback);
         private static decimal N(string[] p, int i) => decimal.Parse(p[i], CultureInfo.InvariantCulture);
-        private static int I(string[] p, int i) => int.Parse(p[i], CultureInfo.InvariantCulture);
+        private static int I(string[] p, int i) =>
+            i < p.Length ? int.Parse(p[i], CultureInfo.InvariantCulture) : 0;
+        private static float Float(string[] p, int i) =>
+            i < p.Length ? float.Parse(p[i], CultureInfo.InvariantCulture) : 0;
         private decimal Tick(string[] p) => N(p, 1) * _resolution + N(p, 2);
 
         public string BuildSummary()
@@ -75,16 +86,29 @@ public static partial class ChartStatistics
                 step /= 2;
                 if (step == 0)
                 {
-                    throw new FormatException("Judgement interval is smaller than one C2S tick.");
+                    throw _collapsedStep?.Invoke(tick, bpm) ??
+                        new FormatException("Judgement interval is smaller than one C2S tick.");
                 }
             }
             return step * _resolution / 384;
         }
 
-        private bool Silent(decimal tick) => _tutorial && _rows.Any(p =>
-            (p[0] == "STP" || p[0] == "SFL" && N(p, 4) == 0 ||
-                p[0] == "SLP" && N(p, 4) == 0 && N(p, 5) == 0) &&
-            tick > Tick(p) && tick < Tick(p) + N(p, 3));
+        private bool Silent(decimal tick)
+        {
+            // Judge points are built before speed intervals are sorted.
+            foreach (var (start, end, stops) in _tutorialIntervals)
+            {
+                if (start >= tick)
+                {
+                    return false;
+                }
+                if (stops && tick < end)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         private bool ExcludedByAir(decimal tick, decimal end)
         {
@@ -106,7 +130,7 @@ public static partial class ChartStatistics
                 case "FLK":
                     _counts[4]++;
                     break;
-                case "HLD" or "SLD":
+                case "HLD" or "HHD" or "SLD":
                     _counts[0]++;
                     CountGround(note);
                     break;
@@ -122,25 +146,35 @@ public static partial class ChartStatistics
 
         private void CountGround(Note note)
         {
-            var category = note.Kind == "HLD" ? 1 : 2;
+            var category = note.Kind == "SLD" ? 2 : 1;
             var start = note.Start.Tick;
-            foreach (var segment in note.Path)
+            var cursor = start;
+            var restart = true;
+            var segments = category == 2 ? note.Path : note.Path.TakeLast(1);
+            foreach (var segment in segments)
             {
+                var step = Step(start);
+                if (restart)
+                {
+                    cursor = start + step;
+                }
+                for (; cursor < segment.End.Tick; cursor += Step(cursor))
+                {
+                    CountGroundPoint(note, category, cursor);
+                }
                 if (segment.Judge || ReferenceEquals(segment, note.Path[^1]))
                 {
-                    for (var tick = start + Step(start); tick < segment.End.Tick; tick += Step(tick))
-                    {
-                        CountGroundPoint(note, category, tick);
-                    }
                     CountGroundPoint(note, category, segment.End.Tick);
-                    start = segment.End.Tick;
                 }
+                start = segment.End.Tick;
+                restart = segment.Judge;
             }
         }
 
         private void CountGroundPoint(Note note, int category, decimal tick)
         {
-            if (!Silent(tick) && (note.Air is null || !_tutorial && !ExcludedByAir(tick, note.End.Tick)))
+            var excludedByAir = note.Air is not null && ExcludedByAir(tick, note.End.Tick);
+            if (!excludedByAir && !Silent(tick) && (!_tutorial || note.Air is null))
             {
                 _counts[category]++;
             }
@@ -155,17 +189,27 @@ public static partial class ChartStatistics
             }
 
             var start = note.End.Tick;
-            var openEnd = !air.Path[^1].Judge;
+            var cursor = start;
+            var first = true;
+            var restart = true;
+            var end = air.Path[^1].End.Tick;
+            var openEnd = !air.Path[^1].Judge && _airExclusion >= 0;
             foreach (var segment in air.Path)
             {
-                if (!segment.Judge && !ReferenceEquals(segment, air.Path[^1]))
+                if (air.Kind == "AHD" && !segment.Judge && !ReferenceEquals(segment, air.Path[^1]))
                 {
                     continue;
                 }
-                var first = true;
-                for (var tick = start + Step(start); tick < segment.End.Tick; tick += Step(tick))
+                var step = Step(start);
+                if (restart)
                 {
-                    if (!first && !Silent(tick) && (!openEnd || !ExcludedByAir(tick, air.Path[^1].End.Tick)))
+                    cursor = start + step;
+                    first = true;
+                }
+                for (; cursor < segment.End.Tick; cursor += Step(cursor))
+                {
+                    var excluded = openEnd && ExcludedByAir(cursor, end);
+                    if (!first && !excluded && !Silent(cursor))
                     {
                         _counts[3]++;
                     }
@@ -176,6 +220,11 @@ public static partial class ChartStatistics
                     _counts[3]++;
                 }
                 start = segment.End.Tick;
+                restart = segment.Judge;
+            }
+            if (openEnd)
+            {
+                _ = Step(end);
             }
         }
     }

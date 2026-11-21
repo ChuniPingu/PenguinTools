@@ -8,6 +8,7 @@ using PenguinTools.Chart.Parser.mgxc;
 using PenguinTools.Chart.Writer.c2s;
 using PenguinTools.Chart.Writer.mgxc;
 using PenguinTools.Core;
+using PenguinTools.Core.Diagnostic;
 using PenguinTools.Core.Metadata;
 using Xunit;
 using C2sChart = PenguinTools.Chart.Models.c2s.Chart;
@@ -16,6 +17,78 @@ namespace PenguinTools.Tests.Parser;
 
 public sealed class C2sFormatCompatibilityTests
 {
+    [Theory]
+    [InlineData("PROGJUDGE_BPM\tno", MsgKeys.C2s_Invalid_field)]
+    [InlineData("PROGJUDGE_AER\tno", MsgKeys.C2s_Invalid_field)]
+    [InlineData("PROGJUDGE_AER\tNaN", MsgKeys.C2s_Invalid_field)]
+    [InlineData("TUTORIAL\tno", MsgKeys.C2s_Invalid_field)]
+    [InlineData("BPM\t1\t0\t0", MsgKeys.C2s_Bpm_must_be_positive)]
+    [InlineData("BPM\t1\t0\t-120", MsgKeys.C2s_Bpm_must_be_positive)]
+    public async Task Parser_LocatesInvalidJudgementAndTempoFields(string row, string key)
+    {
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path, $"VERSION\t1.15.00\t1.15.00\nBPM\t0\t0\t120\n{row}\nTAP\t1\t24\t0\t2\n", ct);
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.False(parsed.Succeeded);
+            var diagnostic = Assert.Single(parsed.Diagnostics.Diagnostics, d => d.Message.Key == key);
+            Assert.Equal(Severity.Error, diagnostic.Severity);
+            Assert.Equal(3, diagnostic.Line);
+            Assert.Equal(path, diagnostic.Path);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(null, 0, MsgKeys.C2s_Bpm_timeline_not_covered)]
+    [InlineData("120", 1920, MsgKeys.C2s_Bpm_timeline_not_covered)]
+    [InlineData("0", 0, MsgKeys.C2s_Bpm_must_be_positive)]
+    [InlineData("0.0000000000000000000000000001", 0, MsgKeys.C2s_Bpm_time_nonfinite)]
+    public async Task Writer_RejectsInvalidQuantizedTempoWithoutReplacingOutput(string? bpm, int bpmTick, string key)
+    {
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            const string existing = "existing output";
+            await File.WriteAllTextAsync(path, existing, ct);
+            var chart = new C2sChart();
+            chart.Notes.Add(new Tap { Tick = 1920000000, Lane = 0, Width = 4 });
+            if (bpm is not null)
+            {
+                chart.Events.Add(new Bpm { Tick = bpmTick, Value = decimal.Parse(bpm, System.Globalization.CultureInfo.InvariantCulture) });
+            }
+
+            var result = await new C2SChartWriter(new C2SWriteRequest(path, chart)).WriteAsync(ct);
+            Assert.False(result.Succeeded);
+            Assert.Contains(result.Diagnostics.Diagnostics, diagnostic => diagnostic.Message.Key == key);
+            Assert.Equal(existing, await File.ReadAllTextAsync(path, ct));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task Parser_DefaultsMissingVersionAndWidthForUsableChart()
+    {
+        var path = TestTempPaths.Create(".c2s");
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await File.WriteAllTextAsync(path, "BPM\t0\t0\t120\nTUTORIAL\t2\nTAP\t1\t0\t0\n", ct);
+            var parsed = await new C2SParser(new C2SParseRequest(path)).ParseAsync(ct);
+            Assert.True(parsed.Succeeded, parsed.ToString());
+            Assert.True(parsed.Value!.Extras.Tutorial);
+            Assert.Equal(1, Assert.Single(parsed.Value.Notes).Width);
+            Assert.Contains(parsed.Diagnostics.Diagnostics, d =>
+                d.Severity == Severity.Warning && d.Message.Key == MsgKeys.C2s_Version_line_not_found);
+            Assert.Contains(parsed.Diagnostics.Diagnostics, d =>
+                d.Severity == Severity.Warning && d.Message.Key == MsgKeys.C2s_Missing_field);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public async Task InvalidOptionalMetadata_DoesNotBlockConversionOrReappearOnExport()
     {
@@ -608,6 +681,7 @@ public sealed class C2sFormatCompatibilityTests
             await File.WriteAllTextAsync(path, """
                 VERSION	1.13.00	1.13.00
                 RESOLUTION	384
+                BPM	0	0	120
                 ALD	0	0	0	4	0	1.0	96	0	4	1.0	CYN
                 """, TestContext.Current.CancellationToken);
 

@@ -365,6 +365,10 @@ public sealed class C2sAirStatementOrderTests
 
     private static async Task<C.Chart> RoundTrip(C.Chart chart)
     {
+        if (!chart.Events.OfType<C.Bpm>().Any())
+        {
+            chart.Events.Add(new C.Bpm { Tick = 0, Value = 120 });
+        }
         var path = TestTempPaths.Create(".c2s");
         try
         {

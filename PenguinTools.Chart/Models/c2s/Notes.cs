@@ -90,3 +90,10 @@ public class AirCrash : LongHeightNote
 
     public override string Id => "ALD";
 }
+
+internal sealed class NativeLongNote(string tag, string[] fields, int line) : LongNote
+{
+    public override string Id => tag;
+    internal string[] Fields { get; } = fields;
+    internal int Line { get; } = line;
+}

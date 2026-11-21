@@ -12,6 +12,9 @@ public sealed partial class ChartExtras
     {
         get; set;
     }
+    internal static bool IsTutorialValue(string? value) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tutorial) && tutorial > 0;
+
     public List<string> RoundTripBookmarks { get; set; } = [];
     internal bool RebuiltSla { get; set; }
     [JsonIgnore] public HashSet<string> UnchangedEventKinds { get; } = [];
@@ -57,7 +60,9 @@ public sealed partial class ChartExtras
             }
         }
     }
-    public string FinalizeText(C.Chart chart, string text)
+    public string FinalizeText(C.Chart chart, string text) => FinalizeText(chart, text, calculateJudgeCounts: true);
+
+    internal string FinalizeText(C.Chart chart, string text, bool calculateJudgeCounts)
     {
         var lines = text.Replace("\r", "").Split('\n').Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
         var headers = new List<string>();
@@ -96,7 +101,7 @@ public sealed partial class ChartExtras
             return result + "\r\n" + string.Join("\r\n", SourceStatistics) + "\r\n";
         }
 
-        return result + ChartStatistics.Calculate(result);
+        return calculateJudgeCounts ? result + ChartStatistics.Calculate(result) : result;
     }
 
     private sealed record SnapshotState(string Hash, List<string> Statistics, bool SlaCompatible, bool JudgeOptionsUnchanged);
@@ -152,7 +157,7 @@ public sealed partial class ChartExtras
         var snapshot = SourceSnapshot.Split('\n').Select(P).Where(p => p.Length > 0).ToArray();
         var sourceHash = snapshot.First(p => p[0] == "HASH")[1];
         int sourceRes = int.Parse(snapshot.FirstOrDefault(p => p.Length > 1 && p[0] == "RESOLUTION")?[1] ?? "384", CultureInfo.InvariantCulture);
-        var judgeOptionsUnchanged = (snapshot.FirstOrDefault(p => p[0] == "TUTORIAL")?.ElementAtOrDefault(1) == "1") == Tutorial;
+        var judgeOptionsUnchanged = IsTutorialValue(snapshot.FirstOrDefault(p => p[0] == "TUTORIAL")?.ElementAtOrDefault(1)) == Tutorial;
         RestoreJudgeHeaders(snapshot, headers);
         var usedExceptions = new HashSet<int>();
         RestoreColors(snapshot, sourceRes, notes, usedExceptions);

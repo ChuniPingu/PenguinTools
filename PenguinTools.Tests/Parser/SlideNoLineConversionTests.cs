@@ -87,6 +87,7 @@ public sealed class SlideNoLineConversionTests
     private static UmgrModel.Chart CreateMixedNoLineSlideChart()
     {
         var chart = new UmgrModel.Chart();
+        chart.Events.AppendChild(new UmgrModel.BpmEvent { Tick = 0, Bpm = 120 });
 
         // A -> B : NCL
         // B -> C : SLD

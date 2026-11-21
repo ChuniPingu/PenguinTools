@@ -32,6 +32,10 @@
     },
     "diag": {
       "c2s": {
+        "bpm_must_be_positive": "Invalid BPM",
+        "bpm_timeline_not_covered": "Missing starting BPM",
+        "bpm_time_nonfinite": "Chart timing is out of range",
+        "judgement_step_collapsed": "BPM is too low for judgement points (Combo)",
         "invalid_field": "Invalid or missing C2S {0}",
         "missing_field": "Missing C2S {0}",
         "parent_not_resolved": "Note has nothing to connect to",
@@ -39,7 +43,7 @@
         "unknown_air_color": "Unknown AIR color",
         "unknown_air_ladder_attr": "Unknown AIR-CRUSH setting",
         "unknown_ex_effect": "Unknown EX effect",
-        "unsupported_note_type": "Unsupported {noteType} note skipped",
+        "unsupported_note_type": "{noteType} cannot be represented in the editor chart",
         "unsupported_version": "Unsupported C2S version",
         "version_line_not_found": "Missing C2S version information"
       },
@@ -200,6 +204,10 @@
   },
   "diag": {
     "c2s": {
+      "bpm_must_be_positive": "BPM must be finite and greater than zero. Found '{0}'.",
+      "bpm_timeline_not_covered": "Set a starting BPM at the start of the chart or earlier. If the chart has notes before the start, set a BPM before or at those notes.",
+      "bpm_time_nonfinite": "The game cannot calculate the time at this position. Check the BPM leading up to it.",
+      "judgement_step_collapsed": "At {0} BPM, the game cannot place judgement points (Combo) for this long note. Raise the BPM here or move the affected note point.",
       "invalid_field": "C2S {0} is missing or written incorrectly.",
       "missing_field": "Missing C2S {0}.",
       "parent_not_resolved": "Could not find a '{0}' note to connect to C2S note '{1}'.",
@@ -207,7 +215,7 @@
       "unknown_air_color": "C2S AIR color '{0}' is not recognized.",
       "unknown_air_ladder_attr": "The C2S AIR-CRUSH setting '{0}' (ALD) is not recognized.",
       "unknown_ex_effect": "C2S EX effect '{0}' is not recognized.",
-      "unsupported_note_type": "{noteType} notes are not supported, so this note was skipped.",
+      "unsupported_note_type": "The editor format cannot represent the C2S note {noteType}.",
       "unsupported_version": "C2S version '{0}' is not supported.",
       "version_line_not_found": "The file is missing the VERSION line that identifies its C2S version."
     },

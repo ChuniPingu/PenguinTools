@@ -371,6 +371,10 @@ public sealed class SlidePathOrderTests
 
     private static async Task<U.Chart> ThroughC2s(U.Chart chart)
     {
+        if (!chart.Events.Children.OfType<U.BpmEvent>().Any())
+        {
+            chart.Events.AppendChild(new U.BpmEvent { Tick = 0, Bpm = 120 });
+        }
         var converted = new C2SChartConverter(new C2SConvertRequest(chart)).Convert();
         Assert.True(converted.Succeeded, converted.ToString());
         var path = TestTempPaths.Create(".c2s");

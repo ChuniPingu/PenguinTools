@@ -8,7 +8,8 @@ public static partial class ChartStatistics
         private readonly Dictionary<decimal, SortedSet<int>> _airEnds = [];
 
         private readonly record struct Cell(decimal Tick, int Lane, int Width);
-        private sealed record Segment(Cell Start, Cell End, bool Judge, int StartHeight = 0, int EndHeight = 0);
+        private sealed record Segment(Cell Start, Cell End, bool Judge, int StartHeight = 0, int EndHeight = 0,
+            int EndHeight2 = 0);
         private sealed class Air(string kind, Segment first)
         {
             internal string Kind { get; } = kind;
@@ -24,11 +25,14 @@ public static partial class ChartStatistics
             internal bool NoLine { get; init; }
             internal decimal Density { get; init; }
             internal string Color { get; init; } = "DEF";
+            internal int HeavenFlags { get; init; }
+            internal string? ExEffect { get; init; }
         }
 
         private static string Kind(string tag) => tag switch
         {
             "HXD" => "HLD",
+            "HHX" => "HHD",
             "SLC" or "SXC" or "SXD" => "SLD",
             "AUL" or "AUR" or "ADW" or "ADR" or "ADL" => "AIR",
             "AHX" => "AHD",
@@ -116,6 +120,9 @@ public static partial class ChartStatistics
                     case "ALD":
                         ReadCrash(p, start);
                         break;
+                    case "ASO" or "HHD":
+                        ReadHeightSpan(p, start, kind);
+                        break;
                     case "AIR":
                         Attach(p[5], new Air(kind, new(start, start, true)));
                         break;
@@ -143,8 +150,7 @@ public static partial class ChartStatistics
             var end = At(start.Tick + N(p, 7), p, 8, 9);
             var height = Height(p, 6);
             var density = N(p, 5);
-            var color = p.Length > 11 && p[11] is "RED" or "ORN" or "YEL" or "LIM" or "GRN" or "AQA" or
-                "CYN" or "DGR" or "BLU" or "PPL" or "VLT" or "PNK" or "GRY" or "BLK" or "NON" ? p[11] : "DEF";
+            var color = LadderColor(p, 11);
             var index = FindEnd(_groundEnds, start, n => n.Kind == "ALD" && n.Density == density &&
                 n.Color == color && n.Path[^1].EndHeight == height);
             if (index < 0)
@@ -153,6 +159,33 @@ public static partial class ChartStatistics
             }
             AppendGroundSegment(index, new(start, end, false, height, Height(p, 10)));
         }
+
+        private void ReadHeightSpan(string[] p, Cell start, string kind)
+        {
+            var solid = kind == "ASO";
+            var duration = C2SRoundTrip.DurationIndex(p[0]);
+            var end = At(start.Tick + N(p, duration), p, duration + 1, duration + 2);
+            var height = Height(p, 5);
+            var height2 = solid ? Height(p, 6) : 0;
+            var endHeight = Height(p, duration + 3);
+            var endHeight2 = solid ? Height(p, 11) : 0;
+            var color = solid ? LadderColor(p, 12) : "DEF";
+            var flags = solid ? 0 : I(p, 10);
+            var effect = p[0] != "HHX" ? null
+                : p.Length > 11 && p[11] is "AxisY" or "AxisZ" or "Trace" ? p[11] : "DEF";
+            var index = FindEnd(_groundEnds, start, n => n.Kind == kind && n.Color == color &&
+                n.HeavenFlags == flags && n.ExEffect == effect &&
+                n.Path[^1].EndHeight == height && n.Path[^1].EndHeight2 == height2);
+            if (index < 0)
+            {
+                index = AddNote(new Note(kind, start) { Color = color, HeavenFlags = flags, ExEffect = effect });
+            }
+            AppendGroundSegment(index, new(start, end, !solid, height, endHeight, endHeight2));
+        }
+
+        private static string LadderColor(string[] p, int column) =>
+            p.Length > column && p[column] is "RED" or "ORN" or "YEL" or "LIM" or "GRN" or "AQA" or
+                "CYN" or "DGR" or "BLU" or "PPL" or "VLT" or "PNK" or "GRY" or "BLK" or "NON" ? p[column] : "DEF";
 
         private void Attach(string parent, Air air)
         {
